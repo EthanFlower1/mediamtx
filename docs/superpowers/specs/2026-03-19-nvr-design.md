@@ -38,13 +38,13 @@ Thin wrapper around SQLite providing:
 | name | TEXT | User-friendly name |
 | onvif_endpoint | TEXT | ONVIF device service URL |
 | onvif_username | TEXT | ONVIF credentials |
-| onvif_password | TEXT | ONVIF credentials (encrypted at rest) |
+| onvif_password | TEXT | ONVIF credentials (encrypted, see below) |
 | onvif_profile_token | TEXT | Selected media profile |
 | rtsp_url | TEXT | Resolved RTSP stream URL |
 | ptz_capable | BOOLEAN | Whether camera supports PTZ |
 | mediamtx_path | TEXT | Corresponding path name in mediamtx.yml |
 | status | TEXT | online/offline/error |
-| tags | TEXT (JSON) | Grouping/organization |
+| tags | TEXT (JSON) | Grouping/organization (see note on scaling) |
 | created_at | DATETIME | |
 | updated_at | DATETIME | |
 
@@ -57,6 +57,7 @@ Thin wrapper around SQLite providing:
 | end_time | DATETIME | Segment end (indexed) |
 | file_path | TEXT | Path to recording file on disk |
 | file_size | INTEGER | Bytes |
+| duration_ms | INTEGER | Segment duration in milliseconds |
 | format | TEXT | fmp4 or mpegts |
 
 Composite index on (camera_id, start_time, end_time) for fast timeline queries.
@@ -81,6 +82,20 @@ Composite index on (camera_id, start_time, end_time) for fast timeline queries.
 | expires_at | DATETIME | |
 | revoked_at | DATETIME | Nullable, set on revocation |
 
+Index on `user_id` for efficient token revocation on user deletion or password change.
+
+### ONVIF Credential Encryption
+
+ONVIF passwords must be recoverable (not hashed) since they're sent to cameras. Encryption approach:
+- AES-256-GCM symmetric encryption
+- Encryption key derived from the `nvrJWTSecret` via HKDF with a fixed info string (`"nvr-onvif-encryption"`)
+- If `nvrJWTSecret` is rotated, a migration re-encrypts all stored passwords
+- The key never leaves the server process memory
+
+### Tags Scaling Note
+
+For v1 (4-32 cameras), JSON-in-TEXT with full-table scan is acceptable. If enterprise scaling requires hundreds of cameras with tag-based filtering, a normalized `camera_tags` join table should be introduced via migration. The JSON approach is chosen for v1 simplicity.
+
 ### Relationship to YAML
 
 - Server-level config (ports, logging, TLS, protocol settings) stays in `mediamtx.yml`
@@ -88,6 +103,17 @@ Composite index on (camera_id, start_time, end_time) for fast timeline queries.
 - MediaMTX's existing `confwatcher` detects the change and hot-reloads — no restart, no client disconnection
 - YAML-defined paths that weren't created by the NVR continue to work unchanged
 - SQLite stores NVR-specific metadata (ONVIF endpoints, PTZ capabilities, friendly names, tags) that doesn't belong in the YAML
+
+### YAML Write Strategy
+
+Writing to `mediamtx.yml` programmatically requires care to avoid data loss and corruption:
+
+- **Serialization:** Use `goccy/go-yaml` (already a project dependency) for read-modify-write. This preserves comments and formatting better than `encoding/yaml`.
+- **File locking:** Acquire an advisory file lock (`flock` on Unix, `LockFileEx` on Windows) before any read-modify-write cycle. Use `golang.org/x/sys` for cross-platform support.
+- **Atomic writes:** Write to a temporary file in the same directory, then `os.Rename` to the target path. This prevents partial writes from corrupting the config.
+- **Batching:** When multiple cameras are added in rapid succession, batch writes with a short debounce (500ms) to avoid thrashing the confwatcher's 1-second reload interval.
+- **NVR-managed path convention:** All NVR-managed paths are prefixed with `nvr/` (e.g., `nvr/front-door`, `nvr/garage`). This namespacing prevents collisions with user-defined paths and makes it easy to identify which paths the NVR owns. The `mediamtx_path` column in SQLite stores this full path name.
+- **Orphan detection:** On startup, the NVR compares its SQLite camera records against `nvr/`-prefixed paths in the YAML. Paths in YAML without a matching SQLite record are flagged as orphans in the log (not auto-deleted, to be safe). SQLite records without a matching YAML path are re-written to YAML.
 
 ## 2. ONVIF Integration
 
@@ -108,6 +134,17 @@ Composite index on (camera_id, start_time, end_time) for fast timeline queries.
 6. NVR resolves the RTSP stream URL from the selected profile
 7. NVR writes the RTSP URL as a new path in `mediamtx.yml` (triggers hot-reload)
 8. NVR stores ONVIF metadata in SQLite
+
+### Discovery Lifecycle
+
+- **State management:** Discovery results are stored in-memory with a scan ID (UUID). Each scan produces a new result set.
+- **Concurrency:** Only one scan can run at a time. If a scan is triggered while one is in progress, the API returns `409 Conflict`.
+- **API flow:**
+  - `POST /cameras/discover` — starts scan, returns `202 Accepted` with `{ "scan_id": "..." }`
+  - `GET /cameras/discover/status` — returns `{ "scan_id": "...", "status": "scanning|complete", "found": N }`
+  - `GET /cameras/discover/results` — returns discovered devices (empty array if scan still in progress)
+- **Expiry:** Discovery results are discarded after 10 minutes or when a new scan starts.
+- **Scope:** Results are global (not per-session) — all admin users see the same results.
 
 ### Camera Settings Management
 
@@ -132,8 +169,11 @@ MediaMTX already records to fMP4/MPEG-TS segments on disk with configurable rete
 
 ### What We Add
 
-- Hook into MediaMTX's existing recorder segment-completion callbacks to insert rows into the `recordings` table (camera_id, start_time, end_time, file_path, file_size, format)
-- Hook into the record cleaner to delete corresponding database rows when old files are removed
+- Hook into MediaMTX's existing recorder `OnSegmentComplete` callback to insert rows into the `recordings` table (camera_id, start_time, end_time, duration_ms, file_path, file_size, format)
+- **Record cleaner sync:** The existing `recordcleaner` has no callback mechanism — it calls `os.Remove` directly. Two options:
+  - **(a) Modify the cleaner** to accept an `OnSegmentDelete` callback (preferred — small, clean change to existing code)
+  - **(b) Periodic reconciliation** — NVR runs a background goroutine that periodically compares the `recordings` table against the filesystem and removes orphaned rows
+  - We will implement option (a) since it's a minimal change and keeps the database consistent in real-time
 - This enables fast timeline queries via SQL instead of directory walks
 
 ### Timeline API
@@ -165,7 +205,8 @@ All under `/api/nvr/`:
 - `GET /cameras/{id}` — get camera details
 - `PUT /cameras/{id}` — update camera
 - `DELETE /cameras/{id}` — remove camera (also removes path from YAML)
-- `POST /cameras/discover` — trigger ONVIF network scan
+- `POST /cameras/discover` — trigger ONVIF network scan (returns 202 with scan_id)
+- `GET /cameras/discover/status` — scan status (scanning/complete)
 - `GET /cameras/discover/results` — get discovery results
 
 **Camera Controls**
@@ -178,6 +219,7 @@ All under `/api/nvr/`:
 - `GET /recordings?camera_id=X&start=T1&end=T2` — query recording segments
 - `GET /timeline?camera_id=X&date=D` — get timeline coverage
 - `GET /recordings/{id}/download` — download segment
+- `POST /recordings/export` — export a clip (body: `{ camera_id, start, end }`, returns MP4)
 
 **Users** (admin only)
 - `GET /users` — list users
@@ -189,6 +231,8 @@ All under `/api/nvr/`:
 **System**
 - `GET /system/info` — version, uptime, platform
 - `GET /system/storage` — disk usage, recording stats
+- `GET /system/health` — health check (200 if ready, 503 during setup/migration)
+- `GET /system/events` — SSE stream for real-time updates (camera status changes, recording events)
 
 ### Auth Middleware
 
@@ -250,28 +294,44 @@ React with Vite. Built as a pre-step, output embedded into the Go binary via `go
 
 - Login page → `POST /api/nvr/auth/login` → receives access JWT (short-lived, 15min)
 - Access JWT stored in memory (not localStorage, for XSS protection)
-- Refresh token in httpOnly cookie (CSRF-safe, auto-sent)
+- Refresh token in httpOnly cookie with `SameSite=Strict` attribute (prevents CSRF)
 - All API calls include `Authorization: Bearer <token>`
 - Token refresh happens transparently on 401 responses
 - Logout revokes refresh token server-side
 
 ## 6. User Management & Auth
 
-### JWT Integration with MediaMTX
+### JWT Architecture
 
-The NVR uses the same JWT signing key as MediaMTX's existing JWT auth system. This means:
-- Access tokens issued by the NVR automatically work for stream access (RTSP, WebRTC, HLS)
-- No separate authentication needed for viewing streams in the UI
-- The `mediamtx_permissions` JWT claim is populated based on the user's role and camera permissions
+MediaMTX's existing JWT auth is a **validator only** — it fetches public keys from an external JWKS endpoint (`authJWTJWKS` config) and validates RS256 tokens. It does not sign or issue tokens. The NVR needs to **issue** JWTs. These two systems must be bridged.
+
+**Approach: NVR runs a local JWKS endpoint.**
+
+1. On first startup, the NVR generates an RSA-2048 key pair and stores it in the SQLite database (in a `config` table, encrypted with `nvrJWTSecret` via AES-256-GCM)
+2. The NVR exposes a JWKS endpoint at `/api/nvr/.well-known/jwks.json` serving the public key
+3. When NVR mode is enabled, MediaMTX's `authJWTJWKS` is automatically configured to point at this local endpoint (e.g., `http://localhost:{api_port}/api/nvr/.well-known/jwks.json`)
+4. The NVR signs access JWTs with RS256 using its private key
+5. MediaMTX's existing auth manager validates these tokens via JWKS — no changes to the auth manager needed
+6. JWTs include the `mediamtx_permissions` claim populated based on the user's role and camera permissions
+
+This approach:
+- Requires zero changes to MediaMTX's existing auth validation code
+- Uses standard RS256/JWKS flow (not HMAC)
+- Stream access tokens issued by the NVR automatically work for RTSP, WebRTC, HLS
+- The `nvrJWTSecret` config field is used for encrypting the stored private key, not for signing tokens directly
+
+**When NVR is enabled, it takes over auth for MediaMTX.** The NVR's user system replaces `authInternalUsers` from the YAML. MediaMTX's `authMethod` is set to `jwt` and pointed at the NVR's JWKS. Users who previously used YAML-based internal auth should migrate their users to the NVR's user management UI. A log warning is emitted if `authInternalUsers` is configured alongside NVR mode.
 
 ### First-Run Setup
 
 On first startup with an empty `users` table:
 1. NVR enters setup mode
-2. All routes redirect to a setup page
-3. User creates an admin account (username + password)
-4. Setup completes, normal operation begins
-5. No access to any NVR features until setup is complete
+2. All NVR API routes return `503 Service Unavailable` except `/api/nvr/auth/setup` and the UI
+3. UI redirects to a setup page
+4. User creates an admin account (username + password)
+5. Setup state is persisted immediately — a server crash during setup loses nothing
+6. Setup completes, normal operation begins
+7. Subsequent admin accounts are created through the User Management UI only
 
 ### Password Storage
 

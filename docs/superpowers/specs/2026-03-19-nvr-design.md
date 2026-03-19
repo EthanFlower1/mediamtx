@@ -84,11 +84,19 @@ Composite index on (camera_id, start_time, end_time) for fast timeline queries.
 
 Index on `user_id` for efficient token revocation on user deletion or password change.
 
+**config**
+| Column | Type | Description |
+|--------|------|-------------|
+| key | TEXT | Primary key (e.g., `rsa_private_key`, `rsa_public_key`, `setup_complete`) |
+| value | TEXT | Encrypted or plain value depending on key type |
+
+Used for NVR-internal state: RSA key pair (encrypted), setup completion flag, etc.
+
 ### ONVIF Credential Encryption
 
 ONVIF passwords must be recoverable (not hashed) since they're sent to cameras. Encryption approach:
 - AES-256-GCM symmetric encryption
-- Encryption key derived from the `nvrJWTSecret` via HKDF with a fixed info string (`"nvr-onvif-encryption"`)
+- Encryption key derived from the `nvrJWTSecret` via HKDF with info string `"nvr-onvif-encryption"` (distinct from the RSA key encryption which uses info string `"nvr-rsa-key-encryption"`)
 - If `nvrJWTSecret` is rotated, a migration re-encrypts all stored passwords
 - The key never leaves the server process memory
 
@@ -232,7 +240,7 @@ All under `/api/nvr/`:
 - `GET /system/info` — version, uptime, platform
 - `GET /system/storage` — disk usage, recording stats
 - `GET /system/health` — health check (200 if ready, 503 during setup/migration)
-- `GET /system/events` — SSE stream for real-time updates (camera status changes, recording events)
+- `GET /system/events` — SSE stream for real-time updates (camera status changes, recording events). Accepts JWT via `token` query parameter since browsers cannot send Authorization headers on SSE connections.
 
 ### Auth Middleware
 

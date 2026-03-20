@@ -26,6 +26,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/metrics"
+	"github.com/bluenviron/mediamtx/internal/nvr"
 	"github.com/bluenviron/mediamtx/internal/playback"
 	"github.com/bluenviron/mediamtx/internal/pprof"
 	"github.com/bluenviron/mediamtx/internal/recordcleaner"
@@ -115,6 +116,7 @@ type Core struct {
 	pprof           *pprof.PPROF
 	recordCleaner   *recordcleaner.Cleaner
 	playbackServer  *playback.Server
+	nvr             *nvr.NVR
 	pathManager     *pathManager
 	rtspServer      *rtsp.Server
 	rtspsServer     *rtsp.Server
@@ -424,6 +426,17 @@ func (p *Core) createResources(initial bool) error {
 			return err
 		}
 		p.playbackServer = i
+	}
+
+	if p.conf.NVR && p.nvr == nil {
+		p.nvr = &nvr.NVR{
+			DatabasePath: p.conf.NVRDatabase,
+			JWTSecret:    p.conf.NVRJWTSecret,
+			ConfigPath:   p.confPath,
+		}
+		if err := p.nvr.Initialize(); err != nil {
+			return err
+		}
 	}
 
 	if p.pathManager == nil {
@@ -799,6 +812,12 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		p.playbackServer.ReloadPathConfs(newConf.Paths)
 	}
 
+	closeNVR := newConf == nil ||
+		newConf.NVR != p.conf.NVR ||
+		newConf.NVRDatabase != p.conf.NVRDatabase ||
+		newConf.NVRJWTSecret != p.conf.NVRJWTSecret ||
+		closeLogger
+
 	closePathManager := newConf == nil ||
 		newConf.LogLevel != p.conf.LogLevel ||
 		newConf.DumpPackets != p.conf.DumpPackets ||
@@ -1033,6 +1052,11 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	if closePlaybackServer && p.playbackServer != nil {
 		p.playbackServer.Close()
 		p.playbackServer = nil
+	}
+
+	if closeNVR && p.nvr != nil {
+		p.nvr.Close()
+		p.nvr = nil
 	}
 
 	if closeRecorderCleaner && p.recordCleaner != nil {

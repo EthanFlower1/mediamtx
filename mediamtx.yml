@@ -442,6 +442,16 @@ srt: true
 srtAddress: :8890
 
 ###############################################
+# NVR settings
+
+# Enable NVR functionality (camera management UI, ONVIF, recording timeline).
+nvr: no
+# Path to the NVR SQLite database.
+nvrDatabase: ~/.mediamtx/nvr.db
+# Secret key for encrypting stored credentials. Auto-generated on first run if empty.
+nvrJWTSecret: ""
+
+###############################################
 # Default path settings
 
 # Settings in "pathDefaults" are applied anywhere,

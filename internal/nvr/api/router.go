@@ -17,15 +17,16 @@ import (
 
 // RouterConfig holds the dependencies needed to register NVR API routes.
 type RouterConfig struct {
-	DB           *db.DB
-	PrivateKey   *rsa.PrivateKey
-	JWKSJSON     []byte
-	YAMLWriter   *yamlwriter.Writer
-	Version      string
-	Discovery    *onvif.Discovery
-	APIAddress   string
-	Scheduler    *scheduler.Scheduler
-	SetupChecker SetupChecker
+	DB             *db.DB
+	PrivateKey     *rsa.PrivateKey
+	JWKSJSON       []byte
+	YAMLWriter     *yamlwriter.Writer
+	Version        string
+	Discovery      *onvif.Discovery
+	APIAddress     string
+	Scheduler      *scheduler.Scheduler
+	SetupChecker   SetupChecker
+	RecordingsPath string
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -57,9 +58,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	}
 
 	systemHandler := &SystemHandler{
-		Version:      cfg.Version,
-		StartedAt:    time.Now(),
-		SetupChecker: cfg.SetupChecker,
+		Version:        cfg.Version,
+		StartedAt:      time.Now(),
+		SetupChecker:   cfg.SetupChecker,
+		RecordingsPath: cfg.RecordingsPath,
+		DB:             cfg.DB,
 	}
 
 	jwksHandler := &JWKSHandler{
@@ -101,6 +104,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/ptz/presets", cameraHandler.PTZPresets)
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
+	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
 
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)

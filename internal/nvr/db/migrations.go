@@ -84,4 +84,8 @@ CREATE TABLE recording_rules (
 CREATE INDEX idx_recording_rules_camera ON recording_rules(camera_id);
 `,
 	},
+	{
+		version: 3,
+		sql:     `ALTER TABLE cameras ADD COLUMN retention_days INTEGER NOT NULL DEFAULT 0;`,
+	},
 }

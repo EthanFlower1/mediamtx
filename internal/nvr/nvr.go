@@ -25,10 +25,11 @@ import (
 
 // NVR is the main NVR subsystem struct.
 type NVR struct {
-	DatabasePath string
-	JWTSecret    string
-	ConfigPath   string
-	APIAddress   string
+	DatabasePath   string
+	JWTSecret      string
+	ConfigPath     string
+	APIAddress     string
+	RecordingsPath string
 
 	database   *db.DB
 	yamlWriter *yamlwriter.Writer
@@ -126,16 +127,22 @@ func (n *NVR) PrivateKey() *rsa.PrivateKey {
 
 // RegisterRoutes registers NVR API routes on the given gin engine.
 func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
+	recordingsPath := n.RecordingsPath
+	if recordingsPath == "" {
+		recordingsPath = "./recordings/"
+	}
+
 	api.RegisterRoutes(engine, &api.RouterConfig{
-		DB:           n.database,
-		PrivateKey:   n.privateKey,
-		JWKSJSON:     n.jwksJSON,
-		YAMLWriter:   n.yamlWriter,
-		Version:      version,
-		Discovery:    n.discovery,
-		APIAddress:   n.APIAddress,
-		Scheduler:    n.sched,
-		SetupChecker: n,
+		DB:             n.database,
+		PrivateKey:     n.privateKey,
+		JWKSJSON:       n.jwksJSON,
+		YAMLWriter:     n.yamlWriter,
+		Version:        version,
+		Discovery:      n.discovery,
+		APIAddress:     n.APIAddress,
+		Scheduler:      n.sched,
+		SetupChecker:   n,
+		RecordingsPath: recordingsPath,
 	})
 }
 

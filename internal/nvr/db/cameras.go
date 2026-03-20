@@ -24,6 +24,7 @@ type Camera struct {
 	MediaMTXPath      string `json:"mediamtx_path"`
 	Status            string `json:"status"`
 	Tags              string `json:"tags"`
+	RetentionDays     int    `json:"retention_days"`
 	CreatedAt         string `json:"created_at"`
 	UpdatedAt         string `json:"updated_at"`
 }
@@ -46,11 +47,11 @@ func (d *DB) CreateCamera(cam *Camera) error {
 	_, err := d.Exec(`
 		INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			retention_days, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
-		cam.Status, cam.Tags, cam.CreatedAt, cam.UpdatedAt,
+		cam.Status, cam.Tags, cam.RetentionDays, cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
 }
@@ -61,12 +62,12 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 	err := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			created_at, updated_at
+			retention_days, created_at, updated_at
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-		&cam.Status, &cam.Tags, &cam.CreatedAt, &cam.UpdatedAt,
+		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.CreatedAt, &cam.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -83,12 +84,12 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 	err := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			created_at, updated_at
+			retention_days, created_at, updated_at
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-		&cam.Status, &cam.Tags, &cam.CreatedAt, &cam.UpdatedAt,
+		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.CreatedAt, &cam.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -104,7 +105,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 	rows, err := d.Query(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			created_at, updated_at
+			retention_days, created_at, updated_at
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -117,7 +118,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 		if err := rows.Scan(
 			&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 			&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-			&cam.Status, &cam.Tags, &cam.CreatedAt, &cam.UpdatedAt,
+			&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.CreatedAt, &cam.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -133,11 +134,35 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 	res, err := d.Exec(`
 		UPDATE cameras SET name = ?, onvif_endpoint = ?, onvif_username = ?,
 			onvif_password = ?, onvif_profile_token = ?, rtsp_url = ?, ptz_capable = ?,
-			mediamtx_path = ?, status = ?, tags = ?, updated_at = ?
+			mediamtx_path = ?, status = ?, tags = ?, retention_days = ?, updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
-		cam.Status, cam.Tags, cam.UpdatedAt, cam.ID,
+		cam.Status, cam.Tags, cam.RetentionDays, cam.UpdatedAt, cam.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateCameraRetention updates only the retention_days field of a camera.
+// Returns ErrNotFound if no match.
+func (d *DB) UpdateCameraRetention(id string, retentionDays int) error {
+	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+
+	res, err := d.Exec(`
+		UPDATE cameras SET retention_days = ?, updated_at = ?
+		WHERE id = ?`,
+		retentionDays, updatedAt, id,
 	)
 	if err != nil {
 		return err

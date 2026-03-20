@@ -133,6 +133,38 @@ func (d *DB) GetRecording(id int64) (*Recording, error) {
 	return rec, nil
 }
 
+// CameraStorage holds aggregate storage statistics for a single camera.
+type CameraStorage struct {
+	CameraID     string `json:"camera_id"`
+	CameraName   string `json:"camera_name"`
+	TotalBytes   int64  `json:"total_bytes"`
+	SegmentCount int64  `json:"segment_count"`
+}
+
+// GetStoragePerCamera returns total storage used and segment count per camera.
+func (d *DB) GetStoragePerCamera() ([]CameraStorage, error) {
+	rows, err := d.Query(`
+		SELECT r.camera_id, COALESCE(c.name, ''), COALESCE(SUM(r.file_size), 0), COUNT(*)
+		FROM recordings r
+		LEFT JOIN cameras c ON c.id = r.camera_id
+		GROUP BY r.camera_id
+		ORDER BY COALESCE(c.name, '')`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CameraStorage
+	for rows.Next() {
+		var cs CameraStorage
+		if err := rows.Scan(&cs.CameraID, &cs.CameraName, &cs.TotalBytes, &cs.SegmentCount); err != nil {
+			return nil, err
+		}
+		results = append(results, cs)
+	}
+	return results, rows.Err()
+}
+
 // DeleteRecordingByPath deletes a recording by its file path.
 func (d *DB) DeleteRecordingByPath(filePath string) error {
 	res, err := d.Exec("DELETE FROM recordings WHERE file_path = ?", filePath)

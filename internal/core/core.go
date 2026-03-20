@@ -437,12 +437,16 @@ func (p *Core) createResources(initial bool) error {
 		if err := p.nvr.Initialize(); err != nil {
 			return err
 		}
+
+		if p.recordCleaner != nil {
+			p.recordCleaner.OnSegmentDelete = p.nvr.OnSegmentDelete
+		}
 	}
 
 	if p.pathManager == nil {
 		rtpMaxPayloadSize := getRTPMaxPayloadSize(p.conf.UDPMaxPayloadSize, p.conf.RTSPEncryption)
 
-		p.pathManager = &pathManager{
+		pm := &pathManager{
 			logLevel:          p.conf.LogLevel,
 			dumpPackets:       p.conf.DumpPackets,
 			rtspAddress:       p.conf.RTSPAddress,
@@ -457,6 +461,10 @@ func (p *Core) createResources(initial bool) error {
 			metrics:           p.metrics,
 			parent:            p,
 		}
+		if p.nvr != nil {
+			pm.onNVRSegmentComplete = p.nvr.OnSegmentComplete
+		}
+		p.pathManager = pm
 		p.pathManager.initialize()
 	}
 

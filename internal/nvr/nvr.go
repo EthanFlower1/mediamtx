@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -104,6 +106,55 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		YAMLWriter: n.yamlWriter,
 		Version:    version,
 	})
+}
+
+// OnSegmentComplete is called when a recording segment finishes writing.
+// It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
+func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
+	// Find camera by checking if any camera's mediamtx_path is in the file path.
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		return
+	}
+
+	var cam *db.Camera
+	for _, c := range cameras {
+		if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
+			cam = c
+			break
+		}
+	}
+	if cam == nil {
+		return
+	}
+
+	var fileSize int64
+	if info, err := os.Stat(filePath); err == nil {
+		fileSize = info.Size()
+	}
+
+	format := "fmp4"
+	if strings.HasSuffix(filePath, ".ts") {
+		format = "mpegts"
+	}
+
+	now := time.Now().UTC()
+	start := now.Add(-duration)
+
+	n.database.InsertRecording(&db.Recording{
+		CameraID:   cam.ID,
+		StartTime:  start.Format("2006-01-02T15:04:05.000Z"),
+		EndTime:    now.Format("2006-01-02T15:04:05.000Z"),
+		DurationMs: duration.Milliseconds(),
+		FilePath:   filePath,
+		FileSize:   fileSize,
+		Format:     format,
+	})
+}
+
+// OnSegmentDelete is called when a recording segment is deleted by the cleaner.
+func (n *NVR) OnSegmentDelete(filePath string) {
+	n.database.DeleteRecordingByPath(filePath)
 }
 
 // loadOrGenerateKeys derives an encryption key, then loads or generates

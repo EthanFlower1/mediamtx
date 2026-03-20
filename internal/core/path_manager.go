@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
@@ -79,9 +80,10 @@ type pathManager struct {
 	rtpMaxPayloadSize int
 	pathConfs         map[string]*conf.Path
 	authManager       pathManagerAuthManager
-	externalCmdPool   *externalcmd.Pool
-	metrics           *metrics.Metrics
-	parent            pathManagerParent
+	externalCmdPool        *externalcmd.Pool
+	onNVRSegmentComplete   func(string, time.Duration)
+	metrics                *metrics.Metrics
+	parent                 pathManagerParent
 
 	ctx       context.Context
 	ctxCancel func()
@@ -469,8 +471,9 @@ func (pm *pathManager) createPath(
 		name:              name,
 		matches:           matches,
 		wg:                &pm.wg,
-		externalCmdPool:   pm.externalCmdPool,
-		parent:            pm,
+		externalCmdPool:        pm.externalCmdPool,
+		onNVRSegmentComplete:   pm.onNVRSegmentComplete,
+		parent:                 pm,
 	}
 	pa.initialize()
 	pm.paths[name] = pa

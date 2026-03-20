@@ -18,8 +18,9 @@ var timeNow = time.Now
 
 // Cleaner removes expired recording segments from disk.
 type Cleaner struct {
-	PathConfs map[string]*conf.Path
-	Parent    logger.Writer
+	PathConfs       map[string]*conf.Path
+	Parent          logger.Writer
+	OnSegmentDelete func(path string)
 
 	ctx       context.Context
 	ctxCancel func()
@@ -30,6 +31,10 @@ type Cleaner struct {
 
 // Initialize initializes a Cleaner.
 func (c *Cleaner) Initialize() {
+	if c.OnSegmentDelete == nil {
+		c.OnSegmentDelete = func(string) {}
+	}
+
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 	c.chReloadConf = make(chan map[string]*conf.Path)
 	c.done = make(chan struct{})
@@ -127,6 +132,7 @@ func (c *Cleaner) deleteExpiredSegments(now time.Time, pathName string, pathConf
 
 	for _, seg := range segments {
 		c.Log(logger.Debug, "removing %s", seg.Fpath)
+		c.OnSegmentDelete(seg.Fpath)
 		os.Remove(seg.Fpath)
 	}
 

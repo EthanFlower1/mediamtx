@@ -394,6 +394,11 @@ type Conf struct {
 	SRT        bool   `json:"srt"`
 	SRTAddress string `json:"srtAddress"`
 
+	// NVR
+	NVR          bool   `json:"nvr"`
+	NVRDatabase  string `json:"nvrDatabase"`
+	NVRJWTSecret string `json:"nvrJWTSecret"`
+
 	// Record (deprecated)
 	Record                *bool         `json:"record,omitempty" deprecated:"true"`
 	RecordPath            *string       `json:"recordPath,omitempty" deprecated:"true"`
@@ -522,6 +527,9 @@ func (conf *Conf) setDefaults() {
 	// SRT server
 	conf.SRT = true
 	conf.SRTAddress = ":8890"
+
+	// NVR
+	conf.NVRDatabase = "~/.mediamtx/nvr.db"
 
 	conf.PathDefaults.setDefaults()
 }

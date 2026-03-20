@@ -48,8 +48,8 @@ func TestDiscoveryConcurrentScanRejected(t *testing.T) {
 		t.Fatalf("expected scan ID %q, got %q", scanID, status.ScanID)
 	}
 
-	// Wait for the scan to complete.
-	time.Sleep(3 * time.Second)
+	// Wait for the scan to complete (probe + listen takes ~5s).
+	time.Sleep(6 * time.Second)
 
 	status = d.GetStatus()
 	if status == nil {

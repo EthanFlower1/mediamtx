@@ -1,6 +1,31 @@
-import { useState, FormEvent } from 'react'
-import { useCameras } from '../hooks/useCameras'
+import { useState, useEffect, FormEvent } from 'react'
+import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
+import RecordingRules from '../components/RecordingRules'
+
+/** Small component to fetch and display the effective recording mode for a camera. */
+function RecordingModeBadge({ cameraId }: { cameraId: string }) {
+  const [mode, setMode] = useState<string | null>(null)
+
+  useEffect(() => {
+    apiFetch(`/cameras/${cameraId}/recording-status`).then(async res => {
+      if (res.ok) {
+        const data = await res.json()
+        setMode(data.effective_mode)
+      }
+    })
+  }, [cameraId])
+
+  if (mode === null) return <span style={{ color: '#6b7280' }}>--</span>
+
+  const styles: Record<string, React.CSSProperties> = {
+    always: { color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
+    events: { color: '#fbbf24', background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
+    off: { color: '#6b7280', background: 'rgba(107,114,128,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
+  }
+
+  return <span style={styles[mode] ?? styles.off}>{mode === 'always' ? 'Always' : mode === 'events' ? 'Events' : 'Off'}</span>
+}
 
 interface DiscoveredProfile {
   token: string
@@ -35,6 +60,7 @@ export default function CameraManagement() {
   const [probing, setProbing] = useState(false)
   const [probeError, setProbeError] = useState('')
   const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
+  const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
 
   const handleDiscover = async () => {
     setDiscovering(true)
@@ -154,7 +180,12 @@ export default function CameraManagement() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this camera?')) return
     await apiFetch(`/cameras/${id}`, { method: 'DELETE' })
+    if (selectedCamera?.id === id) setSelectedCamera(null)
     refresh()
+  }
+
+  const handleRowClick = (cam: Camera) => {
+    setSelectedCamera(prev => prev?.id === cam.id ? null : cam)
   }
 
   if (loading) return <div className="text-nvr-text-secondary">Loading...</div>
@@ -324,6 +355,7 @@ export default function CameraManagement() {
               <tr className="border-b border-nvr-border">
                 <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Name</th>
                 <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Status</th>
+                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Recording</th>
                 <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">RTSP URL</th>
                 <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">PTZ</th>
                 <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Actions</th>
@@ -331,7 +363,11 @@ export default function CameraManagement() {
             </thead>
             <tbody>
               {cameras.map(cam => (
-                <tr key={cam.id} className="border-b border-nvr-border/50 hover:bg-nvr-bg-tertiary/50 transition-colors">
+                <tr
+                  key={cam.id}
+                  onClick={() => handleRowClick(cam)}
+                  className={`border-b border-nvr-border/50 hover:bg-nvr-bg-tertiary/50 transition-colors cursor-pointer ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10' : ''}`}
+                >
                   <td className="px-4 py-3 text-sm text-nvr-text-primary font-medium">{cam.name}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className="flex items-center gap-1.5">
@@ -339,11 +375,12 @@ export default function CameraManagement() {
                       <span className={cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}>{cam.status}</span>
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-sm"><RecordingModeBadge cameraId={cam.id} /></td>
                   <td className="px-4 py-3 text-xs text-nvr-text-muted font-mono truncate max-w-xs">{cam.rtsp_url}</td>
                   <td className="px-4 py-3 text-sm text-nvr-text-secondary">{cam.ptz_capable ? 'Yes' : 'No'}</td>
                   <td className="px-4 py-3 text-sm">
                     <button
-                      onClick={() => handleDelete(cam.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
                       className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                     >
                       Delete
@@ -353,6 +390,23 @@ export default function CameraManagement() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selectedCamera && (
+        <div className="mt-6 p-4 border border-nvr-border rounded-xl bg-nvr-bg-secondary">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-nvr-text-primary">
+              Recording Rules &mdash; {selectedCamera.name}
+            </h2>
+            <button
+              onClick={() => setSelectedCamera(null)}
+              className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer"
+            >
+              &times;
+            </button>
+          </div>
+          <RecordingRules cameraId={selectedCamera.id} />
         </div>
       )}
 

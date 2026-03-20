@@ -79,6 +79,40 @@ func TestGetNVRPaths(t *testing.T) {
 	require.Equal(t, []string{"nvr/lobby"}, paths)
 }
 
+func TestSetPathValue(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlPath := filepath.Join(tmpDir, "mediamtx.yml")
+
+	initial := "paths:\n  nvr/cam1:\n    source: rtsp://192.168.1.100/stream\n    record: false\n"
+	require.NoError(t, os.WriteFile(yamlPath, []byte(initial), 0o644))
+
+	w := New(yamlPath)
+
+	// Update existing key
+	require.NoError(t, w.SetPathValue("nvr/cam1", "record", true))
+	data, _ := os.ReadFile(yamlPath)
+	require.Contains(t, string(data), "record: true")
+	require.Contains(t, string(data), "source: rtsp://192.168.1.100/stream")
+
+	// Insert new key
+	require.NoError(t, w.SetPathValue("nvr/cam1", "recordFormat", "fmp4"))
+	data, _ = os.ReadFile(yamlPath)
+	require.Contains(t, string(data), "recordFormat: fmp4")
+	require.Contains(t, string(data), "source: rtsp://")
+	require.Contains(t, string(data), "record: true")
+}
+
+func TestSetPathValueNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlPath := filepath.Join(tmpDir, "mediamtx.yml")
+	require.NoError(t, os.WriteFile(yamlPath, []byte("paths:\n  all_others:\n"), 0o644))
+
+	w := New(yamlPath)
+	err := w.SetPathValue("nvr/missing", "record", true)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+}
+
 func TestAtomicWrite(t *testing.T) {
 	path := writeTestConfig(t)
 	dir := filepath.Dir(path)

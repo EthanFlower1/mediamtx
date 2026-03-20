@@ -50,9 +50,9 @@ func TestCameraGetNotFound(t *testing.T) {
 func TestCameraList(t *testing.T) {
 	d := newTestDB(t)
 
-	require.NoError(t, d.CreateCamera(&Camera{Name: "Backyard"}))
-	require.NoError(t, d.CreateCamera(&Camera{Name: "Attic"}))
-	require.NoError(t, d.CreateCamera(&Camera{Name: "Cellar"}))
+	require.NoError(t, d.CreateCamera(&Camera{Name: "Backyard", MediaMTXPath: "cameras/backyard"}))
+	require.NoError(t, d.CreateCamera(&Camera{Name: "Attic", MediaMTXPath: "cameras/attic"}))
+	require.NoError(t, d.CreateCamera(&Camera{Name: "Cellar", MediaMTXPath: "cameras/cellar"}))
 
 	cameras, err := d.ListCameras()
 	require.NoError(t, err)

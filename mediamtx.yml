@@ -7,7 +7,7 @@
 # Global settings -> General
 
 # Verbosity of the program; available values are "error", "warn", "info", "debug".
-logLevel: info
+logLevel: debug
 # Destinations of log messages; available values are "stdout", "file" and "syslog".
 logDestinations: [stdout]
 # When destination is "stdout" or "file", emit logs in structured format (JSONL).
@@ -47,7 +47,6 @@ runOnConnectRestart: false
 # Command to run when a client disconnects from the server.
 # Environment variables are the same as runOnConnect.
 runOnDisconnect:
-
 ###############################################
 # Global settings -> Authentication
 
@@ -60,8 +59,8 @@ authMethod: internal
 # Internal authentication.
 # Enabled users.
 authInternalUsers:
-  # Default unprivileged user.
-  # Username. 'any' means any user, including anonymous ones.
+# Default unprivileged user.
+# Username. 'any' means any user, including anonymous ones.
 - user: any
   # Password. Not used in case of 'any' user.
   pass:
@@ -69,7 +68,7 @@ authInternalUsers:
   ips: []
   # Permissions.
   permissions:
-    # Available actions are: publish, read, playback, api, metrics, pprof.
+  # Available actions are: publish, read, playback, api, metrics, pprof.
   - action: publish
     # Paths can be set to further restrict access to a specific path.
     # An empty path means any path.
@@ -79,7 +78,6 @@ authInternalUsers:
     path:
   - action: playback
     path:
-
   # Default administrator.
   # This allows to use API, metrics and PPROF without authentication,
   # if the IP is localhost.
@@ -157,12 +155,11 @@ authJWTInHTTPQuery: true
 authJWTIssuer:
 # Expected audience (aud) claim in the JWT. Leave empty to skip validation.
 authJWTAudience:
-
 ###############################################
 # Global settings -> Control API
 
 # Enable controlling the server through the Control API.
-api: false
+api: true
 # Address of the Control API listener.
 apiAddress: :9997
 # Enable HTTPS on the Control API server.
@@ -234,7 +231,7 @@ pprofTrustedProxies: []
 # Global settings -> Playback server
 
 # Enable downloading recordings from the playback server.
-playback: false
+playback: true
 # Address of the playback server listener.
 playbackAddress: :9996
 # Enable HTTPS on the playback server.
@@ -420,12 +417,12 @@ webrtcAdditionalHosts: []
 # STUN servers allow to obtain and share the public IP of the server.
 # TURN/TURNS servers force all traffic through them.
 webrtcICEServers2: []
-  # - url: stun:stun.l.google.com:19302
-  # if user is "AUTH_SECRET", then authentication is secret based.
-  # the secret must be inserted into the password field.
-  # username: ''
-  # password: ''
-  # clientOnly: false
+# - url: stun:stun.l.google.com:19302
+# if user is "AUTH_SECRET", then authentication is secret based.
+# the secret must be inserted into the password field.
+# username: ''
+# password: ''
+# clientOnly: false
 # Maximum time to gather STUN candidates.
 webrtcSTUNGatherTimeout: 5s
 # Time to wait for the WebRTC handshake to complete.
@@ -445,11 +442,11 @@ srtAddress: :8890
 # NVR settings
 
 # Enable NVR functionality (camera management UI, ONVIF, recording timeline).
-nvr: no
+nvr: yes
 # Path to the NVR SQLite database.
 nvrDatabase: ~/.mediamtx/nvr.db
 # Secret key for encrypting stored credentials. Auto-generated on first run if empty.
-nvrJWTSecret: ""
+nvrJWTSecret: "9f0d5d697e5ec9d7666c11f97ba421dfe52ea7aa0238150b454871b0052bc42d"
 
 ###############################################
 # Default path settings
@@ -515,13 +512,13 @@ pathDefaults:
   alwaysAvailable: false
   # Tracks of the default offline segment.
   alwaysAvailableTracks: []
-    # Available values are: AV1, VP9, H265, H264, Opus, MPEG4Audio, G711, LPCM
-    # - codec: H264
-    #   # in case of MPEG4Audio, G711, LPCM, sampleRate and ChannelCount must be provided too.
-    #   sampleRate: 48000
-    #   channelCount: 2
-    #   # in case of G711, muLaw must be provided too.
-    #   muLaw: false
+  # Available values are: AV1, VP9, H265, H264, Opus, MPEG4Audio, G711, LPCM
+  # - codec: H264
+  #   # in case of MPEG4Audio, G711, LPCM, sampleRate and ChannelCount must be provided too.
+  #   sampleRate: 48000
+  #   channelCount: 2
+  #   # in case of G711, muLaw must be provided too.
+  #   muLaw: false
   # An MP4 file can be used instead of the default offline segment.
   alwaysAvailableFile: ''
 
@@ -529,7 +526,7 @@ pathDefaults:
   # Default path settings -> Record
 
   # Record streams to disk.
-  record: false
+  record: true
   # Path of recording segments.
   # Extension is added automatically.
   # Available variables are %path (path name), %Y %m %d (year, month, day),
@@ -591,7 +588,6 @@ pathDefaults:
 
   # session description protocol (SDP) of the RTP stream.
   rtpSDP:
-
   ###############################################
   # Default path settings -> WebRTC / WHEP source (when source is WHEP)
 
@@ -610,7 +606,6 @@ pathDefaults:
   # Path to which clients will be redirected.
   # It can be a relative path (i.e. /otherstream) or an absolute RTSP URL.
   sourceRedirect:
-
   ###############################################
   # Default path settings -> Raspberry Pi Camera source (when source is "rpiCamera")
 
@@ -742,7 +737,6 @@ pathDefaults:
   # Command to run when there are no readers anymore.
   # Environment variables are the same as runOnDemand.
   runOnUnDemand:
-
   # Command to run when the stream is ready to be read, whenever it is
   # published by a client or pulled from a server / camera.
   # This is terminated with SIGINT when the stream is not ready anymore.
@@ -760,7 +754,6 @@ pathDefaults:
   # Command to run when the stream is not available anymore.
   # Environment variables are the same as runOnReady.
   runOnNotReady:
-
   # Command to run when a client starts reading.
   # This is terminated with SIGINT when a client stops reading.
   # The following environment variables are available:
@@ -777,7 +770,6 @@ pathDefaults:
   # Command to run when a client stops reading.
   # Environment variables are the same as runOnRead.
   runOnUnread:
-
   # Command to run when a recording segment is created.
   # The following environment variables are available:
   # * MTX_PATH: path name
@@ -786,7 +778,6 @@ pathDefaults:
   # * G1, G2, ...: regular expression groups, if path name is
   #   a regular expression.
   runOnRecordSegmentCreate:
-
   # Command to run when a recording segment is complete.
   # The following environment variables are available:
   # * MTX_PATH: path name
@@ -796,7 +787,6 @@ pathDefaults:
   # * G1, G2, ...: regular expression groups, if path name is
   #   a regular expression.
   runOnRecordSegmentComplete:
-
 ###############################################
 # Path settings
 
@@ -814,3 +804,5 @@ paths:
   # Settings under path "all_others" are applied to all paths that
   # do not match another entry.
   all_others:
+  nvr/ad410:
+    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif

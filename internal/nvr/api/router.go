@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -23,6 +24,7 @@ type RouterConfig struct {
 	Version      string
 	Discovery    *onvif.Discovery
 	APIAddress   string
+	Scheduler    *scheduler.Scheduler
 	SetupChecker SetupChecker
 }
 
@@ -38,6 +40,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		YAMLWriter: cfg.YAMLWriter,
 		Discovery:  cfg.Discovery,
 		APIAddress: cfg.APIAddress,
+		Scheduler:  cfg.Scheduler,
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -46,6 +49,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	userHandler := &UserHandler{
 		DB: cfg.DB,
+	}
+
+	ruleHandler := &RecordingRuleHandler{
+		DB:        cfg.DB,
+		Scheduler: cfg.Scheduler,
 	}
 
 	systemHandler := &SystemHandler{
@@ -99,6 +107,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/recordings/:id/download", recordingHandler.Download)
 	protected.POST("/recordings/export", recordingHandler.Export)
 	protected.GET("/timeline", recordingHandler.Timeline)
+
+	// Recording rules.
+	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)
+	protected.POST("/cameras/:id/recording-rules", ruleHandler.Create)
+	protected.PUT("/recording-rules/:id", ruleHandler.Update)
+	protected.DELETE("/recording-rules/:id", ruleHandler.Delete)
+	protected.GET("/cameras/:id/recording-status", ruleHandler.Status)
 
 	// Users.
 	protected.GET("/users", userHandler.List)

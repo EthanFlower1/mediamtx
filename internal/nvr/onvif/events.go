@@ -1,8 +1,10 @@
 package onvif
 
 import (
-	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -139,6 +141,7 @@ func (es *EventSubscriber) createPullPointSubscription(ctx context.Context, even
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
             xmlns:tev="http://www.onvif.org/ver10/events/wsdl"
             xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2">
+  <s:Header></s:Header>
   <s:Body>
     <tev:CreatePullPointSubscription>
       <tev:InitialTerminationTime>PT60S</tev:InitialTerminationTime>
@@ -160,6 +163,7 @@ func (es *EventSubscriber) pullMessages(ctx context.Context, subRef string) (boo
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
             xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
+  <s:Header></s:Header>
   <s:Body>
     <tev:PullMessages>
       <tev:Timeout>PT1S</tev:Timeout>
@@ -181,6 +185,7 @@ func (es *EventSubscriber) renew(ctx context.Context, subRef string) error {
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
             xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2">
+  <s:Header></s:Header>
   <s:Body>
     <wsnt:Renew>
       <wsnt:TerminationTime>PT60S</wsnt:TerminationTime>
@@ -197,6 +202,7 @@ func (es *EventSubscriber) unsubscribe(ctx context.Context, subRef string) error
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
             xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2">
+  <s:Header></s:Header>
   <s:Body>
     <wsnt:Unsubscribe/>
   </s:Body>
@@ -207,16 +213,18 @@ func (es *EventSubscriber) unsubscribe(ctx context.Context, subRef string) error
 }
 
 // doSOAP sends a SOAP request to the given URL and returns the response body.
+// If credentials are configured, WS-Security UsernameToken authentication is
+// injected into the SOAP Header.
 func (es *EventSubscriber) doSOAP(ctx context.Context, url, body string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(body))
+	if es.username != "" {
+		body = injectWSSecurity(body, es.username, es.password)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/soap+xml; charset=utf-8")
-
-	if es.username != "" {
-		req.SetBasicAuth(es.username, es.password)
-	}
 
 	resp, err := es.client.Do(req)
 	if err != nil {
@@ -224,7 +232,7 @@ func (es *EventSubscriber) doSOAP(ctx context.Context, url, body string) ([]byte
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
@@ -236,12 +244,42 @@ func (es *EventSubscriber) doSOAP(ctx context.Context, url, body string) ([]byte
 	return respBody, nil
 }
 
+// injectWSSecurity inserts a WS-Security UsernameToken header into the SOAP
+// envelope. The password is transmitted as a digest: Base64(SHA1(nonce+created+password)).
+func injectWSSecurity(soapXML, username, password string) string {
+	nonce := make([]byte, 16)
+	rand.Read(nonce) //nolint:errcheck // crypto/rand.Read never returns an error
+
+	created := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+
+	// Password digest = Base64(SHA1(nonce + created + password))
+	h := sha1.New()
+	h.Write(nonce)
+	h.Write([]byte(created))
+	h.Write([]byte(password))
+	digest := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	nonceB64 := base64.StdEncoding.EncodeToString(nonce)
+
+	secHeader := fmt.Sprintf(
+		`<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" s:mustUnderstand="1">
+      <wsse:UsernameToken>
+        <wsse:Username>%s</wsse:Username>
+        <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">%s</wsse:Password>
+        <wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">%s</wsse:Nonce>
+        <wsu:Created>%s</wsu:Created>
+      </wsse:UsernameToken>
+    </wsse:Security>`, username, digest, nonceB64, created)
+
+	// Inject into the SOAP Header
+	return strings.Replace(soapXML, "</s:Header>", secHeader+"\n  </s:Header>", 1)
+}
+
 // --- XML parsing ---
 
 // soapEnvelope is a minimal SOAP envelope for parsing responses.
 type soapEnvelope struct {
-	XMLName xml.Name  `xml:"Envelope"`
-	Body    soapBody  `xml:"Body"`
+	XMLName xml.Name `xml:"Envelope"`
+	Body    soapBody `xml:"Body"`
 }
 
 type soapBody struct {

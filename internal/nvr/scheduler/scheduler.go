@@ -4,6 +4,7 @@
 package scheduler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -30,9 +32,9 @@ const (
 )
 
 const (
-	evalInterval     = 30 * time.Second
-	startupDelay     = 5 * time.Second
-	writeCoalesceMs  = 500
+	evalInterval    = 30 * time.Second
+	startupDelay    = 5 * time.Second
+	writeCoalesceMs = 500
 )
 
 // CameraState holds the evaluated recording state for a single camera.
@@ -54,6 +56,9 @@ type Scheduler struct {
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 
+	motionSMs map[string]*MotionSM             // camera ID -> motion state machine
+	eventSubs map[string]*onvif.EventSubscriber // camera ID -> event subscriber
+
 	pendingWrites   map[string]bool // mediamtx path -> desired record state
 	pendingWritesMu sync.Mutex
 	writeTimer      *time.Timer
@@ -67,6 +72,8 @@ func New(database *db.DB, writer *yamlwriter.Writer) *Scheduler {
 		states:        make(map[string]*CameraState),
 		stopCh:        make(chan struct{}),
 		pendingWrites: make(map[string]bool),
+		motionSMs:     make(map[string]*MotionSM),
+		eventSubs:     make(map[string]*onvif.EventSubscriber),
 	}
 }
 
@@ -81,6 +88,13 @@ func (s *Scheduler) Start() {
 func (s *Scheduler) Stop() {
 	close(s.stopCh)
 	s.wg.Wait()
+
+	// Stop all event subscribers and motion state machines.
+	s.mu.Lock()
+	for camID := range s.eventSubs {
+		s.stopEventPipelineLocked(camID)
+	}
+	s.mu.Unlock()
 
 	// Flush any remaining pending writes.
 	s.pendingWritesMu.Lock()
@@ -98,10 +112,12 @@ func (s *Scheduler) Stop() {
 	}
 }
 
-// RemoveCamera removes tracked state for the given camera ID.
+// RemoveCamera removes tracked state for the given camera ID and stops
+// any active event subscriber or motion state machine.
 func (s *Scheduler) RemoveCamera(cameraID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.stopEventPipelineLocked(cameraID)
 	delete(s.states, cameraID)
 }
 
@@ -216,11 +232,113 @@ func (s *Scheduler) evaluate() {
 		if exists && prev.MotionState != "" {
 			s.states[camID].MotionState = prev.MotionState
 		}
+
+		// Handle event pipeline transitions when mode changes.
+		if changed {
+			prevMode := ModeOff
+			if exists {
+				prevMode = prev.EffectiveMode
+			}
+			s.handleEventPipelineTransitionLocked(camID, cam, prevMode, mode, camRules)
+		}
 		s.mu.Unlock()
 
 		if changed && cam.MediaMTXPath != "" {
 			s.queueWrite(cam.MediaMTXPath, desiredRecording)
 		}
+	}
+}
+
+// handleEventPipelineTransitionLocked manages the event subscriber and motion
+// state machine lifecycle when a camera's effective mode changes.
+// Must be called with s.mu held.
+func (s *Scheduler) handleEventPipelineTransitionLocked(
+	camID string,
+	cam *db.Camera,
+	prevMode, newMode EffectiveMode,
+	activeRules []*db.RecordingRule,
+) {
+	// Transitioning away from events -> stop pipeline
+	if prevMode == ModeEvents && newMode != ModeEvents {
+		s.stopEventPipelineLocked(camID)
+		return
+	}
+
+	// Transitioning to events -> start pipeline
+	if newMode == ModeEvents && prevMode != ModeEvents {
+		s.startEventPipelineLocked(camID, cam, activeRules)
+	}
+}
+
+// startEventPipelineLocked creates and starts an EventSubscriber and MotionSM
+// for the given camera. Must be called with s.mu held.
+func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activeRules []*db.RecordingRule) {
+	if cam.ONVIFEndpoint == "" {
+		log.Printf("scheduler: camera %s has no ONVIF endpoint, cannot start event subscription", camID)
+		return
+	}
+
+	// Compute max PostEventSeconds from active rules.
+	maxPostEvent := 30 // default 30 seconds
+	for _, r := range activeRules {
+		if r.Mode == "events" && r.PostEventSeconds > maxPostEvent {
+			maxPostEvent = r.PostEventSeconds
+		}
+	}
+	postEventDuration := time.Duration(maxPostEvent) * time.Second
+
+	// Create the motion state machine.
+	sm := NewMotionSM(camID, cam.MediaMTXPath, postEventDuration, func(path string, record bool) {
+		s.queueWrite(path, record)
+		// Update the motion state in the camera state while we have it.
+		s.mu.Lock()
+		if st, ok := s.states[camID]; ok {
+			st.Recording = record
+		}
+		s.mu.Unlock()
+	})
+	s.motionSMs[camID] = sm
+
+	// Update the motion state tracker in the background.
+	go func() {
+		for {
+			s.mu.Lock()
+			currentSM, ok := s.motionSMs[camID]
+			if !ok || currentSM != sm {
+				s.mu.Unlock()
+				return
+			}
+			if st, ok := s.states[camID]; ok {
+				st.MotionState = sm.State()
+			}
+			s.mu.Unlock()
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	// Create the event subscriber.
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, sm.OnMotion)
+	if err != nil {
+		log.Printf("scheduler: create event subscriber for camera %s: %v", camID, err)
+		delete(s.motionSMs, camID)
+		return
+	}
+	s.eventSubs[camID] = sub
+
+	log.Printf("scheduler: starting ONVIF event subscription for camera %s at %s", camID, cam.ONVIFEndpoint)
+	go sub.Start(context.Background())
+}
+
+// stopEventPipelineLocked stops and removes the EventSubscriber and MotionSM
+// for the given camera. Must be called with s.mu held.
+func (s *Scheduler) stopEventPipelineLocked(camID string) {
+	if sub, ok := s.eventSubs[camID]; ok {
+		sub.Stop()
+		delete(s.eventSubs, camID)
+	}
+	if sm, ok := s.motionSMs[camID]; ok {
+		sm.Stop()
+		delete(s.motionSMs, camID)
 	}
 }
 

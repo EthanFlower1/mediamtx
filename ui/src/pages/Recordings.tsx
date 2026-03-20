@@ -156,13 +156,13 @@ export default function Recordings() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-nvr-text-primary mb-6">Recordings</h1>
+      <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary mb-4 md:mb-6">Recordings</h1>
 
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 md:gap-3 mb-4 md:mb-6 flex-wrap">
         <select
           value={selectedCamera || ''}
           onChange={e => { setSelectedCamera(e.target.value || null); setPlaybackTime(null); setPlaybackUrl(null) }}
-          className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+          className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors w-full sm:w-auto min-h-[44px]"
         >
           <option value="">Select Camera</option>
           {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -172,7 +172,7 @@ export default function Recordings() {
         <div className="flex items-center gap-1">
           <button
             onClick={() => { setDate(shiftDate(date, -1)); setPlaybackTime(null); setPlaybackUrl(null) }}
-            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Previous day"
           >
             &larr;
@@ -181,18 +181,18 @@ export default function Recordings() {
             type="date"
             value={date}
             onChange={e => { setDate(e.target.value); setPlaybackTime(null); setPlaybackUrl(null) }}
-            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors min-h-[44px] flex-1 sm:flex-none"
           />
           <button
             onClick={() => { setDate(shiftDate(date, 1)); setPlaybackTime(null); setPlaybackUrl(null) }}
-            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Next day"
           >
             &rarr;
           </button>
           <button
             onClick={() => { setDate(new Date().toISOString().split('T')[0]); setPlaybackTime(null); setPlaybackUrl(null) }}
-            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm"
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px]"
             title="Jump to today"
           >
             Today
@@ -208,7 +208,7 @@ export default function Recordings() {
 
       {selectedCamera && (
         <>
-          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5 mb-6">
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-3 md:p-5 mb-4 md:mb-6">
             <Timeline ranges={timelineRanges} date={date} onSeek={handleSeek} />
             {loadingSegments && <p className="text-nvr-text-muted text-sm mt-2">Loading recordings...</p>}
             {!loadingSegments && segments.length === 0 && (
@@ -217,11 +217,11 @@ export default function Recordings() {
           </div>
 
           {playbackTime && playbackUrl && (
-            <div className="mb-6">
+            <div className="mb-4 md:mb-6">
               <div className="text-sm text-nvr-text-secondary mb-2">
                 Playing from: {playbackTime.toLocaleTimeString()}
               </div>
-              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden max-h-[70vh]">
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden w-full">
                 <VideoPlayer src={playbackUrl} />
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function Recordings() {
 
           {segments.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-nvr-text-primary mb-3">Segments</h3>
+              <h3 className="text-base md:text-lg font-semibold text-nvr-text-primary mb-3">Segments</h3>
               <div className="flex flex-col gap-1.5">
                 {segments.map((s, i) => {
                   const t = new Date(s.start)
@@ -237,13 +237,13 @@ export default function Recordings() {
                     <div
                       key={i}
                       onClick={() => handleSeek(t)}
-                      className="flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer border border-nvr-border bg-nvr-bg-secondary hover:bg-nvr-bg-tertiary transition-colors"
+                      className="flex items-center justify-between px-3 md:px-4 py-3 rounded-lg cursor-pointer border border-nvr-border bg-nvr-bg-secondary hover:bg-nvr-bg-tertiary transition-colors"
                     >
                       <span className="text-sm text-nvr-text-primary">{t.toLocaleTimeString()}</span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleSeek(t) }}
-                          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
+                          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
                         >
                           Play
                         </button>
@@ -266,45 +266,45 @@ export default function Recordings() {
 
       {/* Export Section */}
       {cameras.length > 0 && (
-        <div className="mt-8 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
-          <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">Export Recordings</h3>
+        <div className="mt-6 md:mt-8 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5">
+          <h3 className="text-base md:text-lg font-semibold text-nvr-text-primary mb-4">Export Recordings</h3>
           <p className="text-sm text-nvr-text-muted mb-4">
             Search across multiple days and download recording segments.
           </p>
-          <div className="flex items-end gap-3 flex-wrap">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2 md:gap-3 flex-wrap">
+            <div className="w-full sm:w-auto">
               <label className="block text-xs text-nvr-text-muted mb-1">Camera</label>
               <select
                 value={exportCamera || ''}
                 onChange={e => setExportCamera(e.target.value || null)}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors w-full sm:w-auto min-h-[44px]"
               >
                 <option value="">Select Camera</option>
                 {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="block text-xs text-nvr-text-muted mb-1">Start Date</label>
               <input
                 type="date"
                 value={exportStartDate}
                 onChange={e => setExportStartDate(e.target.value)}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors w-full sm:w-auto min-h-[44px]"
               />
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="block text-xs text-nvr-text-muted mb-1">End Date</label>
               <input
                 type="date"
                 value={exportEndDate}
                 onChange={e => setExportEndDate(e.target.value)}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors w-full sm:w-auto min-h-[44px]"
               />
             </div>
             <button
               onClick={handleExport}
               disabled={!exportCamera || exportLoading}
-              className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+              className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] w-full sm:w-auto"
             >
               {exportLoading ? 'Searching...' : 'Export'}
             </button>
@@ -323,10 +323,10 @@ export default function Recordings() {
                     {exportSegments.map(seg => (
                       <div
                         key={seg.id}
-                        className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-nvr-border bg-nvr-bg-primary"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between px-3 md:px-4 py-2.5 rounded-lg border border-nvr-border bg-nvr-bg-primary gap-2"
                       >
-                        <div className="flex flex-col">
-                          <span className="text-sm text-nvr-text-primary">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs md:text-sm text-nvr-text-primary truncate">
                             {new Date(seg.start_time).toLocaleString()} &mdash; {new Date(seg.end_time).toLocaleTimeString()}
                           </span>
                           {seg.file_size > 0 && (
@@ -337,7 +337,7 @@ export default function Recordings() {
                         </div>
                         <button
                           onClick={() => handleDownload(seg.id)}
-                          className="bg-nvr-bg-input border border-nvr-border hover:bg-nvr-bg-tertiary text-nvr-text-primary font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
+                          className="bg-nvr-bg-input border border-nvr-border hover:bg-nvr-bg-tertiary text-nvr-text-primary font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px] shrink-0 self-end sm:self-center"
                         >
                           Download
                         </button>

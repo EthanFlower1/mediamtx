@@ -82,11 +82,11 @@ export default function Settings() {
   const otherUsedPercent = usedPercent - recordingsPercent
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-nvr-text-primary">Settings</h1>
+    <div className="space-y-4 md:space-y-6">
+      <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Settings</h1>
 
       {/* System Information */}
-      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5">
         <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">System Information</h2>
         {systemInfo ? (
           <div>
@@ -109,7 +109,7 @@ export default function Settings() {
       </div>
 
       {/* Storage Overview */}
-      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-nvr-text-primary">Storage Overview</h2>
           <button
@@ -151,7 +151,7 @@ export default function Settings() {
                 )}
                 {/* Free space is the remainder (dark bg shows through) */}
               </div>
-              <div className="flex gap-4 mt-2 text-xs text-nvr-text-muted">
+              <div className="flex flex-wrap gap-2 md:gap-4 mt-2 text-xs text-nvr-text-muted">
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block w-2.5 h-2.5 rounded-sm bg-nvr-accent" />
                   Recordings ({formatBytes(storage.recordings_bytes)})
@@ -222,7 +222,7 @@ export default function Settings() {
       </div>
 
       {/* Recording Defaults */}
-      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5">
         <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">Recording Defaults</h2>
         <p className="text-xs text-nvr-text-muted mb-4">
           These values are configured in mediamtx.yml under pathDefaults. Per-camera retention can be set on each camera.

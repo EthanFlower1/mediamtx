@@ -21,8 +21,8 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-nvr-bg-primary">
-      <div className="w-full max-w-sm bg-nvr-bg-secondary border border-nvr-border rounded-2xl p-8 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-nvr-bg-primary px-4">
+      <div className="w-full max-w-sm bg-nvr-bg-secondary border border-nvr-border rounded-2xl p-6 md:p-8 shadow-2xl">
         <h1 className="text-2xl font-bold text-white text-center mb-6">MediaMTX NVR</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
@@ -48,7 +48,7 @@ export default function Login() {
           {error && <p className="text-nvr-danger text-sm">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 min-h-[44px]"
           >
             Login
           </button>

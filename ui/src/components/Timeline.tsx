@@ -20,7 +20,7 @@ export default function Timeline({ ranges, date, onSeek }: Props) {
   return (
     <div
       onClick={handleClick}
-      className="relative w-full h-10 bg-nvr-bg-input rounded-lg cursor-crosshair overflow-hidden border border-nvr-border"
+      className="relative w-full h-14 sm:h-10 bg-nvr-bg-input rounded-lg cursor-crosshair overflow-hidden border border-nvr-border"
     >
       {ranges.map((r, i) => {
         const start = new Date(r.start).getTime() - dayStart.getTime()

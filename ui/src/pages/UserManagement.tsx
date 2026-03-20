@@ -283,18 +283,18 @@ export default function UserManagement() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-nvr-text-primary">User Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+        <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">User Management</h1>
         <div className="flex gap-2">
           <button
             onClick={() => { setShowPasswordChange(!showPasswordChange); setShowAdd(false) }}
-            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors"
+            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 md:px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm md:text-base min-h-[44px]"
           >
             Change My Password
           </button>
           <button
             onClick={() => { setShowAdd(!showAdd); setShowPasswordChange(false) }}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 md:px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm md:text-base min-h-[44px]"
           >
             Add User
           </button>
@@ -397,8 +397,58 @@ export default function UserManagement() {
         </form>
       )}
 
-      {/* User table */}
-      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
+      {/* User list - card layout on mobile, table on md+ */}
+      {/* Mobile card layout */}
+      <div className="md:hidden flex flex-col gap-2">
+        {users.map(u => (
+          <div key={u.id} className={`bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 ${editingUserId === u.id ? 'bg-nvr-accent/5 border-nvr-accent/30' : ''}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-nvr-text-primary">{u.username}</span>
+              {u.role === 'admin' ? (
+                <span className="bg-nvr-accent/10 text-nvr-accent px-2 py-0.5 rounded text-xs font-medium">Admin</span>
+              ) : (
+                <span className="text-nvr-text-secondary text-xs capitalize">{u.role}</span>
+              )}
+            </div>
+            <div className="mb-3">
+              <span className="text-xs text-nvr-text-muted block mb-1">Cameras:</span>
+              <PermissionBadges perms={u.camera_permissions} cameras={cameras} />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setEditingUserId(editingUserId === u.id ? null : u.id)}
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-1.5 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px]"
+              >
+                {editingUserId === u.id ? 'Close' : 'Edit'}
+              </button>
+              {u.id !== currentUser?.id && (
+                <button
+                  onClick={() => handleDelete(u.id)}
+                  className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+            {editingUserId === u.id && (
+              <div className="mt-3">
+                <UserEditForm
+                  user={u}
+                  cameras={cameras}
+                  onSave={() => { setEditingUserId(null); refresh() }}
+                  onCancel={() => setEditingUserId(null)}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+        {users.length === 0 && (
+          <p className="text-center py-8 text-nvr-text-muted">No users found.</p>
+        )}
+      </div>
+
+      {/* Desktop table layout */}
+      <div className="hidden md:block bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="border-b border-nvr-border">

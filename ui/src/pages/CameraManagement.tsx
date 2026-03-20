@@ -194,19 +194,19 @@ export default function CameraManagement() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-nvr-text-primary">Camera Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+        <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Camera Management</h1>
         <div className="flex gap-2">
           <button
             onClick={handleDiscover}
             disabled={discovering}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 md:px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm md:text-base min-h-[44px]"
           >
             {discovering ? 'Scanning...' : 'Discover Cameras'}
           </button>
           <button
             onClick={() => { resetForm(); setManualMode(true); setShowAdd(true) }}
-            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors"
+            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 md:px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm md:text-base min-h-[44px]"
           >
             Add Manually
           </button>
@@ -214,21 +214,21 @@ export default function CameraManagement() {
       </div>
 
       {discovered.length > 0 && (
-        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5 mb-6">
+        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5 mb-6">
           <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">Discovered Cameras</h3>
           {discovered.map((d, i) => (
             <div
               key={i}
-              className="flex items-center justify-between px-3 py-2.5 mb-2 last:mb-0 border border-nvr-border rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-border/30 transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center justify-between px-3 py-2.5 mb-2 last:mb-0 border border-nvr-border rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-border/30 transition-colors gap-2"
             >
-              <div>
-                <span className="font-medium text-nvr-text-primary">{d.manufacturer} {d.model}</span>
-                {d.firmware && <span className="text-nvr-text-muted ml-2 text-sm">v{d.firmware}</span>}
-                <div className="text-sm text-nvr-text-secondary">{d.xaddr}</div>
+              <div className="min-w-0">
+                <span className="font-medium text-nvr-text-primary text-sm md:text-base">{d.manufacturer} {d.model}</span>
+                {d.firmware && <span className="text-nvr-text-muted ml-2 text-xs md:text-sm">v{d.firmware}</span>}
+                <div className="text-xs md:text-sm text-nvr-text-secondary truncate">{d.xaddr}</div>
               </div>
               <button
                 onClick={() => handleSelectDevice(d)}
-                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 min-h-[44px] self-end sm:self-center"
               >
                 Add
               </button>
@@ -238,7 +238,7 @@ export default function CameraManagement() {
       )}
 
       {showAdd && (
-        <form onSubmit={handleAddCamera} className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5 mb-6">
+        <form onSubmit={handleAddCamera} className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5 mb-6">
           <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">
             {manualMode ? 'Add Camera Manually' : `Add ${selectedDevice?.manufacturer || ''} ${selectedDevice?.model || ''}`.trim()}
           </h3>
@@ -258,7 +258,7 @@ export default function CameraManagement() {
             <>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Camera Credentials</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     placeholder="Username"
@@ -277,7 +277,7 @@ export default function CameraManagement() {
                     type="button"
                     onClick={handleProbe}
                     disabled={probing || !addUsername}
-                    className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                    className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 shrink-0 min-h-[44px]"
                   >
                     {probing ? 'Connecting...' : 'Fetch Streams'}
                   </button>
@@ -348,60 +348,95 @@ export default function CameraManagement() {
         </form>
       )}
 
+      {/* Camera list - card layout on mobile, table on md+ */}
       {cameras.length > 0 && (
-        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-nvr-border">
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Name</th>
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Status</th>
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Recording</th>
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">RTSP URL</th>
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">PTZ</th>
-                <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cameras.map(cam => (
-                <tr
-                  key={cam.id}
-                  onClick={() => handleRowClick(cam)}
-                  className={`border-b border-nvr-border/50 hover:bg-nvr-bg-tertiary/50 transition-colors cursor-pointer ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10' : ''}`}
-                >
-                  <td className="px-4 py-3 text-sm text-nvr-text-primary font-medium">{cam.name}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className="flex items-center gap-1.5">
-                      <span className={`inline-block w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
-                      <span className={cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}>{cam.status}</span>
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm"><RecordingModeBadge cameraId={cam.id} /></td>
-                  <td className="px-4 py-3 text-xs text-nvr-text-muted font-mono truncate max-w-xs">{cam.rtsp_url}</td>
-                  <td className="px-4 py-3 text-sm text-nvr-text-secondary">{cam.ptz_capable ? 'Yes' : 'No'}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
-                      className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </td>
+        <>
+          {/* Mobile card layout */}
+          <div className="md:hidden flex flex-col gap-2">
+            {cameras.map(cam => (
+              <div
+                key={cam.id}
+                onClick={() => handleRowClick(cam)}
+                className={`bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 cursor-pointer transition-colors ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10 border-nvr-accent/30' : 'hover:bg-nvr-bg-tertiary/50'}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-nvr-text-primary">{cam.name}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
+                    <span className={`text-xs ${cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}`}>{cam.status}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-nvr-text-muted mb-3">
+                  <span className="flex items-center gap-1">Recording: <RecordingModeBadge cameraId={cam.id} /></span>
+                  {cam.ptz_capable && <span className="bg-nvr-accent/10 text-nvr-accent px-1.5 py-0.5 rounded text-xs font-medium">PTZ</span>}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
+                    className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table layout */}
+          <div className="hidden md:block bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-nvr-border">
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Name</th>
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Status</th>
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Recording</th>
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">RTSP URL</th>
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">PTZ</th>
+                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {cameras.map(cam => (
+                  <tr
+                    key={cam.id}
+                    onClick={() => handleRowClick(cam)}
+                    className={`border-b border-nvr-border/50 hover:bg-nvr-bg-tertiary/50 transition-colors cursor-pointer ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10' : ''}`}
+                  >
+                    <td className="px-4 py-3 text-sm text-nvr-text-primary font-medium">{cam.name}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`inline-block w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
+                        <span className={cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}>{cam.status}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm"><RecordingModeBadge cameraId={cam.id} /></td>
+                    <td className="px-4 py-3 text-xs text-nvr-text-muted font-mono truncate max-w-xs">{cam.rtsp_url}</td>
+                    <td className="px-4 py-3 text-sm text-nvr-text-secondary">{cam.ptz_capable ? 'Yes' : 'No'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
+                        className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {selectedCamera && (
-        <div className="mt-6 p-4 border border-nvr-border rounded-xl bg-nvr-bg-secondary">
+        <div className="mt-6 p-3 md:p-4 border border-nvr-border rounded-xl bg-nvr-bg-secondary w-full">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-nvr-text-primary">
+            <h2 className="text-base md:text-lg font-semibold text-nvr-text-primary">
               Recording Rules &mdash; {selectedCamera.name}
             </h2>
             <button
               onClick={() => setSelectedCamera(null)}
-              className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer"
+              className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               &times;
             </button>

@@ -68,7 +68,7 @@ export default function PTZControls({ cameraId }: Props) {
   })
 
   const btnBase =
-    'flex items-center justify-center w-10 h-10 rounded-lg bg-white/10 hover:bg-white/25 active:bg-white/35 text-white transition-colors select-none touch-none'
+    'flex items-center justify-center w-11 h-11 sm:w-10 sm:h-10 rounded-lg bg-white/10 hover:bg-white/25 active:bg-white/35 text-white transition-colors select-none touch-none'
 
   return (
     <div

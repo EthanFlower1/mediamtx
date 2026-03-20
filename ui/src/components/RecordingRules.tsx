@@ -127,7 +127,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
           <button
             type="button"
             onClick={() => setMode('always')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
+            className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
               mode === 'always'
                 ? 'bg-nvr-accent/15 border-nvr-accent text-nvr-accent'
                 : 'bg-nvr-bg-input border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
@@ -139,7 +139,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
           <button
             type="button"
             onClick={() => setMode('events')}
-            className={`p-3 rounded-lg border text-center transition-colors ${
+            className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
               mode === 'events'
                 ? 'bg-nvr-warning/15 border-nvr-warning text-nvr-warning'
                 : 'bg-nvr-bg-input border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
@@ -160,7 +160,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
               key={i}
               type="button"
               onClick={() => toggleDay(i)}
-              className={`w-9 h-9 rounded-full text-xs font-medium transition-colors ${
+              className={`w-9 h-9 rounded-full text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 days.includes(i)
                   ? 'bg-nvr-accent text-white'
                   : 'bg-nvr-bg-input border border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
@@ -174,21 +174,21 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
           <button
             type="button"
             onClick={() => setDays([1, 2, 3, 4, 5])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Weekdays
           </button>
           <button
             type="button"
             onClick={() => setDays([0, 6])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Weekends
           </button>
           <button
             type="button"
             onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Every Day
           </button>
@@ -252,14 +252,14 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
       <div className="flex gap-2">
         <button
           type="submit"
-          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         >
           Save
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="bg-nvr-bg-input hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+          className="bg-nvr-bg-input hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         >
           Cancel
         </button>
@@ -313,7 +313,7 @@ function RuleCard({ rule, isEditing, onEdit, onDelete, onToggle, onSave, onCance
         {/* Enabled toggle */}
         <button
           onClick={() => onToggle(!rule.enabled)}
-          className={`relative w-9 h-5 rounded-full transition-colors ${
+          className={`relative w-9 h-5 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
             rule.enabled ? 'bg-nvr-accent' : 'bg-nvr-border'
           }`}
           aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
@@ -325,7 +325,7 @@ function RuleCard({ rule, isEditing, onEdit, onDelete, onToggle, onSave, onCance
 
         <button
           onClick={onEdit}
-          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-input transition-colors"
+          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-input transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           aria-label="Edit rule"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -335,7 +335,7 @@ function RuleCard({ rule, isEditing, onEdit, onDelete, onToggle, onSave, onCance
 
         <button
           onClick={onDelete}
-          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors"
+          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           aria-label="Delete rule"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -410,7 +410,7 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
         {!showForm && (
           <button
             onClick={() => { setEditingRuleId(null); setShowForm(true) }}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-xs"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-xs focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Add Rule
           </button>

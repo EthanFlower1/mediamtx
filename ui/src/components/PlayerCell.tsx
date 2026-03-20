@@ -137,18 +137,26 @@ export default function PlayerCell({ camera, onSelect }: Props) {
       onClick={onSelect}
       className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden border border-nvr-border group hover:scale-[1.02] hover:ring-2 ring-nvr-accent/50 hover:brightness-105 transition-all duration-200"
     >
-      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className={`w-full h-full object-contain transition-opacity duration-300 ${
+          connectionState === 'connected' ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
 
       {/* Connecting: centered spinner */}
       {connectionState === 'connecting' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 transition-opacity duration-300">
           <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
       {/* Offline: gray overlay with badge, auto-retrying silently */}
       {connectionState === 'disconnected' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10 transition-opacity duration-300">
           <span className="bg-nvr-danger/20 text-nvr-danger text-xs font-semibold px-3 py-1 rounded-full">
             Offline
           </span>

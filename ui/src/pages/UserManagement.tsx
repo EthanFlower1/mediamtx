@@ -191,7 +191,7 @@ function UserForm({
             <button
               type="button"
               onClick={() => setRole('admin')}
-              className={`p-3 rounded-lg border text-center transition-colors ${
+              className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 role === 'admin'
                   ? 'bg-nvr-accent/10 border-nvr-accent text-nvr-accent'
                   : 'bg-nvr-bg-input border-nvr-border text-nvr-text-secondary hover:bg-nvr-bg-tertiary'
@@ -203,7 +203,7 @@ function UserForm({
             <button
               type="button"
               onClick={() => setRole('viewer')}
-              className={`p-3 rounded-lg border text-center transition-colors ${
+              className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 role === 'viewer'
                   ? 'bg-nvr-accent/10 border-nvr-accent text-nvr-accent'
                   : 'bg-nvr-bg-input border-nvr-border text-nvr-text-secondary hover:bg-nvr-bg-tertiary'
@@ -261,14 +261,14 @@ function UserForm({
         <button
           type="button"
           onClick={onCancel}
-          className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+          className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm inline-flex items-center gap-2"
+          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         >
           {saving && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
           {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create User'}
@@ -333,7 +333,7 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 type="button"
                 onClick={onClose}
-                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Close
               </button>
@@ -380,14 +380,14 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               <button
                 type="button"
                 onClick={onClose}
-                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm inline-flex items-center gap-2"
+                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 {saving && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {saving ? 'Changing...' : 'Change Password'}
@@ -448,7 +448,7 @@ export default function UserManagement() {
           </div>
           <button
             onClick={() => setShowPasswordModal(true)}
-            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Change Password
           </button>
@@ -460,7 +460,7 @@ export default function UserManagement() {
         <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Users</h1>
         <button
           onClick={() => setShowAddModal(true)}
-          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm inline-flex items-center gap-2"
+          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Add User
@@ -512,14 +512,14 @@ export default function UserManagement() {
               <div className="flex gap-2 mt-3 pt-3 border-t border-nvr-border/50">
                 <button
                   onClick={() => setEditingUser(u)}
-                  className="flex-1 bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-1.5 rounded-lg border border-nvr-border transition-colors text-sm"
+                  className="flex-1 bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-1.5 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                 >
                   Edit
                 </button>
                 {u.id !== currentUser?.id && (
                   <button
                     onClick={() => setConfirmDeleteId(u.id)}
-                    className="bg-nvr-danger/10 hover:bg-nvr-danger/20 text-nvr-danger font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
+                    className="bg-nvr-danger/10 hover:bg-nvr-danger/20 text-nvr-danger font-medium px-3 py-1.5 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     Delete
                   </button>

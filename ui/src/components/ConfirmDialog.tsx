@@ -49,11 +49,11 @@ export default function ConfirmDialog({
       onClick={onCancel}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
 
       {/* Dialog card */}
       <div
-        className="relative bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5 shadow-2xl max-w-sm w-full mx-4"
+        className="relative bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5 shadow-2xl max-w-sm w-full mx-4 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-nvr-text-primary mb-2">{title}</h3>
@@ -61,14 +61,14 @@ export default function ConfirmDialog({
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px]"
+            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Cancel
           </button>
           <button
             ref={confirmRef}
             onClick={onConfirm}
-            className={`font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] ${confirmClasses}`}
+            className={`font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${confirmClasses}`}
           >
             {confirmLabel}
           </button>

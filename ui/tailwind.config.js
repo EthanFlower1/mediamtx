@@ -25,7 +25,7 @@ export default {
           text: {
             primary: '#e5e7eb',
             secondary: '#9ca3af',
-            muted: '#6b7280',
+            muted: '#7c8494',
           },
           border: '#2d3140',
         },
@@ -38,9 +38,19 @@ export default {
           from: { transform: 'translateX(100%)' },
           to: { transform: 'translateX(0)' },
         },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'scale-in': {
+          from: { opacity: '0', transform: 'scale(0.95)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
       },
       animation: {
         'slide-in': 'slide-in 200ms ease-out',
+        'fade-in': 'fade-in 200ms ease-out',
+        'scale-in': 'scale-in 200ms ease-out',
       },
     },
   },

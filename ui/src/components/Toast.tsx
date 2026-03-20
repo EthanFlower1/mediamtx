@@ -36,6 +36,7 @@ const typeStyles: Record<ToastMessage['type'], { bg: string; border: string; ico
 
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: string) => void }) {
   const [visible, setVisible] = useState(false)
+  const [dismissing, setDismissing] = useState(false)
   const style = typeStyles[toast.type]
 
   useEffect(() => {
@@ -44,17 +45,22 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  useEffect(() => {
-    const timer = setTimeout(() => onDismiss(toast.id), AUTO_DISMISS_MS)
-    return () => clearTimeout(timer)
+  const handleDismiss = useCallback(() => {
+    setDismissing(true)
+    setTimeout(() => onDismiss(toast.id), 300)
   }, [toast.id, onDismiss])
+
+  useEffect(() => {
+    const timer = setTimeout(handleDismiss, AUTO_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [handleDismiss])
 
   return (
     <div
       className={`
         ${style.bg} ${style.border} border-l-4 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm
         transition-all duration-300 ease-out max-w-sm w-full
-        ${visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        ${dismissing ? 'opacity-0 translate-x-4' : visible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
       `}
     >
       <div className="flex items-start gap-2">
@@ -66,8 +72,8 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
           <p className="text-xs text-nvr-text-secondary mt-0.5 truncate">{toast.message}</p>
         </div>
         <button
-          onClick={() => onDismiss(toast.id)}
-          className="text-nvr-text-muted hover:text-nvr-text-primary transition-colors text-lg leading-none flex-shrink-0"
+          onClick={handleDismiss}
+          className="text-nvr-text-muted hover:text-nvr-text-primary transition-colors text-lg leading-none flex-shrink-0 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
           aria-label="Dismiss"
         >
           &times;

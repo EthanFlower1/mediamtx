@@ -385,7 +385,7 @@ export default function Settings() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
               activeTab === tab.id
                 ? 'bg-nvr-accent text-white'
                 : 'text-nvr-text-secondary hover:bg-nvr-bg-tertiary hover:text-nvr-text-primary'
@@ -440,7 +440,7 @@ export default function Settings() {
                   <h2 className="text-lg font-semibold text-nvr-text-primary">Disk Usage</h2>
                   <button
                     onClick={fetchStorage}
-                    className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors"
+                    className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
                   >
                     Refresh
                   </button>
@@ -666,7 +666,7 @@ export default function Settings() {
                 <button
                   onClick={handleExport}
                   disabled={exporting}
-                  className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm inline-flex items-center gap-2 w-full justify-center"
+                  className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 w-full justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                 >
                   {exporting ? (
                     <>
@@ -727,14 +727,14 @@ export default function Settings() {
                   <button
                     onClick={handleImport}
                     disabled={importing}
-                    className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm inline-flex items-center gap-2"
+                    className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     {importing && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                     {importing ? 'Importing...' : 'Confirm Import'}
                   </button>
                   <button
                     onClick={() => { setImportFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                    className="text-nvr-text-secondary hover:text-nvr-text-primary text-sm px-3 py-2 transition-colors"
+                    className="text-nvr-text-secondary hover:text-nvr-text-primary text-sm px-3 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
                   >
                     Cancel
                   </button>
@@ -776,7 +776,7 @@ export default function Settings() {
           <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={() => setAuditFilterAction('')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 auditFilterAction === ''
                   ? 'bg-nvr-accent text-white'
                   : 'bg-nvr-bg-primary text-nvr-text-secondary hover:bg-nvr-bg-tertiary border border-nvr-border'
@@ -788,7 +788,7 @@ export default function Settings() {
               <button
                 key={action}
                 onClick={() => setAuditFilterAction(action === auditFilterAction ? '' : action)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                   auditFilterAction === action
                     ? 'bg-nvr-accent text-white'
                     : 'bg-nvr-bg-primary text-nvr-text-secondary hover:bg-nvr-bg-tertiary border border-nvr-border'
@@ -862,7 +862,7 @@ export default function Settings() {
             <div className="text-center mt-4">
               <button
                 onClick={loadMoreAudit}
-                className="px-4 py-2 text-sm bg-nvr-bg-primary border border-nvr-border rounded-lg text-nvr-text-secondary hover:text-nvr-text-primary hover:border-nvr-accent transition-colors"
+                className="px-4 py-2 text-sm bg-nvr-bg-primary border border-nvr-border rounded-lg text-nvr-text-secondary hover:text-nvr-text-primary hover:border-nvr-accent transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Load more ({auditEntries.length} of {auditTotal})
               </button>

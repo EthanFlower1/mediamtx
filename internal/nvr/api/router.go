@@ -1,0 +1,108 @@
+package api
+
+import (
+	"crypto/rsa"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+)
+
+// RouterConfig holds the dependencies needed to register NVR API routes.
+type RouterConfig struct {
+	DB         *db.DB
+	PrivateKey *rsa.PrivateKey
+	JWKSJSON   []byte
+	YAMLWriter *yamlwriter.Writer
+	Version    string
+	Discovery  *onvif.Discovery
+}
+
+// RegisterRoutes registers all NVR API routes on the given gin engine.
+func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
+	authHandler := &AuthHandler{
+		DB:         cfg.DB,
+		PrivateKey: cfg.PrivateKey,
+	}
+
+	cameraHandler := &CameraHandler{
+		DB:         cfg.DB,
+		YAMLWriter: cfg.YAMLWriter,
+		Discovery:  cfg.Discovery,
+	}
+
+	recordingHandler := &RecordingHandler{
+		DB: cfg.DB,
+	}
+
+	userHandler := &UserHandler{
+		DB: cfg.DB,
+	}
+
+	systemHandler := &SystemHandler{
+		Version:   cfg.Version,
+		StartedAt: time.Now(),
+	}
+
+	jwksHandler := &JWKSHandler{
+		JWKSJSON: cfg.JWKSJSON,
+	}
+
+	middleware := &Middleware{
+		PrivateKey: cfg.PrivateKey,
+	}
+
+	nvr := engine.Group("/api/nvr")
+
+	// Public routes (no auth required).
+	nvr.POST("/auth/login", authHandler.Login)
+	nvr.POST("/auth/setup", authHandler.Setup)
+	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
+	nvr.GET("/system/health", systemHandler.Health)
+
+	// Protected routes (JWT auth required).
+	protected := nvr.Group("", middleware.Handler())
+
+	// Auth.
+	protected.POST("/auth/refresh", authHandler.Refresh)
+	protected.POST("/auth/revoke", authHandler.Revoke)
+
+	// Cameras.
+	protected.GET("/cameras", cameraHandler.List)
+	protected.POST("/cameras", cameraHandler.Create)
+	protected.GET("/cameras/:id", cameraHandler.Get)
+	protected.PUT("/cameras/:id", cameraHandler.Update)
+	protected.DELETE("/cameras/:id", cameraHandler.Delete)
+
+	// Camera discovery.
+	protected.POST("/cameras/discover", cameraHandler.Discover)
+	protected.GET("/cameras/discover/status", cameraHandler.DiscoverStatus)
+	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
+
+	// Camera PTZ & settings.
+	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)
+	protected.GET("/cameras/:id/ptz/presets", cameraHandler.PTZPresets)
+	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
+	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
+
+	// Recordings.
+	protected.GET("/recordings", recordingHandler.Query)
+	protected.GET("/recordings/:id/download", recordingHandler.Download)
+	protected.POST("/recordings/export", recordingHandler.Export)
+	protected.GET("/timeline", recordingHandler.Timeline)
+
+	// Users.
+	protected.GET("/users", userHandler.List)
+	protected.POST("/users", userHandler.Create)
+	protected.GET("/users/:id", userHandler.Get)
+	protected.PUT("/users/:id", userHandler.Update)
+	protected.DELETE("/users/:id", userHandler.Delete)
+
+	// System.
+	protected.GET("/system/info", systemHandler.Info)
+	protected.GET("/system/storage", systemHandler.Storage)
+	protected.GET("/system/events", systemHandler.Events)
+}

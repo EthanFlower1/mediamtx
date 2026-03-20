@@ -716,6 +716,11 @@ func (p *Core) createResources(initial bool) error {
 			SRTServer:      p.srtServer,
 			Parent:         p,
 		}
+		if p.nvr != nil {
+			i.NVRRouter = func(engine *gin.Engine) {
+				p.nvr.RegisterRoutes(engine, string(version))
+			}
+		}
 		err = i.Initialize()
 		if err != nil {
 			return err
@@ -993,6 +998,7 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		closeHLSServer ||
 		closeWebRTCServer ||
 		closeSRTServer ||
+		closeNVR ||
 		closeLogger
 
 	if newConf == nil && p.confWatcher != nil {

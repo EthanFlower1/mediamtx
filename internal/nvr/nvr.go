@@ -11,6 +11,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gin-gonic/gin"
+
+	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -90,6 +93,17 @@ func (n *NVR) JWKSJSON() []byte {
 // PrivateKey returns the RSA private key.
 func (n *NVR) PrivateKey() *rsa.PrivateKey {
 	return n.privateKey
+}
+
+// RegisterRoutes registers NVR API routes on the given gin engine.
+func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
+	api.RegisterRoutes(engine, &api.RouterConfig{
+		DB:         n.database,
+		PrivateKey: n.privateKey,
+		JWKSJSON:   n.jwksJSON,
+		YAMLWriter: n.yamlWriter,
+		Version:    version,
+	})
 }
 
 // loadOrGenerateKeys derives an encryption key, then loads or generates

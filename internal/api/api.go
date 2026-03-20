@@ -98,6 +98,7 @@ type API struct {
 	HLSServer      defs.APIHLSServer
 	WebRTCServer   defs.APIWebRTCServer
 	SRTServer      defs.APISRTServer
+	NVRRouter      func(*gin.Engine) // optional; registers NVR routes if set
 	Parent         apiParent
 
 	httpServer *httpp.Server
@@ -182,6 +183,10 @@ func (a *API) Initialize() error {
 	group.GET("/recordings/list", a.onRecordingsList)
 	group.GET("/recordings/get/*name", a.onRecordingsGet)
 	group.DELETE("/recordings/deletesegment", a.onRecordingDeleteSegment)
+
+	if a.NVRRouter != nil {
+		a.NVRRouter(router)
+	}
 
 	a.httpServer = &httpp.Server{
 		Address:           a.Address,

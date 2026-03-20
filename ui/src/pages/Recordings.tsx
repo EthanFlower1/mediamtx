@@ -42,6 +42,31 @@ function formatDuration(ms: number): string {
   return `${s}s`
 }
 
+function getRelativeDateLabel(dateStr: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(dateStr + 'T00:00:00')
+  target.setHours(0, 0, 0, 0)
+
+  const diffMs = today.getTime() - target.getTime()
+  const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000))
+
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays > 1 && diffDays <= 7) {
+    return target.toLocaleDateString(undefined, { weekday: 'long' })
+  }
+  return target.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+interface AllCameraRanges {
+  cameraId: string
+  cameraName: string
+  mediamtxPath: string
+  ranges: { start: string; end: string }[]
+  loading: boolean
+}
+
 export default function Recordings() {
   const { cameras, loading: camerasLoading } = useCameras()
   const [selectedCamera, setSelectedCamera] = useState<string | null>(() => {
@@ -66,6 +91,11 @@ export default function Recordings() {
   const [loadingRecordings, setLoadingRecordings] = useState(false)
   const [hasRecordings, setHasRecordings] = useState(false)
 
+  // "All Cameras" mode
+  const isAllCameras = selectedCamera === '__all__'
+  const [allCameraRanges, setAllCameraRanges] = useState<AllCameraRanges[]>([])
+  const [allCamerasPlaybackCamera, setAllCamerasPlaybackCamera] = useState<string | null>(null)
+
   // Clip creation state
   const [clipMode, setClipMode] = useState(false)
   const [clipStart, setClipStart] = useState<Date | null>(null)
@@ -84,35 +114,21 @@ export default function Recordings() {
   const selectedCameraObj = cameras.find(c => c.id === selectedCamera)
   const mediamtxPath = selectedCameraObj?.mediamtx_path || ''
 
-  // Fetch recordings from MediaMTX when camera or date changes
-  useEffect(() => {
-    if (!mediamtxPath || !date) {
-      setTimelineRanges([])
-      setHasRecordings(false)
-      return
-    }
+  // Helper to fetch recordings for a single camera path and date
+  const fetchCameraRecordings = useCallback((path: string, dateStr: string): Promise<{ start: string; end: string }[]> => {
+    const dayStart = new Date(dateStr + 'T00:00:00')
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
 
-    setLoadingRecordings(true)
-
-    fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
+    return fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${path}`)
       .then(res => res.ok ? res.json() : null)
       .then((data: RecordingList | null) => {
-        if (!data || !data.segments) {
-          setTimelineRanges([])
-          setHasRecordings(false)
-          return
-        }
-
-        const dayStart = new Date(date + 'T00:00:00')
-        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
+        if (!data || !data.segments) return []
 
         const filtered = data.segments.filter(s => {
           const t = new Date(s.start)
           return t >= dayStart && t < dayEnd
         })
 
-        // Build continuous ranges from segments — merge adjacent segments
-        // so the user sees uninterrupted footage blocks
         const ranges: { start: string; end: string }[] = []
         for (let i = 0; i < filtered.length; i++) {
           const segStart = filtered[i].start
@@ -120,7 +136,6 @@ export default function Recordings() {
             ? filtered[i + 1].start
             : new Date(new Date(segStart).getTime() + 5 * 60 * 1000).toISOString()
 
-          // Merge with previous range if gap is small (< 10 seconds)
           if (ranges.length > 0) {
             const prevEnd = new Date(ranges[ranges.length - 1].end).getTime()
             const curStart = new Date(segStart).getTime()
@@ -131,16 +146,63 @@ export default function Recordings() {
           }
           ranges.push({ start: segStart, end: segEnd })
         }
-
-        setTimelineRanges(ranges)
-        setHasRecordings(filtered.length > 0)
+        return ranges
       })
-      .catch(() => {
+      .catch(() => [])
+  }, [])
+
+  // Fetch recordings from MediaMTX when single camera or date changes
+  useEffect(() => {
+    if (isAllCameras || !mediamtxPath || !date) {
+      if (!isAllCameras) {
         setTimelineRanges([])
         setHasRecordings(false)
+      }
+      return
+    }
+
+    setLoadingRecordings(true)
+
+    fetchCameraRecordings(mediamtxPath, date)
+      .then(ranges => {
+        setTimelineRanges(ranges)
+        setHasRecordings(ranges.length > 0)
       })
       .finally(() => setLoadingRecordings(false))
-  }, [mediamtxPath, date])
+  }, [mediamtxPath, date, isAllCameras, fetchCameraRecordings])
+
+  // Fetch recordings for ALL cameras when "All Cameras" selected
+  useEffect(() => {
+    if (!isAllCameras || !date || cameras.length === 0) {
+      if (isAllCameras) setAllCameraRanges([])
+      return
+    }
+
+    // Initialize all cameras as loading
+    const initial: AllCameraRanges[] = cameras
+      .filter(c => c.mediamtx_path)
+      .map(c => ({
+        cameraId: c.id,
+        cameraName: c.name,
+        mediamtxPath: c.mediamtx_path,
+        ranges: [],
+        loading: true,
+      }))
+    setAllCameraRanges(initial)
+
+    // Fetch each camera's recordings in parallel
+    initial.forEach(cam => {
+      fetchCameraRecordings(cam.mediamtxPath, date).then(ranges => {
+        setAllCameraRanges(prev =>
+          prev.map(c =>
+            c.cameraId === cam.cameraId
+              ? { ...c, ranges, loading: false }
+              : c
+          )
+        )
+      })
+    })
+  }, [isAllCameras, date, cameras, fetchCameraRecordings])
 
   const handleSeek = useCallback((time: Date) => {
     if (!mediamtxPath) return
@@ -152,6 +214,18 @@ export default function Recordings() {
     const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=86400`
     setPlaybackUrl(url)
   }, [mediamtxPath])
+
+  // Handle seek from the "All Cameras" view
+  const handleAllCamerasSeek = useCallback((cameraId: string, time: Date) => {
+    const cam = cameras.find(c => c.id === cameraId)
+    if (!cam?.mediamtx_path) return
+    setAllCamerasPlaybackCamera(cameraId)
+    setPlaybackTime(time)
+    videoStartTimeRef.current = time
+    const startISO = toLocalRFC3339(time)
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(cam.mediamtx_path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    setPlaybackUrl(url)
+  }, [cameras])
 
   // Update timeline playback marker as video plays
   const handleVideoTimeUpdate = useCallback((videoSeconds: number) => {
@@ -198,6 +272,7 @@ export default function Recordings() {
     setPlaybackTime(null)
     setPlaybackUrl(null)
     videoStartTimeRef.current = null
+    setAllCamerasPlaybackCamera(null)
   }
 
   // Keyboard shortcuts: left/right arrows to navigate dates
@@ -216,6 +291,7 @@ export default function Recordings() {
   useKeyboardShortcuts(recordingsShortcuts)
 
   const isToday = date === new Date().toISOString().split('T')[0]
+  const relativeDateLabel = getRelativeDateLabel(date)
 
   if (camerasLoading) {
     return (
@@ -253,6 +329,7 @@ export default function Recordings() {
               className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors min-h-[44px] w-full sm:w-48"
             >
               <option value="">Select Camera</option>
+              <option value="__all__">All Cameras</option>
               {filteredCameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
@@ -280,6 +357,10 @@ export default function Recordings() {
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
+            {/* Relative date label */}
+            <span className="text-sm text-nvr-text-secondary font-medium ml-1 hidden sm:inline">
+              {relativeDateLabel}
+            </span>
             {!isToday && (
               <button
                 onClick={() => { setDate(new Date().toISOString().split('T')[0]); resetPlayback(); exitClipMode() }}
@@ -292,7 +373,7 @@ export default function Recordings() {
         </div>
 
         {/* Create Clip button */}
-        {selectedCamera && hasRecordings && (
+        {selectedCamera && !isAllCameras && hasRecordings && (
           <div className="shrink-0">
             {clipMode ? (
               <button
@@ -338,7 +419,97 @@ export default function Recordings() {
         </div>
       )}
 
-      {selectedCamera && (
+      {/* "All Cameras" multi-camera timeline view */}
+      {isAllCameras && (
+        <>
+          <div className="mb-6">
+            {/* Hour labels header */}
+            <div className="flex items-center mb-1">
+              <div className="w-36 shrink-0" />
+              <div className="relative flex-1 h-5">
+                {Array.from({ length: 24 }, (_, h) => {
+                  const showLabel = h % 2 === 0
+                  return (
+                    <span
+                      key={h}
+                      className={`absolute text-[10px] text-nvr-text-muted -translate-x-1/2 select-none ${
+                        !showLabel ? 'hidden sm:inline' : ''
+                      }`}
+                      style={{ left: `${(h / 24) * 100}%` }}
+                    >
+                      {h.toString().padStart(2, '0')}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Camera rows */}
+            {allCameraRanges.length === 0 && (
+              <div className="flex items-center gap-2 py-4">
+                <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                <span className="text-nvr-text-muted text-sm">Loading all camera recordings...</span>
+              </div>
+            )}
+
+            {allCameraRanges.map(cam => (
+              <div key={cam.cameraId} className="flex items-center mb-1 group/row">
+                <div className="w-36 shrink-0 pr-3 text-right">
+                  <span className="text-xs text-nvr-text-secondary truncate block" title={cam.cameraName}>
+                    {cam.cameraName}
+                  </span>
+                </div>
+                <div className="flex-1 relative">
+                  {cam.loading ? (
+                    <div className="h-8 bg-nvr-bg-input rounded border border-nvr-border flex items-center justify-center">
+                      <span className="inline-block w-3 h-3 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <Timeline
+                      ranges={cam.ranges}
+                      date={date}
+                      onSeek={(time) => handleAllCamerasSeek(cam.cameraId, time)}
+                      playbackTime={allCamerasPlaybackCamera === cam.cameraId ? playbackTime : null}
+                      compact
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {allCameraRanges.length > 0 && allCameraRanges.every(c => !c.loading) && allCameraRanges.every(c => c.ranges.length === 0) && (
+              <div className="text-center py-8">
+                <p className="text-nvr-text-secondary text-sm">No recordings found for any camera on this date.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Video player for "All Cameras" mode */}
+          {playbackTime && playbackUrl && allCamerasPlaybackCamera && (
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm text-nvr-text-secondary">
+                  Playing {cameras.find(c => c.id === allCamerasPlaybackCamera)?.name || 'camera'} from {playbackTime.toLocaleTimeString()}
+                </span>
+                <button
+                  onClick={resetPlayback}
+                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
+                <VideoPlayer
+                  src={playbackUrl}
+                  onTimeUpdate={handleVideoTimeUpdate}
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {selectedCamera && !isAllCameras && (
         <>
           {/* Timeline — full width, shows blue bars where footage exists */}
           <div className="mb-6">

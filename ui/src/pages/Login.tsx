@@ -1,12 +1,14 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { useAuth } from '../auth/context'
 import { useNavigate } from 'react-router-dom'
+import { apiFetch } from '../api/client'
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [version, setVersion] = useState('')
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -14,6 +16,16 @@ export default function Login() {
   useEffect(() => {
     document.title = 'Sign In — MediaMTX NVR'
     return () => { document.title = 'MediaMTX NVR' }
+  }, [])
+
+  // Fetch version for footer
+  useEffect(() => {
+    apiFetch('/system/info').then(async res => {
+      if (res.ok) {
+        const data = await res.json()
+        setVersion(data.version || '')
+      }
+    }).catch(() => {})
   }, [])
 
   const handleSubmit = async (e: FormEvent) => {
@@ -31,8 +43,17 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-nvr-bg-primary px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex flex-col items-center justify-center login-gradient-bg px-4 relative overflow-hidden">
+      {/* Subtle decorative grid pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+          backgroundSize: '60px 60px',
+        }}
+      />
+
+      <div className="w-full max-w-sm relative z-10">
         {/* Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-nvr-accent/15 mb-4">
@@ -44,7 +65,7 @@ export default function Login() {
         </div>
 
         {/* Card */}
-        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-2xl p-6 shadow-2xl">
+        <div className="bg-nvr-bg-secondary/80 backdrop-blur-sm border border-nvr-border rounded-2xl p-6 shadow-2xl">
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <div>
               <input
@@ -101,7 +122,12 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-nvr-text-muted mt-6">Powered by MediaMTX</p>
+        <div className="text-center mt-6">
+          <p className="text-xs text-nvr-text-muted">Powered by MediaMTX</p>
+          {version && (
+            <p className="text-xs text-nvr-text-muted/60 mt-1">v{version}</p>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -35,6 +35,8 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [videoError, setVideoError] = useState(false)
+  const [buffering, setBuffering] = useState(false)
+  const [pipActive, setPipActive] = useState(false)
 
   // Expose video element to parent via callback.
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
     const video = videoRef.current
     if (!video) return
 
-    const onPlay = () => { setPlaying(true); setVideoError(false) }
+    const onPlay = () => { setPlaying(true); setVideoError(false); setBuffering(false) }
     const onPause = () => setPlaying(false)
     const onTimeUpdateEvt = () => {
       setCurrentTime(video.currentTime)
@@ -77,6 +79,9 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
       setMuted(video.muted)
     }
     const onError = () => setVideoError(true)
+    const onWaiting = () => setBuffering(true)
+    const onPlaying = () => setBuffering(false)
+    const onCanPlay = () => setBuffering(false)
 
     video.addEventListener('play', onPlay)
     video.addEventListener('pause', onPause)
@@ -84,6 +89,9 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
     video.addEventListener('durationchange', onDurationChange)
     video.addEventListener('volumechange', onVolumeChange)
     video.addEventListener('error', onError)
+    video.addEventListener('waiting', onWaiting)
+    video.addEventListener('playing', onPlaying)
+    video.addEventListener('canplay', onCanPlay)
 
     return () => {
       video.removeEventListener('play', onPlay)
@@ -92,6 +100,9 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
       video.removeEventListener('durationchange', onDurationChange)
       video.removeEventListener('volumechange', onVolumeChange)
       video.removeEventListener('error', onError)
+      video.removeEventListener('waiting', onWaiting)
+      video.removeEventListener('playing', onPlaying)
+      video.removeEventListener('canplay', onCanPlay)
     }
   }, [onTimeUpdate])
 
@@ -102,6 +113,20 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
     }
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  // PiP change detection.
+  useEffect(() => {
+    const onEnter = () => setPipActive(true)
+    const onLeave = () => setPipActive(false)
+    const video = videoRef.current
+    if (!video) return
+    video.addEventListener('enterpictureinpicture', onEnter)
+    video.addEventListener('leavepictureinpicture', onLeave)
+    return () => {
+      video.removeEventListener('enterpictureinpicture', onEnter)
+      video.removeEventListener('leavepictureinpicture', onLeave)
+    }
   }, [])
 
   // Auto-hide controls after 3 seconds of no mouse movement.
@@ -173,7 +198,19 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
     }
   }
 
+  const handlePiP = () => {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {})
+    } else {
+      videoRef.current?.requestPictureInPicture().catch(() => {})
+    }
+  }
+
   const progress = duration > 0 && isFinite(duration) ? (currentTime / duration) * 100 : 0
+  const remaining = duration > 0 && isFinite(duration) ? duration - currentTime : 0
+
+  // Check if PiP is supported
+  const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
 
   return (
     <div
@@ -197,6 +234,13 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
         className="w-full h-full object-contain"
         onClick={togglePlay}
       />
+
+      {/* Buffering spinner overlay */}
+      {buffering && !videoError && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
+          <div className="w-12 h-12 border-3 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
 
       {/* Error overlay */}
       {videoError && (
@@ -240,7 +284,12 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
             LIVE
           </span>
         ) : (
-          <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+          <span>
+            {formatTime(currentTime)} / {formatTime(duration)}
+            {isFinite(remaining) && remaining > 0 && (
+              <span className="text-white/50 ml-2">-{formatTime(remaining)}</span>
+            )}
+          </span>
         )}
       </div>
 
@@ -291,6 +340,9 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
           {!live && (
             <span className="text-xs text-white/80 font-mono min-w-[80px]">
               {formatTime(currentTime)} / {formatTime(duration)}
+              {isFinite(remaining) && remaining > 0 && (
+                <span className="text-white/50 ml-1.5">-{formatTime(remaining)}</span>
+              )}
             </span>
           )}
 
@@ -368,6 +420,30 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
               className="w-0 group-hover/vol:w-20 transition-all duration-200 accent-nvr-accent h-1 cursor-pointer opacity-0 group-hover/vol:opacity-100"
             />
           </div>
+
+          {/* Picture-in-Picture */}
+          {pipSupported && (
+            <button
+              onClick={handlePiP}
+              className="text-white/80 hover:text-white transition-colors p-1 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+              aria-label={pipActive ? 'Exit picture-in-picture' : 'Picture-in-picture'}
+              title={pipActive ? 'Exit picture-in-picture' : 'Picture-in-picture'}
+            >
+              {pipActive ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <rect x="10" y="9" width="10" height="7" rx="1" fill="currentColor" opacity="0.4" />
+                  <line x1="6" y1="21" x2="18" y2="21" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" />
+                  <rect x="10" y="9" width="10" height="7" rx="1" />
+                  <line x1="6" y1="21" x2="18" y2="21" />
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* Fullscreen */}
           <button

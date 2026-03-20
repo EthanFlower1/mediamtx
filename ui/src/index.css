@@ -6,4 +6,71 @@
   body {
     @apply bg-nvr-bg-primary text-nvr-text-primary font-sans antialiased;
   }
+
+  /* OLED Black theme overrides — applied via class on <html> */
+  html.theme-oled {
+    --nvr-bg-primary: #000000;
+    --nvr-bg-secondary: #0a0a0a;
+    --nvr-bg-tertiary: #141414;
+    --nvr-bg-input: #050505;
+    --nvr-border: #1a1a1a;
+  }
+
+  html.theme-oled body {
+    background-color: var(--nvr-bg-primary);
+  }
+
+  html.theme-oled .bg-nvr-bg-primary {
+    background-color: var(--nvr-bg-primary);
+  }
+
+  html.theme-oled .bg-nvr-bg-secondary {
+    background-color: var(--nvr-bg-secondary);
+  }
+
+  html.theme-oled .bg-nvr-bg-tertiary {
+    background-color: var(--nvr-bg-tertiary);
+  }
+
+  html.theme-oled .bg-nvr-bg-input {
+    background-color: var(--nvr-bg-input);
+  }
+
+  html.theme-oled .border-nvr-border {
+    border-color: var(--nvr-border);
+  }
+
+  html.theme-oled .hover\:bg-nvr-bg-tertiary:hover {
+    background-color: var(--nvr-bg-tertiary);
+  }
+
+  html.theme-oled .hover\:bg-nvr-bg-input:hover {
+    background-color: var(--nvr-bg-input);
+  }
+}
+
+/* Login page animated gradient background */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.login-gradient-bg {
+  background: linear-gradient(
+    -45deg,
+    #0f1117,
+    #111827,
+    #0c1425,
+    #0f172a,
+    #0f1117
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
 }

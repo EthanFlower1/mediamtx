@@ -12,6 +12,19 @@ export interface Camera {
   updated_at?: string
 }
 
+function getRefreshInterval(): number {
+  try {
+    const saved = localStorage.getItem('nvr-refresh-interval')
+    if (saved) {
+      const val = parseInt(saved, 10)
+      if (val >= 5 && val <= 60) return val * 1000
+    }
+  } catch {
+    // ignore
+  }
+  return 15000
+}
+
 export function useCameras() {
   const [cameras, setCameras] = useState<Camera[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,7 +37,7 @@ export function useCameras() {
 
   useEffect(() => {
     refresh()
-    const interval = setInterval(refresh, 15000)
+    const interval = setInterval(refresh, getRefreshInterval())
     return () => clearInterval(interval)
   }, [refresh])
 

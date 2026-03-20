@@ -40,19 +40,24 @@ function slotMode(
     if (!rule.enabled) continue
 
     const days = parseDays(rule.days)
-    if (!days.includes(day)) continue
-
     const ruleStart = timeToMinutes(rule.start_time)
     const ruleEnd = timeToMinutes(rule.end_time)
 
     let covered = false
     if (ruleStart <= ruleEnd) {
       // Same-day range, e.g. 08:00-18:00
-      covered = slotStart < ruleEnd && slotEnd > ruleStart
+      if (days.includes(day)) {
+        covered = slotStart < ruleEnd && slotEnd > ruleStart
+      }
     } else {
-      // Overnight range, e.g. 22:00-06:00
-      // The slot is covered if it falls in [ruleStart..24:00) or [00:00..ruleEnd)
-      covered = slotEnd > ruleStart || slotStart < ruleEnd
+      // Cross-midnight range, e.g. 22:00-06:00
+      // Evening portion [ruleStart..24:00) belongs to the start day.
+      // Morning portion [00:00..ruleEnd) belongs to the NEXT day, so we check
+      // whether yesterday (day-1) is in the rule's days array.
+      const prevDay = (day - 1 + 7) % 7
+      const eveningCovered = days.includes(day) && slotStart < 1440 && slotEnd > ruleStart
+      const morningCovered = days.includes(prevDay) && slotStart < ruleEnd
+      covered = eveningCovered || morningCovered
     }
 
     if (covered) {

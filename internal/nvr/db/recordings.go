@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -110,6 +112,25 @@ func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, er
 		ranges = append(ranges, TimeRange{Start: s, End: e})
 	}
 	return ranges, rows.Err()
+}
+
+// GetRecording retrieves a recording by its ID. Returns ErrNotFound if no match.
+func (d *DB) GetRecording(id int64) (*Recording, error) {
+	rec := &Recording{}
+	err := d.QueryRow(`
+		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format
+		FROM recordings WHERE id = ?`, id,
+	).Scan(
+		&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
+		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return rec, nil
 }
 
 // DeleteRecordingByPath deletes a recording by its file path.

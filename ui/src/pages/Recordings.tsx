@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useCameras } from '../hooks/useCameras'
+import { apiFetch } from '../api/client'
 import Timeline from '../components/Timeline'
 
 interface Segment {
@@ -11,6 +12,25 @@ interface RecordingList {
   segments: Segment[]
 }
 
+interface ExportSegment {
+  id: number
+  start_time: string
+  end_time: string
+  file_size: number
+  url: string
+}
+
+interface ExportResponse {
+  segments: ExportSegment[]
+  count: number
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
 export default function Recordings() {
   const { cameras, loading: camerasLoading } = useCameras()
   const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
@@ -20,6 +40,14 @@ export default function Recordings() {
   const [playbackTime, setPlaybackTime] = useState<Date | null>(null)
   const [loadingSegments, setLoadingSegments] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // Export state.
+  const [exportStartDate, setExportStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [exportCamera, setExportCamera] = useState<string | null>(null)
+  const [exportSegments, setExportSegments] = useState<ExportSegment[]>([])
+  const [exportLoading, setExportLoading] = useState(false)
+  const [exportDone, setExportDone] = useState(false)
 
   const selectedCameraObj = cameras.find(c => c.id === selectedCamera)
   const mediamtxPath = selectedCameraObj?.mediamtx_path || ''
@@ -79,12 +107,51 @@ export default function Recordings() {
     setPlaybackTime(time)
 
     const startISO = time.toISOString()
-    // Duration in seconds — play 5 minutes from the seek point.
+    // Duration in seconds - play 5 minutes from the seek point.
     const playbackUrl = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=300`
 
     if (videoRef.current) {
       videoRef.current.src = playbackUrl
       videoRef.current.play().catch(() => {})
+    }
+  }
+
+  // Download a recording segment by ID.
+  const handleDownload = (segmentId: number) => {
+    // Open the download URL in a new tab. The browser will handle the
+    // Content-Disposition: attachment header from the server.
+    const link = document.createElement('a')
+    link.href = `/api/nvr/recordings/${segmentId}/download`
+    link.download = ''
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Run export query.
+  const handleExport = async () => {
+    if (!exportCamera) return
+    setExportLoading(true)
+    setExportDone(false)
+    setExportSegments([])
+
+    const start = exportStartDate + 'T00:00:00Z'
+    const end = exportEndDate + 'T23:59:59Z'
+
+    try {
+      const res = await apiFetch('/recordings/export', {
+        method: 'POST',
+        body: JSON.stringify({ camera_id: exportCamera, start, end }),
+      })
+      if (res.ok) {
+        const data: ExportResponse = await res.json()
+        setExportSegments(data.segments || [])
+        setExportDone(true)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setExportLoading(false)
     }
   }
 
@@ -94,7 +161,7 @@ export default function Recordings() {
     <div>
       <h1 className="text-2xl font-bold text-nvr-text-primary mb-6">Recordings</h1>
 
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <select
           value={selectedCamera || ''}
           onChange={e => { setSelectedCamera(e.target.value || null); setPlaybackTime(null) }}
@@ -103,12 +170,38 @@ export default function Recordings() {
           <option value="">Select Camera</option>
           {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <input
-          type="date"
-          value={date}
-          onChange={e => { setDate(e.target.value); setPlaybackTime(null) }}
-          className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-        />
+
+        {/* Date navigation with prev/next arrows */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => { setDate(shiftDate(date, -1)); setPlaybackTime(null) }}
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
+            title="Previous day"
+          >
+            &larr;
+          </button>
+          <input
+            type="date"
+            value={date}
+            onChange={e => { setDate(e.target.value); setPlaybackTime(null) }}
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+          />
+          <button
+            onClick={() => { setDate(shiftDate(date, 1)); setPlaybackTime(null) }}
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
+            title="Next day"
+          >
+            &rarr;
+          </button>
+          <button
+            onClick={() => { setDate(new Date().toISOString().split('T')[0]); setPlaybackTime(null) }}
+            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm"
+            title="Jump to today"
+          >
+            Today
+          </button>
+        </div>
+
         {selectedCamera && (
           <span className="text-sm text-nvr-text-muted">
             {segments.length} segment{segments.length !== 1 ? 's' : ''} found
@@ -155,12 +248,14 @@ export default function Recordings() {
                       className="flex items-center justify-between px-4 py-3 rounded-lg cursor-pointer border border-nvr-border bg-nvr-bg-secondary hover:bg-nvr-bg-tertiary transition-colors"
                     >
                       <span className="text-sm text-nvr-text-primary">{t.toLocaleTimeString()}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleSeek(t) }}
-                        className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
-                      >
-                        Play
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleSeek(t) }}
+                          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
+                        >
+                          Play
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
@@ -175,6 +270,93 @@ export default function Recordings() {
       )}
       {cameras.length === 0 && (
         <p className="text-center py-12 text-nvr-text-muted">No cameras configured. Add cameras first.</p>
+      )}
+
+      {/* Export Section */}
+      {cameras.length > 0 && (
+        <div className="mt-8 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
+          <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">Export Recordings</h3>
+          <p className="text-sm text-nvr-text-muted mb-4">
+            Search across multiple days and download recording segments.
+          </p>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-nvr-text-muted mb-1">Camera</label>
+              <select
+                value={exportCamera || ''}
+                onChange={e => setExportCamera(e.target.value || null)}
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+              >
+                <option value="">Select Camera</option>
+                {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-nvr-text-muted mb-1">Start Date</label>
+              <input
+                type="date"
+                value={exportStartDate}
+                onChange={e => setExportStartDate(e.target.value)}
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-nvr-text-muted mb-1">End Date</label>
+              <input
+                type="date"
+                value={exportEndDate}
+                onChange={e => setExportEndDate(e.target.value)}
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={!exportCamera || exportLoading}
+              className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+            >
+              {exportLoading ? 'Searching...' : 'Export'}
+            </button>
+          </div>
+
+          {exportDone && (
+            <div className="mt-4">
+              {exportSegments.length === 0 ? (
+                <p className="text-sm text-nvr-text-muted">No recordings found for the selected range.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-nvr-text-secondary mb-2">
+                    {exportSegments.length} segment{exportSegments.length !== 1 ? 's' : ''} found
+                  </p>
+                  <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto">
+                    {exportSegments.map(seg => (
+                      <div
+                        key={seg.id}
+                        className="flex items-center justify-between px-4 py-2.5 rounded-lg border border-nvr-border bg-nvr-bg-primary"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm text-nvr-text-primary">
+                            {new Date(seg.start_time).toLocaleString()} &mdash; {new Date(seg.end_time).toLocaleTimeString()}
+                          </span>
+                          {seg.file_size > 0 && (
+                            <span className="text-xs text-nvr-text-muted">
+                              {(seg.file_size / (1024 * 1024)).toFixed(1)} MB
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleDownload(seg.id)}
+                          className="bg-nvr-bg-input border border-nvr-border hover:bg-nvr-bg-tertiary text-nvr-text-primary font-medium px-3 py-1.5 rounded-lg transition-colors text-sm"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

@@ -1,7 +1,12 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,12 +88,86 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 	c.JSON(http.StatusOK, ranges)
 }
 
-// Download is a stub endpoint for recording download.
+// Download serves a recording file as a download attachment.
+// Path param: id (recording ID, integer).
 func (h *RecordingHandler) Download(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "recording download not implemented"})
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid recording id"})
+		return
+	}
+
+	rec, err := h.DB.GetRecording(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "recording not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if _, err := os.Stat(rec.FilePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "recording file not found on disk"})
+		return
+	}
+
+	c.Header("Content-Type", "video/mp4")
+	c.FileAttachment(rec.FilePath, filepath.Base(rec.FilePath))
 }
 
-// Export is a stub endpoint for recording export.
+// ExportRequest is the JSON body for the Export endpoint.
+type ExportRequest struct {
+	CameraID string `json:"camera_id" binding:"required"`
+	Start    string `json:"start" binding:"required"`
+	End      string `json:"end" binding:"required"`
+}
+
+// Export returns a list of download URLs for recording segments within a time range.
+// POST body: { camera_id, start (RFC3339), end (RFC3339) }.
 func (h *RecordingHandler) Export(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "recording export not implemented"})
+	var req ExportRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_id, start, and end are required"})
+		return
+	}
+
+	start, err := time.Parse(time.RFC3339, req.Start)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start time, expected RFC3339"})
+		return
+	}
+
+	end, err := time.Parse(time.RFC3339, req.End)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end time, expected RFC3339"})
+		return
+	}
+
+	recordings, err := h.DB.QueryRecordings(req.CameraID, start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if recordings == nil {
+		recordings = []*db.Recording{}
+	}
+
+	downloadURLs := make([]gin.H, 0, len(recordings))
+	for _, rec := range recordings {
+		downloadURLs = append(downloadURLs, gin.H{
+			"id":         rec.ID,
+			"start_time": rec.StartTime,
+			"end_time":   rec.EndTime,
+			"file_size":  rec.FileSize,
+			"url":        fmt.Sprintf("/api/nvr/recordings/%d/download", rec.ID),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"segments": downloadURLs,
+		"count":    len(recordings),
+	})
 }

@@ -46,12 +46,18 @@ export default function Recordings() {
   const [selectedCamera, setSelectedCamera] = useState<string | null>(() => {
     return localStorage.getItem('nvr-recordings-camera')
   })
+  const [cameraFilter, setCameraFilter] = useState('')
 
   const handleCameraChange = (id: string | null) => {
     setSelectedCamera(id)
     if (id) localStorage.setItem('nvr-recordings-camera', id)
     else localStorage.removeItem('nvr-recordings-camera')
   }
+
+  const filteredCameras = cameraFilter
+    ? cameras.filter(c => c.name.toLowerCase().includes(cameraFilter.toLowerCase()))
+    : cameras
+
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [timelineRanges, setTimelineRanges] = useState<{ start: string; end: string }[]>([])
   const [playbackTime, setPlaybackTime] = useState<Date | null>(null)
@@ -205,24 +211,36 @@ export default function Recordings() {
       {/* Top bar: camera selector, date nav, clip button */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <select
-            value={selectedCamera || ''}
-            onChange={e => {
-              handleCameraChange(e.target.value || null)
-              resetPlayback()
-              exitClipMode()
-            }}
-            className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors min-h-[44px] w-full sm:w-48"
-          >
-            <option value="">Select Camera</option>
-            {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <div className="flex flex-col gap-1">
+            {cameras.length > 5 && (
+              <input
+                type="text"
+                placeholder="Filter cameras..."
+                value={cameraFilter}
+                onChange={e => setCameraFilter(e.target.value)}
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-1.5 text-xs text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors w-full sm:w-48"
+              />
+            )}
+            <select
+              value={selectedCamera || ''}
+              onChange={e => {
+                handleCameraChange(e.target.value || null)
+                resetPlayback()
+                exitClipMode()
+              }}
+              className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors min-h-[44px] w-full sm:w-48"
+            >
+              <option value="">Select Camera</option>
+              {filteredCameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
 
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => { setDate(shiftDate(date, -1)); resetPlayback(); exitClipMode() }}
-              className="bg-nvr-bg-input border border-nvr-border rounded-lg p-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="bg-nvr-bg-input border border-nvr-border rounded-lg p-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               title="Previous day"
+              aria-label="Previous day"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
@@ -234,15 +252,16 @@ export default function Recordings() {
             />
             <button
               onClick={() => { setDate(shiftDate(date, 1)); resetPlayback(); exitClipMode() }}
-              className="bg-nvr-bg-input border border-nvr-border rounded-lg p-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="bg-nvr-bg-input border border-nvr-border rounded-lg p-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               title="Next day"
+              aria-label="Next day"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
             {!isToday && (
               <button
                 onClick={() => { setDate(new Date().toISOString().split('T')[0]); resetPlayback(); exitClipMode() }}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px]"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Today
               </button>
@@ -256,7 +275,7 @@ export default function Recordings() {
             {clipMode ? (
               <button
                 onClick={exitClipMode}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px] inline-flex items-center gap-2"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px] inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 Cancel Clip
@@ -264,7 +283,7 @@ export default function Recordings() {
             ) : (
               <button
                 onClick={() => setClipMode(true)}
-                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px] inline-flex items-center gap-2"
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm min-h-[44px] inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg>
                 Create Clip
@@ -344,7 +363,7 @@ export default function Recordings() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => { handleSeek(clipStart!) }}
-                    className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm inline-flex items-center gap-1.5"
+                    className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                     Preview
@@ -352,7 +371,7 @@ export default function Recordings() {
                   <button
                     onClick={handleClipDownload}
                     disabled={clipDownloading}
-                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm inline-flex items-center gap-2"
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     {clipDownloading ? (
                       <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -384,7 +403,7 @@ export default function Recordings() {
                 </span>
                 <button
                   onClick={resetPlayback}
-                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors"
+                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
                 >
                   Close
                 </button>

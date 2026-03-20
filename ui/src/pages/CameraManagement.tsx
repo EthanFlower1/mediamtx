@@ -56,8 +56,23 @@ interface DiscoveredCamera {
   profiles?: DiscoveredProfile[]
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const seconds = Math.floor(diff / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 export default function CameraManagement() {
   const { cameras, loading, refresh } = useCameras()
+
+  // Search filter state
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Add camera modal state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -256,6 +271,9 @@ export default function CameraManagement() {
 
   const hasProfiles = probedProfiles.length > 0
   const expandedCamera = cameras.find(c => c.id === expandedCameraId) ?? null
+  const filteredCameras = searchQuery
+    ? cameras.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : cameras
 
   return (
     <div>
@@ -291,7 +309,7 @@ export default function CameraManagement() {
             </button>
             <button
               onClick={() => openAddModal('manual')}
-              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-5 py-2.5 rounded-lg border border-nvr-border transition-colors text-sm"
+              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-5 py-2.5 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
             >
               Add Manually
             </button>
@@ -299,10 +317,24 @@ export default function CameraManagement() {
         </div>
       )}
 
-      {/* Camera cards */}
+      {/* Camera search and cards */}
       {cameras.length > 0 && (
         <div className="flex flex-col gap-3">
-          {cameras.map(cam => (
+          {/* Search input */}
+          <input
+            type="text"
+            placeholder="Search cameras..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+          />
+
+          {/* No results */}
+          {filteredCameras.length === 0 && searchQuery && (
+            <p className="text-sm text-nvr-text-muted text-center py-6">No cameras match "{searchQuery}"</p>
+          )}
+
+          {filteredCameras.map(cam => (
             <div key={cam.id}>
               {/* Camera card */}
               <div
@@ -358,6 +390,11 @@ export default function CameraManagement() {
                         )}
                       </button>
                       <RecordingModeBadge cameraId={cam.id} />
+                      {cam.status !== 'online' && cam.updated_at && (
+                        <span className="text-nvr-text-muted text-[10px]" title={new Date(cam.updated_at).toLocaleString()}>
+                          Last updated: {relativeTime(cam.updated_at)}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -365,7 +402,7 @@ export default function CameraManagement() {
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => toggleExpanded(cam)}
-                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                       aria-label="Settings"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -374,7 +411,7 @@ export default function CameraManagement() {
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(cam.id)}
-                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                       aria-label="Delete"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -394,7 +431,7 @@ export default function CameraManagement() {
                     {expandedCamera.onvif_endpoint && (
                       <button
                         onClick={() => setShowSettings(!showSettings)}
-                        className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors ${
+                        className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                           showSettings
                             ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
                             : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
@@ -437,7 +474,7 @@ export default function CameraManagement() {
                 <span className="text-nvr-text-muted text-xs">Press Esc to close</span>
                 <button
                   onClick={resetForm}
-                  className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors"
+                  className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -450,7 +487,7 @@ export default function CameraManagement() {
             <div className="flex border-b border-nvr-border">
               <button
                 onClick={() => { setAddTab('discover'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName('') }}
-                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 ${
+                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                   addTab === 'discover'
                     ? 'border-nvr-accent text-nvr-accent'
                     : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
@@ -460,7 +497,7 @@ export default function CameraManagement() {
               </button>
               <button
                 onClick={() => { setAddTab('manual'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName(''); setAddOnvifEndpoint('') }}
-                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 ${
+                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                   addTab === 'manual'
                     ? 'border-nvr-accent text-nvr-accent'
                     : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
@@ -477,7 +514,7 @@ export default function CameraManagement() {
                   <button
                     onClick={handleDiscover}
                     disabled={discovering}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm mb-4"
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mb-4 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     {discovering ? (
                       <span className="flex items-center justify-center gap-2">
@@ -496,7 +533,7 @@ export default function CameraManagement() {
                         <button
                           key={i}
                           onClick={() => handleSelectDevice(d)}
-                          className="w-full text-left p-3 border border-nvr-border rounded-lg hover:bg-nvr-bg-tertiary/50 hover:border-nvr-accent/30 transition-colors"
+                          className="w-full text-left p-3 border border-nvr-border rounded-lg hover:bg-nvr-bg-tertiary/50 hover:border-nvr-accent/30 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                         >
                           <div className="font-medium text-sm text-nvr-text-primary">
                             {d.manufacturer} {d.model}
@@ -522,7 +559,7 @@ export default function CameraManagement() {
                     <button
                       type="button"
                       onClick={() => { setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl('') }}
-                      className="text-nvr-text-muted hover:text-nvr-text-secondary text-sm"
+                      className="text-nvr-text-muted hover:text-nvr-text-secondary text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
                     >
                       &larr; Back
                     </button>
@@ -564,7 +601,7 @@ export default function CameraManagement() {
                       type="button"
                       onClick={handleProbe}
                       disabled={probing || !addUsername}
-                      className="w-full bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-2 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 text-sm"
+                      className="w-full bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-2 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                     >
                       {probing ? 'Fetching...' : 'Fetch Streams'}
                     </button>
@@ -580,7 +617,7 @@ export default function CameraManagement() {
                             key={p.token}
                             type="button"
                             onClick={() => handleSelectProfile(p)}
-                            className={`px-3 py-1.5 rounded-lg text-xs transition-colors border ${
+                            className={`px-3 py-1.5 rounded-lg text-xs transition-colors border focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                               selectedProfile?.token === p.token
                                 ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
                                 : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
@@ -596,7 +633,7 @@ export default function CameraManagement() {
                   <button
                     type="submit"
                     disabled={!addRtspUrl}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     Add Camera
                   </button>
@@ -633,7 +670,7 @@ export default function CameraManagement() {
                   <button
                     type="submit"
                     disabled={!addRtspUrl || !addName}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     Add Camera
                   </button>

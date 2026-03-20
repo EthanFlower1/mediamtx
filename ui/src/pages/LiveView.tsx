@@ -8,6 +8,7 @@ import PTZControls from '../components/PTZControls'
 function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void }) {
   const [stream, setStream] = useState<MediaStream | undefined>(undefined)
   const pcRef = useRef<RTCPeerConnection | null>(null)
+  const modalVideoRef = useRef<HTMLVideoElement | null>(null)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -81,6 +82,23 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
     setStream(undefined)
   }, [])
 
+  const handleScreenshot = useCallback(() => {
+    const video = modalVideoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')!.drawImage(video, 0, 0)
+    const link = document.createElement('a')
+    link.download = `snapshot_${camera.name.replace(/\s+/g, '_')}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }, [camera.name])
+
+  const handleVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    modalVideoRef.current = el
+  }, [])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
@@ -101,7 +119,7 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
           <span className="hidden sm:inline text-nvr-text-muted text-xs ml-1">Press Esc to close</span>
         </button>
 
-        {/* Camera name and status */}
+        {/* Camera name, status, and screenshot button */}
         <div className="flex items-center gap-3 mb-3">
           <h2 className="text-lg font-semibold text-white">{camera.name}</h2>
           <span className={`flex items-center gap-1.5 text-xs font-medium ${
@@ -112,11 +130,23 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
             }`} />
             {camera.status === 'online' ? 'Online' : 'Offline'}
           </span>
+          <div className="flex-1" />
+          <button
+            onClick={handleScreenshot}
+            className="flex items-center gap-1.5 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 transition-colors text-xs font-medium"
+            title="Save screenshot"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            Screenshot
+          </button>
         </div>
 
         {/* Video player with PTZ overlay */}
         <div className="relative rounded-lg overflow-hidden">
-          <VideoPlayer stream={stream} live onRetry={handleRetry} />
+          <VideoPlayer stream={stream} live onRetry={handleRetry} onVideoRef={handleVideoRef} />
           {camera.ptz_capable && <PTZControls cameraId={camera.id} />}
         </div>
       </div>
@@ -138,6 +168,9 @@ export default function LiveView() {
     return saved ? parseInt(saved, 10) : 2
   })
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
+
+  const onlineCount = cameras.filter(c => c.status === 'online').length
+  const offlineCount = cameras.length - onlineCount
 
   const handleLayoutChange = (n: number) => {
     setLayout(n)
@@ -179,7 +212,6 @@ export default function LiveView() {
   if (cameras.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center px-4">
-        {/* Camera icon */}
         <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-nvr-text-muted mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
         </svg>
@@ -226,6 +258,21 @@ export default function LiveView() {
           ))}
         </div>
       </div>
+
+      {/* Dashboard stats bar */}
+      {cameras.length > 1 && (
+        <div className="flex items-center gap-4 text-sm text-nvr-text-secondary mb-4">
+          <span>{cameras.length} cameras</span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-nvr-success" />
+            {onlineCount} online
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-nvr-danger" />
+            {offlineCount} offline
+          </span>
+        </div>
+      )}
 
       <CameraGrid cameras={cameras} layout={layout} onSelectCamera={setSelectedCamera} />
 

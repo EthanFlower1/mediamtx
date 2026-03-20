@@ -64,4 +64,24 @@ CREATE TABLE config (
 );
 `,
 	},
+	{
+		version: 2,
+		sql: `
+CREATE TABLE recording_rules (
+	id TEXT PRIMARY KEY,
+	camera_id TEXT NOT NULL,
+	name TEXT NOT NULL,
+	mode TEXT NOT NULL CHECK(mode IN ('always', 'events')),
+	days TEXT NOT NULL,
+	start_time TEXT NOT NULL,
+	end_time TEXT NOT NULL,
+	post_event_seconds INTEGER NOT NULL DEFAULT 30,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_recording_rules_camera ON recording_rules(camera_id);
+`,
+	},
 }

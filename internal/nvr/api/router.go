@@ -2,12 +2,15 @@ package api
 
 import (
 	"crypto/rsa"
+	"io/fs"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -105,4 +108,26 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)
 	protected.GET("/system/events", systemHandler.Events)
+
+	// Serve embedded React UI.
+	distFS, err := fs.Sub(nvrui.DistFS, "dist")
+	if err == nil {
+		fileServer := http.FileServer(http.FS(distFS))
+		engine.NoRoute(func(c *gin.Context) {
+			// Try to serve static file first.
+			path := c.Request.URL.Path
+			if len(path) > 0 && path[0] == '/' {
+				path = path[1:]
+			}
+			f, err := distFS.Open(path)
+			if err == nil {
+				f.Close()
+				fileServer.ServeHTTP(c.Writer, c.Request)
+				return
+			}
+			// Fallback to index.html for client-side routing.
+			c.Request.URL.Path = "/"
+			fileServer.ServeHTTP(c.Writer, c.Request)
+		})
+	}
 }

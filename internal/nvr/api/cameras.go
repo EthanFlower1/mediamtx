@@ -613,6 +613,10 @@ func (h *CameraHandler) GetSettings(c *gin.Context) {
 
 	settings, err := onvif.GetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), videoSourceToken)
 	if err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "This camera does not support ONVIF image settings. Use the camera's web interface instead."})
+			return
+		}
 		nvrLogError("imaging", fmt.Sprintf("failed to get imaging settings for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or imaging query failed"})
 		return

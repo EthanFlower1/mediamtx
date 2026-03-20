@@ -24,20 +24,74 @@ type getImagingSettingsResponse struct {
 	ImagingSettings onviftypes.ImagingSettings20 `xml:"ImagingSettings"`
 }
 
-// GetImagingSettings retrieves the current imaging settings from an ONVIF camera.
-func GetImagingSettings(xaddr, username, password, videoSourceToken string) (*ImagingSettings, error) {
+// getVideoSourceToken connects to the camera and finds the first video source token.
+// The imaging service needs a video source token, not a media profile token.
+func getVideoSourceToken(dev *onviflib.Device) (string, error) {
+	type getVideoSourcesResp struct {
+		VideoSources []struct {
+			Token string `xml:"token,attr"`
+		} `xml:"VideoSources"`
+	}
+	type envelope struct {
+		Body struct {
+			GetVideoSourcesResponse getVideoSourcesResp
+		}
+	}
+
+	httpReply, err := dev.CallMethod(struct {
+		XMLName string `xml:"trt:GetVideoSources"`
+	}{})
+	if err != nil {
+		return "", err
+	}
+
+	var reply envelope
+	if err := sdk.ReadAndParse(context.Background(), httpReply, &reply, "GetVideoSources"); err != nil {
+		return "", err
+	}
+
+	if len(reply.Body.GetVideoSourcesResponse.VideoSources) > 0 {
+		return reply.Body.GetVideoSourcesResponse.VideoSources[0].Token, nil
+	}
+	return "", fmt.Errorf("no video sources found")
+}
+
+// connectDevice creates an ONVIF device connection from an endpoint URL.
+func connectDevice(xaddr, username, password string) (*onviflib.Device, error) {
 	host := xaddrToHost(xaddr)
 	if host == "" {
 		host = xaddr
 	}
-
-	dev, err := onviflib.NewDevice(onviflib.DeviceParams{
+	return onviflib.NewDevice(onviflib.DeviceParams{
 		Xaddr:    host,
 		Username: username,
 		Password: password,
 	})
+}
+
+// ErrImagingNotSupported is returned when the camera doesn't expose an imaging service.
+var ErrImagingNotSupported = fmt.Errorf("camera does not support ONVIF imaging service")
+
+// GetImagingSettings retrieves the current imaging settings from an ONVIF camera.
+func GetImagingSettings(xaddr, username, password, videoSourceToken string) (*ImagingSettings, error) {
+	dev, err := connectDevice(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("connect to ONVIF device: %w", err)
+	}
+
+	// Check if camera supports imaging service.
+	services := dev.GetServices()
+	if _, ok := services["imaging"]; !ok {
+		return nil, ErrImagingNotSupported
+	}
+
+	// If no video source token provided, discover it from the camera.
+	if videoSourceToken == "" || videoSourceToken == "000" {
+		token, err := getVideoSourceToken(dev)
+		if err != nil {
+			return nil, fmt.Errorf("get video source token: %w", err)
+		}
+		videoSourceToken = token
 	}
 
 	req := onvifimaging.GetImagingSettings{
@@ -73,18 +127,18 @@ func GetImagingSettings(xaddr, username, password, videoSourceToken string) (*Im
 
 // SetImagingSettings applies imaging settings to an ONVIF camera.
 func SetImagingSettings(xaddr, username, password, videoSourceToken string, settings *ImagingSettings) error {
-	host := xaddrToHost(xaddr)
-	if host == "" {
-		host = xaddr
-	}
-
-	dev, err := onviflib.NewDevice(onviflib.DeviceParams{
-		Xaddr:    host,
-		Username: username,
-		Password: password,
-	})
+	dev, err := connectDevice(xaddr, username, password)
 	if err != nil {
 		return fmt.Errorf("connect to ONVIF device: %w", err)
+	}
+
+	// If no video source token provided, discover it from the camera.
+	if videoSourceToken == "" || videoSourceToken == "000" {
+		token, err := getVideoSourceToken(dev)
+		if err != nil {
+			return fmt.Errorf("get video source token: %w", err)
+		}
+		videoSourceToken = token
 	}
 
 	req := onvifimaging.SetImagingSettings{

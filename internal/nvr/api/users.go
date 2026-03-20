@@ -11,7 +11,8 @@ import (
 
 // UserHandler implements HTTP endpoints for user management.
 type UserHandler struct {
-	DB *db.DB
+	DB    *db.DB
+	Audit *AuditLogger
 }
 
 // userCreateRequest is the JSON body for creating a user.
@@ -105,6 +106,10 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "create", "user", user.ID, "Created user "+user.Username+" with role "+user.Role)
+	}
+
 	c.JSON(http.StatusCreated, user)
 }
 
@@ -159,6 +164,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 		_ = h.DB.RevokeAllUserTokens(existing.ID)
 	}
 
+	if h.Audit != nil {
+		details := "Updated user " + existing.Username
+		if passwordChanged {
+			details += " (password changed)"
+		}
+		h.Audit.logAction(c, "update", "user", existing.ID, details)
+	}
+
 	c.JSON(http.StatusOK, existing)
 }
 
@@ -208,6 +221,10 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	// Revoke all refresh tokens so user must re-login.
 	_ = h.DB.RevokeAllUserTokens(uid)
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "update", "system", uid, "Changed own password")
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "password changed"})
 }
 
@@ -236,6 +253,10 @@ func (h *UserHandler) Delete(c *gin.Context) {
 
 	// Revoke all tokens for the deleted user.
 	_ = h.DB.RevokeAllUserTokens(id)
+
+	if h.Audit != nil {
+		h.Audit.logAction(c, "delete", "user", id, "Deleted user")
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
 }

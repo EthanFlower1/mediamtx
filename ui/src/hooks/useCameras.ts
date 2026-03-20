@@ -8,6 +8,7 @@ export interface Camera {
   mediamtx_path: string
   status: string
   ptz_capable: boolean
+  onvif_endpoint?: string
 }
 
 export function useCameras() {

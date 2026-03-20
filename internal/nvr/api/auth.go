@@ -20,6 +20,7 @@ import (
 type AuthHandler struct {
 	DB         *db.DB
 	PrivateKey *rsa.PrivateKey
+	Audit      *AuditLogger
 }
 
 // setupRequest is the JSON body for the initial admin setup.
@@ -76,11 +77,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.DB.GetUserByUsername(req.Username)
 	if err != nil {
+		if h.Audit != nil {
+			h.Audit.logLoginAttempt(c, "", req.Username, false)
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
 	if !verifyPassword(req.Password, user.PasswordHash) {
+		if h.Audit != nil {
+			h.Audit.logLoginAttempt(c, user.ID, req.Username, false)
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
@@ -110,6 +117,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie("refresh_token", rawToken, 7*24*3600, "/", "", false, true)
+
+	if h.Audit != nil {
+		h.Audit.logLoginAttempt(c, user.ID, user.Username, true)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": accessToken,

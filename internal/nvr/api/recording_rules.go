@@ -19,6 +19,7 @@ var timeFormatRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 type RecordingRuleHandler struct {
 	DB        *db.DB
 	Scheduler *scheduler.Scheduler
+	Audit     *AuditLogger
 }
 
 // recordingRuleRequest is the JSON body for creating or updating a recording rule.
@@ -139,6 +140,10 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "create", "recording_rule", rule.ID, fmt.Sprintf("Created rule %q for camera %s", rule.Name, cameraID))
+	}
+
 	c.JSON(http.StatusCreated, rule)
 }
 
@@ -192,6 +197,10 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 		return
 	}
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "update", "recording_rule", existing.ID, fmt.Sprintf("Updated rule %q", existing.Name))
+	}
+
 	c.JSON(http.StatusOK, existing)
 }
 
@@ -205,6 +214,10 @@ func (h *RecordingRuleHandler) Delete(c *gin.Context) {
 	} else if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete recording rule"})
 		return
+	}
+
+	if h.Audit != nil {
+		h.Audit.logAction(c, "delete", "recording_rule", id, "Deleted recording rule")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "recording rule deleted"})

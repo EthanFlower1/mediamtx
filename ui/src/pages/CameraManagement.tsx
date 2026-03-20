@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import RecordingRules from '../components/RecordingRules'
+import CameraSettings from '../components/CameraSettings'
 
 /** Small component to fetch and display the effective recording mode for a camera. */
 function RecordingModeBadge({ cameraId }: { cameraId: string }) {
@@ -61,6 +62,7 @@ export default function CameraManagement() {
   const [probeError, setProbeError] = useState('')
   const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
 
   const handleDiscover = async () => {
     setDiscovering(true)
@@ -434,13 +436,37 @@ export default function CameraManagement() {
             <h2 className="text-base md:text-lg font-semibold text-nvr-text-primary">
               Recording Rules &mdash; {selectedCamera.name}
             </h2>
-            <button
-              onClick={() => setSelectedCamera(null)}
-              className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
-            >
-              &times;
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedCamera.onvif_endpoint && (
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors min-h-[44px] ${
+                    showSettings
+                      ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
+                      : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
+                  }`}
+                >
+                  Image Settings
+                </button>
+              )}
+              <button
+                onClick={() => { setSelectedCamera(null); setShowSettings(false) }}
+                className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+              >
+                &times;
+              </button>
+            </div>
           </div>
+
+          {showSettings && selectedCamera.onvif_endpoint && (
+            <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+              <CameraSettings
+                cameraId={selectedCamera.id}
+                onClose={() => setShowSettings(false)}
+              />
+            </div>
+          )}
+
           <RecordingRules cameraId={selectedCamera.id} />
         </div>
       )}

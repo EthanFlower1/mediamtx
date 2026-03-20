@@ -88,4 +88,22 @@ CREATE INDEX idx_recording_rules_camera ON recording_rules(camera_id);
 		version: 3,
 		sql:     `ALTER TABLE cameras ADD COLUMN retention_days INTEGER NOT NULL DEFAULT 0;`,
 	},
+	{
+		version: 4,
+		sql: `
+CREATE TABLE audit_log (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id TEXT,
+	username TEXT NOT NULL,
+	action TEXT NOT NULL,
+	resource_type TEXT NOT NULL,
+	resource_id TEXT,
+	details TEXT,
+	ip_address TEXT,
+	created_at TEXT NOT NULL
+);
+CREATE INDEX idx_audit_log_created ON audit_log(created_at);
+CREATE INDEX idx_audit_log_user ON audit_log(user_id);
+`,
+	},
 }

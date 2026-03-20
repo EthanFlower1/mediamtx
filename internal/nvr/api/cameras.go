@@ -23,6 +23,7 @@ type CameraHandler struct {
 	Discovery  *onvif.Discovery      // may be nil
 	APIAddress string                // MediaMTX API address, e.g. "127.0.0.1:9997"
 	Scheduler  *scheduler.Scheduler  // may be nil
+	Audit      *AuditLogger
 }
 
 // cameraRequest is the JSON body for creating or updating a camera.
@@ -155,6 +156,10 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "create", "camera", cam.ID, fmt.Sprintf("Created camera %q", cam.Name))
+	}
+
 	c.JSON(http.StatusCreated, cam)
 }
 
@@ -210,6 +215,10 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		return
 	}
 
+	if h.Audit != nil {
+		h.Audit.logAction(c, "update", "camera", existing.ID, fmt.Sprintf("Updated camera %q", existing.Name))
+	}
+
 	c.JSON(http.StatusOK, existing)
 }
 
@@ -240,6 +249,10 @@ func (h *CameraHandler) Delete(c *gin.Context) {
 	// Remove scheduler state for this camera.
 	if h.Scheduler != nil {
 		h.Scheduler.RemoveCamera(id)
+	}
+
+	if h.Audit != nil {
+		h.Audit.logAction(c, "delete", "camera", id, fmt.Sprintf("Deleted camera %q", cam.Name))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "camera deleted"})
@@ -493,12 +506,88 @@ func (h *CameraHandler) PTZPresets(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"presets": presets})
 }
 
-// GetSettings is a stub endpoint for camera settings retrieval.
+// GetSettings retrieves the current imaging settings from a camera via ONVIF.
 func (h *CameraHandler) GetSettings(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "camera settings not implemented"})
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	settings, err := onvif.GetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, videoSourceToken)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to get imaging settings: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
 }
 
-// UpdateSettings is a stub endpoint for camera settings update.
+// imagingSettingsRequest is the JSON body for updating camera imaging settings.
+type imagingSettingsRequest struct {
+	Brightness float64 `json:"brightness"`
+	Contrast   float64 `json:"contrast"`
+	Saturation float64 `json:"saturation"`
+	Sharpness  float64 `json:"sharpness"`
+}
+
+// UpdateSettings applies imaging settings to a camera via ONVIF.
 func (h *CameraHandler) UpdateSettings(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "camera settings not implemented"})
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req imagingSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	settings := &onvif.ImagingSettings{
+		Brightness: req.Brightness,
+		Contrast:   req.Contrast,
+		Saturation: req.Saturation,
+		Sharpness:  req.Sharpness,
+	}
+
+	if err := onvif.SetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, videoSourceToken, settings); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to apply imaging settings: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
 }

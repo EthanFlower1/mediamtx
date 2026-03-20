@@ -23,7 +23,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 	require.NoError(t, err)
 	defer d.Close()
 
-	// All tables created by migration001 should be queryable.
+	// All tables created by migrations should be queryable.
 	tables := []string{
 		"cameras",
 		"recordings",
@@ -31,6 +31,8 @@ func TestOpenRunsMigrations(t *testing.T) {
 		"refresh_tokens",
 		"config",
 		"schema_migrations",
+		"recording_rules",
+		"audit_log",
 	}
 
 	for _, table := range tables {
@@ -43,7 +45,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 	var version int
 	err = d.QueryRow("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&version)
 	require.NoError(t, err)
-	require.Equal(t, 3, version)
+	require.Equal(t, 4, version)
 }
 
 func TestOpenWALMode(t *testing.T) {

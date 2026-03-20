@@ -32,9 +32,12 @@ type RouterConfig struct {
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
 func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
+	audit := &AuditLogger{DB: cfg.DB}
+
 	authHandler := &AuthHandler{
 		DB:         cfg.DB,
 		PrivateKey: cfg.PrivateKey,
+		Audit:      audit,
 	}
 
 	cameraHandler := &CameraHandler{
@@ -43,6 +46,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Discovery:  cfg.Discovery,
 		APIAddress: cfg.APIAddress,
 		Scheduler:  cfg.Scheduler,
+		Audit:      audit,
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -50,12 +54,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	}
 
 	userHandler := &UserHandler{
-		DB: cfg.DB,
+		DB:    cfg.DB,
+		Audit: audit,
 	}
 
 	ruleHandler := &RecordingRuleHandler{
 		DB:        cfg.DB,
 		Scheduler: cfg.Scheduler,
+		Audit:     audit,
 	}
 
 	systemHandler := &SystemHandler{
@@ -65,6 +71,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		RecordingsPath: cfg.RecordingsPath,
 		DB:             cfg.DB,
 		Broadcaster:    cfg.Events,
+		ConfigDB:       cfg.DB,
+	}
+
+	auditHandler := &AuditHandler{
+		DB: cfg.DB,
 	}
 
 	jwksHandler := &JWKSHandler{
@@ -134,7 +145,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// System.
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)
+	protected.GET("/system/metrics", systemHandler.Metrics)
 	protected.GET("/system/events", systemHandler.Events)
+	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
+	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// Audit log (admin only).
+	protected.GET("/audit", auditHandler.List)
 
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")

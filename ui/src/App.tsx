@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import UserManagement from './pages/UserManagement'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useNotifications } from './hooks/useNotifications'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -139,10 +140,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

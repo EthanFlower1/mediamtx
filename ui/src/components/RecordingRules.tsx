@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { useRecordingRules, RecordingRule, CreateRulePayload } from '../hooks/useRecordingRules'
 import SchedulePreview from './SchedulePreview'
+import ConfirmDialog from './ConfirmDialog'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -355,6 +356,7 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
   const { rules, status, loading, createRule, updateRule, deleteRule } = useRecordingRules(cameraId)
   const [showForm, setShowForm] = useState(false)
   const [editingRule, setEditingRule] = useState<RecordingRule | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleSave = async (payload: CreateRulePayload) => {
     if (editingRule) {
@@ -372,8 +374,8 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
   }
 
   const handleDelete = async (ruleId: string) => {
-    if (!confirm('Delete this recording rule?')) return
     await deleteRule(ruleId)
+    setConfirmDeleteId(null)
   }
 
   const handleToggle = async (rule: RecordingRule, enabled: boolean) => {
@@ -412,7 +414,7 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
           key={rule.id}
           rule={rule}
           onEdit={() => handleEdit(rule)}
-          onDelete={() => handleDelete(rule.id)}
+          onDelete={() => setConfirmDeleteId(rule.id)}
           onToggle={enabled => handleToggle(rule, enabled)}
         />
       ))}
@@ -440,6 +442,16 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
           <SchedulePreview rules={rules} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete Recording Rule"
+        message="Are you sure you want to delete this recording rule? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   )
 }

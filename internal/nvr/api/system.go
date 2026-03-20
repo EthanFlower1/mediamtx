@@ -113,12 +113,19 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 		perCamera = []db.CameraStorage{}
 	}
 
+	var usedPercent float64
+	if totalBytes > 0 {
+		usedPercent = float64(usedBytes) / float64(totalBytes) * 100
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"total_bytes":      totalBytes,
 		"free_bytes":       freeBytes,
 		"used_bytes":       usedBytes,
 		"recordings_bytes": recordingsBytes,
 		"per_camera":       perCamera,
+		"warning":          usedPercent > 85,
+		"critical":         usedPercent > 95,
 	})
 }
 
@@ -141,7 +148,7 @@ func (h *SystemHandler) ExportConfig(c *gin.Context) {
 
 	cameras, err := h.ConfigDB.ListCameras()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list cameras"})
+		apiError(c, http.StatusInternalServerError, "failed to list cameras for config export", err)
 		return
 	}
 	if cameras == nil {
@@ -150,7 +157,7 @@ func (h *SystemHandler) ExportConfig(c *gin.Context) {
 
 	rules, err := h.ConfigDB.ListAllEnabledRecordingRules()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list recording rules"})
+		apiError(c, http.StatusInternalServerError, "failed to list recording rules for config export", err)
 		return
 	}
 	if rules == nil {
@@ -159,7 +166,7 @@ func (h *SystemHandler) ExportConfig(c *gin.Context) {
 
 	users, err := h.ConfigDB.ListUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
+		apiError(c, http.StatusInternalServerError, "failed to list users for config export", err)
 		return
 	}
 	if users == nil {
@@ -212,7 +219,7 @@ func (h *SystemHandler) ImportConfig(c *gin.Context) {
 	// Import cameras (skip if name already exists).
 	existingCameras, err := h.ConfigDB.ListCameras()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list existing cameras"})
+		apiError(c, http.StatusInternalServerError, "failed to list existing cameras for import", err)
 		return
 	}
 	existingNames := make(map[string]string) // name -> id

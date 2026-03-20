@@ -28,6 +28,7 @@ type RouterConfig struct {
 	SetupChecker   SetupChecker
 	RecordingsPath string
 	Events         *EventBroadcaster
+	EncryptionKey  []byte // AES-256 key for ONVIF credential encryption
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -41,12 +42,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	}
 
 	cameraHandler := &CameraHandler{
-		DB:         cfg.DB,
-		YAMLWriter: cfg.YAMLWriter,
-		Discovery:  cfg.Discovery,
-		APIAddress: cfg.APIAddress,
-		Scheduler:  cfg.Scheduler,
-		Audit:      audit,
+		DB:            cfg.DB,
+		YAMLWriter:    cfg.YAMLWriter,
+		Discovery:     cfg.Discovery,
+		APIAddress:    cfg.APIAddress,
+		Scheduler:     cfg.Scheduler,
+		Audit:         audit,
+		EncryptionKey: cfg.EncryptionKey,
 	}
 
 	recordingHandler := &RecordingHandler{

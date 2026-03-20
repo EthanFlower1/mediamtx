@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,20 +11,64 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	nvrCrypto "github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
+// pathItem represents a single entry from the MediaMTX paths list API.
+type pathItem struct {
+	Name  string `json:"name"`
+	Ready bool   `json:"ready"`
+}
+
 // CameraHandler implements HTTP endpoints for camera management.
 type CameraHandler struct {
-	DB         *db.DB
-	YAMLWriter *yamlwriter.Writer
-	Discovery  *onvif.Discovery      // may be nil
-	APIAddress string                // MediaMTX API address, e.g. "127.0.0.1:9997"
-	Scheduler  *scheduler.Scheduler  // may be nil
-	Audit      *AuditLogger
+	DB            *db.DB
+	YAMLWriter    *yamlwriter.Writer
+	Discovery     *onvif.Discovery      // may be nil
+	APIAddress    string                // MediaMTX API address, e.g. "127.0.0.1:9997"
+	Scheduler     *scheduler.Scheduler  // may be nil
+	Audit         *AuditLogger
+	EncryptionKey []byte                // AES-256 key for encrypting ONVIF credentials at rest
+}
+
+// encryptPassword encrypts a plaintext password for storage. If no encryption
+// key is configured or the password is empty, the plaintext is returned as-is.
+func (h *CameraHandler) encryptPassword(plaintext string) string {
+	if len(h.EncryptionKey) == 0 || plaintext == "" {
+		return plaintext
+	}
+	ct, err := nvrCrypto.Encrypt(h.EncryptionKey, []byte(plaintext))
+	if err != nil {
+		nvrLogWarn("cameras", "failed to encrypt ONVIF password, storing plaintext")
+		return plaintext
+	}
+	return "enc:" + base64.StdEncoding.EncodeToString(ct)
+}
+
+// decryptPassword decrypts a stored password. If the value does not have
+// the "enc:" prefix it is returned unchanged (plaintext / legacy value).
+func (h *CameraHandler) decryptPassword(stored string) string {
+	if len(h.EncryptionKey) == 0 || stored == "" {
+		return stored
+	}
+	if !strings.HasPrefix(stored, "enc:") {
+		return stored
+	}
+	ct, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(stored, "enc:"))
+	if err != nil {
+		nvrLogWarn("cameras", "failed to decode encrypted ONVIF password")
+		return ""
+	}
+	pt, err := nvrCrypto.Decrypt(h.EncryptionKey, ct)
+	if err != nil {
+		nvrLogWarn("cameras", "failed to decrypt ONVIF password")
+		return ""
+	}
+	return string(pt)
 }
 
 // cameraRequest is the JSON body for creating or updating a camera.
@@ -61,46 +106,67 @@ func sanitizePath(name string) string {
 func (h *CameraHandler) List(c *gin.Context) {
 	cameras, err := h.DB.ListCameras()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to list cameras", err)
 		return
 	}
 	if cameras == nil {
 		cameras = []*db.Camera{}
 	}
 
-	// Enrich with live status from MediaMTX API.
+	// Batch-fetch all path statuses in a single HTTP call instead of N+1 queries.
+	statuses := h.getPathStatuses()
 	for _, cam := range cameras {
 		if cam.MediaMTXPath != "" {
-			cam.Status = h.getPathStatus(cam.MediaMTXPath)
+			if s, ok := statuses[cam.MediaMTXPath]; ok {
+				cam.Status = s
+			} else {
+				cam.Status = "disconnected"
+			}
 		}
 	}
 
 	c.JSON(http.StatusOK, cameras)
 }
 
-// getPathStatus checks if a MediaMTX path is online by querying the local API.
-func (h *CameraHandler) getPathStatus(pathName string) string {
+// getPathStatuses fetches all paths from MediaMTX in one call and returns a
+// map of path name to status string ("online" or "disconnected").
+func (h *CameraHandler) getPathStatuses() map[string]string {
+	statuses := make(map[string]string)
+
 	addr := h.APIAddress
 	if strings.HasPrefix(addr, ":") {
 		addr = "127.0.0.1" + addr
 	}
-	url := fmt.Sprintf("http://%s/v3/paths/get/%s", addr, pathName)
+
+	url := fmt.Sprintf("http://%s/v3/paths/list", addr)
 	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != 200 {
-		return "disconnected"
+	if err != nil {
+		nvrLogWarn("cameras", "failed to fetch path statuses from MediaMTX: "+err.Error())
+		return statuses
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		nvrLogWarn("cameras", fmt.Sprintf("MediaMTX paths list returned status %d", resp.StatusCode))
+		return statuses
+	}
+
 	var result struct {
-		Ready bool `json:"ready"`
+		Items []pathItem `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "disconnected"
+		nvrLogWarn("cameras", "failed to decode MediaMTX paths list: "+err.Error())
+		return statuses
 	}
-	if result.Ready {
-		return "online"
+
+	for _, item := range result.Items {
+		if item.Ready {
+			statuses[item.Name] = "online"
+		} else {
+			statuses[item.Name] = "disconnected"
+		}
 	}
-	return "disconnected"
+	return statuses
 }
 
 // Get returns a single camera by ID.
@@ -112,7 +178,7 @@ func (h *CameraHandler) Get(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
 		return
 	}
 	c.JSON(http.StatusOK, cam)
@@ -132,7 +198,7 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		Name:              req.Name,
 		ONVIFEndpoint:     req.ONVIFEndpoint,
 		ONVIFUsername:      req.ONVIFUsername,
-		ONVIFPassword:     req.ONVIFPassword,
+		ONVIFPassword:     h.encryptPassword(req.ONVIFPassword),
 		ONVIFProfileToken: req.ONVIFProfileToken,
 		RTSPURL:           req.RTSPURL,
 		PTZCapable:        req.PTZCapable,
@@ -141,7 +207,7 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.DB.CreateCamera(cam); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create camera"})
+		apiError(c, http.StatusInternalServerError, "failed to create camera", err)
 		return
 	}
 
@@ -152,9 +218,11 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	if err := h.YAMLWriter.AddPath(pathName, yamlConfig); err != nil {
 		// Rollback: delete the camera from DB.
 		_ = h.DB.DeleteCamera(cam.ID)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write config"})
+		apiError(c, http.StatusInternalServerError, "failed to write config", err)
 		return
 	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Created camera %q (id=%s, path=%s)", cam.Name, cam.ID, pathName))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "create", "camera", cam.ID, fmt.Sprintf("Created camera %q", cam.Name))
@@ -173,7 +241,7 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for update", err)
 		return
 	}
 
@@ -189,7 +257,7 @@ func (h *CameraHandler) Update(c *gin.Context) {
 	existing.Name = req.Name
 	existing.ONVIFEndpoint = req.ONVIFEndpoint
 	existing.ONVIFUsername = req.ONVIFUsername
-	existing.ONVIFPassword = req.ONVIFPassword
+	existing.ONVIFPassword = h.encryptPassword(req.ONVIFPassword)
 	existing.ONVIFProfileToken = req.ONVIFProfileToken
 	existing.RTSPURL = req.RTSPURL
 	existing.PTZCapable = req.PTZCapable
@@ -197,7 +265,7 @@ func (h *CameraHandler) Update(c *gin.Context) {
 	existing.Tags = req.Tags
 
 	if err := h.DB.UpdateCamera(existing); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update camera"})
+		apiError(c, http.StatusInternalServerError, "failed to update camera", err)
 		return
 	}
 
@@ -211,9 +279,11 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		"source": existing.RTSPURL,
 	}
 	if err := h.YAMLWriter.AddPath(newPath, yamlConfig); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write config"})
+		apiError(c, http.StatusInternalServerError, "failed to write config", err)
 		return
 	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Updated camera %q (id=%s)", existing.Name, existing.ID))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "update", "camera", existing.ID, fmt.Sprintf("Updated camera %q", existing.Name))
@@ -232,12 +302,12 @@ func (h *CameraHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for deletion", err)
 		return
 	}
 
 	if err := h.DB.DeleteCamera(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete camera"})
+		apiError(c, http.StatusInternalServerError, "failed to delete camera", err)
 		return
 	}
 
@@ -250,6 +320,8 @@ func (h *CameraHandler) Delete(c *gin.Context) {
 	if h.Scheduler != nil {
 		h.Scheduler.RemoveCamera(id)
 	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Deleted camera %q (id=%s)", cam.Name, id))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "delete", "camera", id, fmt.Sprintf("Deleted camera %q", cam.Name))
@@ -271,10 +343,11 @@ func (h *CameraHandler) Discover(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start scan"})
+		apiError(c, http.StatusInternalServerError, "failed to start ONVIF discovery scan", err)
 		return
 	}
 
+	nvrLogInfo("discovery", fmt.Sprintf("Started ONVIF discovery scan (id=%s)", scanID))
 	c.JSON(http.StatusAccepted, gin.H{"scan_id": scanID})
 }
 
@@ -322,7 +395,8 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 
 	profiles, err := onvif.ProbeDevice(req.XAddr, req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to probe device: " + err.Error()})
+		nvrLogError("discovery", fmt.Sprintf("ONVIF probe failed for %s", req.XAddr), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or probe failed"})
 		return
 	}
 
@@ -354,13 +428,13 @@ func (h *CameraHandler) UpdateRetention(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update retention"})
+		apiError(c, http.StatusInternalServerError, "failed to update retention policy", err)
 		return
 	}
 
 	cam, err := h.DB.GetCamera(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve camera"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera after retention update", err)
 		return
 	}
 
@@ -392,7 +466,7 @@ func (h *CameraHandler) PTZCommand(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for PTZ", err)
 		return
 	}
 
@@ -412,9 +486,10 @@ func (h *CameraHandler) PTZCommand(c *gin.Context) {
 		return
 	}
 
-	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword)
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to connect to ONVIF device: " + err.Error()})
+		nvrLogError("ptz", fmt.Sprintf("failed to connect to ONVIF device for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable"})
 		return
 	}
 
@@ -426,12 +501,14 @@ func (h *CameraHandler) PTZCommand(c *gin.Context) {
 	switch req.Action {
 	case "move":
 		if err := ctrl.ContinuousMove(profileToken, req.Pan, req.Tilt, req.Zoom); err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ move failed: " + err.Error()})
+			nvrLogError("ptz", "PTZ move failed", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PTZ move failed"})
 			return
 		}
 	case "stop":
 		if err := ctrl.Stop(profileToken); err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ stop failed: " + err.Error()})
+			nvrLogError("ptz", "PTZ stop failed", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PTZ stop failed"})
 			return
 		}
 	case "preset":
@@ -440,12 +517,14 @@ func (h *CameraHandler) PTZCommand(c *gin.Context) {
 			return
 		}
 		if err := ctrl.GotoPreset(profileToken, req.PresetToken); err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ goto preset failed: " + err.Error()})
+			nvrLogError("ptz", "PTZ goto preset failed", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PTZ goto preset failed"})
 			return
 		}
 	case "home":
 		if err := ctrl.GotoHome(profileToken); err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ goto home failed: " + err.Error()})
+			nvrLogError("ptz", "PTZ goto home failed", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PTZ goto home failed"})
 			return
 		}
 	default:
@@ -468,7 +547,7 @@ func (h *CameraHandler) PTZPresets(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for PTZ presets", err)
 		return
 	}
 
@@ -482,9 +561,10 @@ func (h *CameraHandler) PTZPresets(c *gin.Context) {
 		return
 	}
 
-	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword)
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to connect to ONVIF device: " + err.Error()})
+		nvrLogError("ptz", fmt.Sprintf("failed to connect to ONVIF device for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable"})
 		return
 	}
 
@@ -495,7 +575,8 @@ func (h *CameraHandler) PTZPresets(c *gin.Context) {
 
 	presets, err := ctrl.GetPresets(profileToken)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to get presets: " + err.Error()})
+		nvrLogError("ptz", "failed to get PTZ presets", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get presets from device"})
 		return
 	}
 
@@ -516,7 +597,7 @@ func (h *CameraHandler) GetSettings(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera settings", err)
 		return
 	}
 
@@ -530,9 +611,10 @@ func (h *CameraHandler) GetSettings(c *gin.Context) {
 		videoSourceToken = "000"
 	}
 
-	settings, err := onvif.GetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, videoSourceToken)
+	settings, err := onvif.GetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), videoSourceToken)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to get imaging settings: " + err.Error()})
+		nvrLogError("imaging", fmt.Sprintf("failed to get imaging settings for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or imaging query failed"})
 		return
 	}
 
@@ -557,7 +639,7 @@ func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for settings update", err)
 		return
 	}
 
@@ -584,8 +666,9 @@ func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 		Sharpness:  req.Sharpness,
 	}
 
-	if err := onvif.SetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, videoSourceToken, settings); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to apply imaging settings: " + err.Error()})
+	if err := onvif.SetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), videoSourceToken, settings); err != nil {
+		nvrLogError("imaging", fmt.Sprintf("failed to apply imaging settings for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or settings update failed"})
 		return
 	}
 

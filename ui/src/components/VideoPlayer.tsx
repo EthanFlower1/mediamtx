@@ -5,6 +5,7 @@ interface VideoPlayerProps {
   stream?: MediaStream
   live?: boolean
   onTimeUpdate?: (time: number) => void
+  onRetry?: () => void
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 8]
@@ -18,7 +19,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPlayerProps) {
+export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,6 +33,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPl
   const [showSpeedMenu, setShowSpeedMenu] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
+  const [videoError, setVideoError] = useState(false)
 
   // Attach stream source when provided.
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPl
     const video = videoRef.current
     if (!video) return
 
-    const onPlay = () => setPlaying(true)
+    const onPlay = () => { setPlaying(true); setVideoError(false) }
     const onPause = () => setPlaying(false)
     const onTimeUpdateEvt = () => {
       setCurrentTime(video.currentTime)
@@ -67,12 +69,14 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPl
       setVolume(video.volume)
       setMuted(video.muted)
     }
+    const onError = () => setVideoError(true)
 
     video.addEventListener('play', onPlay)
     video.addEventListener('pause', onPause)
     video.addEventListener('timeupdate', onTimeUpdateEvt)
     video.addEventListener('durationchange', onDurationChange)
     video.addEventListener('volumechange', onVolumeChange)
+    video.addEventListener('error', onError)
 
     return () => {
       video.removeEventListener('play', onPlay)
@@ -80,6 +84,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPl
       video.removeEventListener('timeupdate', onTimeUpdateEvt)
       video.removeEventListener('durationchange', onDurationChange)
       video.removeEventListener('volumechange', onVolumeChange)
+      video.removeEventListener('error', onError)
     }
   }, [onTimeUpdate])
 
@@ -185,6 +190,36 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate }: VideoPl
         className="w-full h-full object-contain"
         onClick={togglePlay}
       />
+
+      {/* Error overlay */}
+      {videoError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-nvr-danger mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="text-white text-sm mb-3">Failed to load video. Check camera connection.</p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setVideoError(false)
+              if (onRetry) {
+                onRetry()
+              } else {
+                const video = videoRef.current
+                if (video && src) {
+                  video.src = src
+                  video.play().catch(() => {})
+                }
+              }
+            }}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Timestamp overlay - top left */}
       <div

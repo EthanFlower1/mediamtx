@@ -11,6 +11,7 @@ import UserManagement from './pages/UserManagement'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
+import StorageBanner from './components/StorageBanner'
 import { useNotifications } from './hooks/useNotifications'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -117,6 +118,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </nav>
+      <StorageBanner />
       <ToastContainer />
       <main className="p-4 md:p-6">{children}</main>
     </div>

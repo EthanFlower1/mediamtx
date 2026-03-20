@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +15,34 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
+// hasCameraPermission checks whether the authenticated user has permission to
+// access the given camera. It reads camera_permissions from the gin context
+// (set by JWT middleware). "*" grants access to all cameras; otherwise the value
+// is expected to be a JSON array of allowed camera IDs.
+func hasCameraPermission(c *gin.Context, cameraID string) bool {
+	permsRaw, exists := c.Get("camera_permissions")
+	if !exists {
+		return false
+	}
+	perms, ok := permsRaw.(string)
+	if !ok {
+		return false
+	}
+	if perms == "*" || perms == "" {
+		return true
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(perms), &ids); err != nil {
+		return false
+	}
+	for _, id := range ids {
+		if id == cameraID {
+			return true
+		}
+	}
+	return false
+}
+
 // RecordingHandler implements HTTP endpoints for recording queries.
 type RecordingHandler struct {
 	DB *db.DB
@@ -25,6 +54,11 @@ func (h *RecordingHandler) Query(c *gin.Context) {
 	cameraID := c.Query("camera_id")
 	if cameraID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_id is required"})
+		return
+	}
+
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
 		return
 	}
 
@@ -45,7 +79,7 @@ func (h *RecordingHandler) Query(c *gin.Context) {
 
 	recordings, err := h.DB.QueryRecordings(cameraID, start, end)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to query recordings", err)
 		return
 	}
 
@@ -65,6 +99,11 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 		return
 	}
 
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
 	dateStr := c.Query("date")
 	date, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
@@ -77,7 +116,7 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 
 	ranges, err := h.DB.GetTimeline(cameraID, start, end)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to query timeline", err)
 		return
 	}
 
@@ -104,7 +143,12 @@ func (h *RecordingHandler) Download(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve recording", err)
+		return
+	}
+
+	if !hasCameraPermission(c, rec.CameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
 		return
 	}
 
@@ -133,6 +177,11 @@ func (h *RecordingHandler) Export(c *gin.Context) {
 		return
 	}
 
+	if !hasCameraPermission(c, req.CameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
 	start, err := time.Parse(time.RFC3339, req.Start)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start time, expected RFC3339"})
@@ -147,7 +196,7 @@ func (h *RecordingHandler) Export(c *gin.Context) {
 
 	recordings, err := h.DB.QueryRecordings(req.CameraID, start, end)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to query recordings for export", err)
 		return
 	}
 

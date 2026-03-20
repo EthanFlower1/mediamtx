@@ -72,6 +72,7 @@ func TestRecordingDownload(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("camera_permissions", "*")
 
 	handler.Download(c)
 
@@ -102,6 +103,7 @@ func TestRecordingDownloadNotFound(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.Params = gin.Params{{Key: "id", Value: "999"}}
+	c.Set("camera_permissions", "*")
 
 	handler.Download(c)
 
@@ -119,6 +121,7 @@ func TestRecordingDownloadInvalidID(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.Params = gin.Params{{Key: "id", Value: "not-a-number"}}
+	c.Set("camera_permissions", "*")
 
 	handler.Download(c)
 
@@ -156,6 +159,7 @@ func TestRecordingDownloadFileMissing(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("camera_permissions", "*")
 
 	handler.Download(c)
 
@@ -176,6 +180,7 @@ func TestRecordingExport(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("camera_permissions", "*")
 
 	handler.Export(c)
 
@@ -217,6 +222,7 @@ func TestRecordingExportEmpty(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("camera_permissions", "*")
 
 	handler.Export(c)
 
@@ -245,6 +251,7 @@ func TestRecordingExportMissingFields(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("camera_permissions", "*")
 
 	handler.Export(c)
 
@@ -264,6 +271,7 @@ func TestRecordingQuery(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet,
 		"/?camera_id="+rec.CameraID+"&start=2025-01-15T00:00:00Z&end=2025-01-15T23:59:59Z", nil)
+	c.Set("camera_permissions", "*")
 
 	handler.Query(c)
 
@@ -316,6 +324,7 @@ func TestRecordingQueryCrossDate(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet,
 		"/?camera_id="+cam.ID+"&start=2025-01-14T00:00:00Z&end=2025-01-17T00:00:00Z", nil)
+	c.Set("camera_permissions", "*")
 
 	handler.Query(c)
 

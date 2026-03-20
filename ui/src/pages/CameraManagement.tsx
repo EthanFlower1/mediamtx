@@ -3,6 +3,7 @@ import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import RecordingRules from '../components/RecordingRules'
 import CameraSettings from '../components/CameraSettings'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 /** Small component to fetch and display the effective recording mode for a camera. */
 function RecordingModeBadge({ cameraId }: { cameraId: string }) {
@@ -63,6 +64,7 @@ export default function CameraManagement() {
   const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleDiscover = async () => {
     setDiscovering(true)
@@ -180,9 +182,9 @@ export default function CameraManagement() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this camera?')) return
     await apiFetch(`/cameras/${id}`, { method: 'DELETE' })
     if (selectedCamera?.id === id) setSelectedCamera(null)
+    setConfirmDeleteId(null)
     refresh()
   }
 
@@ -374,7 +376,7 @@ export default function CameraManagement() {
                 </div>
                 <div className="flex justify-end">
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(cam.id) }}
                     className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
                   >
                     Delete
@@ -416,7 +418,7 @@ export default function CameraManagement() {
                     <td className="px-4 py-3 text-sm text-nvr-text-secondary">{cam.ptz_capable ? 'Yes' : 'No'}</td>
                     <td className="px-4 py-3 text-sm">
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(cam.id) }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(cam.id) }}
                         className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                       >
                         Delete
@@ -474,6 +476,16 @@ export default function CameraManagement() {
       {cameras.length === 0 && !showAdd && (
         <p className="text-center py-12 text-nvr-text-muted">No cameras configured. Discover cameras on your network or add one manually.</p>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete Camera"
+        message="Are you sure you want to delete this camera? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   )
 }

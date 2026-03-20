@@ -140,6 +140,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		recordingsPath = "./recordings/"
 	}
 
+	credKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+
 	api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
@@ -152,6 +154,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		SetupChecker:   n,
 		RecordingsPath: recordingsPath,
 		Events:         n.events,
+		EncryptionKey:  credKey,
 	})
 }
 
@@ -185,10 +188,12 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		format = "mpegts"
 	}
 
+	// All timestamps are stored in UTC. The UI converts to the user's local
+	// timezone using JavaScript's Date/toLocaleTimeString for display.
 	now := time.Now().UTC()
 	start := now.Add(-duration)
 
-	n.database.InsertRecording(&db.Recording{
+	rec := &db.Recording{
 		CameraID:   cam.ID,
 		StartTime:  start.Format("2006-01-02T15:04:05.000Z"),
 		EndTime:    now.Format("2006-01-02T15:04:05.000Z"),
@@ -196,7 +201,20 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		FilePath:   filePath,
 		FileSize:   fileSize,
 		Format:     format,
-	})
+	}
+
+	// Retry up to 3 times with 1-second delay on failure.
+	var insertErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		insertErr = n.database.InsertRecording(rec)
+		if insertErr == nil {
+			return
+		}
+		if attempt < 2 {
+			time.Sleep(1 * time.Second)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
 }
 
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.

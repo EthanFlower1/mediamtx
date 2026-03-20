@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../auth/context'
 import { Camera } from '../hooks/useCameras'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 interface User {
   id: string
@@ -209,6 +210,7 @@ export default function UserManagement() {
   const [cameras, setCameras] = useState<Camera[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Password change state (for current user).
   const [showPasswordChange, setShowPasswordChange] = useState(false)
@@ -250,9 +252,9 @@ export default function UserManagement() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this user?')) return
     await apiFetch(`/users/${id}`, { method: 'DELETE' })
     if (editingUserId === id) setEditingUserId(null)
+    setConfirmDeleteId(null)
     refresh()
   }
 
@@ -423,7 +425,7 @@ export default function UserManagement() {
               </button>
               {u.id !== currentUser?.id && (
                 <button
-                  onClick={() => handleDelete(u.id)}
+                  onClick={() => setConfirmDeleteId(u.id)}
                   className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
                 >
                   Delete
@@ -485,7 +487,7 @@ export default function UserManagement() {
                       </button>
                       {u.id !== currentUser?.id && (
                         <button
-                          onClick={() => handleDelete(u.id)}
+                          onClick={() => setConfirmDeleteId(u.id)}
                           className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
                         >
                           Delete
@@ -512,6 +514,16 @@ export default function UserManagement() {
           <p className="text-center py-8 text-nvr-text-muted">No users found.</p>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   )
 }

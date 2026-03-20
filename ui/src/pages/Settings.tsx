@@ -20,6 +20,8 @@ interface StorageInfo {
   free_bytes: number
   recordings_bytes: number
   per_camera: CameraStorageInfo[]
+  warning: boolean
+  critical: boolean
 }
 
 interface MetricsData {
@@ -486,8 +488,9 @@ export default function Settings() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm min-h-[44px]"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm min-h-[44px] inline-flex items-center gap-2"
           >
+            {exporting && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {exporting ? 'Exporting...' : 'Export Configuration'}
           </button>
         </div>
@@ -518,8 +521,9 @@ export default function Settings() {
               <button
                 onClick={handleImport}
                 disabled={importing}
-                className="mt-3 bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm min-h-[44px]"
+                className="mt-3 bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm min-h-[44px] inline-flex items-center gap-2"
               >
+                {importing && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {importing ? 'Importing...' : 'Confirm Import'}
               </button>
             </div>

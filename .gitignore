@@ -6,3 +6,6 @@
 /internal/servers/hls/hls.min.js
 /internal/staticsources/rpicamera/mtxrpicam_*/
 /.worktrees
+internal/nvr/ui/dist/*
+!internal/nvr/ui/dist/.gitkeep
+ui/node_modules/

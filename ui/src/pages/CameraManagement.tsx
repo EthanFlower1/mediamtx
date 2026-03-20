@@ -75,6 +75,9 @@ export default function CameraManagement() {
   const [probeError, setProbeError] = useState('')
   const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
 
+  // Clipboard state
+  const [copiedCameraId, setCopiedCameraId] = useState<string | null>(null)
+
   // Camera detail state
   const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -230,8 +233,23 @@ export default function CameraManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Cameras</h1>
+        </div>
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="bg-nvr-bg-secondary rounded-xl p-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-nvr-bg-tertiary" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-nvr-bg-tertiary rounded w-1/3" />
+                  <div className="h-3 bg-nvr-bg-tertiary rounded w-2/3" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -247,7 +265,7 @@ export default function CameraManagement() {
         {cameras.length > 0 && (
           <button
             onClick={() => openAddModal('discover')}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px]"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Add Camera
           </button>
@@ -267,7 +285,7 @@ export default function CameraManagement() {
           <div className="flex gap-3">
             <button
               onClick={() => openAddModal('discover')}
-              className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm"
+              className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
             >
               Discover Cameras
             </button>
@@ -318,6 +336,27 @@ export default function CameraManagement() {
                     </div>
                     <div className="flex items-center gap-3 text-xs text-nvr-text-muted">
                       <span className="truncate max-w-[280px] font-mono">{cam.rtsp_url}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigator.clipboard.writeText(cam.rtsp_url)
+                          setCopiedCameraId(cam.id)
+                          setTimeout(() => setCopiedCameraId(prev => prev === cam.id ? null : prev), 2000)
+                        }}
+                        className="shrink-0 p-1 rounded hover:bg-nvr-bg-tertiary transition-colors"
+                        title="Copy RTSP URL"
+                      >
+                        {copiedCameraId === cam.id ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-nvr-success" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                          </svg>
+                        )}
+                      </button>
                       <RecordingModeBadge cameraId={cam.id} />
                     </div>
                   </div>
@@ -394,14 +433,17 @@ export default function CameraManagement() {
             {/* Modal header */}
             <div className="flex items-center justify-between p-5 border-b border-nvr-border">
               <h2 className="text-lg font-semibold text-nvr-text-primary">Add Camera</h2>
-              <button
-                onClick={resetForm}
-                className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-nvr-text-muted text-xs">Press Esc to close</span>
+                <button
+                  onClick={resetForm}
+                  className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Tabs */}

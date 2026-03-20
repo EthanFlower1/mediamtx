@@ -135,7 +135,7 @@ export default function PlayerCell({ camera, onSelect }: Props) {
   return (
     <div
       onClick={onSelect}
-      className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden border border-nvr-border group hover:scale-[1.02] hover:ring-2 ring-nvr-accent/50 transition-all duration-200"
+      className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden border border-nvr-border group hover:scale-[1.02] hover:ring-2 ring-nvr-accent/50 hover:brightness-105 transition-all duration-200"
     >
       <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
 
@@ -155,8 +155,16 @@ export default function PlayerCell({ camera, onSelect }: Props) {
         </div>
       )}
 
+      {/* LIVE badge — top-right when connected */}
+      {connectionState === 'connected' && camera.status === 'online' && (
+        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded px-1.5 py-0.5 z-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-[10px] text-white font-medium">LIVE</span>
+        </div>
+      )}
+
       {/* Bottom bar: name + status dot */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 flex items-center gap-2">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent group-hover:from-black/90 px-3 py-2 flex items-center gap-2 transition-all duration-200">
         <span
           className={`w-2 h-2 rounded-full shrink-0 ${
             camera.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'

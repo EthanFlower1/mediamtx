@@ -6,6 +6,7 @@ interface VideoPlayerProps {
   live?: boolean
   onTimeUpdate?: (time: number) => void
   onRetry?: () => void
+  onVideoRef?: (el: HTMLVideoElement | null) => void
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 8]
@@ -19,7 +20,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }: VideoPlayerProps) {
+export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, onVideoRef }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -34,6 +35,12 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [videoError, setVideoError] = useState(false)
+
+  // Expose video element to parent via callback.
+  useEffect(() => {
+    onVideoRef?.(videoRef.current)
+    return () => onVideoRef?.(null)
+  }, [onVideoRef])
 
   // Attach stream source when provided.
   useEffect(() => {
@@ -214,7 +221,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
                 }
               }
             }}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Retry
           </button>
@@ -246,6 +253,11 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
         {/* Progress bar (recordings only) */}
         {!live && (
           <div
+            role="slider"
+            aria-label="Video progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress)}
             className="w-full h-1.5 bg-white/20 cursor-pointer group/progress hover:h-2.5 transition-all"
             onClick={handleSeek}
           >
@@ -261,7 +273,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
           {/* Play / Pause */}
           <button
             onClick={togglePlay}
-            className="text-white hover:text-nvr-accent transition-colors p-1"
+            className="text-white hover:text-nvr-accent transition-colors p-1 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
             aria-label={playing ? 'Pause' : 'Play'}
           >
             {playing ? (
@@ -298,7 +310,8 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
             <div className="relative">
               <button
                 onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                className="text-xs text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-1 transition-colors font-medium"
+                className="text-xs text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-1 transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                aria-label={`Playback speed ${speed}x`}
               >
                 {speed}x
               </button>
@@ -308,11 +321,12 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
                     <button
                       key={s}
                       onClick={() => changeSpeed(s)}
-                      className={`block w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                      className={`block w-full text-left px-3 py-1.5 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                         s === speed
                           ? 'text-nvr-accent bg-nvr-accent/10'
                           : 'text-nvr-text-primary hover:bg-nvr-bg-tertiary'
                       }`}
+                      aria-label={`Set speed to ${s}x`}
                     >
                       {s}x
                     </button>
@@ -326,7 +340,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
           <div className="flex items-center gap-1.5 group/vol">
             <button
               onClick={toggleMute}
-              className="text-white/80 hover:text-white transition-colors p-1"
+              className="text-white/80 hover:text-white transition-colors p-1 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
               aria-label={muted ? 'Unmute' : 'Mute'}
             >
               {muted || volume === 0 ? (
@@ -350,6 +364,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
               step="0.05"
               value={muted ? 0 : volume}
               onChange={handleVolumeChange}
+              aria-label="Volume"
               className="w-0 group-hover/vol:w-20 transition-all duration-200 accent-nvr-accent h-1 cursor-pointer opacity-0 group-hover/vol:opacity-100"
             />
           </div>
@@ -357,7 +372,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry }
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="text-white/80 hover:text-white transition-colors p-1"
+            className="text-white/80 hover:text-white transition-colors p-1 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {isFullscreen ? (

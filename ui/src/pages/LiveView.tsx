@@ -91,14 +91,14 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors text-sm font-medium flex items-center gap-1.5 min-h-[44px] min-w-[44px] justify-center"
+          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors text-sm font-medium flex items-center gap-1.5 min-h-[44px] min-w-[44px] justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded-lg"
           aria-label="Close"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
           <span className="hidden sm:inline">Close</span>
-          <span className="hidden sm:inline text-white/40 text-xs ml-1">(Esc)</span>
+          <span className="hidden sm:inline text-nvr-text-muted text-xs ml-1">Press Esc to close</span>
         </button>
 
         {/* Camera name and status */}
@@ -124,15 +124,54 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
   )
 }
 
+const gridColsMap: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-1 sm:grid-cols-2',
+  3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+  4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+}
+
 export default function LiveView() {
   const { cameras, loading } = useCameras()
-  const [layout, setLayout] = useState(2)
+  const [layout, setLayout] = useState(() => {
+    const saved = localStorage.getItem('nvr-live-layout')
+    return saved ? parseInt(saved, 10) : 2
+  })
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
+
+  const handleLayoutChange = (n: number) => {
+    setLayout(n)
+    localStorage.setItem('nvr-live-layout', String(n))
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Live View</h1>
+          </div>
+          <div className="flex rounded-lg overflow-hidden border border-nvr-border">
+            {[1, 2, 3, 4].map(n => (
+              <button
+                key={n}
+                disabled
+                className={`px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] opacity-50 pointer-events-none ${
+                  layout === n
+                    ? 'bg-nvr-accent text-white'
+                    : 'bg-nvr-bg-tertiary text-nvr-text-secondary'
+                }`}
+              >
+                {n}x{n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className={`grid ${gridColsMap[layout]} gap-2 w-full`}>
+          {Array.from({ length: layout * layout }, (_, i) => (
+            <div key={i} className="aspect-video bg-nvr-bg-secondary rounded-lg animate-pulse" />
+          ))}
+        </div>
       </div>
     )
   }
@@ -174,8 +213,9 @@ export default function LiveView() {
           {[1, 2, 3, 4].map(n => (
             <button
               key={n}
-              onClick={() => setLayout(n)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] ${
+              onClick={() => handleLayoutChange(n)}
+              aria-label={`${n}x${n} grid layout`}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 layout === n
                   ? 'bg-nvr-accent text-white'
                   : 'bg-nvr-bg-tertiary text-nvr-text-secondary hover:bg-nvr-bg-input hover:text-nvr-text-primary'

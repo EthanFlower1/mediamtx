@@ -12,6 +12,19 @@ interface RecordingList {
   segments: Segment[]
 }
 
+// Format a Date as RFC3339 with local timezone offset (not UTC).
+// MediaMTX playback server matches against local-time file paths,
+// so we must send local time, not UTC.
+function toLocalRFC3339(d: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const offset = -d.getTimezoneOffset()
+  const sign = offset >= 0 ? '+' : '-'
+  const absOffset = Math.abs(offset)
+  const offH = pad(Math.floor(absOffset / 60))
+  const offM = pad(absOffset % 60)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offH}:${offM}`
+}
+
 function shiftDate(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00')
   d.setDate(d.getDate() + days)
@@ -30,7 +43,15 @@ function formatDuration(ms: number): string {
 
 export default function Recordings() {
   const { cameras, loading: camerasLoading } = useCameras()
-  const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
+  const [selectedCamera, setSelectedCamera] = useState<string | null>(() => {
+    return localStorage.getItem('nvr-recordings-camera')
+  })
+
+  const handleCameraChange = (id: string | null) => {
+    setSelectedCamera(id)
+    if (id) localStorage.setItem('nvr-recordings-camera', id)
+    else localStorage.removeItem('nvr-recordings-camera')
+  }
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [timelineRanges, setTimelineRanges] = useState<{ start: string; end: string }[]>([])
   const [playbackTime, setPlaybackTime] = useState<Date | null>(null)
@@ -112,7 +133,7 @@ export default function Recordings() {
     if (!mediamtxPath) return
     setPlaybackTime(time)
     videoStartTimeRef.current = time
-    const startISO = time.toISOString()
+    const startISO = toLocalRFC3339(time)
     // Use duration=86400 (full day) so playback continues across segment boundaries
     // MediaMTX will naturally end the stream when no more footage exists
     const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=86400`
@@ -126,25 +147,32 @@ export default function Recordings() {
     setPlaybackTime(currentWallTime)
   }, [])
 
-  const handleClipDownload = () => {
+  const handleClipDownload = async () => {
     if (!mediamtxPath || !clipStart || !clipEnd) return
     setClipDownloading(true)
 
-    const startISO = clipStart.toISOString()
+    const startISO = toLocalRFC3339(clipStart)
     const durationSecs = (clipEnd.getTime() - clipStart.getTime()) / 1000
-    // Request MP4 format for better download compatibility
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}&format=mp4`
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
 
-    const link = document.createElement('a')
-    link.href = url
-    const fileName = `clip_${mediamtxPath}_${clipStart.toISOString().replace(/[:.]/g, '-')}.mp4`
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    // Reset downloading state after a brief delay
-    setTimeout(() => setClipDownloading(false), 2000)
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `clip_${mediamtxPath.replace(/\//g, '_')}_${startISO.replace(/[:.]/g, '-')}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      // fallback: open in new tab
+      window.open(url, '_blank')
+    } finally {
+      setClipDownloading(false)
+    }
   }
 
   const exitClipMode = () => {
@@ -180,7 +208,7 @@ export default function Recordings() {
           <select
             value={selectedCamera || ''}
             onChange={e => {
-              setSelectedCamera(e.target.value || null)
+              handleCameraChange(e.target.value || null)
               resetPlayback()
               exitClipMode()
             }}

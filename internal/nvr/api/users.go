@@ -162,6 +162,55 @@ func (h *UserHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, existing)
 }
 
+// passwordChangeRequest is the JSON body for changing a user's own password.
+type passwordChangeRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required"`
+}
+
+// ChangePassword lets an authenticated user change their own password.
+// It verifies the current password before applying the change.
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	var req passwordChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	user, err := h.DB.GetUser(uid)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if !verifyPassword(req.CurrentPassword, user.PasswordHash) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "current password is incorrect"})
+		return
+	}
+
+	user.PasswordHash = hashPassword(req.NewPassword)
+	if err := h.DB.UpdateUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		return
+	}
+
+	// Revoke all refresh tokens so user must re-login.
+	_ = h.DB.RevokeAllUserTokens(uid)
+
+	c.JSON(http.StatusOK, gin.H{"message": "password changed"})
+}
+
 // Delete deletes a user by ID. Prevents self-deletion.
 func (h *UserHandler) Delete(c *gin.Context) {
 	if !requireAdmin(c) {

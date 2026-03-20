@@ -115,6 +115,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recording-rules/:id", ruleHandler.Delete)
 	protected.GET("/cameras/:id/recording-status", ruleHandler.Status)
 
+	// Auth (protected).
+	protected.PUT("/auth/password", userHandler.ChangePassword)
+
 	// Users.
 	protected.GET("/users", userHandler.List)
 	protected.POST("/users", userHandler.Create)

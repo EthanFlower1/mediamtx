@@ -100,11 +100,12 @@ func (n *NVR) PrivateKey() *rsa.PrivateKey {
 // RegisterRoutes registers NVR API routes on the given gin engine.
 func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 	api.RegisterRoutes(engine, &api.RouterConfig{
-		DB:         n.database,
-		PrivateKey: n.privateKey,
-		JWKSJSON:   n.jwksJSON,
-		YAMLWriter: n.yamlWriter,
-		Version:    version,
+		DB:           n.database,
+		PrivateKey:   n.privateKey,
+		JWKSJSON:     n.jwksJSON,
+		YAMLWriter:   n.yamlWriter,
+		Version:      version,
+		SetupChecker: n,
 	})
 }
 

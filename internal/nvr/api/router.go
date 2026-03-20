@@ -16,12 +16,13 @@ import (
 
 // RouterConfig holds the dependencies needed to register NVR API routes.
 type RouterConfig struct {
-	DB         *db.DB
-	PrivateKey *rsa.PrivateKey
-	JWKSJSON   []byte
-	YAMLWriter *yamlwriter.Writer
-	Version    string
-	Discovery  *onvif.Discovery
+	DB           *db.DB
+	PrivateKey   *rsa.PrivateKey
+	JWKSJSON     []byte
+	YAMLWriter   *yamlwriter.Writer
+	Version      string
+	Discovery    *onvif.Discovery
+	SetupChecker SetupChecker
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -46,8 +47,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	}
 
 	systemHandler := &SystemHandler{
-		Version:   cfg.Version,
-		StartedAt: time.Now(),
+		Version:      cfg.Version,
+		StartedAt:    time.Now(),
+		SetupChecker: cfg.SetupChecker,
 	}
 
 	jwksHandler := &JWKSHandler{
@@ -63,15 +65,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Public routes (no auth required).
 	nvr.POST("/auth/login", authHandler.Login)
 	nvr.POST("/auth/setup", authHandler.Setup)
+	nvr.POST("/auth/refresh", authHandler.Refresh)
+	nvr.POST("/auth/revoke", authHandler.Revoke)
 	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
 	nvr.GET("/system/health", systemHandler.Health)
 
 	// Protected routes (JWT auth required).
 	protected := nvr.Group("", middleware.Handler())
-
-	// Auth.
-	protected.POST("/auth/refresh", authHandler.Refresh)
-	protected.POST("/auth/revoke", authHandler.Revoke)
 
 	// Cameras.
 	protected.GET("/cameras", cameraHandler.List)

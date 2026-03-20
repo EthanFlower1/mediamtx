@@ -108,8 +108,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("refresh_token", rawToken, 7*24*3600, "/", "", false, true)
 	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("refresh_token", rawToken, 7*24*3600, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"access_token": accessToken,
@@ -185,8 +185,8 @@ func (h *AuthHandler) Revoke(c *gin.Context) {
 	}
 
 	// Clear the cookie.
-	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
 	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
 
 	c.JSON(http.StatusOK, gin.H{"message": "token revoked"})
 }

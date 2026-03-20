@@ -62,10 +62,6 @@ CREATE TABLE config (
 	key TEXT PRIMARY KEY,
 	value TEXT
 );
-
-CREATE TABLE schema_migrations (
-	version INTEGER PRIMARY KEY
-);
 `,
 	},
 }

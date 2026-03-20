@@ -9,10 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SetupChecker reports whether initial setup is required.
+type SetupChecker interface {
+	IsSetupRequired() bool
+}
+
 // SystemHandler implements HTTP endpoints for system information and health.
 type SystemHandler struct {
-	Version   string
-	StartedAt time.Time
+	Version      string
+	StartedAt    time.Time
+	SetupChecker SetupChecker
 }
 
 // Info returns system version, platform, and uptime information.
@@ -26,8 +32,12 @@ func (h *SystemHandler) Info(c *gin.Context) {
 	})
 }
 
-// Health returns a simple 200 OK response for health checks.
+// Health returns 200 OK when running, or 503 Service Unavailable when setup is required.
 func (h *SystemHandler) Health(c *gin.Context) {
+	if h.SetupChecker != nil && h.SetupChecker.IsSetupRequired() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "setup_required"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

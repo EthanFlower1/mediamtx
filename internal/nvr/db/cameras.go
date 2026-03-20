@@ -17,7 +17,7 @@ type Camera struct {
 	Name              string `json:"name"`
 	ONVIFEndpoint     string `json:"onvif_endpoint"`
 	ONVIFUsername      string `json:"onvif_username"`
-	ONVIFPassword     string `json:"onvif_password"`
+	ONVIFPassword     string `json:"-"`
 	ONVIFProfileToken string `json:"onvif_profile_token"`
 	RTSPURL           string `json:"rtsp_url"`
 	PTZCapable        bool   `json:"ptz_capable"`

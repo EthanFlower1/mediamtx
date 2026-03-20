@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -29,6 +30,7 @@ type SystemHandler struct {
 	SetupChecker   SetupChecker
 	RecordingsPath string
 	DB             StorageQuerier
+	Broadcaster    *EventBroadcaster
 }
 
 // Info returns system version, platform, and uptime information.
@@ -96,8 +98,8 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 }
 
 // Events is a Server-Sent Events (SSE) endpoint that streams system events.
-// It sets the appropriate headers, sends a "connected" event, and blocks
-// until the client disconnects.
+// It subscribes to the EventBroadcaster and forwards events to the client
+// as JSON-encoded SSE messages until the client disconnects.
 func (h *SystemHandler) Events(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -108,6 +110,30 @@ func (h *SystemHandler) Events(c *gin.Context) {
 	c.SSEvent("message", "connected")
 	c.Writer.Flush()
 
-	// Block until the client disconnects.
-	<-c.Request.Context().Done()
+	if h.Broadcaster == nil {
+		// No broadcaster configured; block until client disconnects.
+		<-c.Request.Context().Done()
+		return
+	}
+
+	ch := h.Broadcaster.Subscribe()
+	defer h.Broadcaster.Unsubscribe(ch)
+
+	ctx := c.Request.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(evt)
+			if err != nil {
+				continue
+			}
+			c.SSEvent("notification", string(data))
+			c.Writer.Flush()
+		}
+	}
 }

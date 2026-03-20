@@ -27,6 +27,7 @@ type RouterConfig struct {
 	Scheduler      *scheduler.Scheduler
 	SetupChecker   SetupChecker
 	RecordingsPath string
+	Events         *EventBroadcaster
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -63,6 +64,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		SetupChecker:   cfg.SetupChecker,
 		RecordingsPath: cfg.RecordingsPath,
 		DB:             cfg.DB,
+		Broadcaster:    cfg.Events,
 	}
 
 	jwksHandler := &JWKSHandler{

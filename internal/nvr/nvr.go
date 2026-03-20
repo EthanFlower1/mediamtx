@@ -37,6 +37,7 @@ type NVR struct {
 	privateKey *rsa.PrivateKey
 	jwksJSON   []byte
 	discovery  *onvif.Discovery
+	events     *api.EventBroadcaster
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -79,8 +80,10 @@ func (n *NVR) Initialize() error {
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.discovery = onvif.NewDiscovery()
+	n.events = api.NewEventBroadcaster()
 
 	n.sched = scheduler.New(n.database, n.yamlWriter)
+	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
 
 	if err := n.loadOrGenerateKeys(); err != nil {
@@ -125,6 +128,11 @@ func (n *NVR) PrivateKey() *rsa.PrivateKey {
 	return n.privateKey
 }
 
+// EventBroadcaster returns the event broadcaster for publishing system events.
+func (n *NVR) EventBroadcaster() *api.EventBroadcaster {
+	return n.events
+}
+
 // RegisterRoutes registers NVR API routes on the given gin engine.
 func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 	recordingsPath := n.RecordingsPath
@@ -143,6 +151,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Scheduler:      n.sched,
 		SetupChecker:   n,
 		RecordingsPath: recordingsPath,
+		Events:         n.events,
 	})
 }
 

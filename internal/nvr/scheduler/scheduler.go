@@ -18,6 +18,16 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
+// EventPublisher is an interface for publishing system events from the scheduler.
+// This avoids a circular import with the api package.
+type EventPublisher interface {
+	PublishMotion(cameraName string)
+	PublishCameraOffline(cameraName string)
+	PublishCameraOnline(cameraName string)
+	PublishRecordingStarted(cameraName string)
+	PublishRecordingStopped(cameraName string)
+}
+
 // EffectiveMode represents the resolved recording mode for a camera after
 // evaluating all matching rules.
 type EffectiveMode string
@@ -50,6 +60,7 @@ type CameraState struct {
 type Scheduler struct {
 	db         *db.DB
 	yamlWriter *yamlwriter.Writer
+	eventPub   EventPublisher
 
 	mu     sync.Mutex
 	states map[string]*CameraState // camera ID -> state
@@ -75,6 +86,12 @@ func New(database *db.DB, writer *yamlwriter.Writer) *Scheduler {
 		motionSMs:     make(map[string]*MotionSM),
 		eventSubs:     make(map[string]*onvif.EventSubscriber),
 	}
+}
+
+// SetEventBroadcaster sets the event publisher used to broadcast system events
+// such as motion detection and camera status changes.
+func (s *Scheduler) SetEventBroadcaster(pub EventPublisher) {
+	s.eventPub = pub
 }
 
 // Start launches the background evaluation goroutine. The first evaluation
@@ -245,6 +262,14 @@ func (s *Scheduler) evaluate() {
 
 		if changed && cam.MediaMTXPath != "" {
 			s.queueWrite(cam.MediaMTXPath, desiredRecording)
+			// Publish recording state change events for always-mode transitions.
+			if s.eventPub != nil {
+				if desiredRecording {
+					s.eventPub.PublishRecordingStarted(cam.Name)
+				} else if exists && prev.Recording {
+					s.eventPub.PublishRecordingStopped(cam.Name)
+				}
+			}
 		}
 	}
 }
@@ -296,6 +321,14 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			st.Recording = record
 		}
 		s.mu.Unlock()
+		// Publish recording state change events.
+		if s.eventPub != nil {
+			if record {
+				s.eventPub.PublishRecordingStarted(cam.Name)
+			} else {
+				s.eventPub.PublishRecordingStopped(cam.Name)
+			}
+		}
 	})
 	s.motionSMs[camID] = sm
 
@@ -316,8 +349,14 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 		}
 	}()
 
-	// Create the event subscriber.
-	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, sm.OnMotion)
+	// Create the event subscriber. Wrap the motion callback to also publish events.
+	motionCallback := func(detected bool) {
+		sm.OnMotion(detected)
+		if detected && s.eventPub != nil {
+			s.eventPub.PublishMotion(cam.Name)
+		}
+	}
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, motionCallback)
 	if err != nil {
 		log.Printf("scheduler: create event subscriber for camera %s: %v", camID, err)
 		delete(s.motionSMs, camID)

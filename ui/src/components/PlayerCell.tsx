@@ -10,9 +10,11 @@ interface Props {
 
 export default function PlayerCell({ camera, onSelect }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const cellRef = useRef<HTMLDivElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelledRef = useRef(false)
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
 
   const cleanup = useCallback(() => {
@@ -132,9 +134,33 @@ export default function PlayerCell({ camera, onSelect }: Props) {
     }
   }, [startConnection, cleanup])
 
+  const handleClick = useCallback(() => {
+    // If a double-click timer is pending, clear it (double-click will fire instead)
+    if (clickTimerRef.current) return
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null
+      onSelect?.()
+    }, 250)
+  }, [onSelect])
+
+  const handleDoubleClick = useCallback(() => {
+    // Cancel the pending single-click
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = null
+    }
+    // Request fullscreen on the video element (or cell as fallback)
+    const target = videoRef.current ?? cellRef.current
+    if (target?.requestFullscreen) {
+      target.requestFullscreen().catch(() => {})
+    }
+  }, [])
+
   return (
     <div
-      onClick={onSelect}
+      ref={cellRef}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden border border-nvr-border group hover:scale-[1.02] hover:ring-2 ring-nvr-accent/50 hover:brightness-105 transition-all duration-200"
     >
       <video
@@ -146,6 +172,14 @@ export default function PlayerCell({ camera, onSelect }: Props) {
           connectionState === 'connected' ? 'opacity-100' : 'opacity-0'
         }`}
       />
+
+      {/* REC badge — top-left when camera is online (recording assumed for all online cameras) */}
+      {camera.status === 'online' && (
+        <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600/80 rounded px-1.5 py-0.5 z-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          <span className="text-[10px] text-white font-bold">REC</span>
+        </div>
+      )}
 
       {/* Connecting: centered spinner */}
       {connectionState === 'connecting' && (

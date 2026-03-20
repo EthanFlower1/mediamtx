@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import RecordingRules from '../components/RecordingRules'
@@ -39,6 +40,68 @@ function RecordingModeBadge({ cameraId }: { cameraId: string }) {
   )
 }
 
+/** Thin timeline strip showing today's recording coverage for a camera. */
+function RecordingMinimap({ mediamtxPath }: { mediamtxPath: string }) {
+  const [ranges, setRanges] = useState<{ startPct: number; widthPct: number }[]>([])
+
+  useEffect(() => {
+    if (!mediamtxPath) return
+
+    const today = new Date()
+    const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+    const dayMs = 24 * 60 * 60 * 1000
+
+    fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
+      .then(res => res.ok ? res.json() : null)
+      .then((data: { segments?: { start: string }[] } | null) => {
+        if (!data?.segments) return
+
+        const dayEnd = dayStart + dayMs
+        const filtered = data.segments.filter(s => {
+          const t = new Date(s.start).getTime()
+          return t >= dayStart && t < dayEnd
+        })
+
+        if (filtered.length === 0) return
+
+        // Build merged ranges
+        const merged: { start: number; end: number }[] = []
+        for (let i = 0; i < filtered.length; i++) {
+          const segStart = new Date(filtered[i].start).getTime()
+          const segEnd = i + 1 < filtered.length
+            ? new Date(filtered[i + 1].start).getTime()
+            : segStart + 5 * 60 * 1000
+
+          if (merged.length > 0 && segStart - merged[merged.length - 1].end < 10000) {
+            merged[merged.length - 1].end = segEnd
+          } else {
+            merged.push({ start: segStart, end: segEnd })
+          }
+        }
+
+        setRanges(merged.map(r => ({
+          startPct: ((r.start - dayStart) / dayMs) * 100,
+          widthPct: Math.max(((r.end - r.start) / dayMs) * 100, 0.5),
+        })))
+      })
+      .catch(() => {})
+  }, [mediamtxPath])
+
+  if (ranges.length === 0) return null
+
+  return (
+    <div className="w-full h-[2px] bg-nvr-bg-tertiary rounded-full overflow-hidden mt-3 relative">
+      {ranges.map((r, i) => (
+        <div
+          key={i}
+          className="absolute top-0 h-full bg-nvr-accent rounded-full"
+          style={{ left: `${r.startPct}%`, width: `${r.widthPct}%` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 interface DiscoveredProfile {
   token: string
   name: string
@@ -69,6 +132,7 @@ function relativeTime(iso: string): string {
 }
 
 export default function CameraManagement() {
+  const navigate = useNavigate()
   const { cameras, loading, refresh } = useCameras()
 
   // Search filter state
@@ -401,9 +465,34 @@ export default function CameraManagement() {
                   {/* Right: action buttons */}
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
+                      onClick={() => navigate('/live')}
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-accent hover:bg-nvr-accent/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      aria-label="View Live"
+                      title="View Live"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <circle cx="12" cy="12" r="3" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('nvr-recordings-camera', cam.id)
+                        navigate('/recordings')
+                      }}
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-accent hover:bg-nvr-accent/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      aria-label="Recordings"
+                      title="Recordings"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => toggleExpanded(cam)}
                       className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                       aria-label="Settings"
+                      title="Settings"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -413,6 +502,7 @@ export default function CameraManagement() {
                       onClick={() => setConfirmDeleteId(cam.id)}
                       className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                       aria-label="Delete"
+                      title="Delete"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -420,6 +510,9 @@ export default function CameraManagement() {
                     </button>
                   </div>
                 </div>
+
+                {/* Recording timeline minimap — today's coverage */}
+                {cam.mediamtx_path && <RecordingMinimap mediamtxPath={cam.mediamtx_path} />}
               </div>
 
               {/* Expanded inline detail */}

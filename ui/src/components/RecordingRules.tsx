@@ -4,6 +4,7 @@ import SchedulePreview from './SchedulePreview'
 import ConfirmDialog from './ConfirmDialog'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 interface RecordingRulesProps {
   cameraId: string
@@ -30,126 +31,46 @@ function formatDays(daysStr: string): string {
   return days.map(d => DAY_NAMES[d]).join(', ')
 }
 
-// --- Styles ---
-
-const cardStyle: React.CSSProperties = {
-  background: '#1e1e2e',
-  border: '1px solid #2a2a3e',
-  borderRadius: 8,
-  padding: 16,
-  marginBottom: 12,
-}
-
-const badgeBase: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '2px 8px',
-  borderRadius: 9999,
-  fontSize: 12,
-  fontWeight: 600,
-}
-
-function modeBadge(mode: string): React.CSSProperties {
-  if (mode === 'always') return { ...badgeBase, background: 'rgba(59,130,246,0.2)', color: '#60a5fa' }
-  if (mode === 'events') return { ...badgeBase, background: 'rgba(245,158,11,0.2)', color: '#fbbf24' }
-  return { ...badgeBase, background: 'rgba(107,114,128,0.2)', color: '#9ca3af' }
-}
-
-const btnStyle: React.CSSProperties = {
-  padding: '6px 14px',
-  borderRadius: 6,
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 500,
-}
-
-const btnPrimary: React.CSSProperties = {
-  ...btnStyle,
-  background: '#3b82f6',
-  color: '#fff',
-}
-
-const btnSecondary: React.CSSProperties = {
-  ...btnStyle,
-  background: '#374151',
-  color: '#d1d5db',
-}
-
-const btnDanger: React.CSSProperties = {
-  ...btnStyle,
-  background: '#7f1d1d',
-  color: '#fca5a5',
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  borderRadius: 6,
-  border: '1px solid #374151',
-  background: '#111827',
-  color: '#e5e7eb',
-  fontSize: 13,
-  width: '100%',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 500,
-  color: '#9ca3af',
-  marginBottom: 4,
-}
-
 // --- Status Bar ---
 
 function StatusBar({ status }: { status: ReturnType<typeof useRecordingRules>['status'] }) {
   if (!status) return null
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 16,
-      padding: '10px 16px',
-      background: '#1e1e2e',
-      border: '1px solid #2a2a3e',
-      borderRadius: 8,
-      marginBottom: 16,
-      fontSize: 13,
-    }}>
-      <div>
-        <span style={{ color: '#6b7280', marginRight: 6 }}>Mode:</span>
-        <span style={modeBadge(status.effective_mode)}>
+    <div className="flex flex-wrap items-center gap-4 p-3 bg-nvr-bg-tertiary border border-nvr-border rounded-lg mb-4 text-xs">
+      <div className="flex items-center gap-1.5">
+        <span className="text-nvr-text-muted">Mode:</span>
+        <span className={`inline-block px-2 py-0.5 rounded-full font-semibold ${
+          status.effective_mode === 'always'
+            ? 'bg-nvr-accent/15 text-nvr-accent'
+            : status.effective_mode === 'events'
+              ? 'bg-nvr-warning/15 text-nvr-warning'
+              : 'bg-nvr-text-muted/15 text-nvr-text-muted'
+        }`}>
           {status.effective_mode === 'always' ? 'Always' : status.effective_mode === 'events' ? 'Events' : 'Off'}
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{
-          display: 'inline-block',
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: status.recording ? '#22c55e' : '#4b5563',
-        }} />
-        <span style={{ color: status.recording ? '#22c55e' : '#6b7280' }}>
+      <div className="flex items-center gap-1.5">
+        <span className={`w-2 h-2 rounded-full ${status.recording ? 'bg-nvr-success' : 'bg-nvr-text-muted'}`} />
+        <span className={status.recording ? 'text-nvr-success' : 'text-nvr-text-muted'}>
           {status.recording ? 'Recording' : 'Not Recording'}
         </span>
       </div>
 
       {status.effective_mode === 'events' && (
-        <div>
-          <span style={{ color: '#6b7280', marginRight: 6 }}>Motion:</span>
-          <span style={{ color: status.motion_state === 'active' ? '#fbbf24' : '#6b7280' }}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-nvr-text-muted">Motion:</span>
+          <span className={status.motion_state === 'active' ? 'text-nvr-warning font-medium' : 'text-nvr-text-muted'}>
             {status.motion_state}
           </span>
         </div>
       )}
 
       {status.active_rules.length > 0 && (
-        <div style={{ color: '#6b7280', fontSize: 11 }}>
+        <span className="text-nvr-text-muted">
           {status.active_rules.length} active rule{status.active_rules.length !== 1 ? 's' : ''}
-        </div>
+        </span>
       )}
     </div>
   )
@@ -181,118 +102,167 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
     onSave({ name, mode, days, start_time: startTime, end_time: endTime, post_event_seconds: postEventSeconds, enabled })
   }
 
-  const dayBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '4px 8px',
-    borderRadius: 4,
-    border: active ? '1px solid #3b82f6' : '1px solid #374151',
-    background: active ? 'rgba(59,130,246,0.2)' : 'transparent',
-    color: active ? '#60a5fa' : '#6b7280',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontWeight: 500,
-  })
-
-  const modeBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '6px 16px',
-    borderRadius: 6,
-    border: 'none',
-    background: active ? 'rgba(59,130,246,0.2)' : '#1f2937',
-    color: active ? '#60a5fa' : '#6b7280',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: 500,
-  })
-
   return (
-    <form onSubmit={handleSubmit} style={{ ...cardStyle, background: '#161625' }}>
-      <h4 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 600, color: '#e5e7eb' }}>
+    <form onSubmit={handleSubmit} className="bg-nvr-bg-tertiary border border-nvr-border rounded-lg p-4 mb-3">
+      <h4 className="text-sm font-semibold text-nvr-text-primary mb-4">
         {initial ? 'Edit Rule' : 'Add Rule'}
       </h4>
 
       {/* Name */}
-      <div style={{ marginBottom: 12 }}>
-        <label style={labelStyle}>Name</label>
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-nvr-text-secondary mb-1">Name</label>
         <input
-          style={inputStyle}
           value={name}
           onChange={e => setName(e.target.value)}
           placeholder="e.g. Business Hours"
           required
+          className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
         />
       </div>
 
-      {/* Mode */}
-      <div style={{ marginBottom: 12 }}>
-        <label style={labelStyle}>Mode</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" style={modeBtnStyle(mode === 'always')} onClick={() => setMode('always')}>
-            Always
+      {/* Mode: two large toggle cards */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Mode</label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('always')}
+            className={`p-3 rounded-lg border text-center transition-colors ${
+              mode === 'always'
+                ? 'bg-nvr-accent/15 border-nvr-accent text-nvr-accent'
+                : 'bg-nvr-bg-input border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
+            }`}
+          >
+            <div className="text-sm font-semibold">Always Record</div>
+            <div className="text-[10px] mt-0.5 opacity-70">Continuous recording</div>
           </button>
-          <button type="button" style={modeBtnStyle(mode === 'events')} onClick={() => setMode('events')}>
-            Events
+          <button
+            type="button"
+            onClick={() => setMode('events')}
+            className={`p-3 rounded-lg border text-center transition-colors ${
+              mode === 'events'
+                ? 'bg-nvr-warning/15 border-nvr-warning text-nvr-warning'
+                : 'bg-nvr-bg-input border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
+            }`}
+          >
+            <div className="text-sm font-semibold">Events Only</div>
+            <div className="text-[10px] mt-0.5 opacity-70">Record on motion</div>
           </button>
         </div>
       </div>
 
-      {/* Days */}
-      <div style={{ marginBottom: 12 }}>
-        <label style={labelStyle}>Days</label>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-          {DAY_NAMES.map((d, i) => (
-            <button key={d} type="button" style={dayBtnStyle(days.includes(i))} onClick={() => toggleDay(i)}>
-              {d}
+      {/* Days: circle buttons */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Days</label>
+        <div className="flex gap-1.5 mb-2">
+          {DAY_LETTERS.map((letter, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => toggleDay(i)}
+              className={`w-9 h-9 rounded-full text-xs font-medium transition-colors ${
+                days.includes(i)
+                  ? 'bg-nvr-accent text-white'
+                  : 'bg-nvr-bg-input border border-nvr-border text-nvr-text-muted hover:border-nvr-text-muted'
+              }`}
+            >
+              {letter}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button type="button" style={{ ...btnStyle, fontSize: 11, padding: '2px 8px', background: '#1f2937', color: '#9ca3af', border: 'none' }}
-            onClick={() => setDays([1, 2, 3, 4, 5])}>Weekdays</button>
-          <button type="button" style={{ ...btnStyle, fontSize: 11, padding: '2px 8px', background: '#1f2937', color: '#9ca3af', border: 'none' }}
-            onClick={() => setDays([0, 6])}>Weekends</button>
-          <button type="button" style={{ ...btnStyle, fontSize: 11, padding: '2px 8px', background: '#1f2937', color: '#9ca3af', border: 'none' }}
-            onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}>Every Day</button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setDays([1, 2, 3, 4, 5])}
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+          >
+            Weekdays
+          </button>
+          <button
+            type="button"
+            onClick={() => setDays([0, 6])}
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+          >
+            Weekends
+          </button>
+          <button
+            type="button"
+            onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}
+            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors"
+          >
+            Every Day
+          </button>
         </div>
       </div>
 
-      {/* Time range */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Start Time</label>
-          <input type="time" style={inputStyle} value={startTime} onChange={e => setStartTime(e.target.value)} required />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>End Time</label>
-          <input type="time" style={inputStyle} value={endTime} onChange={e => setEndTime(e.target.value)} required />
+      {/* Time range: inline with "to" */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-nvr-text-secondary mb-1">Time Range</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="time"
+            value={startTime}
+            onChange={e => setStartTime(e.target.value)}
+            required
+            className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+          />
+          <span className="text-xs text-nvr-text-muted">to</span>
+          <input
+            type="time"
+            value={endTime}
+            onChange={e => setEndTime(e.target.value)}
+            required
+            className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+          />
         </div>
       </div>
 
       {/* Post-event buffer (events mode only) */}
       {mode === 'events' && (
-        <div style={{ marginBottom: 12 }}>
-          <label style={labelStyle}>Post-Event Buffer (seconds)</label>
-          <input
-            type="number"
-            style={{ ...inputStyle, width: 120 }}
-            value={postEventSeconds}
-            onChange={e => setPostEventSeconds(Number(e.target.value))}
-            min={0}
-            max={600}
-          />
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-nvr-text-secondary mb-1">Post-event buffer</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              value={postEventSeconds}
+              onChange={e => setPostEventSeconds(Number(e.target.value))}
+              min={0}
+              max={600}
+              className="w-20 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+            />
+            <span className="text-xs text-nvr-text-muted">seconds after motion stops</span>
+          </div>
         </div>
       )}
 
-      {/* Enabled */}
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#d1d5db', cursor: 'pointer' }}>
-          <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-          Enabled
+      {/* Enabled toggle */}
+      <div className="mb-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={e => setEnabled(e.target.checked)}
+            className="w-4 h-4 rounded border-nvr-border text-nvr-accent focus:ring-nvr-accent bg-nvr-bg-input"
+          />
+          <span className="text-xs text-nvr-text-secondary">Enabled</span>
         </label>
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" style={btnPrimary}>Save</button>
-        <button type="button" style={btnSecondary} onClick={onCancel}>Cancel</button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-nvr-bg-input hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm"
+        >
+          Cancel
+        </button>
       </div>
     </form>
   )
@@ -302,49 +272,76 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
 
 interface RuleCardProps {
   rule: RecordingRule
+  isEditing: boolean
   onEdit: () => void
   onDelete: () => void
   onToggle: (enabled: boolean) => void
+  onSave: (payload: CreateRulePayload) => void
+  onCancelEdit: () => void
 }
 
-function RuleCard({ rule, onEdit, onDelete, onToggle }: RuleCardProps) {
+function RuleCard({ rule, isEditing, onEdit, onDelete, onToggle, onSave, onCancelEdit }: RuleCardProps) {
+  if (isEditing) {
+    return <RuleForm initial={rule} onSave={onSave} onCancel={onCancelEdit} />
+  }
+
   return (
-    <div style={{
-      ...cardStyle,
-      opacity: rule.enabled ? 1 : 0.5,
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 12,
-    }}>
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <strong style={{ fontSize: 14, color: '#e5e7eb' }}>{rule.name}</strong>
-          <span style={modeBadge(rule.mode)}>
+    <div className={`bg-nvr-bg-tertiary border border-nvr-border rounded-lg p-3 mb-2 flex flex-wrap items-center gap-3 transition-opacity ${
+      rule.enabled ? 'opacity-100' : 'opacity-50'
+    }`}>
+      <div className="flex-1 min-w-[200px]">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium text-nvr-text-primary">{rule.name}</span>
+          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+            rule.mode === 'always'
+              ? 'bg-nvr-accent/15 text-nvr-accent'
+              : 'bg-nvr-warning/15 text-nvr-warning'
+          }`}>
             {rule.mode === 'always' ? 'Always' : 'Events'}
           </span>
         </div>
-        <div style={{ fontSize: 12, color: '#6b7280', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-nvr-text-muted">
           <span>{formatDays(rule.days)}</span>
-          <span>{rule.start_time} &ndash; {rule.end_time}</span>
+          <span>{rule.start_time} - {rule.end_time}</span>
           {rule.mode === 'events' && (
             <span>Buffer: {rule.post_event_seconds}s</span>
           )}
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#9ca3af', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={rule.enabled}
-            onChange={e => onToggle(e.target.checked)}
-          />
-          Enabled
-        </label>
-        <button style={btnSecondary} onClick={onEdit}>Edit</button>
-        <button style={btnDanger} onClick={onDelete}>Delete</button>
+      <div className="flex items-center gap-2">
+        {/* Enabled toggle */}
+        <button
+          onClick={() => onToggle(!rule.enabled)}
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            rule.enabled ? 'bg-nvr-accent' : 'bg-nvr-border'
+          }`}
+          aria-label={rule.enabled ? 'Disable rule' : 'Enable rule'}
+        >
+          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+            rule.enabled ? 'left-[18px]' : 'left-0.5'
+          }`} />
+        </button>
+
+        <button
+          onClick={onEdit}
+          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-input transition-colors"
+          aria-label="Edit rule"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+          </svg>
+        </button>
+
+        <button
+          onClick={onDelete}
+          className="p-1.5 rounded-md text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors"
+          aria-label="Delete rule"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
     </div>
   )
@@ -355,22 +352,26 @@ function RuleCard({ rule, onEdit, onDelete, onToggle }: RuleCardProps) {
 export default function RecordingRules({ cameraId }: RecordingRulesProps) {
   const { rules, status, loading, createRule, updateRule, deleteRule } = useRecordingRules(cameraId)
   const [showForm, setShowForm] = useState(false)
-  const [editingRule, setEditingRule] = useState<RecordingRule | null>(null)
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const handleSave = async (payload: CreateRulePayload) => {
-    if (editingRule) {
-      await updateRule(editingRule.id, payload)
+    if (editingRuleId) {
+      await updateRule(editingRuleId, payload)
     } else {
       await createRule(payload)
     }
     setShowForm(false)
-    setEditingRule(null)
+    setEditingRuleId(null)
   }
 
   const handleEdit = (rule: RecordingRule) => {
-    setEditingRule(rule)
-    setShowForm(true)
+    setEditingRuleId(rule.id)
+    setShowForm(false)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingRuleId(null)
   }
 
   const handleDelete = async (ruleId: string) => {
@@ -391,20 +392,34 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
     })
   }
 
-  const handleCancel = () => {
-    setShowForm(false)
-    setEditingRule(null)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="w-6 h-6 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
-
-  if (loading) return <div style={{ color: '#6b7280', padding: 16 }}>Loading rules...</div>
 
   return (
     <div>
       <StatusBar status={status} />
 
+      {/* Header with Add Rule button */}
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-nvr-text-primary">Recording Schedule</h4>
+        {!showForm && (
+          <button
+            onClick={() => { setEditingRuleId(null); setShowForm(true) }}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-xs"
+          >
+            Add Rule
+          </button>
+        )}
+      </div>
+
       {/* Rules list */}
       {rules.length === 0 && !showForm && (
-        <div style={{ color: '#6b7280', padding: '16px 0', textAlign: 'center', fontSize: 13 }}>
+        <div className="text-nvr-text-muted text-center py-6 text-xs">
           No recording rules configured. Add a rule to start scheduled recording.
         </div>
       )}
@@ -413,32 +428,27 @@ export default function RecordingRules({ cameraId }: RecordingRulesProps) {
         <RuleCard
           key={rule.id}
           rule={rule}
+          isEditing={editingRuleId === rule.id}
           onEdit={() => handleEdit(rule)}
           onDelete={() => setConfirmDeleteId(rule.id)}
           onToggle={enabled => handleToggle(rule, enabled)}
+          onSave={handleSave}
+          onCancelEdit={handleCancelEdit}
         />
       ))}
 
-      {/* Add / Edit form */}
-      {showForm ? (
+      {/* New rule form */}
+      {showForm && (
         <RuleForm
-          initial={editingRule ?? undefined}
           onSave={handleSave}
-          onCancel={handleCancel}
+          onCancel={() => setShowForm(false)}
         />
-      ) : (
-        <button
-          style={{ ...btnPrimary, marginTop: 8 }}
-          onClick={() => { setEditingRule(null); setShowForm(true) }}
-        >
-          + Add Rule
-        </button>
       )}
 
       {/* Schedule preview */}
       {rules.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <h4 style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb', marginBottom: 8 }}>Schedule Preview</h4>
+        <div className="mt-6">
+          <h4 className="text-sm font-semibold text-nvr-text-primary mb-2">Schedule Preview</h4>
           <SchedulePreview rules={rules} />
         </div>
       )}

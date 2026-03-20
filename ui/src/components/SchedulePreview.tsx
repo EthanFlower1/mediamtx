@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { RecordingRule } from '../hooks/useRecordingRules'
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -20,6 +21,14 @@ function parseDays(daysStr: string): number[] {
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + (m || 0)
+}
+
+/** Format slot index to time string. */
+function slotToTime(slot: number): string {
+  const minutes = slot * 30
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 }
 
 /**
@@ -45,15 +54,10 @@ function slotMode(
 
     let covered = false
     if (ruleStart <= ruleEnd) {
-      // Same-day range, e.g. 08:00-18:00
       if (days.includes(day)) {
         covered = slotStart < ruleEnd && slotEnd > ruleStart
       }
     } else {
-      // Cross-midnight range, e.g. 22:00-06:00
-      // Evening portion [ruleStart..24:00) belongs to the start day.
-      // Morning portion [00:00..ruleEnd) belongs to the NEXT day, so we check
-      // whether yesterday (day-1) is in the rule's days array.
       const prevDay = (day - 1 + 7) % 7
       const eveningCovered = days.includes(day) && slotStart < 1440 && slotEnd > ruleStart
       const morningCovered = days.includes(prevDay) && slotStart < ruleEnd
@@ -61,7 +65,6 @@ function slotMode(
     }
 
     if (covered) {
-      // "always" takes priority over "events"
       if (rule.mode === 'always') return 'always'
       result = 'events'
     }
@@ -70,105 +73,68 @@ function slotMode(
   return result
 }
 
-const containerStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '48px repeat(7, 1fr)',
-  gap: 1,
-  fontSize: 11,
-  lineHeight: '14px',
-  userSelect: 'none',
-}
-
-const headerStyle: React.CSSProperties = {
-  textAlign: 'center',
-  fontWeight: 600,
-  padding: '4px 0',
-  color: '#9ca3af',
-}
-
-const timeLabelStyle: React.CSSProperties = {
-  textAlign: 'right',
-  paddingRight: 6,
-  color: '#6b7280',
-  fontSize: 10,
-}
-
 export default function SchedulePreview({ rules }: SchedulePreviewProps) {
-  const rows: JSX.Element[] = []
-
-  // Header row
-  rows.push(
-    <div key="corner" style={timeLabelStyle} />,
-    ...DAY_LABELS.map(d => (
-      <div key={`h-${d}`} style={headerStyle}>{d}</div>
-    )),
-  )
-
-  for (let slot = 0; slot < SLOTS_PER_DAY; slot++) {
-    const hour = Math.floor(slot / 2)
-    const isHalf = slot % 2 === 1
-    // Show label every 2 hours on the hour mark
-    const showLabel = slot % 4 === 0
-    const timeStr = showLabel
-      ? `${hour.toString().padStart(2, '0')}:${isHalf ? '30' : '00'}`
-      : ''
-
-    rows.push(
-      <div key={`t-${slot}`} style={{ ...timeLabelStyle, alignSelf: 'center' }}>
-        {timeStr}
-      </div>,
-    )
-
-    for (let day = 0; day < 7; day++) {
-      const mode = slotMode(rules, day, slot)
-      let bg = 'transparent'
-      if (mode === 'always') bg = 'rgba(59, 130, 246, 0.3)' // blue
-      else if (mode === 'events') bg = 'rgba(245, 158, 11, 0.3)' // amber
-
-      rows.push(
-        <div
-          key={`c-${day}-${slot}`}
-          style={{
-            background: bg,
-            borderRadius: 2,
-            minHeight: 10,
-            border: '1px solid rgba(255,255,255,0.04)',
-          }}
-        />,
-      )
-    }
-  }
+  const [hoveredSlot, setHoveredSlot] = useState<{ day: number; slot: number } | null>(null)
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#9ca3af' }}>
-        <span>
-          <span style={{
-            display: 'inline-block',
-            width: 12,
-            height: 12,
-            background: 'rgba(59, 130, 246, 0.3)',
-            borderRadius: 2,
-            marginRight: 4,
-            verticalAlign: 'middle',
-          }} />
+      {/* Legend */}
+      <div className="flex gap-4 mb-2 text-xs text-nvr-text-secondary">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-sm bg-nvr-accent/30" />
           Always
         </span>
-        <span>
-          <span style={{
-            display: 'inline-block',
-            width: 12,
-            height: 12,
-            background: 'rgba(245, 158, 11, 0.3)',
-            borderRadius: 2,
-            marginRight: 4,
-            verticalAlign: 'middle',
-          }} />
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-sm bg-nvr-warning/30" />
           Events
         </span>
       </div>
-      <div style={containerStyle}>
-        {rows}
+
+      {/* Grid */}
+      <div className="grid gap-px text-[10px] leading-[14px] select-none" style={{ gridTemplateColumns: '48px repeat(7, 1fr)' }}>
+        {/* Header row */}
+        <div />
+        {DAY_LABELS.map(d => (
+          <div key={`h-${d}`} className="text-center font-semibold py-1 text-nvr-text-secondary">
+            {d}
+          </div>
+        ))}
+
+        {/* Slot rows */}
+        {Array.from({ length: SLOTS_PER_DAY }, (_, slot) => {
+          const showLabel = slot % 4 === 0
+          const hour = Math.floor(slot / 2)
+          const isHalf = slot % 2 === 1
+          const timeStr = showLabel
+            ? `${hour.toString().padStart(2, '0')}:${isHalf ? '30' : '00'}`
+            : ''
+
+          return [
+            <div key={`t-${slot}`} className="text-right pr-1.5 text-nvr-text-muted self-center text-[10px]">
+              {timeStr}
+            </div>,
+            ...Array.from({ length: 7 }, (_, day) => {
+              const mode = slotMode(rules, day, slot)
+              const isHovered = hoveredSlot?.day === day && hoveredSlot?.slot === slot
+
+              return (
+                <div
+                  key={`c-${day}-${slot}`}
+                  className={`min-h-[12px] rounded-sm border border-white/[0.04] transition-colors ${
+                    mode === 'always'
+                      ? 'bg-nvr-accent/30'
+                      : mode === 'events'
+                        ? 'bg-nvr-warning/30'
+                        : 'bg-transparent'
+                  } ${isHovered ? 'ring-1 ring-nvr-text-secondary' : ''}`}
+                  onMouseEnter={() => setHoveredSlot({ day, slot })}
+                  onMouseLeave={() => setHoveredSlot(null)}
+                  title={`${DAY_LABELS[day]} ${slotToTime(slot)} - ${slotToTime(slot + 1)}${mode ? ` (${mode})` : ''}`}
+                />
+              )
+            }),
+          ]
+        })}
       </div>
     </div>
   )

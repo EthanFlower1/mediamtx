@@ -1,21 +1,36 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { Camera } from '../hooks/useCameras'
-import PTZControls from './PTZControls'
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'failed'
 
 interface Props {
   camera: Camera
   onSelect?: () => void
-  expanded?: boolean
 }
 
-export default function PlayerCell({ camera, onSelect, expanded }: Props) {
+export default function PlayerCell({ camera, onSelect }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cancelledRef = useRef(false)
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
+
+  const cleanup = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
+    const pc = pcRef.current
+    if (pc) {
+      pc.onconnectionstatechange = null
+      pc.close()
+      pcRef.current = null
+    }
+    const video = videoRef.current
+    if (video && video.srcObject) {
+      video.srcObject = null
+    }
+  }, [])
 
   const startConnection = useCallback(async () => {
     const video = videoRef.current
@@ -43,24 +58,20 @@ export default function PlayerCell({ camera, onSelect, expanded }: Props) {
         const state = pc.connectionState
         if (state === 'connected') {
           setConnectionState('connected')
-        } else if (state === 'disconnected') {
+        } else if (state === 'disconnected' || state === 'failed') {
           setConnectionState('disconnected')
-          // Auto-retry after 5 seconds on disconnect
           retryTimerRef.current = setTimeout(() => {
             if (!cancelledRef.current) {
               cleanup()
               startConnection()
             }
           }, 5000)
-        } else if (state === 'failed') {
-          setConnectionState('failed')
         }
       }
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      // Wait for ICE gathering to complete (or timeout).
       await new Promise<void>((resolve) => {
         if (pc.iceGatheringState === 'complete') {
           resolve()
@@ -78,7 +89,6 @@ export default function PlayerCell({ camera, onSelect, expanded }: Props) {
 
       if (cancelledRef.current) return
 
-      // Send offer to MediaMTX WHEP endpoint (WebRTC server on port 8889).
       const whepUrl = `${window.location.protocol}//${window.location.hostname}:8889/${camera.mediamtx_path}/whep`
       const res = await fetch(whepUrl, {
         method: 'POST',
@@ -87,38 +97,32 @@ export default function PlayerCell({ camera, onSelect, expanded }: Props) {
       })
 
       if (!res.ok || cancelledRef.current) {
-        if (!cancelledRef.current) setConnectionState('failed')
+        if (!cancelledRef.current) {
+          setConnectionState('disconnected')
+          retryTimerRef.current = setTimeout(() => {
+            if (!cancelledRef.current) {
+              cleanup()
+              startConnection()
+            }
+          }, 5000)
+        }
         return
       }
 
       const answer = await res.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answer })
     } catch {
-      if (!cancelledRef.current) setConnectionState('failed')
+      if (!cancelledRef.current) {
+        setConnectionState('disconnected')
+        retryTimerRef.current = setTimeout(() => {
+          if (!cancelledRef.current) {
+            cleanup()
+            startConnection()
+          }
+        }, 5000)
+      }
     }
-  }, [camera.mediamtx_path])
-
-  const cleanup = useCallback(() => {
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current)
-      retryTimerRef.current = null
-    }
-    const pc = pcRef.current
-    if (pc) {
-      pc.onconnectionstatechange = null
-      pc.close()
-      pcRef.current = null
-    }
-    const video = videoRef.current
-    if (video && video.srcObject) {
-      video.srcObject = null
-    }
-  }, [])
-
-  const handleRetry = useCallback(() => {
-    cleanup()
-    startConnection()
-  }, [cleanup, startConnection])
+  }, [camera.mediamtx_path, cleanup])
 
   useEffect(() => {
     startConnection()
@@ -131,57 +135,40 @@ export default function PlayerCell({ camera, onSelect, expanded }: Props) {
   return (
     <div
       onClick={onSelect}
-      className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden group hover:ring-2 ring-nvr-accent/50 transition-all"
+      className="relative bg-black aspect-video cursor-pointer rounded-lg overflow-hidden border border-nvr-border group hover:scale-[1.02] hover:ring-2 ring-nvr-accent/50 transition-all duration-200"
     >
       <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
 
-      {/* Connecting spinner overlay */}
+      {/* Connecting: centered spinner */}
       {connectionState === 'connecting' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 z-10">
-          <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin mb-2" />
-          <span className="text-xs text-white/80">Connecting...</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
+          <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
-      {/* Disconnected overlay — auto-reconnecting */}
+      {/* Offline: gray overlay with badge, auto-retrying silently */}
       {connectionState === 'disconnected' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 z-10">
-          <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-2" />
-          <span className="text-xs text-amber-400">Connection lost. Reconnecting...</span>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
+          <span className="bg-nvr-danger/20 text-nvr-danger text-xs font-semibold px-3 py-1 rounded-full">
+            Offline
+          </span>
         </div>
       )}
 
-      {/* Failed overlay */}
-      {connectionState === 'failed' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
-          <span className="text-sm text-nvr-danger mb-2">Offline</span>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleRetry() }}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-xs min-h-[36px]"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 flex items-center">
-        <span className="text-xs font-medium text-white">{camera.name}</span>
+      {/* Bottom bar: name + status dot */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 flex items-center gap-2">
         <span
-          className={`ml-2 w-1.5 h-1.5 rounded-full inline-block ${
+          className={`w-2 h-2 rounded-full shrink-0 ${
             camera.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'
           }`}
         />
-        {/* PTZ badge in grid view */}
-        {!expanded && camera.ptz_capable && (
+        <span className="text-xs font-medium text-white truncate">{camera.name}</span>
+        {camera.ptz_capable && (
           <span className="ml-auto text-[10px] font-semibold tracking-wide text-white/70 bg-white/10 rounded px-1.5 py-0.5 uppercase">
             PTZ
           </span>
         )}
       </div>
-      {/* PTZ overlay in expanded single-camera view */}
-      {expanded && camera.ptz_capable && (
-        <PTZControls cameraId={camera.id} />
-      )}
     </div>
   )
 }

@@ -16,7 +16,7 @@ const gridColsMap: Record<number, string> = {
 
 export default function CameraGrid({ cameras, layout, onSelectCamera }: Props) {
   return (
-    <div className={`grid ${gridColsMap[layout] ?? 'grid-cols-1 sm:grid-cols-2'} gap-1 w-full`}>
+    <div className={`grid ${gridColsMap[layout] ?? 'grid-cols-1 sm:grid-cols-2'} gap-2 w-full`}>
       {cameras.map(cam => (
         <PlayerCell
           key={cam.id}

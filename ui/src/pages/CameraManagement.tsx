@@ -18,15 +18,25 @@ function RecordingModeBadge({ cameraId }: { cameraId: string }) {
     })
   }, [cameraId])
 
-  if (mode === null) return <span style={{ color: '#6b7280' }}>--</span>
+  if (mode === null) return <span className="text-nvr-text-muted">--</span>
 
-  const styles: Record<string, React.CSSProperties> = {
-    always: { color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
-    events: { color: '#fbbf24', background: 'rgba(245,158,11,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
-    off: { color: '#6b7280', background: 'rgba(107,114,128,0.15)', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600 },
+  const styles: Record<string, string> = {
+    always: 'bg-nvr-accent/15 text-nvr-accent',
+    events: 'bg-nvr-warning/15 text-nvr-warning',
+    off: 'bg-nvr-text-muted/15 text-nvr-text-muted',
   }
 
-  return <span style={styles[mode] ?? styles.off}>{mode === 'always' ? 'Always' : mode === 'events' ? 'Events' : 'Off'}</span>
+  const label: Record<string, string> = {
+    always: 'Always',
+    events: 'Events',
+    off: 'Off',
+  }
+
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${styles[mode] ?? styles.off}`}>
+      {label[mode] ?? 'Off'}
+    </span>
+  )
 }
 
 interface DiscoveredProfile {
@@ -48,7 +58,10 @@ interface DiscoveredCamera {
 
 export default function CameraManagement() {
   const { cameras, loading, refresh } = useCameras()
-  const [showAdd, setShowAdd] = useState(false)
+
+  // Add camera modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [addTab, setAddTab] = useState<'discover' | 'manual'>('discover')
   const [discovering, setDiscovering] = useState(false)
   const [discovered, setDiscovered] = useState<DiscoveredCamera[]>([])
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredCamera | null>(null)
@@ -58,17 +71,29 @@ export default function CameraManagement() {
   const [addOnvifEndpoint, setAddOnvifEndpoint] = useState('')
   const [addUsername, setAddUsername] = useState('')
   const [addPassword, setAddPassword] = useState('')
-  const [manualMode, setManualMode] = useState(false)
   const [probing, setProbing] = useState(false)
   const [probeError, setProbeError] = useState('')
   const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
-  const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
+
+  // Camera detail state
+  const [expandedCameraId, setExpandedCameraId] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
+  // Escape to close modal
+  useEffect(() => {
+    if (!showAddModal) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') resetForm()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [showAddModal])
 
   const handleDiscover = async () => {
     setDiscovering(true)
     setDiscovered([])
+    setSelectedDevice(null)
     const res = await apiFetch('/cameras/discover', { method: 'POST' })
     if (!res.ok) {
       setDiscovering(false)
@@ -93,7 +118,6 @@ export default function CameraManagement() {
     setSelectedDevice(dev)
     setAddName(`${dev.manufacturer} ${dev.model}`.trim() || 'Camera')
     setAddOnvifEndpoint(dev.xaddr)
-    setManualMode(false)
     setProbeError('')
     setProbedProfiles([])
     setAddUsername('')
@@ -107,8 +131,6 @@ export default function CameraManagement() {
       setSelectedProfile(null)
       setAddRtspUrl('')
     }
-
-    setShowAdd(true)
   }
 
   const handleProbe = async () => {
@@ -167,7 +189,8 @@ export default function CameraManagement() {
   }
 
   const resetForm = () => {
-    setShowAdd(false)
+    setShowAddModal(false)
+    setAddTab('discover')
     setSelectedDevice(null)
     setSelectedProfile(null)
     setAddName('')
@@ -175,306 +198,408 @@ export default function CameraManagement() {
     setAddOnvifEndpoint('')
     setAddUsername('')
     setAddPassword('')
-    setManualMode(false)
     setProbing(false)
     setProbeError('')
     setProbedProfiles([])
+    setDiscovered([])
+    setDiscovering(false)
   }
 
   const handleDelete = async (id: string) => {
     await apiFetch(`/cameras/${id}`, { method: 'DELETE' })
-    if (selectedCamera?.id === id) setSelectedCamera(null)
+    if (expandedCameraId === id) setExpandedCameraId(null)
     setConfirmDeleteId(null)
     refresh()
   }
 
-  const handleRowClick = (cam: Camera) => {
-    setSelectedCamera(prev => prev?.id === cam.id ? null : cam)
+  const toggleExpanded = (cam: Camera) => {
+    if (expandedCameraId === cam.id) {
+      setExpandedCameraId(null)
+      setShowSettings(false)
+    } else {
+      setExpandedCameraId(cam.id)
+      setShowSettings(false)
+    }
   }
 
-  if (loading) return <div className="text-nvr-text-secondary">Loading...</div>
+  const openAddModal = (tab: 'discover' | 'manual') => {
+    resetForm()
+    setAddTab(tab)
+    setShowAddModal(true)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-nvr-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   const hasProfiles = probedProfiles.length > 0
+  const expandedCamera = cameras.find(c => c.id === expandedCameraId) ?? null
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
-        <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Camera Management</h1>
-        <div className="flex gap-2">
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Cameras</h1>
+        {cameras.length > 0 && (
           <button
-            onClick={handleDiscover}
-            disabled={discovering}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 md:px-4 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm md:text-base min-h-[44px]"
+            onClick={() => openAddModal('discover')}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px]"
           >
-            {discovering ? 'Scanning...' : 'Discover Cameras'}
+            Add Camera
           </button>
-          <button
-            onClick={() => { resetForm(); setManualMode(true); setShowAdd(true) }}
-            className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 md:px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm md:text-base min-h-[44px]"
-          >
-            Add Manually
-          </button>
-        </div>
+        )}
       </div>
 
-      {discovered.length > 0 && (
-        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5 mb-6">
-          <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">Discovered Cameras</h3>
-          {discovered.map((d, i) => (
-            <div
-              key={i}
-              className="flex flex-col sm:flex-row sm:items-center justify-between px-3 py-2.5 mb-2 last:mb-0 border border-nvr-border rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-border/30 transition-colors gap-2"
+      {/* Empty state */}
+      {cameras.length === 0 && !showAddModal && (
+        <div className="flex flex-col items-center justify-center h-80 text-center px-4">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-nvr-text-muted mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+          <h2 className="text-xl font-semibold text-nvr-text-primary mb-2">No cameras configured</h2>
+          <p className="text-sm text-nvr-text-muted mb-6 max-w-md">
+            Scan your network for ONVIF cameras or enter an RTSP URL manually.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => openAddModal('discover')}
+              className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm"
             >
-              <div className="min-w-0">
-                <span className="font-medium text-nvr-text-primary text-sm md:text-base">{d.manufacturer} {d.model}</span>
-                {d.firmware && <span className="text-nvr-text-muted ml-2 text-xs md:text-sm">v{d.firmware}</span>}
-                <div className="text-xs md:text-sm text-nvr-text-secondary truncate">{d.xaddr}</div>
-              </div>
-              <button
-                onClick={() => handleSelectDevice(d)}
-                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors shrink-0 min-h-[44px] self-end sm:self-center"
+              Discover Cameras
+            </button>
+            <button
+              onClick={() => openAddModal('manual')}
+              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-5 py-2.5 rounded-lg border border-nvr-border transition-colors text-sm"
+            >
+              Add Manually
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Camera cards */}
+      {cameras.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {cameras.map(cam => (
+            <div key={cam.id}>
+              {/* Camera card */}
+              <div
+                onClick={() => toggleExpanded(cam)}
+                className={`bg-nvr-bg-secondary border rounded-xl p-4 cursor-pointer transition-colors ${
+                  expandedCameraId === cam.id
+                    ? 'border-nvr-accent/40 bg-nvr-accent/5'
+                    : 'border-nvr-border hover:bg-nvr-bg-tertiary/50'
+                }`}
               >
-                Add
-              </button>
+                <div className="flex items-center gap-4">
+                  {/* Left: icon + status dot */}
+                  <div className="relative shrink-0">
+                    <div className="w-12 h-12 rounded-lg bg-nvr-bg-tertiary flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-nvr-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                      </svg>
+                    </div>
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nvr-bg-secondary ${
+                      cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'
+                    }`} />
+                  </div>
+
+                  {/* Center: name, URL, badges */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-nvr-text-primary">{cam.name}</span>
+                      {cam.ptz_capable && (
+                        <span className="bg-nvr-accent/10 text-nvr-accent px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase">PTZ</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-nvr-text-muted">
+                      <span className="truncate max-w-[280px] font-mono">{cam.rtsp_url}</span>
+                      <RecordingModeBadge cameraId={cam.id} />
+                    </div>
+                  </div>
+
+                  {/* Right: action buttons */}
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => toggleExpanded(cam)}
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      aria-label="Settings"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(cam.id)}
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-danger hover:bg-nvr-danger/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      aria-label="Delete"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded inline detail */}
+              {expandedCamera && expandedCameraId === cam.id && (
+                <div className="mt-1 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4">
+                  {/* Tabs for Recording Rules / Camera Settings */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-sm font-semibold text-nvr-text-primary">Recording Rules</span>
+                    {expandedCamera.onvif_endpoint && (
+                      <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors ${
+                          showSettings
+                            ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
+                            : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
+                        }`}
+                      >
+                        Image Settings
+                      </button>
+                    )}
+                  </div>
+
+                  {showSettings && expandedCamera.onvif_endpoint && (
+                    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+                      <CameraSettings
+                        cameraId={expandedCamera.id}
+                        onClose={() => setShowSettings(false)}
+                      />
+                    </div>
+                  )}
+
+                  <RecordingRules cameraId={expandedCamera.id} />
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {showAdd && (
-        <form onSubmit={handleAddCamera} className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-5 mb-6">
-          <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">
-            {manualMode ? 'Add Camera Manually' : `Add ${selectedDevice?.manufacturer || ''} ${selectedDevice?.model || ''}`.trim()}
-          </h3>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
-            <input
-              type="text"
-              value={addName}
-              onChange={e => setAddName(e.target.value)}
-              required
-              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-            />
-          </div>
-
-          {!manualMode && (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Camera Credentials</label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    placeholder="Username"
-                    value={addUsername}
-                    onChange={e => setAddUsername(e.target.value)}
-                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                  />
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    value={addPassword}
-                    onChange={e => setAddPassword(e.target.value)}
-                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleProbe}
-                    disabled={probing || !addUsername}
-                    className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 shrink-0 min-h-[44px]"
-                  >
-                    {probing ? 'Connecting...' : 'Fetch Streams'}
-                  </button>
-                </div>
-                {probeError && <p className="text-nvr-danger text-sm mt-1">{probeError}</p>}
-              </div>
-
-              {hasProfiles && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Stream Profile</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {probedProfiles.map(p => (
-                      <button
-                        key={p.token}
-                        type="button"
-                        onClick={() => handleSelectProfile(p)}
-                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${
-                          selectedProfile?.token === p.token
-                            ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
-                            : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
-                        }`}
-                      >
-                        {p.name} — {p.width}x{p.height} {p.video_codec}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {hasProfiles && selectedProfile?.stream_uri && (
-                <div className="mb-4 text-sm text-nvr-text-muted break-all">
-                  Stream URL: {selectedProfile.stream_uri.replace(/\/\/[^@]+@/, '//***:***@')}
-                </div>
-              )}
-            </>
-          )}
-
-          {(manualMode || (!hasProfiles && !probing)) && (
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">RTSP URL</label>
-              <input
-                type="text"
-                value={addRtspUrl}
-                onChange={e => setAddRtspUrl(e.target.value)}
-                placeholder="rtsp://user:pass@192.168.1.100:554/stream"
-                required={!hasProfiles}
-                className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={!addRtspUrl}
-              className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-            >
-              Add Camera
-            </button>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Camera list - card layout on mobile, table on md+ */}
-      {cameras.length > 0 && (
-        <>
-          {/* Mobile card layout */}
-          <div className="md:hidden flex flex-col gap-2">
-            {cameras.map(cam => (
-              <div
-                key={cam.id}
-                onClick={() => handleRowClick(cam)}
-                className={`bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 cursor-pointer transition-colors ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10 border-nvr-accent/30' : 'hover:bg-nvr-bg-tertiary/50'}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-nvr-text-primary">{cam.name}</span>
-                  <span className="flex items-center gap-1.5">
-                    <span className={`inline-block w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
-                    <span className={`text-xs ${cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}`}>{cam.status}</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-nvr-text-muted mb-3">
-                  <span className="flex items-center gap-1">Recording: <RecordingModeBadge cameraId={cam.id} /></span>
-                  {cam.ptz_capable && <span className="bg-nvr-accent/10 text-nvr-accent px-1.5 py-0.5 rounded text-xs font-medium">PTZ</span>}
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(cam.id) }}
-                    className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px]"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop table layout */}
-          <div className="hidden md:block bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-nvr-border">
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Name</th>
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Recording</th>
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">RTSP URL</th>
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">PTZ</th>
-                  <th className="text-left text-xs font-semibold text-nvr-text-muted uppercase tracking-wider px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cameras.map(cam => (
-                  <tr
-                    key={cam.id}
-                    onClick={() => handleRowClick(cam)}
-                    className={`border-b border-nvr-border/50 hover:bg-nvr-bg-tertiary/50 transition-colors cursor-pointer ${selectedCamera?.id === cam.id ? 'bg-nvr-accent/10' : ''}`}
-                  >
-                    <td className="px-4 py-3 text-sm text-nvr-text-primary font-medium">{cam.name}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className="flex items-center gap-1.5">
-                        <span className={`inline-block w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
-                        <span className={cam.status === 'online' ? 'text-nvr-success' : 'text-nvr-danger'}>{cam.status}</span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm"><RecordingModeBadge cameraId={cam.id} /></td>
-                    <td className="px-4 py-3 text-xs text-nvr-text-muted font-mono truncate max-w-xs">{cam.rtsp_url}</td>
-                    <td className="px-4 py-3 text-sm text-nvr-text-secondary">{cam.ptz_capable ? 'Yes' : 'No'}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(cam.id) }}
-                        className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {selectedCamera && (
-        <div className="mt-6 p-3 md:p-4 border border-nvr-border rounded-xl bg-nvr-bg-secondary w-full">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base md:text-lg font-semibold text-nvr-text-primary">
-              Recording Rules &mdash; {selectedCamera.name}
-            </h2>
-            <div className="flex items-center gap-2">
-              {selectedCamera.onvif_endpoint && (
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className={`text-sm font-medium px-3 py-1.5 rounded-lg border transition-colors min-h-[44px] ${
-                    showSettings
-                      ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
-                      : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
-                  }`}
-                >
-                  Image Settings
-                </button>
-              )}
+      {/* Add Camera Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={resetForm}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative z-10 bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-nvr-border">
+              <h2 className="text-lg font-semibold text-nvr-text-primary">Add Camera</h2>
               <button
-                onClick={() => { setSelectedCamera(null); setShowSettings(false) }}
-                className="text-nvr-text-muted hover:text-nvr-text-secondary text-lg bg-transparent border-none cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+                onClick={resetForm}
+                className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors"
               >
-                &times;
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
               </button>
             </div>
-          </div>
 
-          {showSettings && selectedCamera.onvif_endpoint && (
-            <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
-              <CameraSettings
-                cameraId={selectedCamera.id}
-                onClose={() => setShowSettings(false)}
-              />
+            {/* Tabs */}
+            <div className="flex border-b border-nvr-border">
+              <button
+                onClick={() => { setAddTab('discover'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName('') }}
+                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 ${
+                  addTab === 'discover'
+                    ? 'border-nvr-accent text-nvr-accent'
+                    : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
+                }`}
+              >
+                Discover
+              </button>
+              <button
+                onClick={() => { setAddTab('manual'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName(''); setAddOnvifEndpoint('') }}
+                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 ${
+                  addTab === 'manual'
+                    ? 'border-nvr-accent text-nvr-accent'
+                    : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
+                }`}
+              >
+                Manual
+              </button>
             </div>
-          )}
 
-          <RecordingRules cameraId={selectedCamera.id} />
+            <div className="p-5">
+              {/* Discover tab */}
+              {addTab === 'discover' && !selectedDevice && (
+                <div>
+                  <button
+                    onClick={handleDiscover}
+                    disabled={discovering}
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm mb-4"
+                  >
+                    {discovering ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Scanning network...
+                      </span>
+                    ) : 'Scan for Cameras'}
+                  </button>
+
+                  {discovered.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs text-nvr-text-muted mb-1">
+                        Found {discovered.length} camera{discovered.length !== 1 ? 's' : ''}
+                      </p>
+                      {discovered.map((d, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSelectDevice(d)}
+                          className="w-full text-left p-3 border border-nvr-border rounded-lg hover:bg-nvr-bg-tertiary/50 hover:border-nvr-accent/30 transition-colors"
+                        >
+                          <div className="font-medium text-sm text-nvr-text-primary">
+                            {d.manufacturer} {d.model}
+                          </div>
+                          <div className="text-xs text-nvr-text-muted truncate mt-0.5">{d.xaddr}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {!discovering && discovered.length === 0 && (
+                    <p className="text-xs text-nvr-text-muted text-center py-4">
+                      Click scan to discover ONVIF cameras on your network.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Discover tab: selected device form */}
+              {addTab === 'discover' && selectedDevice && (
+                <form onSubmit={handleAddCamera}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl('') }}
+                      className="text-nvr-text-muted hover:text-nvr-text-secondary text-sm"
+                    >
+                      &larr; Back
+                    </button>
+                    <span className="text-sm font-medium text-nvr-text-primary">
+                      {selectedDevice.manufacturer} {selectedDevice.model}
+                    </span>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
+                    <input
+                      type="text"
+                      value={addName}
+                      onChange={e => setAddName(e.target.value)}
+                      required
+                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Credentials</label>
+                    <div className="flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={addUsername}
+                        onChange={e => setAddUsername(e.target.value)}
+                        className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password"
+                        value={addPassword}
+                        onChange={e => setAddPassword(e.target.value)}
+                        className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleProbe}
+                      disabled={probing || !addUsername}
+                      className="w-full bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-2 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 text-sm"
+                    >
+                      {probing ? 'Fetching...' : 'Fetch Streams'}
+                    </button>
+                    {probeError && <p className="text-nvr-danger text-xs mt-2">{probeError}</p>}
+                  </div>
+
+                  {hasProfiles && (
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Stream Profile</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {probedProfiles.map(p => (
+                          <button
+                            key={p.token}
+                            type="button"
+                            onClick={() => handleSelectProfile(p)}
+                            className={`px-3 py-1.5 rounded-lg text-xs transition-colors border ${
+                              selectedProfile?.token === p.token
+                                ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
+                                : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
+                            }`}
+                          >
+                            {p.name} - {p.width}x{p.height} {p.video_codec}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={!addRtspUrl}
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                  >
+                    Add Camera
+                  </button>
+                </form>
+              )}
+
+              {/* Manual tab */}
+              {addTab === 'manual' && (
+                <form onSubmit={handleAddCamera}>
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
+                    <input
+                      type="text"
+                      value={addName}
+                      onChange={e => setAddName(e.target.value)}
+                      placeholder="e.g. Front Door"
+                      required
+                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">RTSP URL</label>
+                    <input
+                      type="text"
+                      value={addRtspUrl}
+                      onChange={e => setAddRtspUrl(e.target.value)}
+                      placeholder="rtsp://user:pass@192.168.1.100:554/stream"
+                      required
+                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!addRtspUrl || !addName}
+                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                  >
+                    Add Camera
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
-      )}
-
-      {cameras.length === 0 && !showAdd && (
-        <p className="text-center py-12 text-nvr-text-muted">No cameras configured. Discover cameras on your network or add one manually.</p>
       )}
 
       <ConfirmDialog

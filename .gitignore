@@ -9,3 +9,4 @@
 internal/nvr/ui/dist/*
 !internal/nvr/ui/dist/.gitkeep
 ui/node_modules/
+recordings/

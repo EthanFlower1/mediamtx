@@ -29,6 +29,7 @@ type RouterConfig struct {
 	RecordingsPath string
 	Events         *EventBroadcaster
 	EncryptionKey  []byte // AES-256 key for ONVIF credential encryption
+	ConfigPath     string // path to mediamtx.yml for reading server configuration
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -74,6 +75,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB:             cfg.DB,
 		Broadcaster:    cfg.Events,
 		ConfigDB:       cfg.DB,
+		ConfigPath:     cfg.ConfigPath,
+		APIAddress:     cfg.APIAddress,
 	}
 
 	auditHandler := &AuditHandler{
@@ -149,6 +152,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/storage", systemHandler.Storage)
 	protected.GET("/system/metrics", systemHandler.Metrics)
 	protected.GET("/system/events", systemHandler.Events)
+	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
 

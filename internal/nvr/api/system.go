@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/goccy/go-yaml"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
@@ -31,7 +34,9 @@ type SystemHandler struct {
 	RecordingsPath string
 	DB             StorageQuerier
 	Broadcaster    *EventBroadcaster
-	ConfigDB       *db.DB // full DB access for config export/import
+	ConfigDB       *db.DB  // full DB access for config export/import
+	ConfigPath     string  // path to mediamtx.yml for reading server configuration
+	APIAddress     string  // MediaMTX API address for live camera status
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -127,6 +132,215 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 		"warning":          usedPercent > 85,
 		"critical":         usedPercent > 95,
 	})
+}
+
+// mediamtxConfig is a partial representation of mediamtx.yml used to extract
+// configuration values for the config summary endpoint.
+type mediamtxConfig struct {
+	RTSPAddress  string `yaml:"rtspAddress"`
+	HLSAddress   string `yaml:"hlsAddress"`
+	WebRTCAddress string `yaml:"webrtcAddress"`
+	APIAddress   string `yaml:"apiAddress"`
+	PathDefaults struct {
+		Record                bool   `yaml:"record"`
+		RecordPath            string `yaml:"recordPath"`
+		RecordFormat          string `yaml:"recordFormat"`
+		RecordSegmentDuration string `yaml:"recordSegmentDuration"`
+		RecordDeleteAfter     string `yaml:"recordDeleteAfter"`
+	} `yaml:"pathDefaults"`
+}
+
+// extractPort returns the port portion of an address string like ":8554" or "0.0.0.0:8554".
+func extractPort(addr string) string {
+	if addr == "" {
+		return ""
+	}
+	idx := strings.LastIndex(addr, ":")
+	if idx >= 0 {
+		return addr[idx+1:]
+	}
+	return addr
+}
+
+// ConfigSummary returns a summary of the current NVR and server configuration.
+// It reads recording settings and port numbers from mediamtx.yml and queries
+// the database for camera, rule, and user counts.
+//
+//	GET /api/nvr/system/config (admin only)
+func (h *SystemHandler) ConfigSummary(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	// Parse recording settings and ports from the YAML config file.
+	var cfg mediamtxConfig
+	if h.ConfigPath != "" {
+		data, err := os.ReadFile(h.ConfigPath)
+		if err != nil {
+			nvrLogWarn("system", "failed to read config file for summary: "+err.Error())
+		} else {
+			if err := yaml.Unmarshal(data, &cfg); err != nil {
+				nvrLogWarn("system", "failed to parse config file for summary: "+err.Error())
+			}
+		}
+	}
+
+	// Build recording section.
+	recordingEnabled := cfg.PathDefaults.Record
+	recordFormat := cfg.PathDefaults.RecordFormat
+	if recordFormat == "" {
+		recordFormat = "fmp4"
+	}
+	segmentDuration := cfg.PathDefaults.RecordSegmentDuration
+	if segmentDuration == "" {
+		segmentDuration = "1h"
+	}
+	deleteAfter := cfg.PathDefaults.RecordDeleteAfter
+	if deleteAfter == "" {
+		deleteAfter = "24h"
+	}
+	recordPath := cfg.PathDefaults.RecordPath
+	if recordPath == "" {
+		recordPath = "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
+	}
+
+	// Build server ports section.
+	rtspPort := extractPort(cfg.RTSPAddress)
+	if rtspPort == "" {
+		rtspPort = "8554"
+	}
+	hlsPort := extractPort(cfg.HLSAddress)
+	if hlsPort == "" {
+		hlsPort = "8888"
+	}
+	webrtcPort := extractPort(cfg.WebRTCAddress)
+	if webrtcPort == "" {
+		webrtcPort = "8889"
+	}
+	apiPort := extractPort(cfg.APIAddress)
+	if apiPort == "" {
+		apiPort = "9997"
+	}
+
+	// Query database for entity counts.
+	var totalCameras, onlineCameras, recordingCameras int
+	var totalRules, activeRules int
+	var totalUsers, adminUsers int
+
+	if h.ConfigDB != nil {
+		cameras, err := h.ConfigDB.ListCameras()
+		if err == nil {
+			totalCameras = len(cameras)
+
+			// Check live status from MediaMTX API.
+			statuses := h.getCameraStatuses()
+			for _, cam := range cameras {
+				if cam.MediaMTXPath != "" {
+					if s, ok := statuses[cam.MediaMTXPath]; ok && s == "online" {
+						onlineCameras++
+					}
+				}
+			}
+
+			// Count cameras that have at least one enabled recording rule.
+			camerasWithRules := make(map[string]bool)
+			for _, cam := range cameras {
+				rules, err := h.ConfigDB.ListRecordingRules(cam.ID)
+				if err == nil {
+					for _, rule := range rules {
+						totalRules++
+						if rule.Enabled {
+							activeRules++
+							camerasWithRules[cam.ID] = true
+						}
+					}
+				}
+			}
+			recordingCameras = len(camerasWithRules)
+		}
+
+		users, err := h.ConfigDB.ListUsers()
+		if err == nil {
+			totalUsers = len(users)
+			for _, u := range users {
+				if u.Role == "admin" {
+					adminUsers++
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"recording": gin.H{
+			"enabled":          recordingEnabled,
+			"format":           recordFormat,
+			"segment_duration": segmentDuration,
+			"delete_after":     deleteAfter,
+			"path":             recordPath,
+		},
+		"cameras": gin.H{
+			"total":     totalCameras,
+			"online":    onlineCameras,
+			"recording": recordingCameras,
+		},
+		"recording_rules": gin.H{
+			"total":  totalRules,
+			"active": activeRules,
+		},
+		"users": gin.H{
+			"total":  totalUsers,
+			"admins": adminUsers,
+		},
+		"server": gin.H{
+			"rtsp_port":   rtspPort,
+			"webrtc_port": webrtcPort,
+			"api_port":    apiPort,
+			"hls_port":    hlsPort,
+		},
+	})
+}
+
+// getCameraStatuses fetches all path statuses from the MediaMTX API.
+func (h *SystemHandler) getCameraStatuses() map[string]string {
+	statuses := make(map[string]string)
+
+	addr := h.APIAddress
+	if addr == "" {
+		return statuses
+	}
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+
+	url := fmt.Sprintf("http://%s/v3/paths/list", addr)
+	resp, err := http.Get(url)
+	if err != nil {
+		return statuses
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return statuses
+	}
+
+	var result struct {
+		Items []struct {
+			Name  string `json:"name"`
+			Ready bool   `json:"ready"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return statuses
+	}
+
+	for _, item := range result.Items {
+		if item.Ready {
+			statuses[item.Name] = "online"
+		} else {
+			statuses[item.Name] = "disconnected"
+		}
+	}
+	return statuses
 }
 
 // configExport represents the full NVR configuration for export/import.

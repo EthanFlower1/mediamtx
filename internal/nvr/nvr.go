@@ -155,6 +155,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		RecordingsPath: recordingsPath,
 		Events:         n.events,
 		EncryptionKey:  credKey,
+		ConfigPath:     n.ConfigPath,
 	})
 }
 

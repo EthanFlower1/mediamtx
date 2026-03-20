@@ -45,6 +45,35 @@ interface AuditEntry {
   created_at: string
 }
 
+interface ConfigSummary {
+  recording: {
+    enabled: boolean
+    format: string
+    segment_duration: string
+    delete_after: string
+    path: string
+  }
+  cameras: {
+    total: number
+    online: number
+    recording: number
+  }
+  recording_rules: {
+    total: number
+    active: number
+  }
+  users: {
+    total: number
+    admins: number
+  }
+  server: {
+    rtsp_port: string
+    webrtc_port: string
+    api_port: string
+    hls_port: string
+  }
+}
+
 interface ImportResult {
   cameras_imported: number
   cameras_skipped: number
@@ -150,6 +179,18 @@ function IconCamera() {
 function IconClock() {
   return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
 }
+function IconUsers() {
+  return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>
+}
+function IconRules() {
+  return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+}
+function IconServer() {
+  return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" /><line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" /></svg>
+}
+function IconRecord() {
+  return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
+}
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<TabId>('system')
@@ -171,11 +212,20 @@ export default function Settings() {
   const [importError, setImportError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [configSummary, setConfigSummary] = useState<ConfigSummary | null>(null)
+  const [configLoading, setConfigLoading] = useState(true)
 
   useEffect(() => {
     apiFetch('/system/info').then(async res => {
       if (res.ok) setSystemInfo(await res.json())
     })
+  }, [])
+
+  useEffect(() => {
+    apiFetch('/system/config').then(async res => {
+      if (res.ok) setConfigSummary(await res.json())
+      setConfigLoading(false)
+    }).catch(() => setConfigLoading(false))
   }, [])
 
   const fetchStorage = useCallback(() => {
@@ -486,27 +536,121 @@ export default function Settings() {
       {/* ===== CONFIGURATION TAB ===== */}
       {activeTab === 'config' && (
         <div className="space-y-6">
-          {/* Recording Defaults */}
-          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
-            <h2 className="text-lg font-semibold text-nvr-text-primary mb-2">Recording Defaults</h2>
-            <p className="text-xs text-nvr-text-muted mb-4">
-              Configured in mediamtx.yml under pathDefaults. Per-camera retention can be set on each camera.
-            </p>
-            <div className="space-y-0">
-              <div className="flex justify-between py-3 border-b border-nvr-border/50">
-                <span className="text-sm text-nvr-text-secondary">Global Retention Period</span>
-                <span className="text-sm text-nvr-text-primary font-mono">1d</span>
-              </div>
-              <div className="flex justify-between py-3 border-b border-nvr-border/50">
-                <span className="text-sm text-nvr-text-secondary">Recording Format</span>
-                <span className="text-sm text-nvr-text-primary font-mono">fmp4</span>
-              </div>
-              <div className="flex justify-between py-3">
-                <span className="text-sm text-nvr-text-secondary">Segment Duration</span>
-                <span className="text-sm text-nvr-text-primary font-mono">1h</span>
-              </div>
+          {configLoading ? (
+            <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-6 flex items-center justify-center py-12">
+              <span className="inline-block w-5 h-5 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin mr-3" />
+              <span className="text-nvr-text-muted">Loading configuration...</span>
             </div>
-          </div>
+          ) : configSummary ? (
+            <>
+              {/* NVR Overview */}
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+                <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">NVR Overview</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-nvr-bg-primary rounded-lg p-4 border border-nvr-border/50">
+                    <div className="flex items-center gap-2 mb-2 text-nvr-text-muted">
+                      <IconCamera />
+                      <p className="text-xs">Cameras</p>
+                    </div>
+                    <p className="text-xl font-semibold text-nvr-text-primary font-mono">{configSummary.cameras.total}</p>
+                    <p className="text-xs text-nvr-text-muted mt-1">
+                      {configSummary.cameras.online} online, {configSummary.cameras.recording} recording
+                    </p>
+                  </div>
+                  <div className="bg-nvr-bg-primary rounded-lg p-4 border border-nvr-border/50">
+                    <div className="flex items-center gap-2 mb-2 text-nvr-text-muted">
+                      <IconRules />
+                      <p className="text-xs">Recording Rules</p>
+                    </div>
+                    <p className="text-xl font-semibold text-nvr-text-primary font-mono">{configSummary.recording_rules.total}</p>
+                    <p className="text-xs text-nvr-text-muted mt-1">
+                      {configSummary.recording_rules.active} active now
+                    </p>
+                  </div>
+                  <div className="bg-nvr-bg-primary rounded-lg p-4 border border-nvr-border/50">
+                    <div className="flex items-center gap-2 mb-2 text-nvr-text-muted">
+                      <IconUsers />
+                      <p className="text-xs">Users</p>
+                    </div>
+                    <p className="text-xl font-semibold text-nvr-text-primary font-mono">{configSummary.users.total}</p>
+                    <p className="text-xs text-nvr-text-muted mt-1">
+                      {configSummary.users.admins} admin{configSummary.users.admins !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Server Ports */}
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <IconServer />
+                  <h2 className="text-lg font-semibold text-nvr-text-primary">Server Ports</h2>
+                </div>
+                <p className="text-xs text-nvr-text-muted mb-4">
+                  Useful for configuring firewall rules and client connections.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-nvr-bg-primary rounded-lg p-3 text-center border border-nvr-border/50">
+                    <p className="text-xs text-nvr-text-muted mb-1">RTSP</p>
+                    <p className="text-sm font-semibold text-nvr-text-primary font-mono">{configSummary.server.rtsp_port}</p>
+                  </div>
+                  <div className="bg-nvr-bg-primary rounded-lg p-3 text-center border border-nvr-border/50">
+                    <p className="text-xs text-nvr-text-muted mb-1">WebRTC</p>
+                    <p className="text-sm font-semibold text-nvr-text-primary font-mono">{configSummary.server.webrtc_port}</p>
+                  </div>
+                  <div className="bg-nvr-bg-primary rounded-lg p-3 text-center border border-nvr-border/50">
+                    <p className="text-xs text-nvr-text-muted mb-1">API</p>
+                    <p className="text-sm font-semibold text-nvr-text-primary font-mono">{configSummary.server.api_port}</p>
+                  </div>
+                  <div className="bg-nvr-bg-primary rounded-lg p-3 text-center border border-nvr-border/50">
+                    <p className="text-xs text-nvr-text-muted mb-1">HLS</p>
+                    <p className="text-sm font-semibold text-nvr-text-primary font-mono">{configSummary.server.hls_port}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recording Configuration */}
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <IconRecord />
+                  <h2 className="text-lg font-semibold text-nvr-text-primary">Recording Configuration</h2>
+                </div>
+                <p className="text-xs text-nvr-text-muted mb-4">
+                  Read from mediamtx.yml pathDefaults. Per-camera retention can be set on each camera.
+                </p>
+                <div className="space-y-0">
+                  <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                    <span className="text-sm text-nvr-text-secondary">Recording Enabled</span>
+                    <span className={`text-sm font-mono ${configSummary.recording.enabled ? 'text-green-400' : 'text-nvr-text-muted'}`}>
+                      {configSummary.recording.enabled ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                    <span className="text-sm text-nvr-text-secondary">Format</span>
+                    <span className="text-sm text-nvr-text-primary font-mono">{configSummary.recording.format}</span>
+                  </div>
+                  <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                    <span className="text-sm text-nvr-text-secondary">Segment Duration</span>
+                    <span className="text-sm text-nvr-text-primary font-mono">{configSummary.recording.segment_duration}</span>
+                  </div>
+                  <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                    <span className="text-sm text-nvr-text-secondary">Retention Period</span>
+                    <span className="text-sm text-nvr-text-primary font-mono">{configSummary.recording.delete_after}</span>
+                  </div>
+                  <div className="flex justify-between py-3">
+                    <span className="text-sm text-nvr-text-secondary">Recording Path</span>
+                    <span className="text-sm text-nvr-text-primary font-mono text-right max-w-[60%] truncate" title={configSummary.recording.path}>
+                      {configSummary.recording.path}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-6 text-center">
+              <p className="text-nvr-text-muted text-sm">Unable to load configuration. Admin access may be required.</p>
+            </div>
+          )}
 
           {/* Export / Import */}
           <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">

@@ -1,20 +1,37 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/context'
+import Login from './pages/Login'
+import Setup from './pages/Setup'
 
-function App() {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, setupRequired } = useAuth()
+  if (isLoading) return <div>Loading...</div>
+  if (setupRequired) return <Navigate to="/setup" replace />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<div>Login</div>} />
-        <Route path="/setup" element={<div>Setup</div>} />
-        <Route path="/live" element={<div>Live View</div>} />
-        <Route path="/cameras" element={<div>Camera Management</div>} />
-        <Route path="/recordings" element={<div>Recordings</div>} />
-        <Route path="/settings" element={<div>Settings</div>} />
-        <Route path="/users" element={<div>User Management</div>} />
-        <Route path="/" element={<Navigate to="/live" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/setup" element={<Setup />} />
+      <Route path="/live" element={<ProtectedRoute><div>Live View</div></ProtectedRoute>} />
+      <Route path="/cameras" element={<ProtectedRoute><div>Camera Management</div></ProtectedRoute>} />
+      <Route path="/recordings" element={<ProtectedRoute><div>Recordings</div></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><div>Settings</div></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><div>User Management</div></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/live" replace />} />
+    </Routes>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}

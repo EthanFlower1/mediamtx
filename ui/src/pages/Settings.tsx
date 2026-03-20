@@ -91,10 +91,12 @@ interface ConfigExport {
   users: unknown[]
 }
 
-type TabId = 'system' | 'storage' | 'config' | 'audit' | 'performance'
+type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 'audit' | 'performance'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'system', label: 'System' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'notifications', label: 'Notifications' },
   { id: 'storage', label: 'Storage' },
   { id: 'config', label: 'Configuration' },
   { id: 'audit', label: 'Audit Log' },
@@ -123,6 +125,23 @@ function formatUptime(uptime: string): string {
   if (minutes > 0) parts.push(`${minutes}m`)
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`)
   return parts.join(' ')
+}
+
+function formatUptimeHuman(uptime: string): string {
+  const match = uptime.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?/)
+  if (!match) return uptime
+  const totalHours = match[1] ? parseInt(match[1]) : 0
+  const minutes = match[2] ? parseInt(match[2]) : 0
+
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`)
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`)
+  if (minutes > 0 && days === 0) parts.push(`${minutes} min${minutes !== 1 ? 's' : ''}`)
+  if (parts.length === 0) parts.push('just started')
+  return parts.join(', ')
 }
 
 function formatUptimeSeconds(seconds: number): string {
@@ -192,6 +211,32 @@ function IconRecord() {
   return <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" fill="currentColor" /></svg>
 }
 
+// -- Toggle switch component --
+function Toggle({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
+  return (
+    <label className="flex items-center justify-between py-3 cursor-pointer group">
+      <div>
+        <p className="text-sm text-nvr-text-primary group-hover:text-white transition-colors">{label}</p>
+        {description && <p className="text-xs text-nvr-text-muted mt-0.5">{description}</p>}
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ml-4 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+          checked ? 'bg-nvr-accent' : 'bg-nvr-bg-tertiary border border-nvr-border'
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+            checked ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
+      </button>
+    </label>
+  )
+}
+
 export default function Settings() {
   // Page title
   useEffect(() => {
@@ -221,6 +266,36 @@ export default function Settings() {
   const [configSummary, setConfigSummary] = useState<ConfigSummary | null>(null)
   const [configLoading, setConfigLoading] = useState(true)
 
+  // Appearance state
+  const [theme, setTheme] = useState(() => localStorage.getItem('nvr-theme') || 'dark')
+  const [defaultLayout, setDefaultLayout] = useState(() => {
+    const saved = localStorage.getItem('nvr-live-layout')
+    return saved ? parseInt(saved, 10) : 2
+  })
+  const [refreshInterval, setRefreshInterval] = useState(() => {
+    const saved = localStorage.getItem('nvr-refresh-interval')
+    return saved ? parseInt(saved, 10) : 15
+  })
+
+  // Notification preferences state
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('nvr-notif-enabled') !== 'false')
+  const [notifMotion, setNotifMotion] = useState(() => localStorage.getItem('nvr-notif-motion') !== 'false')
+  const [notifOffline, setNotifOffline] = useState(() => localStorage.getItem('nvr-notif-offline') !== 'false')
+  const [notifSound, setNotifSound] = useState(() => localStorage.getItem('nvr-notif-sound') === 'true')
+
+  // WebRTC stream count for system tab
+  const [webrtcStreams, setWebrtcStreams] = useState<number | null>(null)
+
+  // Apply theme on mount and change
+  useEffect(() => {
+    if (theme === 'oled') {
+      document.documentElement.classList.add('theme-oled')
+    } else {
+      document.documentElement.classList.remove('theme-oled')
+    }
+    localStorage.setItem('nvr-theme', theme)
+  }, [theme])
+
   useEffect(() => {
     apiFetch('/system/info').then(async res => {
       if (res.ok) setSystemInfo(await res.json())
@@ -232,6 +307,31 @@ export default function Settings() {
       if (res.ok) setConfigSummary(await res.json())
       setConfigLoading(false)
     }).catch(() => setConfigLoading(false))
+  }, [])
+
+  // Fetch WebRTC stream count
+  useEffect(() => {
+    const fetchStreams = () => {
+      // MediaMTX v1 lists paths at /v3/paths/list
+      fetch('/v3/paths/list')
+        .then(async res => {
+          if (res.ok) {
+            const data = await res.json()
+            const items = data.items || []
+            let count = 0
+            for (const item of items) {
+              if (item.readers) count += item.readers.length
+            }
+            setWebrtcStreams(count)
+          }
+        })
+        .catch(() => {
+          setWebrtcStreams(null)
+        })
+    }
+    fetchStreams()
+    const id = setInterval(fetchStreams, 15000)
+    return () => clearInterval(id)
   }, [])
 
   const fetchStorage = useCallback(() => {
@@ -376,6 +476,39 @@ export default function Settings() {
     }
   }
 
+  // Appearance handlers
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme)
+  }
+
+  const handleDefaultLayoutChange = (n: number) => {
+    setDefaultLayout(n)
+    localStorage.setItem('nvr-live-layout', String(n))
+  }
+
+  const handleRefreshIntervalChange = (val: number) => {
+    setRefreshInterval(val)
+    localStorage.setItem('nvr-refresh-interval', String(val))
+  }
+
+  // Notification preference handlers
+  const handleNotifEnabled = (v: boolean) => {
+    setNotifEnabled(v)
+    localStorage.setItem('nvr-notif-enabled', String(v))
+  }
+  const handleNotifMotion = (v: boolean) => {
+    setNotifMotion(v)
+    localStorage.setItem('nvr-notif-motion', String(v))
+  }
+  const handleNotifOffline = (v: boolean) => {
+    setNotifOffline(v)
+    localStorage.setItem('nvr-notif-offline', String(v))
+  }
+  const handleNotifSound = (v: boolean) => {
+    setNotifSound(v)
+    localStorage.setItem('nvr-notif-sound', String(v))
+  }
+
   // Find max per-camera bytes for bar chart scaling
   const maxCameraBytes = storage?.per_camera
     ? Math.max(...storage.per_camera.map(c => c.total_bytes), 1)
@@ -404,29 +537,224 @@ export default function Settings() {
 
       {/* ===== SYSTEM TAB ===== */}
       {activeTab === 'system' && (
-        <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
-          <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">System Information</h2>
+        <div className="space-y-6">
+          {/* Version hero card */}
           {systemInfo ? (
-            <div className="space-y-0">
-              <div className="flex justify-between py-3 border-b border-nvr-border/50">
-                <span className="text-sm text-nvr-text-secondary">Version</span>
-                <span className="text-sm text-nvr-text-primary font-mono">{systemInfo.version}</span>
-              </div>
-              <div className="flex justify-between py-3 border-b border-nvr-border/50">
-                <span className="text-sm text-nvr-text-secondary">Platform</span>
-                <span className="text-sm text-nvr-text-primary font-mono">{systemInfo.platform}</span>
-              </div>
-              <div className="flex justify-between py-3">
-                <span className="text-sm text-nvr-text-secondary">Uptime</span>
-                <span className="text-sm text-nvr-text-primary">{formatUptime(systemInfo.uptime)}</span>
+            <div className="bg-gradient-to-br from-nvr-accent/10 to-nvr-bg-secondary border border-nvr-accent/20 rounded-xl p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-nvr-accent/20 flex items-center justify-center shrink-0">
+                  <IconServer />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold text-nvr-text-primary">MediaMTX NVR</h2>
+                  <p className="text-2xl font-mono font-semibold text-nvr-accent mt-0.5">v{systemInfo.version}</p>
+                </div>
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-nvr-text-muted">Platform</p>
+                  <p className="text-sm text-nvr-text-primary font-mono">{systemInfo.platform}</p>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 py-4">
+            <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-6 flex items-center gap-2">
               <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
-              <span className="text-nvr-text-muted text-sm">Loading...</span>
+              <span className="text-nvr-text-muted text-sm">Loading system info...</span>
             </div>
           )}
+
+          {/* System details */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">System Details</h2>
+            {systemInfo ? (
+              <div className="space-y-0">
+                <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                  <span className="text-sm text-nvr-text-secondary">Uptime</span>
+                  <div className="text-right">
+                    <span className="text-sm text-nvr-text-primary">{formatUptimeHuman(systemInfo.uptime)}</span>
+                    <span className="text-xs text-nvr-text-muted ml-2">({formatUptime(systemInfo.uptime)})</span>
+                  </div>
+                </div>
+                <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                  <span className="text-sm text-nvr-text-secondary">Platform</span>
+                  <span className="text-sm text-nvr-text-primary font-mono">{systemInfo.platform}</span>
+                </div>
+                <div className="flex justify-between py-3 border-b border-nvr-border/50">
+                  <span className="text-sm text-nvr-text-secondary">Active Streams</span>
+                  <span className="text-sm text-nvr-text-primary font-mono">
+                    {webrtcStreams !== null ? webrtcStreams : '--'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <span className="text-sm text-nvr-text-secondary">Server Controls</span>
+                  <button
+                    disabled
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg bg-nvr-bg-tertiary text-nvr-text-muted border border-nvr-border cursor-not-allowed"
+                    title="Server restart will be available in a future update"
+                  >
+                    Restart Server (coming soon)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 py-4">
+                <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                <span className="text-nvr-text-muted text-sm">Loading...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== APPEARANCE TAB ===== */}
+      {activeTab === 'appearance' && (
+        <div className="space-y-6">
+          {/* Theme selector */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">Theme</h2>
+            <p className="text-xs text-nvr-text-muted mb-4">Choose a visual theme for the NVR interface.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => handleThemeChange('dark')}
+                className={`relative rounded-xl p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                  theme === 'dark'
+                    ? 'bg-nvr-accent/10 border-2 border-nvr-accent'
+                    : 'bg-nvr-bg-primary border-2 border-nvr-border hover:border-nvr-text-muted'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#0f1117] border border-[#2d3140]" />
+                  <div>
+                    <p className="text-sm font-medium text-nvr-text-primary">Dark</p>
+                    <p className="text-xs text-nvr-text-muted">Default dark theme</p>
+                  </div>
+                </div>
+                {/* Preview swatches */}
+                <div className="flex gap-1.5">
+                  <div className="w-6 h-3 rounded bg-[#0f1117] border border-[#2d3140]" />
+                  <div className="w-6 h-3 rounded bg-[#1a1d27]" />
+                  <div className="w-6 h-3 rounded bg-[#242836]" />
+                </div>
+                {theme === 'dark' && (
+                  <div className="absolute top-3 right-3">
+                    <svg className="w-5 h-5 text-nvr-accent" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => handleThemeChange('oled')}
+                className={`relative rounded-xl p-4 text-left transition-all focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                  theme === 'oled'
+                    ? 'bg-nvr-accent/10 border-2 border-nvr-accent'
+                    : 'bg-nvr-bg-primary border-2 border-nvr-border hover:border-nvr-text-muted'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#000000] border border-[#1a1a1a]" />
+                  <div>
+                    <p className="text-sm font-medium text-nvr-text-primary">OLED Black</p>
+                    <p className="text-xs text-nvr-text-muted">Pure black for AMOLED</p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <div className="w-6 h-3 rounded bg-[#000000] border border-[#1a1a1a]" />
+                  <div className="w-6 h-3 rounded bg-[#0a0a0a]" />
+                  <div className="w-6 h-3 rounded bg-[#141414]" />
+                </div>
+                {theme === 'oled' && (
+                  <div className="absolute top-3 right-3">
+                    <svg className="w-5 h-5 text-nvr-accent" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Grid default layout */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">Default Live View Layout</h2>
+            <p className="text-xs text-nvr-text-muted mb-4">Choose the default grid layout when opening the Live View page.</p>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map(n => (
+                <button
+                  key={n}
+                  onClick={() => handleDefaultLayoutChange(n)}
+                  className={`flex-1 py-3 rounded-lg text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                    defaultLayout === n
+                      ? 'bg-nvr-accent text-white'
+                      : 'bg-nvr-bg-primary text-nvr-text-secondary border border-nvr-border hover:border-nvr-text-muted hover:text-nvr-text-primary'
+                  }`}
+                >
+                  {n}x{n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Auto-refresh interval */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">Camera Status Refresh</h2>
+            <p className="text-xs text-nvr-text-muted mb-4">
+              How often to poll camera status. Lower values use more bandwidth. Takes effect on next page load.
+            </p>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={5}
+                max={60}
+                step={5}
+                value={refreshInterval}
+                onChange={e => handleRefreshIntervalChange(parseInt(e.target.value, 10))}
+                className="flex-1 accent-nvr-accent h-2 rounded-full appearance-none bg-nvr-bg-primary cursor-pointer"
+              />
+              <span className="text-sm font-mono text-nvr-text-primary w-12 text-right shrink-0">
+                {refreshInterval}s
+              </span>
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-xs text-nvr-text-muted">5s</span>
+              <span className="text-xs text-nvr-text-muted">60s</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== NOTIFICATIONS TAB ===== */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6">
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">In-App Notifications</h2>
+            <p className="text-xs text-nvr-text-muted mb-2">Control which notifications appear as toast pop-ups in the NVR interface.</p>
+            <div className="divide-y divide-nvr-border/50">
+              <Toggle
+                checked={notifEnabled}
+                onChange={handleNotifEnabled}
+                label="Enable notifications"
+                description="Master toggle for all in-app notification pop-ups"
+              />
+              <Toggle
+                checked={notifMotion}
+                onChange={handleNotifMotion}
+                label="Motion alerts"
+                description="Show a notification when motion is detected on a camera"
+              />
+              <Toggle
+                checked={notifOffline}
+                onChange={handleNotifOffline}
+                label="Camera offline/online alerts"
+                description="Notify when a camera goes offline or comes back online"
+              />
+              <Toggle
+                checked={notifSound}
+                onChange={handleNotifSound}
+                label="Alert sound"
+                description="Play a short tone when a notification appears"
+              />
+            </div>
+          </div>
         </div>
       )}
 

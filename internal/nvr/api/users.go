@@ -50,7 +50,7 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	users, err := h.DB.ListUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to list users", err)
 		return
 	}
 	if users == nil {
@@ -72,7 +72,7 @@ func (h *UserHandler) Get(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve user", err)
 		return
 	}
 	c.JSON(http.StatusOK, user)
@@ -102,7 +102,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.DB.CreateUser(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		apiError(c, http.StatusInternalServerError, "failed to create user", err)
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve user for update", err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 
 	if err := h.DB.UpdateUser(existing); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+		apiError(c, http.StatusInternalServerError, "failed to update user", err)
 		return
 	}
 
@@ -203,7 +203,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve user for password change", err)
 		return
 	}
 
@@ -214,7 +214,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 	user.PasswordHash = hashPassword(req.NewPassword)
 	if err := h.DB.UpdateUser(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
+		apiError(c, http.StatusInternalServerError, "failed to update password", err)
 		return
 	}
 
@@ -247,7 +247,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete user"})
+		apiError(c, http.StatusInternalServerError, "failed to delete user", err)
 		return
 	}
 

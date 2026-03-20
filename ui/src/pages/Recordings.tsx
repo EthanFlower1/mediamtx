@@ -49,6 +49,7 @@ export default function Recordings() {
   const [exportSegments, setExportSegments] = useState<ExportSegment[]>([])
   const [exportLoading, setExportLoading] = useState(false)
   const [exportDone, setExportDone] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<number | null>(null)
 
   const selectedCameraObj = cameras.find(c => c.id === selectedCamera)
   const mediamtxPath = selectedCameraObj?.mediamtx_path || ''
@@ -114,15 +115,22 @@ export default function Recordings() {
   }
 
   // Download a recording segment by ID.
-  const handleDownload = (segmentId: number) => {
-    // Open the download URL in a new tab. The browser will handle the
-    // Content-Disposition: attachment header from the server.
-    const link = document.createElement('a')
-    link.href = `/api/nvr/recordings/${segmentId}/download`
-    link.download = ''
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const handleDownload = async (segmentId: number) => {
+    setDownloadingId(segmentId)
+    try {
+      // Open the download URL in a new tab. The browser will handle the
+      // Content-Disposition: attachment header from the server.
+      const link = document.createElement('a')
+      link.href = `/api/nvr/recordings/${segmentId}/download`
+      link.download = ''
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      // Brief delay so the spinner is visible before the browser takes over.
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   // Run export query.
@@ -204,6 +212,7 @@ export default function Recordings() {
             {segments.length} segment{segments.length !== 1 ? 's' : ''} found
           </span>
         )}
+        <span className="text-xs text-nvr-text-muted">(local time)</span>
       </div>
 
       {selectedCamera && (
@@ -304,8 +313,9 @@ export default function Recordings() {
             <button
               onClick={handleExport}
               disabled={!exportCamera || exportLoading}
-              className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] w-full sm:w-auto"
+              className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-2"
             >
+              {exportLoading && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {exportLoading ? 'Searching...' : 'Export'}
             </button>
           </div>
@@ -337,9 +347,11 @@ export default function Recordings() {
                         </div>
                         <button
                           onClick={() => handleDownload(seg.id)}
-                          className="bg-nvr-bg-input border border-nvr-border hover:bg-nvr-bg-tertiary text-nvr-text-primary font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px] shrink-0 self-end sm:self-center"
+                          disabled={downloadingId === seg.id}
+                          className="bg-nvr-bg-input border border-nvr-border hover:bg-nvr-bg-tertiary text-nvr-text-primary font-medium px-3 py-1.5 rounded-lg transition-colors text-sm min-h-[44px] shrink-0 self-end sm:self-center disabled:opacity-50 inline-flex items-center gap-2"
                         >
-                          Download
+                          {downloadingId === seg.id && <span className="inline-block w-3.5 h-3.5 border-2 border-nvr-text-muted/30 border-t-nvr-text-primary rounded-full animate-spin" />}
+                          {downloadingId === seg.id ? 'Downloading...' : 'Download'}
                         </button>
                       </div>
                     ))}

@@ -51,7 +51,7 @@ func (w *Writer) AddPath(name string, config map[string]interface{}) error {
 	// Find the end of the paths: section and append the entry.
 	content = appendToPathsSection(content, entry)
 
-	return w.atomicWriteText(content)
+	return w.backupAndWrite(content)
 }
 
 // RemovePath removes a path entry from the top-level "paths" mapping.
@@ -65,7 +65,7 @@ func (w *Writer) RemovePath(name string) error {
 	}
 
 	content := removePathText(string(data), name)
-	return w.atomicWriteText(content)
+	return w.backupAndWrite(content)
 }
 
 // GetNVRPaths returns all path names under the "paths" mapping that are
@@ -148,7 +148,7 @@ func (w *Writer) SetTopLevelValue(key, value string) error {
 	for _, v := range mapping.Values {
 		if v.Key.String() == key {
 			v.Value = valueNode
-			return w.atomicWrite(file)
+			return w.backupAndWriteAST(file)
 		}
 	}
 
@@ -216,7 +216,7 @@ func (w *Writer) SetPathValue(pathName, key string, value interface{}) error {
 		_ = blockEnd // not needed for insert case
 	}
 
-	return w.atomicWriteText(strings.Join(lines, "\n"))
+	return w.backupAndWrite(strings.Join(lines, "\n"))
 }
 
 // formatScalar converts a Go value to its YAML scalar representation.
@@ -361,6 +361,25 @@ func appendToPathsSection(content, entry string) string {
 	}
 
 	return before + entry + after
+}
+
+// backupAndWrite reads the current config file as a backup, then writes the
+// new content atomically. If the atomic write fails and a backup exists, the
+// backup is restored so the config file is never left in a corrupted state.
+func (w *Writer) backupAndWrite(content string) error {
+	backup, _ := os.ReadFile(w.path)
+
+	err := w.atomicWriteText(content)
+	if err != nil && backup != nil {
+		// Best-effort restore from backup.
+		_ = os.WriteFile(w.path, backup, 0o644)
+	}
+	return err
+}
+
+// backupAndWriteAST is the AST variant of backupAndWrite.
+func (w *Writer) backupAndWriteAST(file *ast.File) error {
+	return w.backupAndWrite(file.String() + "\n")
 }
 
 // atomicWrite writes the AST file to disk using a temp file and rename.

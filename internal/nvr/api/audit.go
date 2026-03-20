@@ -105,7 +105,7 @@ func (h *AuditHandler) List(c *gin.Context) {
 
 	entries, total, err := h.DB.QueryAuditLog(limit, offset, userID, action)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query audit log"})
+		apiError(c, http.StatusInternalServerError, "failed to query audit log", err)
 		return
 	}
 

@@ -142,7 +142,7 @@ type configExport struct {
 // Users are included without password hashes for reference only.
 func (h *SystemHandler) ExportConfig(c *gin.Context) {
 	if h.ConfigDB == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database not available"})
+		apiError(c, http.StatusInternalServerError, "database not available", fmt.Errorf("ConfigDB is nil"))
 		return
 	}
 
@@ -204,7 +204,7 @@ type configImportResult struct {
 // security reasons.
 func (h *SystemHandler) ImportConfig(c *gin.Context) {
 	if h.ConfigDB == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database not available"})
+		apiError(c, http.StatusInternalServerError, "database not available", fmt.Errorf("ConfigDB is nil"))
 		return
 	}
 

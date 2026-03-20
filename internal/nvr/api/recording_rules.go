@@ -66,13 +66,13 @@ func (h *RecordingRuleHandler) List(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
 		return
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to look up camera for rules", err)
 		return
 	}
 
 	rules, err := h.DB.ListRecordingRules(cameraID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to list recording rules", err)
 		return
 	}
 	if rules == nil {
@@ -92,7 +92,7 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to look up camera for rule creation", err)
 		return
 	}
 
@@ -136,9 +136,11 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.DB.CreateRecordingRule(rule); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create recording rule"})
+		apiError(c, http.StatusInternalServerError, "failed to create recording rule", err)
 		return
 	}
+
+	nvrLogInfo("rules", fmt.Sprintf("Created recording rule %q for camera %s", rule.Name, cameraID))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "create", "recording_rule", rule.ID, fmt.Sprintf("Created rule %q for camera %s", rule.Name, cameraID))
@@ -157,7 +159,7 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to retrieve recording rule", err)
 		return
 	}
 
@@ -193,9 +195,11 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 	existing.Enabled = enabled
 
 	if err := h.DB.UpdateRecordingRule(existing); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update recording rule"})
+		apiError(c, http.StatusInternalServerError, "failed to update recording rule", err)
 		return
 	}
+
+	nvrLogInfo("rules", fmt.Sprintf("Updated recording rule %q (id=%s)", existing.Name, existing.ID))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "update", "recording_rule", existing.ID, fmt.Sprintf("Updated rule %q", existing.Name))
@@ -212,9 +216,11 @@ func (h *RecordingRuleHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "recording rule not found"})
 		return
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete recording rule"})
+		apiError(c, http.StatusInternalServerError, "failed to delete recording rule", err)
 		return
 	}
+
+	nvrLogInfo("rules", fmt.Sprintf("Deleted recording rule (id=%s)", id))
 
 	if h.Audit != nil {
 		h.Audit.logAction(c, "delete", "recording_rule", id, "Deleted recording rule")
@@ -231,7 +237,7 @@ func (h *RecordingRuleHandler) Status(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
 		return
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to look up camera for recording status", err)
 		return
 	}
 

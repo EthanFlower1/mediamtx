@@ -39,7 +39,7 @@ type loginRequest struct {
 func (h *AuthHandler) Setup(c *gin.Context) {
 	count, err := h.DB.CountUsers()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		apiError(c, http.StatusInternalServerError, "failed to check user count", err)
 		return
 	}
 	if count > 0 {
@@ -60,10 +60,11 @@ func (h *AuthHandler) Setup(c *gin.Context) {
 		CameraPermissions: "*",
 	}
 	if err := h.DB.CreateUser(user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		apiError(c, http.StatusInternalServerError, "failed to create initial admin user", err)
 		return
 	}
 
+	nvrLogInfo("auth", "Initial admin setup completed for user "+user.Username)
 	c.JSON(http.StatusCreated, gin.H{"id": user.ID, "username": user.Username, "role": user.Role})
 }
 
@@ -96,7 +97,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	now := time.Now()
 	accessToken, err := h.buildAccessToken(user, now)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		apiError(c, http.StatusInternalServerError, "failed to generate access token", err)
 		return
 	}
 
@@ -111,7 +112,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		ExpiresAt: refreshExpiry.UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 	if err := h.DB.CreateRefreshToken(rt); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store refresh token"})
+		apiError(c, http.StatusInternalServerError, "failed to store refresh token", err)
 		return
 	}
 
@@ -164,7 +165,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	now := time.Now()
 	accessToken, err := h.buildAccessToken(user, now)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		apiError(c, http.StatusInternalServerError, "failed to generate access token on refresh", err)
 		return
 	}
 
@@ -191,7 +192,7 @@ func (h *AuthHandler) Revoke(c *gin.Context) {
 	}
 
 	if err := h.DB.RevokeRefreshToken(rt.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke token"})
+		apiError(c, http.StatusInternalServerError, "failed to revoke token", err)
 		return
 	}
 

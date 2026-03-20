@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, FormEvent, useMemo } from 'react'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../auth/context'
 import { Camera } from '../hooks/useCameras'
@@ -410,6 +410,17 @@ export default function UserManagement() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
 
+  // Page title
+  useEffect(() => {
+    document.title = 'Users — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
+
+  const showViewerTip = useMemo(() => {
+    if (users.length === 0) return false
+    return users.length === 1 && users[0].role === 'admin'
+  }, [users])
+
   const refresh = async () => {
     const res = await apiFetch('/users')
     if (res.ok) setUsers(await res.json())
@@ -527,6 +538,16 @@ export default function UserManagement() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Tip for single-admin setups */}
+      {showViewerTip && (
+        <div className="mt-4 flex items-start gap-3 bg-nvr-accent/5 border border-nvr-accent/15 rounded-xl px-4 py-3">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-nvr-accent shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+          <p className="text-sm text-nvr-text-secondary">
+            <span className="font-medium text-nvr-text-primary">Tip:</span> Create viewer accounts to give team members read-only access to camera feeds.
+          </p>
         </div>
       )}
 

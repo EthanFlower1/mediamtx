@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/context'
 import Login from './pages/Login'
@@ -12,7 +12,9 @@ import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
 import StorageBanner from './components/StorageBanner'
+import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
 import { useNotifications } from './hooks/useNotifications'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { apiFetch } from './api/client'
 
 /* ------------------------------------------------------------------ */
@@ -230,9 +232,21 @@ const IconSettings = (
 function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false)
   const { notifications, unreadCount, markAllRead } = useNotifications(isAuthenticated)
   const storageWarning = useStorageWarning(isAuthenticated)
   const location = useLocation()
+
+  // Global keyboard shortcut: ? to toggle shortcuts help
+  const globalShortcuts = useMemo(() => [
+    {
+      key: '?',
+      shift: true,
+      handler: () => setShowShortcutsHelp(prev => !prev),
+      description: 'Show keyboard shortcuts help',
+    },
+  ], [])
+  useKeyboardShortcuts(globalShortcuts)
 
   // Auto-close sidebar on route change
   useEffect(() => {
@@ -368,6 +382,11 @@ function Layout({ children }: { children: React.ReactNode }) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
+
+      {/* ---- Keyboard shortcuts help overlay ---- */}
+      {showShortcutsHelp && (
+        <KeyboardShortcutsHelp onClose={() => setShowShortcutsHelp(false)} />
+      )}
     </div>
   )
 }

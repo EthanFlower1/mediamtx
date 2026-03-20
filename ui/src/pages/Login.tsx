@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useAuth } from '../auth/context'
 import { useNavigate } from 'react-router-dom'
 
@@ -9,6 +9,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  // Page title
+  useEffect(() => {
+    document.title = 'Sign In — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

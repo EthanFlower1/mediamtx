@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useCameras, Camera } from '../hooks/useCameras'
 import CameraGrid from '../components/CameraGrid'
 import VideoPlayer from '../components/VideoPlayer'
 import PTZControls from '../components/PTZControls'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 
 /** Full-screen modal overlay for a single camera with video + PTZ. */
 function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void }) {
@@ -169,6 +170,12 @@ export default function LiveView() {
   })
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
 
+  // Page title
+  useEffect(() => {
+    document.title = 'Live View — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
+
   const onlineCount = cameras.filter(c => c.status === 'online').length
   const offlineCount = cameras.length - onlineCount
 
@@ -176,6 +183,28 @@ export default function LiveView() {
     setLayout(n)
     localStorage.setItem('nvr-live-layout', String(n))
   }
+
+  // Keyboard shortcuts: 1-4 for layout, F for fullscreen
+  const shortcuts = useMemo(() => [
+    { key: '1', handler: () => handleLayoutChange(1), description: '1x1 layout' },
+    { key: '2', handler: () => handleLayoutChange(2), description: '2x2 layout' },
+    { key: '3', handler: () => handleLayoutChange(3), description: '3x3 layout' },
+    { key: '4', handler: () => handleLayoutChange(4), description: '4x4 layout' },
+    {
+      key: 'f',
+      handler: () => {
+        if (selectedCamera) {
+          if (document.fullscreenElement) {
+            document.exitFullscreen()
+          } else {
+            document.documentElement.requestFullscreen().catch(() => {})
+          }
+        }
+      },
+      description: 'Toggle fullscreen',
+    },
+  ], [selectedCamera])
+  useKeyboardShortcuts(shortcuts)
 
   if (loading) {
     return (

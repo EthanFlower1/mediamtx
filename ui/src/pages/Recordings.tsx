@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useCameras } from '../hooks/useCameras'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import Timeline from '../components/Timeline'
 import VideoPlayer from '../components/VideoPlayer'
 
@@ -73,6 +74,12 @@ export default function Recordings() {
 
   // Track video start time for timeline sync
   const videoStartTimeRef = useRef<Date | null>(null)
+
+  // Page title
+  useEffect(() => {
+    document.title = 'Recordings — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
 
   const selectedCameraObj = cameras.find(c => c.id === selectedCamera)
   const mediamtxPath = selectedCameraObj?.mediamtx_path || ''
@@ -193,6 +200,21 @@ export default function Recordings() {
     videoStartTimeRef.current = null
   }
 
+  // Keyboard shortcuts: left/right arrows to navigate dates
+  const recordingsShortcuts = useMemo(() => [
+    {
+      key: 'ArrowLeft',
+      handler: () => { setDate(prev => shiftDate(prev, -1)); resetPlayback(); exitClipMode() },
+      description: 'Previous day',
+    },
+    {
+      key: 'ArrowRight',
+      handler: () => { setDate(prev => shiftDate(prev, 1)); resetPlayback(); exitClipMode() },
+      description: 'Next day',
+    },
+  ], [])
+  useKeyboardShortcuts(recordingsShortcuts)
+
   const isToday = date === new Date().toISOString().split('T')[0]
 
   if (camerasLoading) {
@@ -296,9 +318,15 @@ export default function Recordings() {
       {/* Main content */}
       {!selectedCamera && cameras.length > 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-nvr-text-muted/50 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg>
-          <p className="text-nvr-text-secondary text-lg mb-1">Select a camera to view recordings</p>
-          <p className="text-nvr-text-muted text-sm">Choose from the dropdown above</p>
+          <div className="flex items-center gap-3 mb-5">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center ${i === 1 ? 'bg-nvr-accent/15' : 'bg-nvr-bg-tertiary'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${i === 1 ? 'text-nvr-accent' : 'text-nvr-text-muted/50'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
+              </div>
+            ))}
+          </div>
+          <p className="text-nvr-text-secondary text-lg mb-1">Select a camera above to view its recordings</p>
+          <p className="text-nvr-text-muted text-sm">Choose from the dropdown to browse recorded footage</p>
         </div>
       )}
 
@@ -388,9 +416,23 @@ export default function Recordings() {
           {/* Empty state for no recordings */}
           {!loadingRecordings && !hasRecordings && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-nvr-text-muted/40 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-              <p className="text-nvr-text-secondary mb-1">No recordings on this date</p>
-              <p className="text-nvr-text-muted text-sm">Try a different date or check that recording is enabled</p>
+              <div className="relative mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-nvr-text-muted/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-nvr-danger absolute -bottom-1 -right-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </div>
+              <p className="text-nvr-text-secondary text-lg mb-1">
+                No recordings found for {new Date(date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+              <p className="text-nvr-text-muted text-sm mb-4 max-w-sm">
+                Check that recording is enabled in this camera's recording schedule.
+              </p>
+              <a
+                href="/cameras"
+                className="inline-flex items-center gap-1.5 text-sm text-nvr-accent hover:text-nvr-accent-hover transition-colors font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Go to Camera Settings
+              </a>
             </div>
           )}
 

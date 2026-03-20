@@ -135,6 +135,12 @@ export default function CameraManagement() {
   const navigate = useNavigate()
   const { cameras, loading, refresh } = useCameras()
 
+  // Page title
+  useEffect(() => {
+    document.title = 'Cameras — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
+
   // Search filter state
   const [searchQuery, setSearchQuery] = useState('')
 

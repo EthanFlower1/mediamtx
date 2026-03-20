@@ -1,4 +1,4 @@
-import { useState, FormEvent, useMemo } from 'react'
+import { useState, useEffect, FormEvent, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/context'
 
@@ -25,6 +25,12 @@ export default function Setup() {
   const [success, setSuccess] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
+
+  // Page title
+  useEffect(() => {
+    document.title = 'Setup — MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
 
   const strength = useMemo(() => getPasswordStrength(password), [password])
   const sc = strengthConfig[strength]

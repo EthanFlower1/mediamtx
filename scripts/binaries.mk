@@ -1,12 +1,20 @@
 BINARY_NAME = mediamtx
 
 define DOCKERFILE_BINARIES
+FROM $(NODE_IMAGE) AS build-ui
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npx vite build --outDir /ui-dist
+
 FROM $(BASE_IMAGE) AS build-base
 RUN apk add --no-cache zip make git tar
 WORKDIR /s
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
+COPY --from=build-ui /ui-dist/ /s/internal/nvr/ui/dist/
 ENV CGO_ENABLED=0
 RUN rm -rf tmp binaries
 RUN mkdir tmp binaries

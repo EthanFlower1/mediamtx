@@ -1,28 +1,79 @@
 package onvif
 
-import "errors"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+
+	onviflib "github.com/use-go/onvif"
+	onvifmedia "github.com/use-go/onvif/media"
+	sdkmedia "github.com/use-go/onvif/sdk/media"
+	onviftypes "github.com/use-go/onvif/xsd/onvif"
+)
 
 // ErrNotImplemented is returned by stub methods that are not yet implemented.
 var ErrNotImplemented = errors.New("not implemented")
 
-// Device wraps an ONVIF device connection for camera management.
-type Device struct {
-	XAddr    string
-	Username string
-	Password string
-}
+// ProbeDevice connects to an ONVIF device with credentials and returns its media profiles
+// including RTSP stream URIs.
+func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
+	host := xaddrToHost(xaddr)
+	if host == "" {
+		host = xaddr
+	}
 
-// NewDevice creates a new Device instance for the given ONVIF endpoint.
-func NewDevice(xaddr, username, password string) *Device {
-	return &Device{
-		XAddr:    xaddr,
+	dev, err := onviflib.NewDevice(onviflib.DeviceParams{
+		Xaddr:    host,
 		Username: username,
 		Password: password,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
 	}
-}
 
-// GetStreamURI returns the RTSP stream URI for the given profile token.
-// This is a stub that will be implemented when ONVIF library support is available.
-func (d *Device) GetStreamURI(profileToken string) (string, error) {
-	return "", ErrNotImplemented
+	ctx := context.Background()
+
+	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, dev, onvifmedia.GetProfiles{})
+	if err != nil {
+		return nil, fmt.Errorf("get profiles: %w", err)
+	}
+
+	var profiles []MediaProfile
+	for _, p := range profilesResp.Profiles {
+		mp := MediaProfile{
+			Token:      string(p.Token),
+			Name:       string(p.Name),
+			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
+			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
+			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
+		}
+
+		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, dev, onvifmedia.GetStreamUri{
+			ProfileToken: p.Token,
+			StreamSetup: onviftypes.StreamSetup{
+				Stream:    "RTP-Unicast",
+				Transport: onviftypes.Transport{Protocol: "RTSP"},
+			},
+		})
+		if err == nil {
+			uri := string(streamResp.MediaUri.Uri)
+			// Inject credentials into the RTSP URL.
+			if username != "" {
+				if u, err := url.Parse(uri); err == nil {
+					u.User = url.UserPassword(username, password)
+					uri = u.String()
+				}
+			}
+			mp.StreamURI = uri
+		}
+
+		profiles = append(profiles, mp)
+	}
+
+	if len(profiles) == 0 {
+		return nil, fmt.Errorf("no media profiles found")
+	}
+
+	return profiles, nil
 }

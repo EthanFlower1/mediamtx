@@ -433,6 +433,7 @@ func (p *Core) createResources(initial bool) error {
 			DatabasePath: p.conf.NVRDatabase,
 			JWTSecret:    p.conf.NVRJWTSecret,
 			ConfigPath:   p.confPath,
+			APIAddress:   p.conf.APIAddress,
 		}
 		if err := p.nvr.Initialize(); err != nil {
 			return err

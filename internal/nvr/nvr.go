@@ -18,6 +18,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -26,11 +27,13 @@ type NVR struct {
 	DatabasePath string
 	JWTSecret    string
 	ConfigPath   string
+	APIAddress   string
 
 	database   *db.DB
 	yamlWriter *yamlwriter.Writer
 	privateKey *rsa.PrivateKey
 	jwksJSON   []byte
+	discovery  *onvif.Discovery
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -43,6 +46,21 @@ func (n *NVR) Initialize() error {
 			return fmt.Errorf("generate JWT secret: %w", err)
 		}
 		n.JWTSecret = hex.EncodeToString(secret)
+
+		// Persist the generated secret to the config file so it survives restarts.
+		if n.ConfigPath != "" {
+			w := yamlwriter.New(n.ConfigPath)
+			if err := w.SetTopLevelValue("nvrJWTSecret", n.JWTSecret); err != nil {
+				return fmt.Errorf("persist JWT secret: %w", err)
+			}
+		}
+	}
+
+	// Expand ~ to the user's home directory.
+	if strings.HasPrefix(n.DatabasePath, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			n.DatabasePath = filepath.Join(home, n.DatabasePath[2:])
+		}
 	}
 
 	dbDir := filepath.Dir(n.DatabasePath)
@@ -57,6 +75,7 @@ func (n *NVR) Initialize() error {
 	}
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
+	n.discovery = onvif.NewDiscovery()
 
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
@@ -105,6 +124,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		JWKSJSON:     n.jwksJSON,
 		YAMLWriter:   n.yamlWriter,
 		Version:      version,
+		Discovery:    n.discovery,
+		APIAddress:   n.APIAddress,
 		SetupChecker: n,
 	})
 }

@@ -12,18 +12,29 @@ export default function Settings() {
 
   return (
     <div>
-      <h1>Settings</h1>
+      <h1 className="text-2xl font-bold text-nvr-text-primary mb-6">Settings</h1>
 
-      <h2>System Information</h2>
-      {systemInfo ? (
-        <table>
-          <tbody>
-            <tr><td>Version</td><td>{systemInfo.version}</td></tr>
-            <tr><td>Platform</td><td>{systemInfo.platform}</td></tr>
-            <tr><td>Uptime</td><td>{systemInfo.uptime}</td></tr>
-          </tbody>
-        </table>
-      ) : <p>Loading...</p>}
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-5">
+        <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">System Information</h2>
+        {systemInfo ? (
+          <div>
+            <div className="flex justify-between py-3 border-b border-nvr-border/50">
+              <span className="text-sm text-nvr-text-secondary">Version</span>
+              <span className="text-sm text-nvr-text-primary">{systemInfo.version}</span>
+            </div>
+            <div className="flex justify-between py-3 border-b border-nvr-border/50">
+              <span className="text-sm text-nvr-text-secondary">Platform</span>
+              <span className="text-sm text-nvr-text-primary">{systemInfo.platform}</span>
+            </div>
+            <div className="flex justify-between py-3">
+              <span className="text-sm text-nvr-text-secondary">Uptime</span>
+              <span className="text-sm text-nvr-text-primary">{systemInfo.uptime}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-nvr-text-muted text-sm">Loading...</p>
+        )}
+      </div>
     </div>
   )
 }

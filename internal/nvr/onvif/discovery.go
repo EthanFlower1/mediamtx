@@ -1,27 +1,48 @@
 package onvif
 
 import (
+	"context"
+	"encoding/xml"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	onviflib "github.com/use-go/onvif"
+	onvifdevice "github.com/use-go/onvif/device"
+	onvifmedia "github.com/use-go/onvif/media"
+	sdkdevice "github.com/use-go/onvif/sdk/device"
+	sdkmedia "github.com/use-go/onvif/sdk/media"
+	onviftypes "github.com/use-go/onvif/xsd/onvif"
 )
+
+// MediaProfile represents a media profile on an ONVIF device.
+type MediaProfile struct {
+	Token      string `json:"token"`
+	Name       string `json:"name"`
+	StreamURI  string `json:"stream_uri"`
+	VideoCodec string `json:"video_codec,omitempty"`
+	Width      int    `json:"width,omitempty"`
+	Height     int    `json:"height,omitempty"`
+}
 
 // DiscoveredDevice represents an ONVIF device found during a WS-Discovery scan.
 type DiscoveredDevice struct {
-	XAddr        string `json:"xaddr"`
-	Manufacturer string `json:"manufacturer"`
-	Model        string `json:"model"`
-	Firmware     string `json:"firmware"`
+	XAddr        string         `json:"xaddr"`
+	Manufacturer string         `json:"manufacturer"`
+	Model        string         `json:"model"`
+	Firmware     string         `json:"firmware"`
+	Profiles     []MediaProfile `json:"profiles,omitempty"`
 }
 
 // ScanStatus represents the current state of a discovery scan.
 type ScanStatus string
 
 const (
-	// ScanStatusScanning indicates a scan is currently in progress.
 	ScanStatusScanning ScanStatus = "scanning"
-	// ScanStatusComplete indicates a scan has finished.
 	ScanStatusComplete ScanStatus = "complete"
 )
 
@@ -43,8 +64,7 @@ func NewDiscovery() *Discovery {
 	return &Discovery{}
 }
 
-// StartScan begins an asynchronous ONVIF discovery scan. Returns
-// ErrScanInProgress if a scan is already running.
+// StartScan begins an asynchronous ONVIF discovery scan.
 func (d *Discovery) StartScan() (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -65,8 +85,7 @@ func (d *Discovery) StartScan() (string, error) {
 	return scanID, nil
 }
 
-// GetStatus returns a copy of the current scan result, or nil if no scan
-// has been started.
+// GetStatus returns a copy of the current scan result.
 func (d *Discovery) GetStatus() *ScanResult {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -75,7 +94,6 @@ func (d *Discovery) GetStatus() *ScanResult {
 		return nil
 	}
 
-	// Return a copy to avoid data races.
 	devices := make([]DiscoveredDevice, len(d.result.Devices))
 	copy(devices, d.result.Devices)
 	return &ScanResult{
@@ -86,7 +104,6 @@ func (d *Discovery) GetStatus() *ScanResult {
 }
 
 // GetResults returns the discovered devices from the most recent scan.
-// Returns an empty slice if no scan has been run.
 func (d *Discovery) GetResults() []DiscoveredDevice {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -100,24 +117,218 @@ func (d *Discovery) GetResults() []DiscoveredDevice {
 	return devices
 }
 
-// runScan performs the actual WS-Discovery probe for ONVIF devices.
-// This is a stub implementation that simulates a scan duration.
-// In a production build, this would use WS-Discovery multicast probes
-// to find ONVIF-compliant devices on the local network.
-func (d *Discovery) runScan(scanID string) {
-	// Simulate scan duration.
-	time.Sleep(2 * time.Second)
+const wsDiscoveryAddr = "239.255.255.250:3702"
 
-	// TODO: Implement actual WS-Discovery probe using multicast to
-	// 239.255.255.250:3702 with ONVIF device type filter.
-	// When the kerberos-io/onvif library is available, use it to perform
-	// real device discovery.
+func probeMessage(messageID string) []byte {
+	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+            xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery"
+            xmlns:dn="http://www.onvif.org/ver10/network/wsdl">
+  <s:Header>
+    <a:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>
+    <a:MessageID>uuid:%s</a:MessageID>
+    <a:ReplyTo>
+      <a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address>
+    </a:ReplyTo>
+    <a:To s:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+  </s:Header>
+  <s:Body>
+    <d:Probe>
+      <d:Types>dn:NetworkVideoTransmitter</d:Types>
+    </d:Probe>
+  </s:Body>
+</s:Envelope>`, messageID))
+}
+
+type probeMatchEnvelope struct {
+	XMLName xml.Name       `xml:"Envelope"`
+	Body    probeMatchBody `xml:"Body"`
+}
+
+type probeMatchBody struct {
+	ProbeMatches *probeMatches `xml:"ProbeMatches"`
+}
+
+type probeMatches struct {
+	Matches []probeMatch `xml:"ProbeMatch"`
+}
+
+type probeMatch struct {
+	XAddrs string `xml:"XAddrs"`
+	Scopes string `xml:"Scopes"`
+}
+
+func (d *Discovery) runScan(scanID string) {
+	devices := d.wsDiscoverDevices()
+
+	// Enrich each device with profiles and stream URIs (no auth needed for many cameras).
+	for i := range devices {
+		d.enrichDevice(&devices[i])
+	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Only update if this scan is still the current one.
 	if d.result != nil && d.result.ScanID == scanID {
+		d.result.Devices = devices
 		d.result.Status = ScanStatusComplete
+	}
+}
+
+// enrichDevice connects to an ONVIF device and fetches its info, profiles, and stream URIs.
+func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
+	// Extract host:port from xaddr URL.
+	xaddr := xaddrToHost(dev.XAddr)
+	if xaddr == "" {
+		return
+	}
+
+	onvifDev, err := onviflib.NewDevice(onviflib.DeviceParams{
+		Xaddr: xaddr,
+	})
+	if err != nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	// Fetch device info to fill in manufacturer/model/firmware if not from scopes.
+	info, err := sdkdevice.Call_GetDeviceInformation(ctx, onvifDev, onvifdevice.GetDeviceInformation{})
+	if err == nil {
+		if dev.Manufacturer == "" {
+			dev.Manufacturer = info.Manufacturer
+		}
+		if dev.Model == "" {
+			dev.Model = info.Model
+		}
+		if dev.Firmware == "" {
+			dev.Firmware = info.FirmwareVersion
+		}
+	}
+
+	// Fetch media profiles.
+	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, onvifDev, onvifmedia.GetProfiles{})
+	if err != nil {
+		return
+	}
+
+	for _, p := range profilesResp.Profiles {
+		mp := MediaProfile{
+			Token: string(p.Token),
+			Name:  string(p.Name),
+		}
+
+		// Extract video encoding info.
+		enc := p.VideoEncoderConfiguration
+		mp.VideoCodec = string(enc.Encoding)
+		mp.Width = int(enc.Resolution.Width)
+		mp.Height = int(enc.Resolution.Height)
+
+		// Get RTSP stream URI.
+		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, onvifDev, onvifmedia.GetStreamUri{
+			ProfileToken: p.Token,
+			StreamSetup: onviftypes.StreamSetup{
+				Stream:    "RTP-Unicast",
+				Transport: onviftypes.Transport{Protocol: "RTSP"},
+			},
+		})
+		if err == nil {
+			mp.StreamURI = string(streamResp.MediaUri.Uri)
+		}
+
+		dev.Profiles = append(dev.Profiles, mp)
+	}
+}
+
+// xaddrToHost extracts the host:port from an ONVIF XAddr URL.
+func xaddrToHost(xaddr string) string {
+	u, err := url.Parse(xaddr)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
+func (d *Discovery) wsDiscoverDevices() []DiscoveredDevice {
+	addr, err := net.ResolveUDPAddr("udp4", wsDiscoveryAddr)
+	if err != nil {
+		return nil
+	}
+
+	conn, err := net.ListenUDP("udp4", nil)
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	messageID := uuid.New().String()
+	probe := probeMessage(messageID)
+
+	for i := 0; i < 3; i++ {
+		_, _ = conn.WriteToUDP(probe, addr)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+
+	seen := make(map[string]bool)
+	var devices []DiscoveredDevice
+
+	buf := make([]byte, 65535)
+	for {
+		n, _, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			break
+		}
+
+		var env probeMatchEnvelope
+		if xmlErr := xml.Unmarshal(buf[:n], &env); xmlErr != nil {
+			continue
+		}
+
+		if env.Body.ProbeMatches == nil {
+			continue
+		}
+
+		for _, match := range env.Body.ProbeMatches.Matches {
+			for _, xaddr := range strings.Fields(match.XAddrs) {
+				if seen[xaddr] {
+					continue
+				}
+				seen[xaddr] = true
+
+				dev := DiscoveredDevice{XAddr: xaddr}
+				parseScopes(match.Scopes, &dev)
+				devices = append(devices, dev)
+			}
+		}
+	}
+
+	return devices
+}
+
+func parseScopes(scopes string, dev *DiscoveredDevice) {
+	for _, scope := range strings.Fields(scopes) {
+		scope = strings.TrimRight(scope, "/")
+		parts := strings.Split(scope, "/")
+		if len(parts) < 2 {
+			continue
+		}
+		value := parts[len(parts)-1]
+		category := parts[len(parts)-2]
+
+		switch strings.ToLower(category) {
+		case "name":
+			if dev.Model == "" {
+				dev.Model = value
+			}
+		case "hardware":
+			dev.Model = value
+		case "manufacturer":
+			dev.Manufacturer = value
+		case "firmware":
+			dev.Firmware = value
+		}
 	}
 }

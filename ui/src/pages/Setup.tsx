@@ -30,25 +30,50 @@ export default function Setup() {
   }
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', padding: 20 }}>
-      <h1>MediaMTX NVR Setup</h1>
-      <p>Create your admin account to get started.</p>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>Username</label>
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)} required />
-        </div>
-        <div>
-          <label>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-        </div>
-        <div>
-          <label>Confirm Password</label>
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
-        </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit">Create Admin Account</button>
-      </form>
+    <div className="min-h-screen flex items-center justify-center bg-nvr-bg-primary">
+      <div className="w-full max-w-sm bg-nvr-bg-secondary border border-nvr-border rounded-2xl p-8 shadow-2xl">
+        <h1 className="text-2xl font-bold text-white text-center mb-2">MediaMTX NVR Setup</h1>
+        <p className="text-nvr-text-secondary text-sm text-center mb-6">Create your admin account to get started.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-nvr-text-secondary">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              required
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-nvr-text-secondary">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-nvr-text-secondary">Confirm Password</label>
+            <input
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              required
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+            />
+          </div>
+          {error && <p className="text-nvr-danger text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+          >
+            Create Admin Account
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

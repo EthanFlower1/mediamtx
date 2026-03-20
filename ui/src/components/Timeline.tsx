@@ -18,31 +18,29 @@ export default function Timeline({ ranges, date, onSeek }: Props) {
   }
 
   return (
-    <div onClick={handleClick} style={{
-      position: 'relative', width: '100%', height: 40,
-      background: '#222', borderRadius: 4, cursor: 'crosshair',
-      overflow: 'hidden',
-    }}>
+    <div
+      onClick={handleClick}
+      className="relative w-full h-10 bg-nvr-bg-input rounded-lg cursor-crosshair overflow-hidden border border-nvr-border"
+    >
       {ranges.map((r, i) => {
         const start = new Date(r.start).getTime() - dayStart.getTime()
         const end = new Date(r.end).getTime() - dayStart.getTime()
         const left = (start / dayMs) * 100
         const width = ((end - start) / dayMs) * 100
         return (
-          <div key={i} style={{
-            position: 'absolute', top: 0, bottom: 0,
-            left: `${left}%`, width: `${width}%`,
-            background: '#4a9eff', opacity: 0.7,
-          }} />
+          <div
+            key={i}
+            className="absolute top-0 bottom-0 bg-nvr-accent/60"
+            style={{ left: `${left}%`, width: `${width}%` }}
+          />
         )
       })}
       {Array.from({ length: 24 }, (_, h) => (
-        <div key={h} style={{
-          position: 'absolute', top: 0, bottom: 0,
-          left: `${(h / 24) * 100}%`,
-          borderLeft: '1px solid rgba(255,255,255,0.2)',
-          fontSize: 9, color: '#888', paddingLeft: 2,
-        }}>
+        <div
+          key={h}
+          className="absolute top-0 bottom-0 border-l border-white/10 text-[9px] text-nvr-text-muted pl-0.5"
+          style={{ left: `${(h / 24) * 100}%` }}
+        >
           {h}:00
         </div>
       ))}

@@ -7,14 +7,16 @@ interface Props {
   onSelectCamera?: (camera: Camera) => void
 }
 
+const gridColsMap: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+}
+
 export default function CameraGrid({ cameras, layout, onSelectCamera }: Props) {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: `repeat(${layout}, 1fr)`,
-      gap: 4,
-      width: '100%',
-    }}>
+    <div className={`grid ${gridColsMap[layout] ?? 'grid-cols-2'} gap-1 w-full`}>
       {cameras.map(cam => (
         <PlayerCell
           key={cam.id}

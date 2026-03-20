@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/context'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
@@ -10,27 +10,49 @@ import UserManagement from './pages/UserManagement'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, setupRequired } = useAuth()
-  if (isLoading) return <div>Loading...</div>
+  if (isLoading) return <div className="flex items-center justify-center h-screen bg-nvr-bg-primary text-nvr-text-secondary">Loading...</div>
   if (setupRequired) return <Navigate to="/setup" replace />
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return <>{children}</>
 }
 
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  const location = useLocation()
+  const isActive = location.pathname === to
+  return (
+    <Link
+      to={to}
+      className={
+        isActive
+          ? 'text-nvr-accent font-medium transition-colors'
+          : 'text-nvr-text-secondary hover:text-nvr-text-primary transition-colors'
+      }
+    >
+      {children}
+    </Link>
+  )
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth()
   return (
-    <div>
-      <nav style={{ display: 'flex', gap: 16, padding: '8px 16px', background: '#1a1a2e', color: '#fff', alignItems: 'center' }}>
-        <strong>MediaMTX NVR</strong>
-        <Link to="/live" style={{ color: '#ccc' }}>Live</Link>
-        <Link to="/cameras" style={{ color: '#ccc' }}>Cameras</Link>
-        <Link to="/recordings" style={{ color: '#ccc' }}>Recordings</Link>
-        <Link to="/settings" style={{ color: '#ccc' }}>Settings</Link>
-        {user?.role === 'admin' && <Link to="/users" style={{ color: '#ccc' }}>Users</Link>}
-        <span style={{ marginLeft: 'auto', fontSize: 14 }}>{user?.username}</span>
-        <button onClick={logout} style={{ marginLeft: 8 }}>Logout</button>
+    <div className="min-h-screen bg-nvr-bg-primary">
+      <nav className="flex items-center gap-4 px-4 py-2.5 bg-nvr-bg-secondary border-b border-nvr-border">
+        <strong className="text-white font-bold text-lg">MediaMTX NVR</strong>
+        <NavLink to="/live">Live</NavLink>
+        <NavLink to="/cameras">Cameras</NavLink>
+        <NavLink to="/recordings">Recordings</NavLink>
+        <NavLink to="/settings">Settings</NavLink>
+        {user?.role === 'admin' && <NavLink to="/users">Users</NavLink>}
+        <span className="ml-auto text-sm text-nvr-text-secondary">{user?.username}</span>
+        <button
+          onClick={logout}
+          className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-1.5 rounded-lg border border-nvr-border transition-colors text-sm"
+        >
+          Logout
+        </button>
       </nav>
-      <div style={{ padding: 16 }}>{children}</div>
+      <main className="p-6">{children}</main>
     </div>
   )
 }

@@ -22,6 +22,7 @@ type RouterConfig struct {
 	YAMLWriter   *yamlwriter.Writer
 	Version      string
 	Discovery    *onvif.Discovery
+	APIAddress   string
 	SetupChecker SetupChecker
 }
 
@@ -36,6 +37,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB:         cfg.DB,
 		YAMLWriter: cfg.YAMLWriter,
 		Discovery:  cfg.Discovery,
+		APIAddress: cfg.APIAddress,
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -84,6 +86,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/cameras/discover", cameraHandler.Discover)
 	protected.GET("/cameras/discover/status", cameraHandler.DiscoverStatus)
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
+	protected.POST("/cameras/probe", cameraHandler.Probe)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)

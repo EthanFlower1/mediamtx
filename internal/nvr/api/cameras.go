@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -18,6 +20,7 @@ type CameraHandler struct {
 	DB         *db.DB
 	YAMLWriter *yamlwriter.Writer
 	Discovery  *onvif.Discovery // may be nil
+	APIAddress string           // MediaMTX API address, e.g. "127.0.0.1:9997"
 }
 
 // cameraRequest is the JSON body for creating or updating a camera.
@@ -51,7 +54,7 @@ func sanitizePath(name string) string {
 	return s
 }
 
-// List returns all cameras as a JSON array.
+// List returns all cameras as a JSON array with live status from MediaMTX.
 func (h *CameraHandler) List(c *gin.Context) {
 	cameras, err := h.DB.ListCameras()
 	if err != nil {
@@ -61,7 +64,40 @@ func (h *CameraHandler) List(c *gin.Context) {
 	if cameras == nil {
 		cameras = []*db.Camera{}
 	}
+
+	// Enrich with live status from MediaMTX API.
+	for _, cam := range cameras {
+		if cam.MediaMTXPath != "" {
+			cam.Status = h.getPathStatus(cam.MediaMTXPath)
+		}
+	}
+
 	c.JSON(http.StatusOK, cameras)
+}
+
+// getPathStatus checks if a MediaMTX path is online by querying the local API.
+func (h *CameraHandler) getPathStatus(pathName string) string {
+	addr := h.APIAddress
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	url := fmt.Sprintf("http://%s/v3/paths/get/%s", addr, pathName)
+	resp, err := http.Get(url)
+	if err != nil || resp.StatusCode != 200 {
+		return "disconnected"
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Ready bool `json:"ready"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "disconnected"
+	}
+	if result.Ready {
+		return "online"
+	}
+	return "disconnected"
 }
 
 // Get returns a single camera by ID.
@@ -247,6 +283,30 @@ func (h *CameraHandler) DiscoverResults(c *gin.Context) {
 
 	results := h.Discovery.GetResults()
 	c.JSON(http.StatusOK, results)
+}
+
+// probeRequest is the JSON body for probing an ONVIF device with credentials.
+type probeRequest struct {
+	XAddr    string `json:"xaddr" binding:"required"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// Probe connects to an ONVIF device with credentials and returns its profiles and stream URIs.
+func (h *CameraHandler) Probe(c *gin.Context) {
+	var req probeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	profiles, err := onvif.ProbeDevice(req.XAddr, req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to probe device: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"profiles": profiles})
 }
 
 // PTZCommand is a stub endpoint for PTZ control.

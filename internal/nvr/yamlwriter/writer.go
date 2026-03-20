@@ -26,7 +26,7 @@ func New(path string) *Writer {
 }
 
 // AddPath adds or replaces a path entry under the top-level "paths" mapping.
-// It uses AST manipulation to preserve existing comments and formatting.
+// It works at the text level to ensure correct indentation.
 func (w *Writer) AddPath(name string, config map[string]interface{}) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -36,37 +36,22 @@ func (w *Writer) AddPath(name string, config map[string]interface{}) error {
 		return fmt.Errorf("read config: %w", err)
 	}
 
-	file, err := parser.ParseBytes(data, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
+	content := string(data)
 
-	pathsMapping, err := findPathsMapping(file)
-	if err != nil {
-		return fmt.Errorf("find paths mapping: %w", err)
-	}
+	// First remove any existing entry for this path.
+	content = removePathText(content, name)
 
-	// Build the new entry by marshalling the config to YAML, then parsing it
-	// as a snippet so we get proper AST nodes.
-	newEntry, err := buildMappingValueNode(name, config)
-	if err != nil {
-		return fmt.Errorf("build entry: %w", err)
+	// Build the new entry with proper 2-space indentation under paths:.
+	configBytes, marshalErr := yaml.Marshal(config)
+	if marshalErr != nil {
+		return fmt.Errorf("marshal config: %w", marshalErr)
 	}
+	entry := "  " + name + ":\n" + indentLines(string(configBytes), "    ")
 
-	// Check if the path already exists; if so, replace it.
-	replaced := false
-	for i, v := range pathsMapping.Values {
-		if v.Key.String() == name {
-			pathsMapping.Values[i] = newEntry
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		pathsMapping.Values = append(pathsMapping.Values, newEntry)
-	}
+	// Find the end of the paths: section and append the entry.
+	content = appendToPathsSection(content, entry)
 
-	return w.atomicWrite(file)
+	return w.atomicWriteText(content)
 }
 
 // RemovePath removes a path entry from the top-level "paths" mapping.
@@ -79,25 +64,8 @@ func (w *Writer) RemovePath(name string) error {
 		return fmt.Errorf("read config: %w", err)
 	}
 
-	file, err := parser.ParseBytes(data, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-
-	pathsMapping, err := findPathsMapping(file)
-	if err != nil {
-		return fmt.Errorf("find paths mapping: %w", err)
-	}
-
-	filtered := make([]*ast.MappingValueNode, 0, len(pathsMapping.Values))
-	for _, v := range pathsMapping.Values {
-		if v.Key.String() != name {
-			filtered = append(filtered, v)
-		}
-	}
-	pathsMapping.Values = filtered
-
-	return w.atomicWrite(file)
+	content := removePathText(string(data), name)
+	return w.atomicWriteText(content)
 }
 
 // GetNVRPaths returns all path names under the "paths" mapping that are
@@ -130,6 +98,61 @@ func (w *Writer) GetNVRPaths() ([]string, error) {
 	}
 
 	return result, nil
+}
+
+// SetTopLevelValue sets a top-level scalar value in the YAML config file,
+// preserving comments and formatting.
+func (w *Writer) SetTopLevelValue(key, value string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	data, err := os.ReadFile(w.path)
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+
+	file, err := parser.ParseBytes(data, parser.ParseComments)
+	if err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	if len(file.Docs) == 0 {
+		return fmt.Errorf("empty YAML document")
+	}
+
+	body := file.Docs[0].Body
+	mapping, ok := body.(*ast.MappingNode)
+	if !ok {
+		return fmt.Errorf("document body is not a mapping")
+	}
+
+	// Parse a snippet to get a properly initialized AST node for the value.
+	snippet := fmt.Sprintf("v: %q", value)
+	snippetFile, err := parser.ParseBytes([]byte(snippet), 0)
+	if err != nil {
+		return fmt.Errorf("parse value snippet: %w", err)
+	}
+	var valueNode ast.Node
+	switch n := snippetFile.Docs[0].Body.(type) {
+	case *ast.MappingNode:
+		if len(n.Values) > 0 {
+			valueNode = n.Values[0].Value
+		}
+	case *ast.MappingValueNode:
+		valueNode = n.Value
+	}
+	if valueNode == nil {
+		return fmt.Errorf("failed to extract value from snippet")
+	}
+
+	for _, v := range mapping.Values {
+		if v.Key.String() == key {
+			v.Value = valueNode
+			return w.atomicWrite(file)
+		}
+	}
+
+	return fmt.Errorf("key %q not found", key)
 }
 
 // findPathsMapping locates the "paths" MappingNode in the parsed YAML file.
@@ -215,8 +238,92 @@ func indentLines(s, prefix string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
+// removePathText removes a path entry (key + indented values) from the YAML text.
+func removePathText(content, name string) string {
+	lines := strings.Split(content, "\n")
+	var result []string
+	skip := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if skip {
+			// Continue skipping indented lines belonging to this path entry.
+			if trimmed == "" || (len(line) > 0 && (line[0] == ' ' || line[0] == '\t') && !isTopLevelOrPathKey(line)) {
+				continue
+			}
+			skip = false
+		}
+
+		// Check if this line is the path key we want to remove.
+		if trimmed == name+":" || strings.HasPrefix(trimmed, name+":") {
+			skip = true
+			continue
+		}
+
+		result = append(result, line)
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// isTopLevelOrPathKey checks if a line is a new path-level key (2-space indent).
+func isTopLevelOrPathKey(line string) bool {
+	if len(line) < 2 {
+		return false
+	}
+	// A path key under paths: starts with exactly 2 spaces then a non-space char.
+	return line[0] == ' ' && line[1] == ' ' && len(line) > 2 && line[2] != ' '
+}
+
+// appendToPathsSection finds the end of the paths: section and appends the entry.
+func appendToPathsSection(content, entry string) string {
+	lines := strings.Split(content, "\n")
+
+	// Find the "paths:" line.
+	pathsIdx := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "paths:" {
+			pathsIdx = i
+			break
+		}
+	}
+	if pathsIdx == -1 {
+		// No paths section found; append at end.
+		return content + "\npaths:\n" + entry
+	}
+
+	// Find the end of the paths section: last line that is empty or indented.
+	endIdx := len(lines)
+	for i := pathsIdx + 1; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+		// A non-empty line at column 0 that isn't a comment marks end of paths section.
+		if trimmed != "" && len(line) > 0 && line[0] != ' ' && line[0] != '\t' && line[0] != '#' {
+			endIdx = i
+			break
+		}
+	}
+
+	// Insert the entry before endIdx.
+	before := strings.Join(lines[:endIdx], "\n")
+	after := strings.Join(lines[endIdx:], "\n")
+
+	// Ensure there's a newline before the entry.
+	if !strings.HasSuffix(before, "\n") {
+		before += "\n"
+	}
+
+	return before + entry + after
+}
+
 // atomicWrite writes the AST file to disk using a temp file and rename.
 func (w *Writer) atomicWrite(file *ast.File) error {
+	return w.atomicWriteText(file.String() + "\n")
+}
+
+// atomicWriteText writes text content to disk using a temp file and rename.
+func (w *Writer) atomicWriteText(content string) error {
 	dir := filepath.Dir(w.path)
 	tmp, err := os.CreateTemp(dir, ".mediamtx-*.yaml")
 	if err != nil {
@@ -224,7 +331,6 @@ func (w *Writer) atomicWrite(file *ast.File) error {
 	}
 	tmpPath := tmp.Name()
 
-	content := file.String() + "\n"
 	if _, err := tmp.WriteString(content); err != nil {
 		tmp.Close()
 		os.Remove(tmpPath)

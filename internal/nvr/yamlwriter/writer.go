@@ -132,6 +132,119 @@ func (w *Writer) GetNVRPaths() ([]string, error) {
 	return result, nil
 }
 
+// SetPathValue sets a single key within an existing path entry.
+// If the key already exists, its value is replaced in-place.
+// If the key does not exist, it is inserted after the path entry line.
+// Other keys in the path are preserved unchanged.
+func (w *Writer) SetPathValue(pathName, key string, value interface{}) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	data, err := os.ReadFile(w.path)
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+
+	// Find the path entry line: exactly 2 spaces + pathName + ":"
+	pathLine := "  " + pathName + ":"
+	pathIdx := -1
+	for i, line := range lines {
+		if line == pathLine || strings.HasPrefix(line, pathLine+" ") {
+			pathIdx = i
+			break
+		}
+	}
+	if pathIdx == -1 {
+		return fmt.Errorf("path %q not found", pathName)
+	}
+
+	// Format the value as a YAML scalar.
+	valStr := formatScalar(value)
+	newLine := "    " + key + ": " + valStr
+
+	// Scan the indented block belonging to this path (lines with 4+ spaces).
+	keyPrefix := "    " + key + ":"
+	keyIdx := -1
+	blockEnd := pathIdx + 1
+	for i := pathIdx + 1; i < len(lines); i++ {
+		line := lines[i]
+		// A non-empty line that doesn't start with 4 spaces ends the block.
+		if line != "" && !strings.HasPrefix(line, "    ") {
+			break
+		}
+		blockEnd = i + 1
+		if line == newLine || strings.HasPrefix(line, keyPrefix+" ") || line == keyPrefix {
+			keyIdx = i
+		}
+	}
+
+	if keyIdx != -1 {
+		// Replace existing key line.
+		lines[keyIdx] = newLine
+	} else {
+		// Insert new key after the path entry line.
+		inserted := make([]string, 0, len(lines)+1)
+		inserted = append(inserted, lines[:pathIdx+1]...)
+		inserted = append(inserted, newLine)
+		inserted = append(inserted, lines[pathIdx+1:]...)
+		lines = inserted
+		_ = blockEnd // not needed for insert case
+	}
+
+	return w.atomicWriteText(strings.Join(lines, "\n"))
+}
+
+// formatScalar converts a Go value to its YAML scalar representation.
+func formatScalar(v interface{}) string {
+	switch val := v.(type) {
+	case bool:
+		if val {
+			return "true"
+		}
+		return "false"
+	case string:
+		return val
+	case int:
+		return fmt.Sprintf("%d", val)
+	case int64:
+		return fmt.Sprintf("%d", val)
+	case float64:
+		return fmt.Sprintf("%g", val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}
+
+// atomicWriteText writes raw text to disk using a temp file and rename.
+func (w *Writer) atomicWriteText(content string) error {
+	dir := filepath.Dir(w.path)
+	tmp, err := os.CreateTemp(dir, ".mediamtx-*.yaml")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, w.path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return nil
+}
+
 // findPathsMapping locates the "paths" MappingNode in the parsed YAML file.
 func findPathsMapping(file *ast.File) (*ast.MappingNode, error) {
 	if len(file.Docs) == 0 {

@@ -18,6 +18,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -29,6 +30,7 @@ type NVR struct {
 
 	database   *db.DB
 	yamlWriter *yamlwriter.Writer
+	sched      *scheduler.Scheduler
 	privateKey *rsa.PrivateKey
 	jwksJSON   []byte
 }
@@ -58,6 +60,9 @@ func (n *NVR) Initialize() error {
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 
+	n.sched = scheduler.New(n.database, n.yamlWriter)
+	n.sched.Start()
+
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
 		return fmt.Errorf("load or generate keys: %w", err)
@@ -68,6 +73,9 @@ func (n *NVR) Initialize() error {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	if n.sched != nil {
+		n.sched.Stop()
+	}
 	if n.database != nil {
 		n.database.Close()
 	}
@@ -105,6 +113,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		JWKSJSON:     n.jwksJSON,
 		YAMLWriter:   n.yamlWriter,
 		Version:      version,
+		Scheduler:    n.sched,
 		SetupChecker: n,
 	})
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -17,7 +18,8 @@ import (
 type CameraHandler struct {
 	DB         *db.DB
 	YAMLWriter *yamlwriter.Writer
-	Discovery  *onvif.Discovery // may be nil
+	Discovery  *onvif.Discovery      // may be nil
+	Scheduler  *scheduler.Scheduler  // may be nil
 }
 
 // cameraRequest is the JSON body for creating or updating a camera.
@@ -197,6 +199,11 @@ func (h *CameraHandler) Delete(c *gin.Context) {
 	// Remove from YAML config.
 	if cam.MediaMTXPath != "" {
 		_ = h.YAMLWriter.RemovePath(cam.MediaMTXPath)
+	}
+
+	// Remove scheduler state for this camera.
+	if h.Scheduler != nil {
+		h.Scheduler.RemoveCamera(id)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "camera deleted"})

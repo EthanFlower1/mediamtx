@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useCameras } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import Timeline from '../components/Timeline'
+import VideoPlayer from '../components/VideoPlayer'
 
 interface Segment {
   start: string
@@ -38,8 +39,8 @@ export default function Recordings() {
   const [segments, setSegments] = useState<Segment[]>([])
   const [timelineRanges, setTimelineRanges] = useState<{ start: string; end: string }[]>([])
   const [playbackTime, setPlaybackTime] = useState<Date | null>(null)
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null)
   const [loadingSegments, setLoadingSegments] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
 
   // Export state.
   const [exportStartDate, setExportStartDate] = useState(new Date().toISOString().split('T')[0])
@@ -108,12 +109,8 @@ export default function Recordings() {
 
     const startISO = time.toISOString()
     // Duration in seconds - play 5 minutes from the seek point.
-    const playbackUrl = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=300`
-
-    if (videoRef.current) {
-      videoRef.current.src = playbackUrl
-      videoRef.current.play().catch(() => {})
-    }
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=300`
+    setPlaybackUrl(url)
   }
 
   // Download a recording segment by ID.
@@ -164,7 +161,7 @@ export default function Recordings() {
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <select
           value={selectedCamera || ''}
-          onChange={e => { setSelectedCamera(e.target.value || null); setPlaybackTime(null) }}
+          onChange={e => { setSelectedCamera(e.target.value || null); setPlaybackTime(null); setPlaybackUrl(null) }}
           className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
         >
           <option value="">Select Camera</option>
@@ -174,7 +171,7 @@ export default function Recordings() {
         {/* Date navigation with prev/next arrows */}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => { setDate(shiftDate(date, -1)); setPlaybackTime(null) }}
+            onClick={() => { setDate(shiftDate(date, -1)); setPlaybackTime(null); setPlaybackUrl(null) }}
             className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
             title="Previous day"
           >
@@ -183,18 +180,18 @@ export default function Recordings() {
           <input
             type="date"
             value={date}
-            onChange={e => { setDate(e.target.value); setPlaybackTime(null) }}
+            onChange={e => { setDate(e.target.value); setPlaybackTime(null); setPlaybackUrl(null) }}
             className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
           />
           <button
-            onClick={() => { setDate(shiftDate(date, 1)); setPlaybackTime(null) }}
+            onClick={() => { setDate(shiftDate(date, 1)); setPlaybackTime(null); setPlaybackUrl(null) }}
             className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
             title="Next day"
           >
             &rarr;
           </button>
           <button
-            onClick={() => { setDate(new Date().toISOString().split('T')[0]); setPlaybackTime(null) }}
+            onClick={() => { setDate(new Date().toISOString().split('T')[0]); setPlaybackTime(null); setPlaybackUrl(null) }}
             className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm"
             title="Jump to today"
           >
@@ -219,18 +216,13 @@ export default function Recordings() {
             )}
           </div>
 
-          {playbackTime && (
+          {playbackTime && playbackUrl && (
             <div className="mb-6">
               <div className="text-sm text-nvr-text-secondary mb-2">
                 Playing from: {playbackTime.toLocaleTimeString()}
               </div>
-              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
-                <video
-                  ref={videoRef}
-                  controls
-                  autoPlay
-                  className="w-full max-h-[70vh]"
-                />
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden max-h-[70vh]">
+                <VideoPlayer src={playbackUrl} />
               </div>
             </div>
           )}

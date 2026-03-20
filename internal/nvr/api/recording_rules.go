@@ -3,13 +3,17 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 )
+
+var timeFormatRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 // RecordingRuleHandler implements HTTP endpoints for recording rule management.
 type RecordingRuleHandler struct {
@@ -28,9 +32,42 @@ type recordingRuleRequest struct {
 	Enabled          *bool  `json:"enabled"`
 }
 
+// validateRuleRequest performs field-level validation on a recording rule request.
+func validateRuleRequest(req *recordingRuleRequest) error {
+	if len(req.Name) > 100 {
+		return fmt.Errorf("name must be 100 characters or fewer")
+	}
+	if req.Mode != "always" && req.Mode != "events" {
+		return fmt.Errorf("mode must be 'always' or 'events'")
+	}
+	for _, d := range req.Days {
+		if d < 0 || d > 6 {
+			return fmt.Errorf("days values must be between 0 and 6")
+		}
+	}
+	if !timeFormatRe.MatchString(req.StartTime) {
+		return fmt.Errorf("start_time must be in HH:MM format (00:00-23:59)")
+	}
+	if !timeFormatRe.MatchString(req.EndTime) {
+		return fmt.Errorf("end_time must be in HH:MM format (00:00-23:59)")
+	}
+	if req.PostEventSeconds < 0 || req.PostEventSeconds > 3600 {
+		return fmt.Errorf("post_event_seconds must be between 0 and 3600")
+	}
+	return nil
+}
+
 // List returns all recording rules for a camera.
 func (h *RecordingRuleHandler) List(c *gin.Context) {
 	cameraID := c.Param("id")
+
+	if _, err := h.DB.GetCamera(cameraID); errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
 
 	rules, err := h.DB.ListRecordingRules(cameraID)
 	if err != nil {
@@ -64,10 +101,14 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Validate mode.
-	if req.Mode != "always" && req.Mode != "events" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "mode must be 'always' or 'events'"})
+	if err := validateRuleRequest(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Default post_event_seconds to 30 for events mode.
+	if req.PostEventSeconds == 0 && req.Mode == "events" {
+		req.PostEventSeconds = 30
 	}
 
 	// Marshal days to JSON string.
@@ -121,9 +162,8 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Validate mode.
-	if req.Mode != "always" && req.Mode != "events" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "mode must be 'always' or 'events'"})
+	if err := validateRuleRequest(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -173,6 +213,14 @@ func (h *RecordingRuleHandler) Delete(c *gin.Context) {
 // Status returns the scheduler's current state for a camera.
 func (h *RecordingRuleHandler) Status(c *gin.Context) {
 	cameraID := c.Param("id")
+
+	if _, err := h.DB.GetCamera(cameraID); errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
 
 	if h.Scheduler == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "scheduler not available"})

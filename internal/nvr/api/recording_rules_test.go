@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -346,5 +347,204 @@ func TestRecordingRuleStatus(t *testing.T) {
 	}
 	if effectiveMode != "off" {
 		t.Fatalf("expected effective_mode %q, got %q", "off", effectiveMode)
+	}
+}
+
+func TestRecordingRuleStatusCameraNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, _, cleanup := setupRuleTest(t)
+	defer cleanup()
+
+	w, c := makeRuleRequest(http.MethodGet, "/", "")
+	c.Params = gin.Params{{Key: "id", Value: "non-existent-camera-id"}}
+
+	handler.Status(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusNotFound, w.Code, w.Body.String())
+	}
+}
+
+func TestRecordingRuleListCameraNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, _, cleanup := setupRuleTest(t)
+	defer cleanup()
+
+	w, c := makeRuleRequest(http.MethodGet, "/", "")
+	c.Params = gin.Params{{Key: "id", Value: "non-existent-camera-id"}}
+
+	handler.List(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusNotFound, w.Code, w.Body.String())
+	}
+}
+
+func TestRecordingRuleCreateValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name: "days out of range",
+			body: `{
+				"name": "Bad Days",
+				"mode": "always",
+				"days": [7],
+				"start_time": "08:00",
+				"end_time": "18:00"
+			}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "days values must be between 0 and 6",
+		},
+		{
+			name: "invalid start_time format",
+			body: `{
+				"name": "Bad Time",
+				"mode": "always",
+				"days": [1],
+				"start_time": "25:00",
+				"end_time": "18:00"
+			}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "start_time must be in HH:MM format",
+		},
+		{
+			name: "invalid end_time format",
+			body: `{
+				"name": "Bad End Time",
+				"mode": "always",
+				"days": [1],
+				"start_time": "08:00",
+				"end_time": "99:99"
+			}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "end_time must be in HH:MM format",
+		},
+		{
+			name: "post_event_seconds too large",
+			body: `{
+				"name": "Big Post Event",
+				"mode": "events",
+				"days": [1],
+				"start_time": "08:00",
+				"end_time": "18:00",
+				"post_event_seconds": 3601
+			}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "post_event_seconds must be between 0 and 3600",
+		},
+		{
+			name: "name too long",
+			body: `{
+				"name": "` + strings.Repeat("a", 101) + `",
+				"mode": "always",
+				"days": [1],
+				"start_time": "08:00",
+				"end_time": "18:00"
+			}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "name must be 100 characters or fewer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler, database, cleanup := setupRuleTest(t)
+			defer cleanup()
+
+			cameraID := createTestCamera(t, database)
+
+			w, c := makeRuleRequest(http.MethodPost, "/", tt.body)
+			c.Params = gin.Params{{Key: "id", Value: cameraID}}
+
+			handler.Create(c)
+
+			if w.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", tt.wantStatus, w.Code, w.Body.String())
+			}
+
+			var resp map[string]string
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if !strings.Contains(resp["error"], tt.wantError) {
+				t.Fatalf("expected error to contain %q, got %q", tt.wantError, resp["error"])
+			}
+		})
+	}
+}
+
+func TestRecordingRuleCreateDefaultPostEventSeconds(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, database, cleanup := setupRuleTest(t)
+	defer cleanup()
+
+	cameraID := createTestCamera(t, database)
+
+	body := `{
+		"name": "Events Rule",
+		"mode": "events",
+		"days": [1, 2, 3],
+		"start_time": "08:00",
+		"end_time": "18:00"
+	}`
+	w, c := makeRuleRequest(http.MethodPost, "/", body)
+	c.Params = gin.Params{{Key: "id", Value: cameraID}}
+
+	handler.Create(c)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, w.Code, w.Body.String())
+	}
+
+	var rule db.RecordingRule
+	if err := json.Unmarshal(w.Body.Bytes(), &rule); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if rule.PostEventSeconds != 30 {
+		t.Fatalf("expected post_event_seconds 30, got %d", rule.PostEventSeconds)
+	}
+}
+
+func TestRecordingRuleUpdateValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, database, cleanup := setupRuleTest(t)
+	defer cleanup()
+
+	cameraID := createTestCamera(t, database)
+
+	// Create a valid rule first.
+	wCreate, cCreate := makeRuleRequest(http.MethodPost, "/", validRuleBody)
+	cCreate.Params = gin.Params{{Key: "id", Value: cameraID}}
+	handler.Create(cCreate)
+	if wCreate.Code != http.StatusCreated {
+		t.Fatalf("setup: expected 201 on create, got %d", wCreate.Code)
+	}
+
+	var created db.RecordingRule
+	if err := json.Unmarshal(wCreate.Body.Bytes(), &created); err != nil {
+		t.Fatalf("unmarshal created: %v", err)
+	}
+
+	// Try to update with invalid days.
+	updateBody := `{
+		"name": "Updated Schedule",
+		"mode": "always",
+		"days": [7],
+		"start_time": "08:00",
+		"end_time": "18:00"
+	}`
+	w, c := makeRuleRequest(http.MethodPut, "/", updateBody)
+	c.Params = gin.Params{{Key: "id", Value: created.ID}}
+
+	handler.Update(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, w.Code, w.Body.String())
 	}
 }

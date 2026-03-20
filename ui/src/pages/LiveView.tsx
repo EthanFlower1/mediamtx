@@ -22,7 +22,7 @@ export default function LiveView() {
         </button>
         <h2 className="mt-0 text-lg font-semibold text-nvr-text-primary">{selectedCamera.name}</h2>
         <div className="max-w-full">
-          <PlayerCell camera={selectedCamera} />
+          <PlayerCell camera={selectedCamera} expanded />
         </div>
       </div>
     )

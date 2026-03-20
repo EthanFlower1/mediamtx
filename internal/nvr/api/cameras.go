@@ -316,14 +316,181 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"profiles": profiles})
 }
 
-// PTZCommand is a stub endpoint for PTZ control.
-func (h *CameraHandler) PTZCommand(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "PTZ control not implemented"})
+// retentionRequest is the JSON body for updating a camera's retention policy.
+type retentionRequest struct {
+	RetentionDays int `json:"retention_days"`
 }
 
-// PTZPresets is a stub endpoint for PTZ presets.
+// UpdateRetention updates the retention policy for a specific camera.
+func (h *CameraHandler) UpdateRetention(c *gin.Context) {
+	id := c.Param("id")
+
+	var req retentionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if req.RetentionDays < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "retention_days must be >= 0"})
+		return
+	}
+
+	if err := h.DB.UpdateCameraRetention(id, req.RetentionDays); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update retention"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve camera"})
+		return
+	}
+
+	c.JSON(http.StatusOK, cam)
+}
+
+// ptzRequest is the JSON body for PTZ commands.
+type ptzRequest struct {
+	Action      string  `json:"action" binding:"required"` // "move", "stop", "preset", "home"
+	Pan         float64 `json:"pan"`
+	Tilt        float64 `json:"tilt"`
+	Zoom        float64 `json:"zoom"`
+	PresetToken string  `json:"preset_token"`
+}
+
+// PTZCommand handles PTZ control requests.
+//
+//	POST /cameras/:id/ptz
+//	Body: {"action":"move","pan":0.5,"tilt":-0.3,"zoom":0.0}
+//	   or {"action":"stop"}
+//	   or {"action":"preset","preset_token":"1"}
+//	   or {"action":"home"}
+func (h *CameraHandler) PTZCommand(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if !cam.PTZCapable {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera is not PTZ-capable"})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req ptzRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to connect to ONVIF device: " + err.Error()})
+		return
+	}
+
+	profileToken := cam.ONVIFProfileToken
+	if profileToken == "" {
+		profileToken = "000"
+	}
+
+	switch req.Action {
+	case "move":
+		if err := ctrl.ContinuousMove(profileToken, req.Pan, req.Tilt, req.Zoom); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ move failed: " + err.Error()})
+			return
+		}
+	case "stop":
+		if err := ctrl.Stop(profileToken); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ stop failed: " + err.Error()})
+			return
+		}
+	case "preset":
+		if req.PresetToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "preset_token is required for preset action"})
+			return
+		}
+		if err := ctrl.GotoPreset(profileToken, req.PresetToken); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ goto preset failed: " + err.Error()})
+			return
+		}
+	case "home":
+		if err := ctrl.GotoHome(profileToken); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "PTZ goto home failed: " + err.Error()})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown action: " + req.Action})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// PTZPresets returns the list of PTZ presets for a camera.
+//
+//	GET /cameras/:id/ptz/presets
 func (h *CameraHandler) PTZPresets(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "PTZ presets not implemented"})
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if !cam.PTZCapable {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera is not PTZ-capable"})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to connect to ONVIF device: " + err.Error()})
+		return
+	}
+
+	profileToken := cam.ONVIFProfileToken
+	if profileToken == "" {
+		profileToken = "000"
+	}
+
+	presets, err := ctrl.GetPresets(profileToken)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to get presets: " + err.Error()})
+		return
+	}
+
+	if presets == nil {
+		presets = []onvif.PTZPreset{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"presets": presets})
 }
 
 // GetSettings is a stub endpoint for camera settings retrieval.

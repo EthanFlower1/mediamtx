@@ -1,12 +1,14 @@
 import { useRef, useEffect } from 'react'
 import { Camera } from '../hooks/useCameras'
+import PTZControls from './PTZControls'
 
 interface Props {
   camera: Camera
   onSelect?: () => void
+  expanded?: boolean
 }
 
-export default function PlayerCell({ camera, onSelect }: Props) {
+export default function PlayerCell({ camera, onSelect, expanded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
 
@@ -94,7 +96,17 @@ export default function PlayerCell({ camera, onSelect }: Props) {
             camera.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'
           }`}
         />
+        {/* PTZ badge in grid view */}
+        {!expanded && camera.ptz_capable && (
+          <span className="ml-auto text-[10px] font-semibold tracking-wide text-white/70 bg-white/10 rounded px-1.5 py-0.5 uppercase">
+            PTZ
+          </span>
+        )}
       </div>
+      {/* PTZ overlay in expanded single-camera view */}
+      {expanded && camera.ptz_capable && (
+        <PTZControls cameraId={camera.id} />
+      )}
     </div>
   )
 }

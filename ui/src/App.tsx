@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/context'
 import Login from './pages/Login'
 import Setup from './pages/Setup'
@@ -13,118 +13,383 @@ import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
 import StorageBanner from './components/StorageBanner'
 import { useNotifications } from './hooks/useNotifications'
+import { apiFetch } from './api/client'
 
+/* ------------------------------------------------------------------ */
+/*  Storage warning hook (lightweight poll for nav indicator)          */
+/* ------------------------------------------------------------------ */
+function useStorageWarning(isAuthenticated: boolean) {
+  const [warning, setWarning] = useState(false)
+
+  const check = useCallback(() => {
+    apiFetch('/system/storage')
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json()
+          setWarning(data.warning || data.critical)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    check()
+    const id = setInterval(check, 30000)
+    return () => clearInterval(id)
+  }, [isAuthenticated, check])
+
+  return warning
+}
+
+/* ------------------------------------------------------------------ */
+/*  Protected route guard                                              */
+/* ------------------------------------------------------------------ */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, setupRequired } = useAuth()
-  if (isLoading) return <div className="flex items-center justify-center h-screen bg-nvr-bg-primary text-nvr-text-secondary">Loading...</div>
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-nvr-bg-primary gap-4">
+        <svg
+          className="w-8 h-8 text-nvr-accent animate-spin"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        <span className="text-lg font-semibold text-white tracking-wide">MediaMTX NVR</span>
+        <span className="text-sm text-nvr-text-muted">Loading...</span>
+      </div>
+    )
+  }
+
   if (setupRequired) return <Navigate to="/setup" replace />
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return <>{children}</>
 }
 
-function NavLink({ to, children, onClick }: { to: string; children: React.ReactNode; onClick?: () => void }) {
+/* ------------------------------------------------------------------ */
+/*  Nav link (desktop)                                                 */
+/* ------------------------------------------------------------------ */
+interface NavLinkProps {
+  to: string
+  icon: React.ReactNode
+  label: string
+  badge?: boolean
+}
+
+function NavItem({ to, icon, label, badge }: NavLinkProps) {
   const location = useLocation()
   const isActive = location.pathname === to
+
   return (
     <Link
       to={to}
-      onClick={onClick}
-      className={
+      className={`relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${
         isActive
-          ? 'text-nvr-accent font-medium transition-colors py-2 md:py-0'
-          : 'text-nvr-text-secondary hover:text-nvr-text-primary transition-colors py-2 md:py-0'
-      }
+          ? 'text-white border-b-2 border-nvr-accent'
+          : 'text-nvr-text-secondary hover:text-nvr-text-primary border-b-2 border-transparent'
+      }`}
     >
-      {children}
+      {icon}
+      {label}
+      {badge && (
+        <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-nvr-warning" />
+      )}
     </Link>
   )
 }
 
-function Layout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAuthenticated } = useAuth()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { notifications, unreadCount, markAllRead } = useNotifications(isAuthenticated)
+/* ------------------------------------------------------------------ */
+/*  Mobile sidebar link                                                */
+/* ------------------------------------------------------------------ */
+function MobileNavItem({
+  to,
+  icon,
+  label,
+  badge,
+  onClick,
+}: NavLinkProps & { onClick: () => void }) {
+  const location = useLocation()
+  const isActive = location.pathname === to
 
-  const closeMenu = () => setMobileMenuOpen(false)
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+        isActive
+          ? 'text-white bg-nvr-bg-tertiary'
+          : 'text-nvr-text-secondary hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary/50'
+      }`}
+    >
+      {icon}
+      <span className="flex-1">{label}</span>
+      {badge && <span className="w-2 h-2 rounded-full bg-nvr-warning" />}
+    </Link>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  User avatar / dropdown                                             */
+/* ------------------------------------------------------------------ */
+function UserMenu() {
+  const { user, logout } = useAuth()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  const initials = (user?.username ?? '?').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-8 h-8 rounded-full bg-nvr-accent/20 text-nvr-accent text-xs font-bold flex items-center justify-center hover:bg-nvr-accent/30 transition-colors"
+        aria-label="User menu"
+      >
+        {initials}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-48 bg-nvr-bg-secondary border border-nvr-border rounded-lg shadow-xl overflow-hidden z-50">
+          <div className="px-4 py-3 border-b border-nvr-border">
+            <p className="text-sm font-medium text-nvr-text-primary">{user?.username}</p>
+            <p className="text-xs text-nvr-text-muted capitalize">{user?.role}</p>
+          </div>
+          <button
+            onClick={() => {
+              setOpen(false)
+              navigate('/settings')
+            }}
+            className="w-full text-left px-4 py-2.5 text-sm text-nvr-text-secondary hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors"
+          >
+            Change Password
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false)
+              logout()
+            }}
+            className="w-full text-left px-4 py-2.5 text-sm text-nvr-danger hover:bg-nvr-bg-tertiary transition-colors border-t border-nvr-border"
+          >
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  SVG icon helpers                                                   */
+/* ------------------------------------------------------------------ */
+const IconLive = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <circle cx="12" cy="12" r="3" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+  </svg>
+)
+
+const IconCamera = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+)
+
+const IconRecordings = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+  </svg>
+)
+
+const IconSettings = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
+/* ------------------------------------------------------------------ */
+/*  Main layout shell                                                  */
+/* ------------------------------------------------------------------ */
+function Layout({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { notifications, unreadCount, markAllRead } = useNotifications(isAuthenticated)
+  const storageWarning = useStorageWarning(isAuthenticated)
+  const location = useLocation()
+
+  // Auto-close sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
+
+  const closeSidebar = () => setSidebarOpen(false)
+
+  const navLinks: NavLinkProps[] = [
+    { to: '/live', icon: IconLive, label: 'Live View' },
+    { to: '/cameras', icon: IconCamera, label: 'Cameras' },
+    { to: '/recordings', icon: IconRecordings, label: 'Recordings' },
+    { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
+  ]
 
   return (
     <div className="min-h-screen bg-nvr-bg-primary">
+      {/* ---- Top nav bar ---- */}
       <nav className="bg-nvr-bg-secondary border-b border-nvr-border">
-        <div className="flex items-center gap-4 px-4 py-2.5">
-          <strong className="text-white font-bold text-lg">MediaMTX NVR</strong>
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-4">
-            <NavLink to="/live">Live</NavLink>
-            <NavLink to="/cameras">Cameras</NavLink>
-            <NavLink to="/recordings">Recordings</NavLink>
-            <NavLink to="/settings">Settings</NavLink>
-            {user?.role === 'admin' && <NavLink to="/users">Users</NavLink>}
+        <div className="max-w-7xl mx-auto flex items-center h-14 px-4 sm:px-6 lg:px-8">
+          {/* Brand */}
+          <Link to="/live" className="flex items-center gap-2 mr-8">
+            <div className="w-7 h-7 rounded-md bg-nvr-accent/20 flex items-center justify-center">
+              <svg className="w-4 h-4 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <span className="text-white font-bold text-base tracking-tight hidden sm:block">MediaMTX NVR</span>
+          </Link>
+
+          {/* Desktop nav links (center) */}
+          <div className="hidden md:flex items-center gap-1 flex-1">
+            {navLinks.map((link) => (
+              <NavItem key={link.to} {...link} />
+            ))}
           </div>
+
+          {/* Right section */}
           <div className="hidden md:flex items-center gap-3 ml-auto">
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount}
               onMarkAllRead={markAllRead}
             />
-            <span className="text-sm text-nvr-text-secondary">{user?.username}</span>
-            <button
-              onClick={logout}
-              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-1.5 rounded-lg border border-nvr-border transition-colors text-sm"
-            >
-              Logout
-            </button>
+            <UserMenu />
           </div>
-          {/* Mobile notification bell + hamburger */}
-          <div className="md:hidden ml-auto flex items-center gap-1">
+
+          {/* Mobile: notification bell + hamburger */}
+          <div className="md:hidden flex items-center gap-2 ml-auto">
             <NotificationBell
               notifications={notifications}
               unreadCount={unreadCount}
               onMarkAllRead={markAllRead}
             />
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-nvr-text-secondary hover:text-nvr-text-primary transition-colors"
-              aria-label="Toggle menu"
+              onClick={() => setSidebarOpen(true)}
+              className="w-10 h-10 flex items-center justify-center text-nvr-text-secondary hover:text-nvr-text-primary transition-colors rounded-lg"
+              aria-label="Open menu"
             >
-              {mobileMenuOpen ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
             </button>
           </div>
         </div>
-        {/* Mobile dropdown menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden flex flex-col gap-1 px-4 pb-4 border-t border-nvr-border pt-3">
-            <NavLink to="/live" onClick={closeMenu}>Live</NavLink>
-            <NavLink to="/cameras" onClick={closeMenu}>Cameras</NavLink>
-            <NavLink to="/recordings" onClick={closeMenu}>Recordings</NavLink>
-            <NavLink to="/settings" onClick={closeMenu}>Settings</NavLink>
-            {user?.role === 'admin' && <NavLink to="/users" onClick={closeMenu}>Users</NavLink>}
-            <div className="flex items-center justify-between pt-3 mt-2 border-t border-nvr-border">
-              <span className="text-sm text-nvr-text-secondary">{user?.username}</span>
+      </nav>
+
+      {/* ---- Mobile sidebar overlay ---- */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={closeSidebar}
+          />
+          {/* Sidebar panel */}
+          <div className="absolute top-0 right-0 bottom-0 w-72 bg-nvr-bg-secondary border-l border-nvr-border shadow-2xl flex flex-col animate-slide-in">
+            {/* Header */}
+            <div className="flex items-center justify-between h-14 px-4 border-b border-nvr-border">
+              <span className="text-white font-bold text-base">Menu</span>
               <button
-                onClick={() => { closeMenu(); logout() }}
-                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-1.5 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px]"
+                onClick={closeSidebar}
+                className="w-10 h-10 flex items-center justify-center text-nvr-text-secondary hover:text-nvr-text-primary transition-colors rounded-lg"
+                aria-label="Close menu"
               >
-                Logout
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
+
+            {/* Nav links */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
+              {navLinks.map((link) => (
+                <MobileNavItem key={link.to} {...link} onClick={closeSidebar} />
+              ))}
+              {user?.role === 'admin' && (
+                <MobileNavItem
+                  to="/users"
+                  icon={
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  }
+                  label="Users"
+                  onClick={closeSidebar}
+                />
+              )}
+            </div>
+
+            {/* User section at bottom */}
+            <div className="border-t border-nvr-border px-4 py-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-full bg-nvr-accent/20 text-nvr-accent text-xs font-bold flex items-center justify-center">
+                  {(user?.username ?? '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-nvr-text-primary">{user?.username}</p>
+                  <p className="text-xs text-nvr-text-muted capitalize">{user?.role}</p>
+                </div>
+              </div>
+              <UserLogoutButton onClose={closeSidebar} />
+            </div>
           </div>
-        )}
-      </nav>
+        </div>
+      )}
+
+      {/* ---- Storage banner + toast layer ---- */}
       <StorageBanner />
       <ToastContainer />
-      <main className="p-4 md:p-6">{children}</main>
+
+      {/* ---- Page content ---- */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {children}
+      </main>
     </div>
   )
 }
 
+function UserLogoutButton({ onClose }: { onClose: () => void }) {
+  const { logout } = useAuth()
+  return (
+    <button
+      onClick={() => {
+        onClose()
+        logout()
+      }}
+      className="w-full text-sm text-nvr-danger hover:bg-nvr-bg-tertiary rounded-lg px-4 py-2.5 text-left transition-colors"
+    >
+      Logout
+    </button>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Routes                                                             */
+/* ------------------------------------------------------------------ */
 function AppRoutes() {
   return (
     <Routes>

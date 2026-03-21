@@ -194,6 +194,58 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, events)
 }
 
+// CleanupRequest is the JSON body for the Cleanup endpoint.
+type CleanupRequest struct {
+	CameraID string `json:"camera_id" binding:"required"`
+	Before   string `json:"before" binding:"required"`
+}
+
+// Cleanup deletes recordings older than a given time for a camera.
+// It removes both DB records and files from disk.
+// DELETE body: { camera_id, before (RFC3339) }.
+func (h *RecordingHandler) Cleanup(c *gin.Context) {
+	var req CleanupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_id and before are required"})
+		return
+	}
+
+	if !hasCameraPermission(c, req.CameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	before, err := time.Parse(time.RFC3339, req.Before)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before time, expected RFC3339"})
+		return
+	}
+
+	paths, err := h.DB.DeleteRecordingsByDateRange(req.CameraID, before)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to delete recordings from database", err)
+		return
+	}
+
+	var bytesFreed int64
+	var filesDeleted int
+	for _, p := range paths {
+		info, statErr := os.Stat(p)
+		if statErr == nil {
+			bytesFreed += info.Size()
+		}
+		if rmErr := os.Remove(p); rmErr == nil {
+			filesDeleted++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"deleted_count": len(paths),
+		"files_removed": filesDeleted,
+		"bytes_freed":   bytesFreed,
+	})
+}
+
 // ExportRequest is the JSON body for the Export endpoint.
 type ExportRequest struct {
 	CameraID string `json:"camera_id" binding:"required"`

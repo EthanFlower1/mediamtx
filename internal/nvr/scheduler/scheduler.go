@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,6 +58,9 @@ type CameraState struct {
 	ActiveRules   []string // IDs of currently matching rules
 }
 
+// retentionCheckInterval is the minimum interval between retention cleanup runs.
+const retentionCheckInterval = 1 * time.Hour
+
 // Scheduler evaluates recording rules every 30 seconds and applies
 // recording state changes to the MediaMTX YAML configuration.
 type Scheduler struct {
@@ -78,6 +82,8 @@ type Scheduler struct {
 	pendingWrites   map[string]bool // mediamtx path -> desired record state
 	pendingWritesMu sync.Mutex
 	writeTimer      *time.Timer
+
+	lastRetentionCheck time.Time // timestamp of last retention cleanup run
 }
 
 // New creates a new Scheduler.
@@ -292,6 +298,41 @@ func (s *Scheduler) evaluate() {
 				}
 			}
 		}
+	}
+
+	// Run retention cleanup if enough time has passed.
+	if time.Since(s.lastRetentionCheck) >= retentionCheckInterval {
+		s.runRetentionCleanup(cameras)
+		s.lastRetentionCheck = time.Now()
+	}
+}
+
+// runRetentionCleanup iterates over cameras with retention_days > 0 and
+// deletes recordings (both DB records and disk files) older than the
+// retention period.
+func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
+	now := time.Now().UTC()
+	for _, cam := range cameras {
+		if cam.RetentionDays <= 0 {
+			continue
+		}
+		cutoff := now.AddDate(0, 0, -cam.RetentionDays)
+		paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, cutoff)
+		if err != nil {
+			log.Printf("scheduler: retention cleanup for camera %s: %v", cam.Name, err)
+			continue
+		}
+		if len(paths) == 0 {
+			continue
+		}
+		var filesRemoved int
+		for _, p := range paths {
+			if err := os.Remove(p); err == nil {
+				filesRemoved++
+			}
+		}
+		log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
+			cam.Name, len(paths), filesRemoved, cutoff.Format(time.RFC3339))
 	}
 }
 

@@ -131,6 +131,190 @@ function relativeTime(iso: string): string {
   return `${days}d ago`
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+/** Displays per-camera storage usage, retention setting, and cleanup button. */
+function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: () => void }) {
+  const [storageBytes, setStorageBytes] = useState<number | null>(null)
+  const [retentionDays, setRetentionDays] = useState(camera.retention_days ?? 0)
+  const [editingRetention, setEditingRetention] = useState(false)
+  const [retentionInput, setRetentionInput] = useState(String(retentionDays))
+  const [savingRetention, setSavingRetention] = useState(false)
+
+  // Cleanup state
+  const [showCleanup, setShowCleanup] = useState(false)
+  const [cleanupDate, setCleanupDate] = useState(new Date().toISOString().slice(0, 10))
+  const [cleanupLoading, setCleanupLoading] = useState(false)
+  const [cleanupResult, setCleanupResult] = useState<{ deleted_count: number; bytes_freed: number } | null>(null)
+
+  useEffect(() => {
+    apiFetch('/system/storage').then(async res => {
+      if (res.ok) {
+        const data = await res.json()
+        const camStorage = data.per_camera?.find((c: { camera_id: string }) => c.camera_id === camera.id)
+        setStorageBytes(camStorage?.total_bytes ?? 0)
+      }
+    })
+  }, [camera.id])
+
+  const handleSaveRetention = async () => {
+    const days = parseInt(retentionInput, 10)
+    if (isNaN(days) || days < 0) return
+    setSavingRetention(true)
+    const res = await apiFetch(`/cameras/${camera.id}/retention`, {
+      method: 'PUT',
+      body: JSON.stringify({ retention_days: days }),
+    })
+    if (res.ok) {
+      setRetentionDays(days)
+      setEditingRetention(false)
+      onRefresh()
+    }
+    setSavingRetention(false)
+  }
+
+  const handleCleanup = async () => {
+    if (!cleanupDate) return
+    setCleanupLoading(true)
+    try {
+      const res = await apiFetch('/recordings/cleanup', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          camera_id: camera.id,
+          before: `${cleanupDate}T00:00:00Z`,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCleanupResult(data)
+        // Refresh storage info
+        const storageRes = await apiFetch('/system/storage')
+        if (storageRes.ok) {
+          const sData = await storageRes.json()
+          const camStorage = sData.per_camera?.find((c: { camera_id: string }) => c.camera_id === camera.id)
+          setStorageBytes(camStorage?.total_bytes ?? 0)
+        }
+      }
+    } finally {
+      setCleanupLoading(false)
+    }
+  }
+
+  return (
+    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide">Storage & Retention</h4>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-nvr-bg-primary rounded-lg p-2.5 border border-nvr-border/50">
+          <p className="text-[10px] text-nvr-text-muted mb-0.5">Storage Used</p>
+          <p className="text-sm font-semibold text-nvr-text-primary font-mono">
+            {storageBytes !== null ? formatBytes(storageBytes) : '--'}
+          </p>
+        </div>
+        <div className="bg-nvr-bg-primary rounded-lg p-2.5 border border-nvr-border/50">
+          <p className="text-[10px] text-nvr-text-muted mb-0.5">Retention</p>
+          {!editingRetention ? (
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-semibold text-nvr-text-primary">
+                {retentionDays > 0 ? `${retentionDays} day${retentionDays !== 1 ? 's' : ''}` : 'Forever'}
+              </p>
+              <button
+                onClick={() => { setEditingRetention(true); setRetentionInput(String(retentionDays)) }}
+                className="text-nvr-text-muted hover:text-nvr-accent text-[10px] ml-1 transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min="0"
+                value={retentionInput}
+                onChange={e => setRetentionInput(e.target.value)}
+                className="w-16 bg-nvr-bg-input border border-nvr-border rounded px-1.5 py-0.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:outline-none"
+                placeholder="days"
+              />
+              <button
+                onClick={handleSaveRetention}
+                disabled={savingRetention}
+                className="text-nvr-accent hover:text-nvr-accent-hover text-[10px] font-medium transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingRetention(false)}
+                className="text-nvr-text-muted hover:text-nvr-text-secondary text-[10px] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Cleanup section */}
+      {!showCleanup ? (
+        <button
+          onClick={() => { setShowCleanup(true); setCleanupResult(null); setCleanupDate(new Date().toISOString().slice(0, 10)) }}
+          className="text-xs text-nvr-text-muted hover:text-nvr-danger transition-colors px-2 py-1 rounded hover:bg-nvr-danger/10 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+        >
+          Clean Up Old Recordings
+        </button>
+      ) : (
+        <div className="bg-nvr-bg-primary border border-nvr-border/50 rounded-lg p-3">
+          <p className="text-xs text-nvr-text-secondary mb-2">Delete recordings older than:</p>
+          {!cleanupResult ? (
+            <>
+              <input
+                type="date"
+                value={cleanupDate}
+                onChange={e => setCleanupDate(e.target.value)}
+                className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-1.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors mb-2"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowCleanup(false)}
+                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors px-2 py-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCleanup}
+                  disabled={cleanupLoading || !cleanupDate}
+                  className="text-xs bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1 rounded transition-colors disabled:opacity-50"
+                >
+                  {cleanupLoading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-nvr-success mb-2">
+                Deleted {cleanupResult.deleted_count} recording{cleanupResult.deleted_count !== 1 ? 's' : ''}, freed {formatBytes(cleanupResult.bytes_freed)}.
+              </p>
+              <button
+                onClick={() => setShowCleanup(false)}
+                className="text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CameraManagement() {
   const navigate = useNavigate()
   const { cameras, loading, refresh } = useCameras()
@@ -549,6 +733,8 @@ export default function CameraManagement() {
                       />
                     </div>
                   )}
+
+                  <CameraStoragePanel camera={expandedCamera} onRefresh={refresh} />
 
                   <RecordingRules cameraId={expandedCamera.id} />
                 </div>

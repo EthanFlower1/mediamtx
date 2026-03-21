@@ -10,6 +10,7 @@ export interface Camera {
   ptz_capable: boolean
   onvif_endpoint?: string
   updated_at?: string
+  retention_days?: number
 }
 
 function getRefreshInterval(): number {

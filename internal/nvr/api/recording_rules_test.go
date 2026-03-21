@@ -33,7 +33,7 @@ func setupRuleTest(t *testing.T) (*RecordingRuleHandler, *db.DB, func()) {
 		t.Fatalf("open db: %v", err)
 	}
 
-	sched := scheduler.New(database, yamlwriter.New(yamlPath))
+	sched := scheduler.New(database, yamlwriter.New(yamlPath), nil, nil, "")
 	handler := &RecordingRuleHandler{DB: database, Scheduler: sched}
 
 	cleanup := func() {

@@ -144,6 +144,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)
 	protected.POST("/recordings/export", recordingHandler.Export)
+	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 
 	// Motion events.

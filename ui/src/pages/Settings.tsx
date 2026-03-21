@@ -509,6 +509,48 @@ export default function Settings() {
     localStorage.setItem('nvr-notif-sound', String(v))
   }
 
+  // Cleanup dialog state
+  const [cleanupCameraId, setCleanupCameraId] = useState<string | null>(null)
+  const [cleanupCameraName, setCleanupCameraName] = useState('')
+  const [cleanupDate, setCleanupDate] = useState('')
+  const [cleanupLoading, setCleanupLoading] = useState(false)
+  const [cleanupResult, setCleanupResult] = useState<{ deleted_count: number; bytes_freed: number } | null>(null)
+
+  const handleOpenCleanup = (cameraId: string, cameraName: string) => {
+    setCleanupCameraId(cameraId)
+    setCleanupCameraName(cameraName)
+    setCleanupDate(new Date().toISOString().slice(0, 10))
+    setCleanupResult(null)
+  }
+
+  const handleCloseCleanup = () => {
+    setCleanupCameraId(null)
+    setCleanupCameraName('')
+    setCleanupDate('')
+    setCleanupResult(null)
+  }
+
+  const handleConfirmCleanup = async () => {
+    if (!cleanupCameraId || !cleanupDate) return
+    setCleanupLoading(true)
+    try {
+      const res = await apiFetch('/recordings/cleanup', {
+        method: 'DELETE',
+        body: JSON.stringify({
+          camera_id: cleanupCameraId,
+          before: `${cleanupDate}T00:00:00Z`,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setCleanupResult(data)
+        fetchStorage()
+      }
+    } finally {
+      setCleanupLoading(false)
+    }
+  }
+
   // Find max per-camera bytes for bar chart scaling
   const maxCameraBytes = storage?.per_camera
     ? Math.max(...storage.per_camera.map(c => c.total_bytes), 1)
@@ -837,7 +879,16 @@ export default function Settings() {
                         <div key={cam.camera_id}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm text-nvr-text-primary">{cam.camera_name || cam.camera_id}</span>
-                            <span className="text-xs text-nvr-text-secondary font-mono">{formatBytes(cam.total_bytes)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-nvr-text-secondary font-mono">{formatBytes(cam.total_bytes)}</span>
+                              <button
+                                onClick={() => handleOpenCleanup(cam.camera_id, cam.camera_name || cam.camera_id)}
+                                className="text-xs text-nvr-text-muted hover:text-nvr-danger transition-colors px-1.5 py-0.5 rounded hover:bg-nvr-danger/10 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                                title="Clean up old recordings"
+                              >
+                                Clean Up
+                              </button>
+                            </div>
                           </div>
                           <div className="w-full h-2.5 bg-nvr-bg-primary rounded-full overflow-hidden">
                             <div
@@ -862,6 +913,64 @@ export default function Settings() {
           ) : (
             <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-6 text-center">
               <p className="text-nvr-text-muted text-sm">Unable to load storage information.</p>
+            </div>
+          )}
+
+          {/* Cleanup dialog */}
+          {cleanupCameraId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={handleCloseCleanup}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+              <div
+                className="relative z-10 bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold text-nvr-text-primary mb-2">Clean Up Recordings</h3>
+                <p className="text-sm text-nvr-text-secondary mb-4">
+                  Delete recordings for <span className="font-medium text-nvr-text-primary">{cleanupCameraName}</span> older than:
+                </p>
+
+                {!cleanupResult ? (
+                  <>
+                    <input
+                      type="date"
+                      value={cleanupDate}
+                      onChange={e => setCleanupDate(e.target.value)}
+                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors mb-4"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={handleCloseCleanup}
+                        className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleConfirmCleanup}
+                        disabled={cleanupLoading || !cleanupDate}
+                        className="bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      >
+                        {cleanupLoading ? 'Deleting...' : 'Delete Recordings'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-nvr-success/10 border border-nvr-success/20 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-nvr-success">
+                        Deleted {cleanupResult.deleted_count} recording{cleanupResult.deleted_count !== 1 ? 's' : ''}, freed {formatBytes(cleanupResult.bytes_freed)}.
+                      </p>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleCloseCleanup}
+                        className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

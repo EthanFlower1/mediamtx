@@ -165,6 +165,58 @@ func (d *DB) GetStoragePerCamera() ([]CameraStorage, error) {
 	return results, rows.Err()
 }
 
+// DeleteRecordingsByDateRange deletes all recordings for a camera whose
+// end_time is before the given cutoff. It returns the list of file paths
+// that were deleted (so the caller can remove files from disk).
+func (d *DB) DeleteRecordingsByDateRange(cameraID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	// Collect file paths first.
+	rows, err := d.Query(
+		`SELECT file_path FROM recordings WHERE camera_id = ? AND end_time < ?`,
+		cameraID, beforeStr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Delete the records.
+	if len(paths) > 0 {
+		_, err = d.Exec(
+			`DELETE FROM recordings WHERE camera_id = ? AND end_time < ?`,
+			cameraID, beforeStr,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
+// GetTotalRecordingSize returns total bytes of recordings for a camera.
+func (d *DB) GetTotalRecordingSize(cameraID string) (int64, error) {
+	var total int64
+	err := d.QueryRow(
+		`SELECT COALESCE(SUM(file_size), 0) FROM recordings WHERE camera_id = ?`,
+		cameraID,
+	).Scan(&total)
+	return total, err
+}
+
 // DeleteRecordingByPath deletes a recording by its file path.
 func (d *DB) DeleteRecordingByPath(filePath string) error {
 	res, err := d.Exec("DELETE FROM recordings WHERE file_path = ?", filePath)

@@ -77,3 +77,79 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 
 	return profiles, nil
 }
+
+// ProbeResult holds profiles, snapshot URI, and capability flags returned
+// by a full device probe.
+type ProbeResult struct {
+	Profiles     []MediaProfile `json:"profiles"`
+	SnapshotURI  string         `json:"snapshot_uri,omitempty"`
+	Capabilities Capabilities   `json:"capabilities"`
+}
+
+// ProbeDeviceFull connects to an ONVIF device and returns its media profiles,
+// snapshot URI, and capability flags in a single call.
+func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, fmt.Errorf("connect to ONVIF device: %w", err)
+	}
+
+	result := &ProbeResult{
+		Capabilities: client.GetCapabilities(),
+	}
+
+	// Get profiles + stream URIs (reuse existing logic).
+	ctx := context.Background()
+	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, client.Dev, onvifmedia.GetProfiles{})
+	if err != nil {
+		return result, nil // return what we have
+	}
+
+	for _, p := range profilesResp.Profiles {
+		mp := MediaProfile{
+			Token:      string(p.Token),
+			Name:       string(p.Name),
+			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
+			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
+			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
+		}
+
+		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, client.Dev, onvifmedia.GetStreamUri{
+			ProfileToken: p.Token,
+			StreamSetup: onviftypes.StreamSetup{
+				Stream:    "RTP-Unicast",
+				Transport: onviftypes.Transport{Protocol: "RTSP"},
+			},
+		})
+		if err == nil {
+			uri := string(streamResp.MediaUri.Uri)
+			if username != "" {
+				if u, err := url.Parse(uri); err == nil {
+					u.User = url.UserPassword(username, password)
+					uri = u.String()
+				}
+			}
+			mp.StreamURI = uri
+		}
+
+		result.Profiles = append(result.Profiles, mp)
+	}
+
+	// Get snapshot URI for the first profile.
+	if len(result.Profiles) > 0 {
+		snapResp, err := sdkmedia.Call_GetSnapshotUri(ctx, client.Dev, onvifmedia.GetSnapshotUri{
+			ProfileToken: onviftypes.ReferenceToken(result.Profiles[0].Token),
+		})
+		if err == nil {
+			result.SnapshotURI = string(snapResp.MediaUri.Uri)
+		}
+	}
+
+	// Check audio backchannel capability.
+	outputResp, err := sdkmedia.Call_GetAudioOutputs(ctx, client.Dev, onvifmedia.GetAudioOutputs{})
+	if err == nil && string(outputResp.AudioOutputs.Token) != "" {
+		result.Capabilities.AudioBackchannel = true
+	}
+
+	return result, nil
+}

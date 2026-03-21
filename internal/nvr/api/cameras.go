@@ -224,6 +224,28 @@ func (h *CameraHandler) Create(c *gin.Context) {
 
 	nvrLogInfo("cameras", fmt.Sprintf("Created camera %q (id=%s, path=%s)", cam.Name, cam.ID, pathName))
 
+	// Populate ONVIF capability flags in the background if the camera has an ONVIF endpoint.
+	if cam.ONVIFEndpoint != "" {
+		go func(camCopy db.Camera) {
+			result, err := onvif.ProbeDeviceFull(camCopy.ONVIFEndpoint, camCopy.ONVIFUsername, h.decryptPassword(camCopy.ONVIFPassword))
+			if err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("background probe failed for camera %s: %v", camCopy.ID, err))
+				return
+			}
+			camCopy.SupportsPTZ = result.Capabilities.PTZ
+			camCopy.SupportsImaging = result.Capabilities.Imaging
+			camCopy.SupportsEvents = result.Capabilities.Events
+			camCopy.SupportsRelay = result.Capabilities.DeviceIO
+			camCopy.SupportsAudioBackchannel = result.Capabilities.AudioBackchannel
+			camCopy.SnapshotURI = result.SnapshotURI
+			if err := h.DB.UpdateCamera(&camCopy); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to store capabilities for camera %s: %v", camCopy.ID, err))
+			} else {
+				nvrLogInfo("cameras", fmt.Sprintf("Populated capabilities for camera %q (id=%s)", camCopy.Name, camCopy.ID))
+			}
+		}(*cam)
+	}
+
 	if h.Audit != nil {
 		h.Audit.logAction(c, "create", "camera", cam.ID, fmt.Sprintf("Created camera %q", cam.Name))
 	}
@@ -385,7 +407,8 @@ type probeRequest struct {
 	Password string `json:"password"`
 }
 
-// Probe connects to an ONVIF device with credentials and returns its profiles and stream URIs.
+// Probe connects to an ONVIF device with credentials and returns its profiles,
+// capabilities, and snapshot URI.
 func (h *CameraHandler) Probe(c *gin.Context) {
 	var req probeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -393,14 +416,18 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 		return
 	}
 
-	profiles, err := onvif.ProbeDevice(req.XAddr, req.Username, req.Password)
+	result, err := onvif.ProbeDeviceFull(req.XAddr, req.Username, req.Password)
 	if err != nil {
 		nvrLogError("discovery", fmt.Sprintf("ONVIF probe failed for %s", req.XAddr), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or probe failed"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"profiles": profiles})
+	c.JSON(http.StatusOK, gin.H{
+		"profiles":     result.Profiles,
+		"capabilities": result.Capabilities,
+		"snapshot_uri":  result.SnapshotURI,
+	})
 }
 
 // retentionRequest is the JSON body for updating a camera's retention policy.

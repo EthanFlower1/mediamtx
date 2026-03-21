@@ -106,4 +106,17 @@ CREATE INDEX idx_audit_log_created ON audit_log(created_at);
 CREATE INDEX idx_audit_log_user ON audit_log(user_id);
 `,
 	},
+	{
+		version: 5,
+		sql: `
+CREATE TABLE motion_events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	camera_id TEXT NOT NULL,
+	started_at TEXT NOT NULL,
+	ended_at TEXT,
+	FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_motion_events_camera_time ON motion_events(camera_id, started_at);
+`,
+	},
 }

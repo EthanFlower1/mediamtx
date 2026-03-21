@@ -4,11 +4,19 @@ import { TimeRange } from '../hooks/useRecordings'
 const ZOOM_LEVELS = [24, 12, 6, 3, 1] as const
 type ZoomLevel = typeof ZOOM_LEVELS[number]
 
+export interface MotionEvent {
+  started_at: string
+  ended_at?: string | null
+}
+
 interface Props {
   ranges: TimeRange[]
   date: string
   onSeek?: (time: Date) => void
   playbackTime?: Date | null
+
+  // Motion events to display as markers
+  events?: MotionEvent[]
 
   // Clip creation mode
   clipMode?: boolean
@@ -26,6 +34,7 @@ export default function Timeline({
   date,
   onSeek,
   playbackTime,
+  events,
   clipMode,
   clipStart,
   clipEnd,
@@ -40,6 +49,7 @@ export default function Timeline({
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [hoverTime, setHoverTime] = useState<string | null>(null)
   const [dragging, setDragging] = useState<'start' | 'end' | null>(null)
+  const [hoveredEvent, setHoveredEvent] = useState<number | null>(null)
 
   // Zoom state
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(24)
@@ -432,9 +442,44 @@ export default function Timeline({
           )
         })}
 
-        {/* TODO: Motion event markers — amber triangles/dots above footage bars.
-            When per-event motion data is stored in the recording_status API,
-            render small amber markers here at each motion event timestamp. */}
+        {/* Motion event markers */}
+        {events && events.map((ev, i) => {
+          const evStart = new Date(ev.started_at)
+          const evStartMs = evStart.getTime() - dayStart.getTime()
+          const leftPct = ((evStartMs - viewStartMs) / (viewEndMs - viewStartMs)) * 100
+          if (leftPct < -2 || leftPct > 102) return null
+
+          const evEnd = ev.ended_at ? new Date(ev.ended_at) : null
+          const startLabel = evStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          const endLabel = evEnd
+            ? evEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            : 'ongoing'
+          const tooltip = `Motion ${startLabel} – ${endLabel}`
+
+          return (
+            <div
+              key={i}
+              className="absolute z-[8] cursor-pointer select-none group/marker"
+              style={{ left: `${leftPct}%`, top: '0px', transform: 'translateX(-50%)' }}
+              title={tooltip}
+              onMouseEnter={() => setHoveredEvent(i)}
+              onMouseLeave={() => setHoveredEvent(null)}
+              onClick={(e) => {
+                e.stopPropagation()
+                onSeek?.(evStart)
+              }}
+            >
+              <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label="Motion event">
+                {'\u{1F3C3}'}
+              </span>
+              {hoveredEvent === i && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-nvr-bg-secondary border border-nvr-border rounded px-2 py-0.5 text-[10px] text-nvr-text-primary pointer-events-none z-30 whitespace-nowrap shadow-lg">
+                  {tooltip}
+                </div>
+              )}
+            </div>
+          )
+        })}
 
         {/* Clip selection range highlight */}
         {clipMode && clipStartPct !== null && clipEndPct !== null && (

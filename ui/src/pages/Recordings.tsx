@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useCameras } from '../hooks/useCameras'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
-import Timeline from '../components/Timeline'
+import Timeline, { MotionEvent } from '../components/Timeline'
 import VideoPlayer from '../components/VideoPlayer'
+import { apiFetch } from '../api/client'
 
 interface Segment {
   start: string
@@ -91,6 +92,9 @@ export default function Recordings() {
   const [loadingRecordings, setLoadingRecordings] = useState(false)
   const [hasRecordings, setHasRecordings] = useState(false)
 
+  // Motion events
+  const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([])
+
   // "All Cameras" mode
   const isAllCameras = selectedCamera === '__all__'
   const [allCameraRanges, setAllCameraRanges] = useState<AllCameraRanges[]>([])
@@ -170,6 +174,19 @@ export default function Recordings() {
       })
       .finally(() => setLoadingRecordings(false))
   }, [mediamtxPath, date, isAllCameras, fetchCameraRecordings])
+
+  // Fetch motion events when single camera and date are selected
+  useEffect(() => {
+    if (isAllCameras || !selectedCamera || !date) {
+      setMotionEvents([])
+      return
+    }
+
+    apiFetch(`/cameras/${selectedCamera}/motion-events?date=${date}`)
+      .then(res => res.ok ? res.json() : [])
+      .then((data: MotionEvent[]) => setMotionEvents(data))
+      .catch(() => setMotionEvents([]))
+  }, [selectedCamera, date, isAllCameras])
 
   // Fetch recordings for ALL cameras when "All Cameras" selected
   useEffect(() => {
@@ -518,6 +535,7 @@ export default function Recordings() {
               date={date}
               onSeek={clipMode ? undefined : handleSeek}
               playbackTime={playbackTime}
+              events={motionEvents}
               clipMode={clipMode}
               clipStart={clipStart}
               clipEnd={clipEnd}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rsa"
+	"io"
 	"io/fs"
 	"net/http"
 	"time"
@@ -27,8 +28,9 @@ type RouterConfig struct {
 	Scheduler      *scheduler.Scheduler
 	SetupChecker   SetupChecker
 	RecordingsPath string
-	Events         *EventBroadcaster
-	EncryptionKey  []byte // AES-256 key for ONVIF credential encryption
+	Events          *EventBroadcaster
+	CallbackManager *onvif.CallbackManager
+	EncryptionKey   []byte // AES-256 key for ONVIF credential encryption
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
 }
 
@@ -101,6 +103,20 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
 	nvr.GET("/system/health", systemHandler.Health)
 
+	// ONVIF callback (no auth — camera POSTs notifications here).
+	if cfg.CallbackManager != nil {
+		nvr.POST("/onvif-callback/:cameraId", func(c *gin.Context) {
+			cameraID := c.Param("cameraId")
+			body, err := io.ReadAll(io.LimitReader(c.Request.Body, 1<<20))
+			if err != nil {
+				c.Status(http.StatusBadRequest)
+				return
+			}
+			cfg.CallbackManager.HandleCallback(cameraID, body)
+			c.Status(http.StatusOK)
+		})
+	}
+
 	// Protected routes (JWT auth required).
 	protected := nvr.Group("", middleware.Handler())
 
@@ -129,6 +145,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/recordings/:id/download", recordingHandler.Download)
 	protected.POST("/recordings/export", recordingHandler.Export)
 	protected.GET("/timeline", recordingHandler.Timeline)
+
+	// Motion events.
+	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

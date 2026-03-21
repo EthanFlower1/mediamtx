@@ -161,6 +161,39 @@ func (h *RecordingHandler) Download(c *gin.Context) {
 	c.FileAttachment(rec.FilePath, filepath.Base(rec.FilePath))
 }
 
+// MotionEvents returns motion events for a camera on a given date.
+// Path param: id (camera ID). Query param: date (YYYY-MM-DD).
+func (h *RecordingHandler) MotionEvents(c *gin.Context) {
+	cameraID := c.Param("id")
+
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	dateStr := c.Query("date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
+		return
+	}
+
+	start := date
+	end := date.Add(24 * time.Hour)
+
+	events, err := h.DB.QueryMotionEvents(cameraID, start, end)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query motion events", err)
+		return
+	}
+
+	if events == nil {
+		events = []*db.MotionEvent{}
+	}
+
+	c.JSON(http.StatusOK, events)
+}
+
 // ExportRequest is the JSON body for the Export endpoint.
 type ExportRequest struct {
 	CameraID string `json:"camera_id" binding:"required"`

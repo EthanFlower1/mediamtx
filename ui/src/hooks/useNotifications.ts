@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { pushToast, ToastMessage } from '../components/Toast'
+import { getAccessToken } from '../api/client'
 
 export interface Notification {
   id: string
@@ -28,90 +29,61 @@ function getNotifPrefs() {
 
 function eventTypeToToastType(eventType: string): ToastMessage['type'] {
   switch (eventType) {
-    case 'motion':
-      return 'warning'
-    case 'camera_offline':
-      return 'error'
-    case 'camera_online':
-      return 'success'
-    case 'recording_started':
-    case 'recording_stopped':
-      return 'info'
-    default:
-      return 'info'
+    case 'motion': return 'warning'
+    case 'camera_offline': return 'error'
+    case 'camera_online': return 'success'
+    default: return 'info'
   }
 }
 
 function eventTypeToTitle(eventType: string): string {
   switch (eventType) {
-    case 'motion':
-      return 'Motion Detected'
-    case 'camera_offline':
-      return 'Camera Offline'
-    case 'camera_online':
-      return 'Camera Online'
-    case 'recording_started':
-      return 'Recording Started'
-    case 'recording_stopped':
-      return 'Recording Stopped'
-    default:
-      return 'Notification'
+    case 'motion': return 'Motion Detected'
+    case 'camera_offline': return 'Camera Offline'
+    case 'camera_online': return 'Camera Online'
+    case 'recording_started': return 'Recording Started'
+    case 'recording_stopped': return 'Recording Stopped'
+    default: return 'Notification'
   }
 }
 
-let alertAudio: HTMLAudioElement | null = null
 function playAlertSound() {
   try {
-    if (!alertAudio) {
-      // Use a simple beep via AudioContext
-      const ctx = new AudioContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.frequency.value = 880
-      gain.gain.value = 0.15
-      osc.start()
-      osc.stop(ctx.currentTime + 0.15)
-    }
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 880
+    gain.gain.value = 0.15
+    osc.start()
+    osc.stop(ctx.currentTime + 0.15)
   } catch {
-    // ignore audio errors
+    // ignore
   }
 }
 
 export function useNotifications(isAuthenticated: boolean) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const eventSourceRef = useRef<EventSource | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const addNotification = useCallback((notif: Notification) => {
     const prefs = getNotifPrefs()
 
-    // If notifications disabled globally, still store but don't toast
     if (!prefs.enabled) {
-      setNotifications(prev => {
-        const next = [notif, ...prev]
-        return next.length > MAX_HISTORY ? next.slice(0, MAX_HISTORY) : next
-      })
+      setNotifications(prev => [notif, ...prev].slice(0, MAX_HISTORY))
       setUnreadCount(prev => prev + 1)
       return
     }
 
-    // Check per-type filters
     if (notif.type === 'motion' && !prefs.motion) return
     if ((notif.type === 'camera_offline' || notif.type === 'camera_online') && !prefs.offline) return
 
-    setNotifications(prev => {
-      const next = [notif, ...prev]
-      if (next.length > MAX_HISTORY) {
-        return next.slice(0, MAX_HISTORY)
-      }
-      return next
-    })
+    setNotifications(prev => [notif, ...prev].slice(0, MAX_HISTORY))
     setUnreadCount(prev => prev + 1)
 
-    // Push a toast notification.
     pushToast({
       id: notif.id,
       type: eventTypeToToastType(notif.type),
@@ -120,10 +92,7 @@ export function useNotifications(isAuthenticated: boolean) {
       timestamp: notif.time,
     })
 
-    // Play sound if enabled
-    if (prefs.sound) {
-      playAlertSound()
-    }
+    if (prefs.sound) playAlertSound()
   }, [])
 
   const markAllRead = useCallback(() => {
@@ -132,16 +101,25 @@ export function useNotifications(isAuthenticated: boolean) {
   }, [])
 
   const connect = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
+    if (wsRef.current) {
+      wsRef.current.close()
     }
 
-    const es = new EventSource('/api/nvr/system/events')
-    eventSourceRef.current = es
+    const token = getAccessToken()
+    if (!token) return
 
-    es.addEventListener('notification', (e: MessageEvent) => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const url = `${protocol}//${window.location.hostname}:9998/ws`
+
+    const ws = new WebSocket(url)
+    wsRef.current = ws
+
+    ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
+        // Skip the initial "connected" message
+        if (data.type === 'connected') return
+
         const notif: Notification = {
           id: crypto.randomUUID(),
           type: data.type,
@@ -152,28 +130,27 @@ export function useNotifications(isAuthenticated: boolean) {
         }
         addNotification(notif)
       } catch {
-        // Ignore malformed events.
+        // ignore malformed messages
       }
-    })
+    }
 
-    es.onerror = () => {
-      es.close()
-      eventSourceRef.current = null
-      // Auto-reconnect after a delay.
+    ws.onclose = () => {
+      wsRef.current = null
       reconnectTimerRef.current = setTimeout(() => {
-        if (isAuthenticated) {
-          connect()
-        }
+        if (isAuthenticated) connect()
       }, RECONNECT_DELAY_MS)
+    }
+
+    ws.onerror = () => {
+      ws.close()
     }
   }, [addNotification, isAuthenticated])
 
   useEffect(() => {
     if (!isAuthenticated) {
-      // Close connection when not authenticated.
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
       }
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)
@@ -185,9 +162,9 @@ export function useNotifications(isAuthenticated: boolean) {
     connect()
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-        eventSourceRef.current = null
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
       }
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)

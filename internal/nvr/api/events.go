@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -54,11 +55,12 @@ func (b *EventBroadcaster) Publish(event Event) {
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
+	log.Printf("events: publishing %s event to %d clients: %s", event.Type, len(b.clients), event.Message)
 	for ch := range b.clients {
 		select {
 		case ch <- event:
 		default:
-			// Drop event for slow clients.
+			log.Printf("events: dropped %s event for slow client", event.Type)
 		}
 	}
 }

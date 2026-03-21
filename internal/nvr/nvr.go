@@ -8,12 +8,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
@@ -36,8 +38,10 @@ type NVR struct {
 	sched      *scheduler.Scheduler
 	privateKey *rsa.PrivateKey
 	jwksJSON   []byte
-	discovery  *onvif.Discovery
-	events     *api.EventBroadcaster
+	discovery   *onvif.Discovery
+	events      *api.EventBroadcaster
+	callbackMgr *onvif.CallbackManager
+	wsServer    *http.Server // separate WebSocket server for notifications
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -81,10 +85,16 @@ func (n *NVR) Initialize() error {
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.discovery = onvif.NewDiscovery()
 	n.events = api.NewEventBroadcaster()
+	n.callbackMgr = onvif.NewCallbackManager()
 
-	n.sched = scheduler.New(n.database, n.yamlWriter)
+	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress)
 	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
+
+	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
+	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
+	n.startNotificationServer()
 
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
@@ -94,8 +104,83 @@ func (n *NVR) Initialize() error {
 	return nil
 }
 
+// startNotificationServer starts a WebSocket server on port 9998.
+func (n *NVR) startNotificationServer() {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		// Allow CORS preflight.
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		if r.Method == http.MethodOptions {
+			return
+		}
+
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		conn.WriteJSON(map[string]string{"type": "connected"})
+
+		ch := n.events.Subscribe()
+		defer n.events.Unsubscribe(ch)
+
+		// Detect client disconnect.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}()
+
+		pingTicker := time.NewTicker(30 * time.Second)
+		defer pingTicker.Stop()
+
+		for {
+			select {
+			case <-done:
+				return
+			case <-pingTicker.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					return
+				}
+			case evt, ok := <-ch:
+				if !ok {
+					return
+				}
+				if err := conn.WriteJSON(evt); err != nil {
+					return
+				}
+			}
+		}
+	})
+
+	n.wsServer = &http.Server{
+		Addr:    ":9998",
+		Handler: mux,
+	}
+
+	go func() {
+		if err := n.wsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("notification server error: %v\n", err)
+		}
+	}()
+	fmt.Println("NVR notification WebSocket server listening on :9998")
+}
+
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	if n.wsServer != nil {
+		n.wsServer.Close()
+	}
 	if n.sched != nil {
 		n.sched.Stop()
 	}
@@ -153,9 +238,10 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Scheduler:      n.sched,
 		SetupChecker:   n,
 		RecordingsPath: recordingsPath,
-		Events:         n.events,
-		EncryptionKey:  credKey,
-		ConfigPath:     n.ConfigPath,
+		Events:          n.events,
+		CallbackManager: n.callbackMgr,
+		EncryptionKey:   credKey,
+		ConfigPath:      n.ConfigPath,
 	})
 }
 

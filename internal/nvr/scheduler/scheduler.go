@@ -5,6 +5,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -58,9 +60,12 @@ type CameraState struct {
 // Scheduler evaluates recording rules every 30 seconds and applies
 // recording state changes to the MediaMTX YAML configuration.
 type Scheduler struct {
-	db         *db.DB
-	yamlWriter *yamlwriter.Writer
-	eventPub   EventPublisher
+	db              *db.DB
+	yamlWriter      *yamlwriter.Writer
+	eventPub        EventPublisher
+	encryptionKey   []byte // for decrypting ONVIF passwords from DB
+	callbackMgr     *onvif.CallbackManager
+	apiAddress      string // e.g., ":9997" for building callback URLs
 
 	mu     sync.Mutex
 	states map[string]*CameraState // camera ID -> state
@@ -76,10 +81,13 @@ type Scheduler struct {
 }
 
 // New creates a new Scheduler.
-func New(database *db.DB, writer *yamlwriter.Writer) *Scheduler {
+func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr *onvif.CallbackManager, apiAddress string) *Scheduler {
 	return &Scheduler{
 		db:            database,
 		yamlWriter:    writer,
+		encryptionKey: encKey,
+		callbackMgr:   callbackMgr,
+		apiAddress:    apiAddress,
 		states:        make(map[string]*CameraState),
 		stopCh:        make(chan struct{}),
 		pendingWrites: make(map[string]bool),
@@ -208,15 +216,28 @@ func (s *Scheduler) evaluate() {
 		rulesByCam[r.CameraID] = append(rulesByCam[r.CameraID], r)
 	}
 
-	// Evaluate each camera that has rules or had state previously.
+	// Evaluate ALL cameras (not just those with rules) so we can subscribe
+	// to ONVIF events for motion alerts on every camera.
 	s.mu.Lock()
-	// Collect all camera IDs we need to evaluate: those with rules + those with existing state.
 	evalCameras := make(map[string]struct{})
-	for camID := range rulesByCam {
-		evalCameras[camID] = struct{}{}
+	for _, c := range cameras {
+		evalCameras[c.ID] = struct{}{}
 	}
 	for camID := range s.states {
 		evalCameras[camID] = struct{}{}
+	}
+	s.mu.Unlock()
+
+	// Start ONVIF event subscriptions for any camera that has an ONVIF endpoint
+	// but doesn't yet have a subscriber — regardless of recording rules.
+	// This ensures motion alerts work even without "events" recording rules.
+	s.mu.Lock()
+	for _, cam := range cameras {
+		if cam.ONVIFEndpoint != "" {
+			if _, hasSub := s.eventSubs[cam.ID]; !hasSub {
+				s.startMotionAlertSubscription(cam)
+			}
+		}
 	}
 	s.mu.Unlock()
 
@@ -349,22 +370,100 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 		}
 	}()
 
-	// Create the event subscriber. Wrap the motion callback to also publish events.
+	// Create the event subscriber. Wrap the motion callback to also publish events
+	// and persist motion events in the database.
 	motionCallback := func(detected bool) {
 		sm.OnMotion(detected)
-		if detected && s.eventPub != nil {
-			s.eventPub.PublishMotion(cam.Name)
+		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+		if detected {
+			_ = s.db.InsertMotionEvent(&db.MotionEvent{
+				CameraID:  camID,
+				StartedAt: now,
+			})
+			if s.eventPub != nil {
+				s.eventPub.PublishMotion(cam.Name)
+			}
+		} else {
+			_ = s.db.EndMotionEvent(camID, now)
 		}
 	}
-	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword, motionCallback)
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), motionCallback)
 	if err != nil {
 		log.Printf("scheduler: create event subscriber for camera %s: %v", camID, err)
 		delete(s.motionSMs, camID)
 		return
 	}
 	s.eventSubs[camID] = sub
+	if s.callbackMgr != nil {
+		s.callbackMgr.Register(camID, sub)
+	}
 
 	log.Printf("scheduler: starting ONVIF event subscription for camera %s at %s", camID, cam.ONVIFEndpoint)
+	go sub.Start(context.Background())
+}
+
+// decryptPassword decrypts an ONVIF password from the DB if it was encrypted.
+func (s *Scheduler) decryptPassword(encrypted string) string {
+	if len(s.encryptionKey) == 0 || !strings.HasPrefix(encrypted, "enc:") {
+		return encrypted
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(encrypted, "enc:"))
+	if err != nil {
+		return encrypted
+	}
+	plain, err := crypto.Decrypt(s.encryptionKey, ciphertext)
+	if err != nil {
+		return encrypted
+	}
+	return string(plain)
+}
+
+// callbackURL builds the webhook URL for a camera.
+func (s *Scheduler) callbackURL(cameraID string) string {
+	port := s.apiAddress
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	}
+	localIP := onvif.GetLocalIP()
+	return fmt.Sprintf("http://%s:%s/api/nvr/onvif-callback/%s", localIP, port, cameraID)
+}
+
+// startMotionAlertSubscription starts an ONVIF event subscription just for
+// motion alerts (no recording control). This runs for all ONVIF cameras
+// regardless of whether they have "events" recording rules.
+// Must be called with s.mu held.
+func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
+	if cam.ONVIFEndpoint == "" {
+		return
+	}
+
+	motionCallback := func(detected bool) {
+		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+		if detected {
+			_ = s.db.InsertMotionEvent(&db.MotionEvent{
+				CameraID:  cam.ID,
+				StartedAt: now,
+			})
+			if s.eventPub != nil {
+				s.eventPub.PublishMotion(cam.Name)
+			}
+		} else {
+			_ = s.db.EndMotionEvent(cam.ID, now)
+		}
+	}
+
+	cbURL := s.callbackURL(cam.ID)
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), cbURL, motionCallback)
+	if err != nil {
+		log.Printf("scheduler: create motion alert subscriber for camera %s: %v", cam.ID, err)
+		return
+	}
+	s.eventSubs[cam.ID] = sub
+	if s.callbackMgr != nil {
+		s.callbackMgr.Register(cam.ID, sub)
+	}
+
+	log.Printf("scheduler: starting ONVIF motion alert subscription for camera %s at %s", cam.ID, cam.ONVIFEndpoint)
 	go sub.Start(context.Background())
 }
 
@@ -374,6 +473,9 @@ func (s *Scheduler) stopEventPipelineLocked(camID string) {
 	if sub, ok := s.eventSubs[camID]; ok {
 		sub.Stop()
 		delete(s.eventSubs, camID)
+		if s.callbackMgr != nil {
+			s.callbackMgr.Unregister(camID)
+		}
 	}
 	if sm, ok := s.motionSMs[camID]; ok {
 		sm.Stop()

@@ -8,6 +8,10 @@ export function setAccessToken(token: string | null) {
   accessToken = token
 }
 
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
 /**
  * Performs a single fetch with an AbortController timeout.
  */

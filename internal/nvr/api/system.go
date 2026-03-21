@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-yaml"
+	"github.com/gorilla/websocket"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
@@ -522,43 +524,61 @@ func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 	h.ImportConfig(c)
 }
 
-// Events is a Server-Sent Events (SSE) endpoint that streams system events.
-// It subscribes to the EventBroadcaster and forwards events to the client
-// as JSON-encoded SSE messages until the client disconnects.
+// Events upgrades the connection to a WebSocket and streams system events.
+// The client authenticates via the ?token= query parameter before upgrade.
 func (h *SystemHandler) Events(c *gin.Context) {
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
 
-	// Send the initial "connected" event.
-	c.SSEvent("message", "connected")
-	c.Writer.Flush()
-
-	if h.Broadcaster == nil {
-		// No broadcaster configured; block until client disconnects.
-		<-c.Request.Context().Done()
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("events: websocket upgrade failed: %v", err)
 		return
 	}
+	defer conn.Close()
+
+	if h.Broadcaster == nil {
+		conn.WriteJSON(map[string]string{"type": "error", "message": "no broadcaster"})
+		return
+	}
+
+	// Send initial connected message.
+	conn.WriteJSON(map[string]string{"type": "connected"})
 
 	ch := h.Broadcaster.Subscribe()
 	defer h.Broadcaster.Unsubscribe(ch)
 
-	ctx := c.Request.Context()
+	// Read goroutine: detect client disconnect by reading (and discarding) messages.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Send keepalive pings every 30 seconds.
+	pingTicker := time.NewTicker(30 * time.Second)
+	defer pingTicker.Stop()
+
 	for {
 		select {
-		case <-ctx.Done():
+		case <-done:
 			return
+		case <-pingTicker.C:
+			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				return
+			}
 		case evt, ok := <-ch:
 			if !ok {
 				return
 			}
-			data, err := json.Marshal(evt)
-			if err != nil {
-				continue
+			if err := conn.WriteJSON(evt); err != nil {
+				return
 			}
-			c.SSEvent("notification", string(data))
-			c.Writer.Flush()
 		}
 	}
 }

@@ -625,6 +625,83 @@ func (h *CameraHandler) GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, settings)
 }
 
+// GetRelayOutputs returns the list of relay outputs for a camera.
+//
+//	GET /cameras/:id/relay-outputs
+func (h *CameraHandler) GetRelayOutputs(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for relay outputs", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	outputs, err := onvif.GetRelayOutputs(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("relay", fmt.Sprintf("failed to get relay outputs for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get relay outputs from device"})
+		return
+	}
+
+	if outputs == nil {
+		outputs = []onvif.RelayOutput{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"relay_outputs": outputs})
+}
+
+// relayStateRequest is the JSON body for toggling a relay output.
+type relayStateRequest struct {
+	Active bool `json:"active"`
+}
+
+// SetRelayOutputState toggles the state of a relay output on a camera.
+//
+//	POST /cameras/:id/relay-outputs/:token/state
+func (h *CameraHandler) SetRelayOutputState(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for relay state", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req relayStateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if err := onvif.SetRelayOutputState(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token, req.Active); err != nil {
+		nvrLogError("relay", fmt.Sprintf("failed to set relay output state for camera %s token %s", id, token), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to set relay output state"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 // imagingSettingsRequest is the JSON body for updating camera imaging settings.
 type imagingSettingsRequest struct {
 	Brightness float64 `json:"brightness"`

@@ -146,6 +146,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
 
+	// Relay outputs.
+	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
+	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)
+
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)

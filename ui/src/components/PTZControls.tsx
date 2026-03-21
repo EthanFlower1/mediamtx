@@ -6,6 +6,13 @@ interface PTZPreset {
   name: string
 }
 
+interface PTZNodeCaps {
+  token: string
+  name: string
+  max_presets: number
+  home_supported: boolean
+}
+
 interface Props {
   cameraId: string
 }
@@ -13,6 +20,7 @@ interface Props {
 export default function PTZControls({ cameraId }: Props) {
   const [presets, setPresets] = useState<PTZPreset[]>([])
   const [loadingPresets, setLoadingPresets] = useState(false)
+  const [capabilities, setCapabilities] = useState<PTZNodeCaps | null>(null)
   const activeRef = useRef(false)
 
   useEffect(() => {
@@ -25,6 +33,19 @@ export default function PTZControls({ cameraId }: Props) {
       .catch(() => {})
       .finally(() => setLoadingPresets(false))
   }, [cameraId])
+
+  useEffect(() => {
+    apiFetch(`/cameras/${cameraId}/ptz/capabilities`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.nodes && data.nodes.length > 0) {
+          setCapabilities(data.nodes[0])
+        }
+      })
+      .catch(() => {})
+  }, [cameraId])
+
+  const homeSupported = capabilities === null || capabilities.home_supported
 
   const sendMove = useCallback((pan: number, tilt: number, zoom: number) => {
     activeRef.current = true
@@ -92,15 +113,17 @@ export default function PTZControls({ cameraId }: Props) {
               <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
           </button>
-          <button
-            className={`${btnBase} bg-white/15`}
-            onClick={(e) => { e.stopPropagation(); sendHome() }}
-            aria-label="Home position"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-            </svg>
-          </button>
+          {homeSupported && (
+            <button
+              className={`${btnBase} bg-white/15`}
+              onClick={(e) => { e.stopPropagation(); sendHome() }}
+              aria-label="Home position"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+              </svg>
+            </button>
+          )}
           <button className={btnBase} {...dirHandlers(0.5, 0, 0)} aria-label="Pan right">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -135,7 +158,9 @@ export default function PTZControls({ cameraId }: Props) {
       {/* Presets */}
       {!loadingPresets && presets.length > 0 && (
         <div className="pointer-events-auto bg-black/50 backdrop-blur-sm rounded-xl p-2 flex flex-wrap gap-1 max-w-[200px]">
-          <span className="w-full text-[10px] uppercase tracking-wider text-white/60 px-1 mb-0.5">Presets</span>
+          <span className="w-full text-[10px] uppercase tracking-wider text-white/60 px-1 mb-0.5">
+            Presets{capabilities && capabilities.max_presets > 0 ? ` (max ${capabilities.max_presets})` : ''}
+          </span>
           {presets.map(p => (
             <button
               key={p.token}

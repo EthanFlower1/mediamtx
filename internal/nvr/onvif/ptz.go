@@ -137,3 +137,33 @@ func (p *PTZController) GotoHome(profileToken string) error {
 	}
 	return nil
 }
+
+// PTZNode represents a PTZ node and its capabilities.
+type PTZNode struct {
+	Token         string `json:"token"`
+	Name          string `json:"name"`
+	MaxPresets    int    `json:"max_presets"`
+	HomeSupported bool   `json:"home_supported"`
+}
+
+// GetNodes retrieves the PTZ nodes from the device.
+func (p *PTZController) GetNodes() ([]PTZNode, error) {
+	ctx := context.Background()
+	resp, err := sdkptz.Call_GetNodes(ctx, p.dev, onvifptz.GetNodes{})
+	if err != nil {
+		return nil, fmt.Errorf("get PTZ nodes: %w", err)
+	}
+
+	// The SDK returns a single PTZNode struct.
+	var nodes []PTZNode
+	if string(resp.PTZNode.Token) != "" {
+		nodes = append(nodes, PTZNode{
+			Token:         string(resp.PTZNode.Token),
+			Name:          string(resp.PTZNode.Name),
+			MaxPresets:    resp.PTZNode.MaximumNumberOfPresets,
+			HomeSupported: bool(resp.PTZNode.HomeSupported),
+		})
+	}
+
+	return nodes, nil
+}

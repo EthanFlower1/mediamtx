@@ -587,6 +587,53 @@ func (h *CameraHandler) PTZPresets(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"presets": presets})
 }
 
+// PTZCapabilities returns the PTZ node capabilities for a camera.
+//
+//	GET /cameras/:id/ptz/capabilities
+func (h *CameraHandler) PTZCapabilities(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for PTZ capabilities", err)
+		return
+	}
+
+	if !cam.PTZCapable {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera is not PTZ-capable"})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("ptz", fmt.Sprintf("failed to connect to ONVIF device for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable"})
+		return
+	}
+
+	nodes, err := ctrl.GetNodes()
+	if err != nil {
+		nvrLogError("ptz", "failed to get PTZ nodes", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get PTZ capabilities from device"})
+		return
+	}
+
+	if nodes == nil {
+		nodes = []onvif.PTZNode{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"nodes": nodes})
+}
+
 // GetSettings retrieves the current imaging settings from a camera via ONVIF.
 func (h *CameraHandler) GetSettings(c *gin.Context) {
 	id := c.Param("id")

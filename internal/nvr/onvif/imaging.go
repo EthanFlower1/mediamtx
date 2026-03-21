@@ -57,16 +57,13 @@ func getVideoSourceToken(dev *onviflib.Device) (string, error) {
 }
 
 // connectDevice creates an ONVIF device connection from an endpoint URL.
+// It delegates to NewClient so the connection logic is centralised.
 func connectDevice(xaddr, username, password string) (*onviflib.Device, error) {
-	host := xaddrToHost(xaddr)
-	if host == "" {
-		host = xaddr
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
 	}
-	return onviflib.NewDevice(onviflib.DeviceParams{
-		Xaddr:    host,
-		Username: username,
-		Password: password,
-	})
+	return client.Dev, nil
 }
 
 // ErrImagingNotSupported is returned when the camera doesn't expose an imaging service.

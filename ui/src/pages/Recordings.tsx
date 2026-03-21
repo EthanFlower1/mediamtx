@@ -1062,10 +1062,19 @@ export default function Recordings() {
                                 : 'border-nvr-border'
                           }`}
                         >
-                          {/* Emoji */}
-                          <span className="text-base shrink-0" role="img" aria-label="Motion event">
-                            {'\u{1F3C3}'}
-                          </span>
+                          {/* Thumbnail or emoji fallback */}
+                          {ev.thumbnail_path ? (
+                            <img
+                              src={`/api/nvr/thumbnails/${ev.thumbnail_path.split('/').pop()}`}
+                              alt="Motion event"
+                              className="w-16 h-10 object-cover rounded shrink-0 bg-nvr-bg-tertiary"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          ) : (
+                            <span className="text-base shrink-0" role="img" aria-label="Motion event">
+                              {'\u{1F3C3}'}
+                            </span>
+                          )}
 
                           {/* Time range */}
                           <div className="flex-1 min-w-0">

@@ -82,6 +82,9 @@ func (n *NVR) Initialize() error {
 		return fmt.Errorf("open database: %w", err)
 	}
 
+	// Close any orphaned motion events from a previous run.
+	_ = n.database.CloseOrphanedMotionEvents()
+
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.discovery = onvif.NewDiscovery()
 	n.events = api.NewEventBroadcaster()

@@ -7,6 +7,7 @@ type ZoomLevel = typeof ZOOM_LEVELS[number]
 export interface MotionEvent {
   started_at: string
   ended_at?: string | null
+  thumbnail_path?: string
 }
 
 interface Props {

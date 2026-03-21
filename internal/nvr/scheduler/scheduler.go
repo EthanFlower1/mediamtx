@@ -481,10 +481,24 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 	motionCallback := func(detected bool) {
 		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 		if detected {
-			_ = s.db.InsertMotionEvent(&db.MotionEvent{
+			event := &db.MotionEvent{
 				CameraID:  cam.ID,
 				StartedAt: now,
-			})
+			}
+
+			// Capture thumbnail in background (don't block the event callback).
+			go func() {
+				thumbDir := "./thumbnails"
+				password := s.decryptPassword(cam.ONVIFPassword)
+				thumbPath, err := onvif.CaptureSnapshot(cam.RTSPURL, cam.ONVIFUsername, password, thumbDir, cam.ID)
+				if err != nil {
+					log.Printf("scheduler: thumbnail capture failed for camera %s: %v", cam.ID, err)
+				} else {
+					event.ThumbnailPath = thumbPath
+				}
+				_ = s.db.InsertMotionEvent(event)
+			}()
+
 			if s.eventPub != nil {
 				s.eventPub.PublishMotion(cam.Name)
 			}

@@ -5,6 +5,8 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -153,6 +155,22 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
+
+	// Serve event thumbnails.
+	protected.GET("/thumbnails/*filepath", func(c *gin.Context) {
+		fp := c.Param("filepath")
+		thumbDir := "./thumbnails"
+		if cfg.RecordingsPath != "" {
+			thumbDir = filepath.Join(filepath.Dir(cfg.RecordingsPath), "thumbnails")
+		}
+		fullPath := filepath.Join(thumbDir, fp)
+		// Prevent path traversal.
+		if !strings.HasPrefix(filepath.Clean(fullPath), filepath.Clean(thumbDir)) {
+			c.Status(http.StatusForbidden)
+			return
+		}
+		c.File(fullPath)
+	})
 
 	// Saved clips.
 	protected.GET("/saved-clips", savedClipHandler.List)

@@ -143,4 +143,10 @@ CREATE TABLE saved_clips (
 CREATE INDEX idx_saved_clips_camera ON saved_clips(camera_id);
 `,
 	},
+	{
+		version: 8,
+		sql: `
+ALTER TABLE motion_events ADD COLUMN thumbnail_path TEXT DEFAULT '';
+`,
+	},
 }

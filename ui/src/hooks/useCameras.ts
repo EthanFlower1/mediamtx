@@ -11,6 +11,12 @@ export interface Camera {
   onvif_endpoint?: string
   updated_at?: string
   retention_days?: number
+  supports_ptz?: boolean
+  supports_imaging?: boolean
+  supports_events?: boolean
+  supports_relay?: boolean
+  supports_audio_backchannel?: boolean
+  snapshot_uri?: string
 }
 
 function getRefreshInterval(): number {

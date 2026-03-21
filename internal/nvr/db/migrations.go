@@ -149,4 +149,15 @@ CREATE INDEX idx_saved_clips_camera ON saved_clips(camera_id);
 ALTER TABLE motion_events ADD COLUMN thumbnail_path TEXT DEFAULT '';
 `,
 	},
+	{
+		version: 9,
+		sql: `
+ALTER TABLE cameras ADD COLUMN supports_ptz INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN supports_imaging INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN supports_events INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN supports_relay INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN supports_audio_backchannel INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN snapshot_uri TEXT DEFAULT '';
+`,
+	},
 }

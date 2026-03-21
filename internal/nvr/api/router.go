@@ -170,7 +170,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)
 	protected.GET("/system/metrics", systemHandler.Metrics)
-	protected.GET("/system/events", systemHandler.Events)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)

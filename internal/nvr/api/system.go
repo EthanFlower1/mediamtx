@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-yaml"
-	"github.com/gorilla/websocket"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
@@ -524,61 +522,3 @@ func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 	h.ImportConfig(c)
 }
 
-// Events upgrades the connection to a WebSocket and streams system events.
-// The client authenticates via the ?token= query parameter before upgrade.
-func (h *SystemHandler) Events(c *gin.Context) {
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	if err != nil {
-		log.Printf("events: websocket upgrade failed: %v", err)
-		return
-	}
-	defer conn.Close()
-
-	if h.Broadcaster == nil {
-		conn.WriteJSON(map[string]string{"type": "error", "message": "no broadcaster"})
-		return
-	}
-
-	// Send initial connected message.
-	conn.WriteJSON(map[string]string{"type": "connected"})
-
-	ch := h.Broadcaster.Subscribe()
-	defer h.Broadcaster.Unsubscribe(ch)
-
-	// Read goroutine: detect client disconnect by reading (and discarding) messages.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				return
-			}
-		}
-	}()
-
-	// Send keepalive pings every 30 seconds.
-	pingTicker := time.NewTicker(30 * time.Second)
-	defer pingTicker.Stop()
-
-	for {
-		select {
-		case <-done:
-			return
-		case <-pingTicker.C:
-			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-				return
-			}
-		case evt, ok := <-ch:
-			if !ok {
-				return
-			}
-			if err := conn.WriteJSON(evt); err != nil {
-				return
-			}
-		}
-	}
-}

@@ -91,7 +91,7 @@ export default function SchedulePreview({ rules }: SchedulePreviewProps) {
       </div>
 
       {/* Grid */}
-      <div className="grid gap-px text-[10px] leading-[14px] select-none" style={{ gridTemplateColumns: '48px repeat(7, 1fr)' }}>
+      <div className="grid gap-px text-[10px] leading-[14px] select-none grid-cols-[48px_repeat(7,1fr)]">
         {/* Header row */}
         <div />
         {DAY_LABELS.map(d => (

@@ -51,6 +51,11 @@ func (w *Writer) AddPath(name string, config map[string]interface{}) error {
 	// Find the end of the paths: section and append the entry.
 	content = appendToPathsSection(content, entry)
 
+	// Validate the resulting YAML before writing.
+	if _, err := parser.ParseBytes([]byte(content), 0); err != nil {
+		return fmt.Errorf("invalid YAML content: %w", err)
+	}
+
 	return w.backupAndWrite(content)
 }
 
@@ -65,6 +70,12 @@ func (w *Writer) RemovePath(name string) error {
 	}
 
 	content := removePathText(string(data), name)
+
+	// Validate the resulting YAML before writing.
+	if _, err := parser.ParseBytes([]byte(content), 0); err != nil {
+		return fmt.Errorf("invalid YAML content: %w", err)
+	}
+
 	return w.backupAndWrite(content)
 }
 
@@ -148,6 +159,12 @@ func (w *Writer) SetTopLevelValue(key, value string) error {
 	for _, v := range mapping.Values {
 		if v.Key.String() == key {
 			v.Value = valueNode
+
+			// Validate the resulting YAML before writing.
+			if _, err := parser.ParseBytes([]byte(file.String()+"\n"), 0); err != nil {
+				return fmt.Errorf("invalid YAML content: %w", err)
+			}
+
 			return w.backupAndWriteAST(file)
 		}
 	}

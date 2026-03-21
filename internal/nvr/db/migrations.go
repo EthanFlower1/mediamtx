@@ -119,4 +119,11 @@ CREATE TABLE motion_events (
 CREATE INDEX idx_motion_events_camera_time ON motion_events(camera_id, started_at);
 `,
 	},
+	{
+		version: 6,
+		sql: `
+CREATE INDEX IF NOT EXISTS idx_recordings_camera_start ON recordings(camera_id, start_time);
+CREATE INDEX IF NOT EXISTS idx_recordings_camera_end ON recordings(camera_id, end_time);
+`,
+	},
 }

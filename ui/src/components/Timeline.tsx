@@ -18,6 +18,9 @@ interface Props {
   // Motion events to display as markers
   events?: MotionEvent[]
 
+  // Callback when a motion event marker on the timeline is clicked
+  onEventClick?: (index: number) => void
+
   // Clip creation mode
   clipMode?: boolean
   clipStart?: Date | null
@@ -35,6 +38,7 @@ export default function Timeline({
   onSeek,
   playbackTime,
   events,
+  onEventClick,
   clipMode,
   clipStart,
   clipEnd,
@@ -467,6 +471,7 @@ export default function Timeline({
               onClick={(e) => {
                 e.stopPropagation()
                 onSeek?.(evStart)
+                onEventClick?.(i)
               }}
             >
               <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label="Motion event">

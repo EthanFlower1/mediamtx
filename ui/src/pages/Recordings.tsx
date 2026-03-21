@@ -94,6 +94,9 @@ export default function Recordings() {
 
   // Motion events
   const [motionEvents, setMotionEvents] = useState<MotionEvent[]>([])
+  const [motionPanelOpen, setMotionPanelOpen] = useState(false)
+  const [highlightedEventIdx, setHighlightedEventIdx] = useState<number | null>(null)
+  const eventRefs = useRef<(HTMLDivElement | null)[]>([])
 
   // "All Cameras" mode
   const isAllCameras = selectedCamera === '__all__'
@@ -133,17 +136,37 @@ export default function Recordings() {
           return t >= dayStart && t < dayEnd
         })
 
+        // Build timeline ranges from segments. Each segment only has a start time.
+        // We estimate each segment's end as the start of the next segment, but cap
+        // the duration to detect real gaps in recording coverage.
+        // Max segment duration = 65 minutes (slightly over the 1h default to account for variation)
+        const MAX_SEGMENT_MS = 65 * 60 * 1000
+
         const ranges: { start: string; end: string }[] = []
         for (let i = 0; i < filtered.length; i++) {
-          const segStart = filtered[i].start
-          const segEnd = i + 1 < filtered.length
-            ? filtered[i + 1].start
-            : new Date(new Date(segStart).getTime() + 5 * 60 * 1000).toISOString()
+          const segStartMs = new Date(filtered[i].start).getTime()
+          let segEndMs: number
 
+          if (i + 1 < filtered.length) {
+            const nextStartMs = new Date(filtered[i + 1].start).getTime()
+            const gap = nextStartMs - segStartMs
+            // If the gap is larger than max segment duration, this segment
+            // ended before the next one started — cap its duration
+            segEndMs = gap > MAX_SEGMENT_MS
+              ? segStartMs + MAX_SEGMENT_MS
+              : nextStartMs
+          } else {
+            // Last segment: estimate 5 minutes (or until now if today)
+            segEndMs = segStartMs + 5 * 60 * 1000
+          }
+
+          const segStart = filtered[i].start
+          const segEnd = new Date(segEndMs).toISOString()
+
+          // Merge with previous range if they're close (< 30 seconds gap)
           if (ranges.length > 0) {
-            const prevEnd = new Date(ranges[ranges.length - 1].end).getTime()
-            const curStart = new Date(segStart).getTime()
-            if (curStart - prevEnd < 10000) {
+            const prevEndMs = new Date(ranges[ranges.length - 1].end).getTime()
+            if (segStartMs - prevEndMs < 30000) {
               ranges[ranges.length - 1].end = segEnd
               continue
             }
@@ -250,6 +273,36 @@ export default function Recordings() {
     const currentWallTime = new Date(videoStartTimeRef.current.getTime() + videoSeconds * 1000)
     setPlaybackTime(currentWallTime)
   }, [])
+
+  // Handle clicking a motion event on the timeline — scroll list to it and highlight
+  const handleTimelineEventClick = useCallback((index: number) => {
+    setMotionPanelOpen(true)
+    setHighlightedEventIdx(index)
+    // Scroll the event row into view after panel opens
+    setTimeout(() => {
+      eventRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 100)
+  }, [])
+
+  // Seek to 5 seconds before a motion event start
+  const handleMotionEventSeek = useCallback((event: MotionEvent) => {
+    const evStart = new Date(event.started_at)
+    const seekTime = new Date(evStart.getTime() - 5000) // 5 seconds before
+    handleSeek(seekTime)
+  }, [handleSeek])
+
+  // Determine which motion event is currently "playing" based on playbackTime
+  const activeEventIdx = useMemo(() => {
+    if (!playbackTime || motionEvents.length === 0) return null
+    const pt = playbackTime.getTime()
+    for (let i = 0; i < motionEvents.length; i++) {
+      const ev = motionEvents[i]
+      const start = new Date(ev.started_at).getTime() - 5000 // include 5s pre-roll
+      const end = ev.ended_at ? new Date(ev.ended_at).getTime() : Date.now()
+      if (pt >= start && pt <= end) return i
+    }
+    return null
+  }, [playbackTime, motionEvents])
 
   const handleClipDownload = async () => {
     if (!mediamtxPath || !clipStart || !clipEnd) return
@@ -378,6 +431,12 @@ export default function Recordings() {
             <span className="text-sm text-nvr-text-secondary font-medium ml-1 hidden sm:inline">
               {relativeDateLabel}
             </span>
+            {/* Motion events count badge */}
+            {!isAllCameras && motionEvents.length > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1 ml-2 bg-nvr-accent/15 text-nvr-accent text-xs font-medium px-2 py-0.5 rounded-full">
+                {'\u{1F3C3}'} {motionEvents.length}
+              </span>
+            )}
             {!isToday && (
               <button
                 onClick={() => { setDate(new Date().toISOString().split('T')[0]); resetPlayback(); exitClipMode() }}
@@ -536,6 +595,7 @@ export default function Recordings() {
               onSeek={clipMode ? undefined : handleSeek}
               playbackTime={playbackTime}
               events={motionEvents}
+              onEventClick={handleTimelineEventClick}
               clipMode={clipMode}
               clipStart={clipStart}
               clipEnd={clipEnd}
@@ -549,6 +609,115 @@ export default function Recordings() {
               </div>
             )}
           </div>
+
+          {/* Motion Events panel — collapsible list */}
+          {!isAllCameras && selectedCamera && !loadingRecordings && (
+            <div className="mb-6">
+              {/* Panel header — click to toggle */}
+              <button
+                onClick={() => setMotionPanelOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left py-2 group focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`w-3.5 h-3.5 text-nvr-text-muted transition-transform ${motionPanelOpen ? 'rotate-0' : '-rotate-90'}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span className="text-sm font-medium text-nvr-text-primary">
+                  Motion Events
+                </span>
+                {motionEvents.length > 0 && (
+                  <span className="bg-nvr-accent/15 text-nvr-accent text-xs font-medium px-2 py-0.5 rounded-full">
+                    {motionEvents.length} event{motionEvents.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </button>
+
+              {/* Expanded content */}
+              {motionPanelOpen && (
+                <div className="mt-2 space-y-2 max-h-80 overflow-y-auto">
+                  {motionEvents.length === 0 ? (
+                    <p className="text-sm text-nvr-text-muted py-4 text-center">
+                      No motion events detected on this date
+                    </p>
+                  ) : (
+                    motionEvents.map((ev, i) => {
+                      const evStart = new Date(ev.started_at)
+                      const evEnd = ev.ended_at ? new Date(ev.ended_at) : null
+                      const startLabel = evStart.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+                      const endLabel = evEnd
+                        ? evEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+                        : 'ongoing'
+                      const durationMs = evEnd
+                        ? evEnd.getTime() - evStart.getTime()
+                        : null
+                      const durationLabel = durationMs !== null ? formatDuration(durationMs) : '\u2014'
+                      const isActive = activeEventIdx === i
+                      const isHighlighted = highlightedEventIdx === i
+
+                      return (
+                        <div
+                          key={i}
+                          ref={el => { eventRefs.current[i] = el }}
+                          onClick={() => {
+                            handleMotionEventSeek(ev)
+                            setHighlightedEventIdx(i)
+                          }}
+                          className={`flex items-center gap-3 bg-nvr-bg-secondary border rounded-lg px-4 py-3 cursor-pointer hover:bg-nvr-bg-tertiary transition-colors ${
+                            isActive
+                              ? 'border-nvr-accent bg-nvr-accent/5'
+                              : isHighlighted
+                                ? 'border-nvr-accent/50'
+                                : 'border-nvr-border'
+                          }`}
+                        >
+                          {/* Emoji */}
+                          <span className="text-base shrink-0" role="img" aria-label="Motion event">
+                            {'\u{1F3C3}'}
+                          </span>
+
+                          {/* Time range */}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-nvr-text-primary font-mono">
+                              {startLabel}
+                            </span>
+                            <span className="text-sm text-nvr-text-muted mx-1.5">&mdash;</span>
+                            <span className="text-sm text-nvr-text-primary font-mono">
+                              {endLabel}
+                            </span>
+                            <span className="text-xs text-nvr-text-muted ml-3">
+                              ({durationLabel})
+                            </span>
+                          </div>
+
+                          {/* Play button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleMotionEventSeek(ev)
+                              setHighlightedEventIdx(i)
+                            }}
+                            className="shrink-0 flex items-center gap-1 text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded px-2 py-1"
+                            title="Play from this event"
+                          >
+                            Play
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Clip creator panel — shown when clip mode is active and both points are set */}
           {clipMode && clipStart && clipEnd && (

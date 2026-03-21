@@ -461,10 +461,7 @@ func (s *Scheduler) decryptPassword(encrypted string) string {
 
 // callbackURL builds the webhook URL for a camera.
 func (s *Scheduler) callbackURL(cameraID string) string {
-	port := s.apiAddress
-	if strings.HasPrefix(port, ":") {
-		port = port[1:]
-	}
+	port := strings.TrimPrefix(s.apiAddress, ":")
 	localIP := onvif.GetLocalIP()
 	return fmt.Sprintf("http://%s:%s/api/nvr/onvif-callback/%s", localIP, port, cameraID)
 }

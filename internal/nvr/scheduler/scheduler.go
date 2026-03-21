@@ -490,7 +490,7 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 			go func() {
 				thumbDir := "./thumbnails"
 				password := s.decryptPassword(cam.ONVIFPassword)
-				thumbPath, err := onvif.CaptureSnapshot(cam.RTSPURL, cam.ONVIFUsername, password, thumbDir, cam.ID)
+				thumbPath, err := onvif.CaptureSnapshot(cam.RTSPURL, cam.ONVIFUsername, password, thumbDir, cam.ID, cam.SnapshotURI)
 				if err != nil {
 					log.Printf("scheduler: thumbnail capture failed for camera %s: %v", cam.ID, err)
 				} else {

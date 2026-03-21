@@ -81,6 +81,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		APIAddress:     cfg.APIAddress,
 	}
 
+	savedClipHandler := &SavedClipHandler{
+		DB: cfg.DB,
+	}
+
 	auditHandler := &AuditHandler{
 		DB: cfg.DB,
 	}
@@ -149,6 +153,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
+
+	// Saved clips.
+	protected.GET("/saved-clips", savedClipHandler.List)
+	protected.POST("/saved-clips", savedClipHandler.Create)
+	protected.DELETE("/saved-clips/:id", savedClipHandler.Delete)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

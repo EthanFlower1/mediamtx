@@ -1,9 +1,23 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCameras } from '../hooks/useCameras'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import Timeline, { MotionEvent } from '../components/Timeline'
 import VideoPlayer from '../components/VideoPlayer'
+import MultiCameraPlayer from '../components/MultiCameraPlayer'
+import RecordingCalendar from '../components/RecordingCalendar'
 import { apiFetch } from '../api/client'
+
+interface SavedClip {
+  id: string
+  camera_id: string
+  name: string
+  start_time: string
+  end_time: string
+  tags: string
+  notes: string
+  created_at: string
+}
 
 interface Segment {
   start: string
@@ -69,6 +83,7 @@ interface AllCameraRanges {
 }
 
 export default function Recordings() {
+  const navigate = useNavigate()
   const { cameras, loading: camerasLoading } = useCameras()
   const [selectedCamera, setSelectedCamera] = useState<string | null>(() => {
     return localStorage.getItem('nvr-recordings-camera')
@@ -109,6 +124,32 @@ export default function Recordings() {
   const [clipEnd, setClipEnd] = useState<Date | null>(null)
   const [clipDownloading, setClipDownloading] = useState(false)
 
+  // Compare mode state (multi-camera sync)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareCameras, setCompareCameras] = useState<string[]>([])
+  const [compareStartTime, setCompareStartTime] = useState<Date | null>(null)
+
+  // Saved clips state
+  const [savedClips, setSavedClips] = useState<SavedClip[]>([])
+  const [savedClipsPanelOpen, setSavedClipsPanelOpen] = useState(false)
+  const [saveClipFormOpen, setSaveClipFormOpen] = useState(false)
+  const [saveClipName, setSaveClipName] = useState('')
+  const [saveClipTags, setSaveClipTags] = useState('')
+  const [saveClipNotes, setSaveClipNotes] = useState('')
+  const [savingClip, setSavingClip] = useState(false)
+
+  // Calendar popover state
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const calendarRef = useRef<HTMLDivElement>(null)
+
+  // All recording dates for the calendar (per camera)
+  const [recordingDates, setRecordingDates] = useState<Set<string>>(new Set())
+  const [motionDates, setMotionDates] = useState<Set<string>>(new Set())
+
+  // Clip preview auto-pause
+  const playerVideoRef = useRef<HTMLVideoElement | null>(null)
+  const clipPreviewActiveRef = useRef(false)
+
   // Track video start time for timeline sync
   const videoStartTimeRef = useRef<Date | null>(null)
 
@@ -117,6 +158,18 @@ export default function Recordings() {
     document.title = 'Recordings — MediaMTX NVR'
     return () => { document.title = 'MediaMTX NVR' }
   }, [])
+
+  // Close calendar popover on click outside
+  useEffect(() => {
+    if (!calendarOpen) return
+    function handleClick(e: MouseEvent) {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [calendarOpen])
 
   const selectedCameraObj = cameras.find(c => c.id === selectedCamera)
   const mediamtxPath = selectedCameraObj?.mediamtx_path || ''
@@ -211,6 +264,50 @@ export default function Recordings() {
       .catch(() => setMotionEvents([]))
   }, [selectedCamera, date, isAllCameras])
 
+  // Fetch all recording segments for the calendar (build date sets)
+  useEffect(() => {
+    if (isAllCameras || !mediamtxPath) {
+      setRecordingDates(new Set())
+      return
+    }
+
+    fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
+      .then(res => res.ok ? res.json() : null)
+      .then((data: RecordingList | null) => {
+        if (!data || !data.segments) {
+          setRecordingDates(new Set())
+          return
+        }
+        const dates = new Set<string>()
+        data.segments.forEach(s => {
+          const d = new Date(s.start)
+          dates.add(d.toISOString().split('T')[0])
+        })
+        setRecordingDates(dates)
+      })
+      .catch(() => setRecordingDates(new Set()))
+  }, [mediamtxPath, isAllCameras])
+
+  // Fetch motion event dates for the calendar
+  useEffect(() => {
+    if (isAllCameras || !selectedCamera) {
+      setMotionDates(new Set())
+      return
+    }
+
+    apiFetch(`/cameras/${selectedCamera}/motion-events?days=90`)
+      .then(res => res.ok ? res.json() : [])
+      .then((events: MotionEvent[]) => {
+        const dates = new Set<string>()
+        events.forEach(ev => {
+          const d = new Date(ev.started_at)
+          dates.add(d.toISOString().split('T')[0])
+        })
+        setMotionDates(dates)
+      })
+      .catch(() => setMotionDates(new Set()))
+  }, [selectedCamera, isAllCameras])
+
   // Fetch recordings for ALL cameras when "All Cameras" selected
   useEffect(() => {
     if (!isAllCameras || !date || cameras.length === 0) {
@@ -243,6 +340,122 @@ export default function Recordings() {
       })
     })
   }, [isAllCameras, date, cameras, fetchCameraRecordings])
+
+  // Fetch saved clips when camera changes
+  const fetchSavedClips = useCallback(() => {
+    if (isAllCameras || !selectedCamera) {
+      setSavedClips([])
+      return
+    }
+    apiFetch(`/saved-clips?camera_id=${selectedCamera}`)
+      .then(res => res.ok ? res.json() : [])
+      .then((data: SavedClip[]) => setSavedClips(data))
+      .catch(() => setSavedClips([]))
+  }, [selectedCamera, isAllCameras])
+
+  useEffect(() => {
+    fetchSavedClips()
+  }, [fetchSavedClips])
+
+  // Save a clip bookmark
+  const handleSaveClip = async () => {
+    if (!selectedCamera || !clipStart || !clipEnd || !saveClipName.trim()) return
+    setSavingClip(true)
+    try {
+      const res = await apiFetch('/saved-clips', {
+        method: 'POST',
+        body: JSON.stringify({
+          camera_id: selectedCamera,
+          name: saveClipName.trim(),
+          start_time: toLocalRFC3339(clipStart),
+          end_time: toLocalRFC3339(clipEnd),
+          tags: saveClipTags.trim(),
+          notes: saveClipNotes.trim(),
+        }),
+      })
+      if (res.ok) {
+        setSaveClipFormOpen(false)
+        setSaveClipName('')
+        setSaveClipTags('')
+        setSaveClipNotes('')
+        fetchSavedClips()
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSavingClip(false)
+    }
+  }
+
+  // Delete a saved clip
+  const handleDeleteSavedClip = async (clipId: string) => {
+    try {
+      const res = await apiFetch(`/saved-clips/${clipId}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchSavedClips()
+      }
+    } catch {
+      // silently fail
+    }
+  }
+
+  // Play a saved clip
+  const handlePlaySavedClip = (clip: SavedClip) => {
+    const time = new Date(clip.start_time)
+    handleSeek(time)
+  }
+
+  // Download a saved clip
+  const handleDownloadSavedClip = async (clip: SavedClip) => {
+    if (!mediamtxPath) return
+    const startTime = new Date(clip.start_time)
+    const endTime = new Date(clip.end_time)
+    const startISO = toLocalRFC3339(startTime)
+    const durationSecs = (endTime.getTime() - startTime.getTime()) / 1000
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(mediamtxPath)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `${clip.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(url, '_blank')
+    }
+  }
+
+  // Toggle camera selection for compare mode
+  const toggleCompareCamera = (cameraId: string) => {
+    setCompareCameras(prev => {
+      if (prev.includes(cameraId)) {
+        return prev.filter(id => id !== cameraId)
+      }
+      if (prev.length >= 4) return prev // max 4
+      return [...prev, cameraId]
+    })
+  }
+
+  // Start compare playback
+  const startCompare = () => {
+    if (compareCameras.length < 2) return
+    // Default to noon if no specific time chosen
+    const time = new Date(date + 'T12:00:00')
+    setCompareStartTime(time)
+    setCompareMode(true)
+  }
+
+  // Exit compare mode
+  const exitCompare = () => {
+    setCompareMode(false)
+    setCompareCameras([])
+    setCompareStartTime(null)
+  }
 
   const handleSeek = useCallback((time: Date) => {
     if (!mediamtxPath) return
@@ -304,6 +517,82 @@ export default function Recordings() {
     return null
   }, [playbackTime, motionEvents])
 
+  // Clip validation: check if clip range falls within recording ranges
+  const clipValidation = useMemo(() => {
+    if (!clipStart || !clipEnd || timelineRanges.length === 0) return null
+
+    const clipStartMs = clipStart.getTime()
+    const clipEndMs = clipEnd.getTime()
+
+    // Check if any recording range overlaps with the clip range
+    const overlappingRanges = timelineRanges.filter(r => {
+      const rStart = new Date(r.start).getTime()
+      const rEnd = new Date(r.end).getTime()
+      return rStart < clipEndMs && rEnd > clipStartMs
+    })
+
+    if (overlappingRanges.length === 0) {
+      return { type: 'error' as const, message: 'No recordings in selected range' }
+    }
+
+    // Check if there are gaps within the clip range
+    // Sort overlapping ranges and check for gaps between them
+    const sorted = [...overlappingRanges].sort((a, b) =>
+      new Date(a.start).getTime() - new Date(b.start).getTime()
+    )
+
+    let hasGaps = false
+    // Check gap at the start
+    if (new Date(sorted[0].start).getTime() > clipStartMs + 30000) {
+      hasGaps = true
+    }
+    // Check gaps between ranges
+    for (let i = 1; i < sorted.length; i++) {
+      const prevEnd = new Date(sorted[i - 1].end).getTime()
+      const curStart = new Date(sorted[i].start).getTime()
+      if (curStart - prevEnd > 30000) {
+        hasGaps = true
+        break
+      }
+    }
+    // Check gap at the end
+    if (new Date(sorted[sorted.length - 1].end).getTime() < clipEndMs - 30000) {
+      hasGaps = true
+    }
+
+    if (hasGaps) {
+      return { type: 'warning' as const, message: 'Clip includes gaps in recording. Footage will skip missing portions.' }
+    }
+
+    return { type: 'ok' as const, message: '' }
+  }, [clipStart, clipEnd, timelineRanges])
+
+  // Auto-pause video at clip end time during preview
+  const handleVideoTimeUpdateForClip = useCallback((videoSeconds: number) => {
+    // Call the normal time update handler
+    if (!videoStartTimeRef.current) return
+    const currentWallTime = new Date(videoStartTimeRef.current.getTime() + videoSeconds * 1000)
+    setPlaybackTime(currentWallTime)
+
+    // If we're in clip preview mode and passed the clip end, pause
+    if (clipPreviewActiveRef.current && clipEnd) {
+      if (currentWallTime.getTime() >= clipEnd.getTime()) {
+        playerVideoRef.current?.pause()
+        clipPreviewActiveRef.current = false
+      }
+    }
+  }, [clipEnd])
+
+  const handleClipPreview = useCallback(() => {
+    if (!clipStart) return
+    clipPreviewActiveRef.current = true
+    handleSeek(clipStart)
+  }, [clipStart, handleSeek])
+
+  const handlePlayerVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    playerVideoRef.current = el
+  }, [])
+
   const handleClipDownload = async () => {
     if (!mediamtxPath || !clipStart || !clipEnd) return
     setClipDownloading(true)
@@ -360,6 +649,14 @@ export default function Recordings() {
   ], [])
   useKeyboardShortcuts(recordingsShortcuts)
 
+  // Calendar date selection handler
+  const handleCalendarDateSelect = useCallback((dateStr: string) => {
+    setDate(dateStr)
+    setCalendarOpen(false)
+    resetPlayback()
+    exitClipMode()
+  }, [])
+
   const isToday = date === new Date().toISOString().split('T')[0]
   const relativeDateLabel = getRelativeDateLabel(date)
 
@@ -402,6 +699,17 @@ export default function Recordings() {
               <option value="__all__">All Cameras</option>
               {filteredCameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+            {/* Watch Live link */}
+            {selectedCamera && !isAllCameras && (
+              <button
+                onClick={() => navigate('/live')}
+                className="inline-flex items-center gap-1 text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+                title="Watch live feed"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" /></svg>
+                Watch Live
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -427,6 +735,31 @@ export default function Recordings() {
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
+            {/* Calendar picker toggle */}
+            {selectedCamera && !isAllCameras && (
+              <div className="relative" ref={calendarRef}>
+                <button
+                  onClick={() => setCalendarOpen(prev => !prev)}
+                  className={`bg-nvr-bg-input border rounded-lg p-2 text-nvr-text-primary hover:bg-nvr-bg-tertiary transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                    calendarOpen ? 'border-nvr-accent' : 'border-nvr-border'
+                  }`}
+                  title="Open calendar"
+                  aria-label="Open calendar"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                </button>
+                {calendarOpen && (
+                  <div className="absolute top-full mt-2 right-0 z-50">
+                    <RecordingCalendar
+                      recordingDates={recordingDates}
+                      motionDates={motionDates}
+                      selectedDate={date}
+                      onSelectDate={handleCalendarDateSelect}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             {/* Relative date label */}
             <span className="text-sm text-nvr-text-secondary font-medium ml-1 hidden sm:inline">
               {relativeDateLabel}
@@ -498,10 +831,51 @@ export default function Recordings() {
       {/* "All Cameras" multi-camera timeline view */}
       {isAllCameras && (
         <>
+          {/* Compare mode controls */}
+          {!compareMode && allCameraRanges.length > 0 && allCameraRanges.some(c => !c.loading && c.ranges.length > 0) && (
+            <div className="flex items-center gap-3 mb-4">
+              {compareCameras.length > 0 && (
+                <span className="text-xs text-nvr-text-muted">
+                  {compareCameras.length} of 4 cameras selected
+                </span>
+              )}
+              <button
+                onClick={compareCameras.length >= 2 ? startCompare : undefined}
+                disabled={compareCameras.length < 2}
+                className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium px-3 py-1.5 rounded-lg transition-colors text-sm inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="8" height="8" rx="1" /><rect x="14" y="3" width="8" height="8" rx="1" /><rect x="2" y="13" width="8" height="8" rx="1" /><rect x="14" y="13" width="8" height="8" rx="1" /></svg>
+                Compare Selected
+              </button>
+              {compareCameras.length > 0 && (
+                <button
+                  onClick={() => setCompareCameras([])}
+                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+                >
+                  Clear selection
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Multi-camera synced playback */}
+          {compareMode && compareStartTime && (
+            <MultiCameraPlayer
+              cameras={compareCameras.map(id => {
+                const cam = cameras.find(c => c.id === id)
+                return { id, name: cam?.name || '', mediamtxPath: cam?.mediamtx_path || '' }
+              }).filter(c => c.mediamtxPath)}
+              startTime={compareStartTime}
+              date={date}
+              allCameraRanges={allCameraRanges.map(c => ({ cameraId: c.cameraId, ranges: c.ranges }))}
+              onClose={exitCompare}
+            />
+          )}
+
           <div className="mb-6">
             {/* Hour labels header */}
             <div className="flex items-center mb-1">
-              <div className="w-36 shrink-0" />
+              <div className={`${compareCameras.length > 0 || !compareMode ? 'w-44' : 'w-36'} shrink-0`} />
               <div className="relative flex-1 h-5">
                 {Array.from({ length: 24 }, (_, h) => {
                   const showLabel = h % 2 === 0
@@ -530,7 +904,17 @@ export default function Recordings() {
 
             {allCameraRanges.map(cam => (
               <div key={cam.cameraId} className="flex items-center mb-1 group/row">
-                <div className="w-36 shrink-0 pr-3 text-right">
+                <div className={`${!compareMode ? 'w-44' : 'w-36'} shrink-0 pr-3 flex items-center gap-2 justify-end`}>
+                  {!compareMode && !cam.loading && cam.ranges.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={compareCameras.includes(cam.cameraId)}
+                      onChange={() => toggleCompareCamera(cam.cameraId)}
+                      disabled={!compareCameras.includes(cam.cameraId) && compareCameras.length >= 4}
+                      className="accent-nvr-accent w-3.5 h-3.5 cursor-pointer shrink-0"
+                      title={compareCameras.length >= 4 && !compareCameras.includes(cam.cameraId) ? 'Max 4 cameras' : 'Select for comparison'}
+                    />
+                  )}
                   <span className="text-xs text-nvr-text-secondary truncate block" title={cam.cameraName}>
                     {cam.cameraName}
                   </span>
@@ -721,7 +1105,9 @@ export default function Recordings() {
 
           {/* Clip creator panel — shown when clip mode is active and both points are set */}
           {clipMode && clipStart && clipEnd && (
-            <div className="mb-6 bg-nvr-bg-secondary border border-emerald-500/30 rounded-xl p-4">
+            <div className={`mb-6 bg-nvr-bg-secondary border rounded-xl p-4 ${
+              clipValidation?.type === 'error' ? 'border-nvr-danger/50' : 'border-emerald-500/30'
+            }`}>
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="flex items-center gap-4 flex-1">
                   <div>
@@ -748,15 +1134,17 @@ export default function Recordings() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => { handleSeek(clipStart!) }}
-                    className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                    onClick={handleClipPreview}
+                    disabled={clipValidation?.type === 'error'}
+                    className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                     Preview
+                    <span className="text-xs text-nvr-text-muted ml-1">({formatDuration(clipDurationMs)})</span>
                   </button>
                   <button
                     onClick={handleClipDownload}
-                    disabled={clipDownloading}
+                    disabled={clipDownloading || clipValidation?.type === 'error'}
                     className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
                     {clipDownloading ? (
@@ -766,8 +1154,195 @@ export default function Recordings() {
                     )}
                     {clipDownloading ? 'Downloading...' : 'Download Clip'}
                   </button>
+                  <button
+                    onClick={() => {
+                      const cameraName = selectedCameraObj?.name || 'Camera'
+                      const timeStr = clipStart!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      setSaveClipName(`${cameraName} - ${timeStr}`)
+                      setSaveClipFormOpen(true)
+                    }}
+                    disabled={clipValidation?.type === 'error'}
+                    className="bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-secondary hover:bg-nvr-bg-tertiary transition-colors text-sm inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    Save Clip
+                  </button>
                 </div>
               </div>
+
+              {/* Save Clip form */}
+              {saveClipFormOpen && (
+                <div className="mt-3 pt-3 border-t border-nvr-border">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs text-nvr-text-muted mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={saveClipName}
+                        onChange={e => setSaveClipName(e.target.value)}
+                        className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-1.5 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                        placeholder="Clip name"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-nvr-text-muted mb-1">Tags (optional)</label>
+                      <input
+                        type="text"
+                        value={saveClipTags}
+                        onChange={e => setSaveClipTags(e.target.value)}
+                        className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-1.5 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                        placeholder="e.g. suspicious, delivery"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="block text-xs text-nvr-text-muted mb-1">Notes (optional)</label>
+                    <input
+                      type="text"
+                      value={saveClipNotes}
+                      onChange={e => setSaveClipNotes(e.target.value)}
+                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-1.5 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                      placeholder="Additional notes..."
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      onClick={handleSaveClip}
+                      disabled={savingClip || !saveClipName.trim()}
+                      className="bg-nvr-accent hover:bg-nvr-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-4 py-1.5 rounded-lg transition-colors text-sm inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                    >
+                      {savingClip ? (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      )}
+                      {savingClip ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setSaveClipFormOpen(false)}
+                      className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded px-2 py-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Clip validation messages */}
+              {clipValidation && clipValidation.type === 'warning' && (
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-nvr-border">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                  <span className="text-xs text-amber-400">{clipValidation.message}</span>
+                </div>
+              )}
+              {clipValidation && clipValidation.type === 'error' && (
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-nvr-border">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-nvr-danger shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                  <span className="text-xs text-nvr-danger">{clipValidation.message}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Saved Clips panel — collapsible list */}
+          {!isAllCameras && selectedCamera && !loadingRecordings && (
+            <div className="mb-6">
+              <button
+                onClick={() => setSavedClipsPanelOpen(prev => !prev)}
+                className="flex items-center gap-2 w-full text-left py-2 group focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`w-3.5 h-3.5 text-nvr-text-muted transition-transform ${savedClipsPanelOpen ? 'rotate-0' : '-rotate-90'}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span className="text-sm font-medium text-nvr-text-primary">
+                  Saved Clips
+                </span>
+                {savedClips.length > 0 && (
+                  <span className="bg-nvr-accent/15 text-nvr-accent text-xs font-medium px-2 py-0.5 rounded-full">
+                    {savedClips.length} clip{savedClips.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </button>
+
+              {savedClipsPanelOpen && (
+                <div className="mt-2 space-y-2 max-h-80 overflow-y-auto">
+                  {savedClips.length === 0 ? (
+                    <p className="text-sm text-nvr-text-muted py-4 text-center">
+                      No saved clips for this camera. Use Create Clip to bookmark moments.
+                    </p>
+                  ) : (
+                    savedClips.map(clip => {
+                      const start = new Date(clip.start_time)
+                      const end = new Date(clip.end_time)
+                      const startLabel = start.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                      const endLabel = end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                      const dur = formatDuration(end.getTime() - start.getTime())
+
+                      return (
+                        <div
+                          key={clip.id}
+                          className="flex items-center gap-3 bg-nvr-bg-secondary border border-nvr-border rounded-lg px-4 py-3 hover:bg-nvr-bg-tertiary transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-nvr-accent shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-nvr-text-primary font-medium truncate">{clip.name}</div>
+                            <div className="text-xs text-nvr-text-muted">
+                              {startLabel} &mdash; {endLabel} ({dur})
+                            </div>
+                            {clip.tags && (
+                              <div className="flex gap-1 mt-1">
+                                {clip.tags.split(',').map((tag, i) => (
+                                  <span key={i} className="bg-nvr-bg-tertiary text-nvr-text-muted text-[10px] px-1.5 py-0.5 rounded">
+                                    {tag.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {clip.notes && (
+                              <div className="text-xs text-nvr-text-muted mt-0.5 italic truncate">{clip.notes}</div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handlePlaySavedClip(clip)}
+                              className="flex items-center gap-1 text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded px-2 py-1"
+                              title="Play this clip"
+                            >
+                              Play
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                            </button>
+                            <button
+                              onClick={() => handleDownloadSavedClip(clip)}
+                              className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded p-1"
+                              title="Download this clip"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSavedClip(clip.id)}
+                              className="text-xs text-nvr-text-muted hover:text-nvr-danger transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded p-1"
+                              title="Delete this saved clip"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -801,8 +1376,13 @@ export default function Recordings() {
                 <span className="text-sm text-nvr-text-secondary">
                   Playing from {playbackTime.toLocaleTimeString()}
                 </span>
+                {clipPreviewActiveRef.current && clipEnd && (
+                  <span className="text-xs text-emerald-400 font-medium">
+                    Preview: clip ends at {clipEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                )}
                 <button
-                  onClick={resetPlayback}
+                  onClick={() => { resetPlayback(); clipPreviewActiveRef.current = false }}
                   className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
                 >
                   Close
@@ -811,7 +1391,8 @@ export default function Recordings() {
               <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
                 <VideoPlayer
                   src={playbackUrl}
-                  onTimeUpdate={handleVideoTimeUpdate}
+                  onTimeUpdate={clipMode ? handleVideoTimeUpdateForClip : handleVideoTimeUpdate}
+                  onVideoRef={handlePlayerVideoRef}
                 />
               </div>
             </div>

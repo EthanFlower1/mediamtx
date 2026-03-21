@@ -35,6 +35,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [videoError, setVideoError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const [buffering, setBuffering] = useState(false)
   const [pipActive, setPipActive] = useState(false)
 
@@ -58,6 +59,8 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !src) return
+    setVideoError(false)
+    setErrorMessage('')
     video.src = src
     video.play().catch(() => {})
   }, [src])
@@ -67,7 +70,7 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
     const video = videoRef.current
     if (!video) return
 
-    const onPlay = () => { setPlaying(true); setVideoError(false); setBuffering(false) }
+    const onPlay = () => { setPlaying(true); setVideoError(false); setErrorMessage(''); setBuffering(false) }
     const onPause = () => setPlaying(false)
     const onTimeUpdateEvt = () => {
       setCurrentTime(video.currentTime)
@@ -78,7 +81,36 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
       setVolume(video.volume)
       setMuted(video.muted)
     }
-    const onError = () => setVideoError(true)
+    const onError = () => {
+      setVideoError(true)
+      // Detect specific error types for better messages
+      const err = video.error
+      if (err) {
+        switch (err.code) {
+          case MediaError.MEDIA_ERR_NETWORK:
+            setErrorMessage('Unable to connect to playback server. Check that the server is running.')
+            break
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            // This often means 404 (no recording found) or unsupported format
+            if (err.message && err.message.toLowerCase().includes('404')) {
+              setErrorMessage('No recording found at this time. Try a different time.')
+            } else {
+              setErrorMessage('No recording found at this time. Try a different time.')
+            }
+            break
+          case MediaError.MEDIA_ERR_DECODE:
+            setErrorMessage('This recording format is not supported by your browser.')
+            break
+          case MediaError.MEDIA_ERR_ABORTED:
+            setErrorMessage('Playback was interrupted. Click retry to try again.')
+            break
+          default:
+            setErrorMessage('Playback error. Click retry to try again.')
+        }
+      } else {
+        setErrorMessage('Playback error. Click retry to try again.')
+      }
+    }
     const onWaiting = () => setBuffering(true)
     const onPlaying = () => setBuffering(false)
     const onCanPlay = () => setBuffering(false)
@@ -250,11 +282,14 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <p className="text-white text-sm mb-3">Failed to load video. Check camera connection.</p>
+          <p className="text-white text-sm mb-3 text-center px-4 max-w-md">
+            {errorMessage || 'Playback error. Click retry to try again.'}
+          </p>
           <button
             onClick={(e) => {
               e.stopPropagation()
               setVideoError(false)
+              setErrorMessage('')
               if (onRetry) {
                 onRetry()
               } else {

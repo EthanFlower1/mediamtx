@@ -126,4 +126,21 @@ CREATE INDEX IF NOT EXISTS idx_recordings_camera_start ON recordings(camera_id, 
 CREATE INDEX IF NOT EXISTS idx_recordings_camera_end ON recordings(camera_id, end_time);
 `,
 	},
+	{
+		version: 7,
+		sql: `
+CREATE TABLE saved_clips (
+	id TEXT PRIMARY KEY,
+	camera_id TEXT NOT NULL,
+	name TEXT NOT NULL,
+	start_time TEXT NOT NULL,
+	end_time TEXT NOT NULL,
+	tags TEXT DEFAULT '',
+	notes TEXT DEFAULT '',
+	created_at TEXT NOT NULL,
+	FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_saved_clips_camera ON saved_clips(camera_id);
+`,
+	},
 }

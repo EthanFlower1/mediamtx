@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useCameras, Camera } from '../hooks/useCameras'
 import CameraGrid from '../components/CameraGrid'
 import VideoPlayer from '../components/VideoPlayer'
@@ -7,6 +8,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 
 /** Full-screen modal overlay for a single camera with video + PTZ. */
 function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void }) {
+  const navigate = useNavigate()
   const [stream, setStream] = useState<MediaStream | undefined>(undefined)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const modalVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -132,6 +134,21 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
             {camera.status === 'online' ? 'Online' : 'Offline'}
           </span>
           <div className="flex-1" />
+          <button
+            onClick={() => {
+              // Store camera selection and navigate to recordings with today's date
+              localStorage.setItem('nvr-recordings-camera', camera.id)
+              onClose()
+              navigate('/recordings')
+            }}
+            className="flex items-center gap-1.5 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 transition-colors text-xs font-medium"
+            title="View recordings for this camera"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            </svg>
+            View Recordings
+          </button>
           <button
             onClick={handleScreenshot}
             className="flex items-center gap-1.5 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 transition-colors text-xs font-medium"

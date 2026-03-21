@@ -749,6 +749,37 @@ func (h *CameraHandler) SetRelayOutputState(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// AudioCapabilities returns the audio capabilities for a camera.
+//
+//	GET /cameras/:id/audio/capabilities
+func (h *CameraHandler) AudioCapabilities(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for audio capabilities", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	caps, err := onvif.GetAudioCapabilities(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get audio capabilities for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio capabilities from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, caps)
+}
+
 // imagingSettingsRequest is the JSON body for updating camera imaging settings.
 type imagingSettingsRequest struct {
 	Brightness float64 `json:"brightness"`

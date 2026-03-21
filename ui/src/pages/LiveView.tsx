@@ -4,6 +4,7 @@ import { useCameras, Camera } from '../hooks/useCameras'
 import CameraGrid from '../components/CameraGrid'
 import VideoPlayer from '../components/VideoPlayer'
 import PTZControls from '../components/PTZControls'
+import AudioIntercom from '../components/AudioIntercom'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 
 /** Full-screen modal overlay for a single camera with video + PTZ. */
@@ -167,6 +168,13 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
           <VideoPlayer stream={stream} live onRetry={handleRetry} onVideoRef={handleVideoRef} />
           {camera.ptz_capable && <PTZControls cameraId={camera.id} />}
         </div>
+
+        {/* Audio intercom */}
+        {camera.supports_audio_backchannel && (
+          <div className="mt-3">
+            <AudioIntercom cameraId={camera.id} />
+          </div>
+        )}
       </div>
     </div>
   )

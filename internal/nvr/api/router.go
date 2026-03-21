@@ -151,6 +151,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)
 
+	// Audio capabilities.
+	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
+
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)

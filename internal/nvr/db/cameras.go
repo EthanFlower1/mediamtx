@@ -33,6 +33,7 @@ type Camera struct {
 	SnapshotURI              string `json:"snapshot_uri,omitempty"`
 	SupportsMedia2           bool   `json:"supports_media2"`
 	SupportsAnalytics        bool   `json:"supports_analytics"`
+	SupportsEdgeRecording    bool   `json:"supports_edge_recording"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -57,15 +58,15 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
 			retention_days, supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
-			supports_media2, supports_analytics,
+			supports_media2, supports_analytics, supports_edge_recording,
 			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
-		cam.SupportsMedia2, cam.SupportsAnalytics,
+		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
@@ -79,7 +80,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
 			retention_days, supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
-			supports_media2, supports_analytics,
+			supports_media2, supports_analytics, supports_edge_recording,
 			created_at, updated_at
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
@@ -88,7 +89,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 		&cam.Status, &cam.Tags, &cam.RetentionDays,
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
-		&cam.SupportsMedia2, &cam.SupportsAnalytics,
+		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.CreatedAt, &cam.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -108,7 +109,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
 			retention_days, supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
-			supports_media2, supports_analytics,
+			supports_media2, supports_analytics, supports_edge_recording,
 			created_at, updated_at
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
@@ -117,7 +118,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 		&cam.Status, &cam.Tags, &cam.RetentionDays,
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
-		&cam.SupportsMedia2, &cam.SupportsAnalytics,
+		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.CreatedAt, &cam.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -136,7 +137,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
 			retention_days, supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
-			supports_media2, supports_analytics,
+			supports_media2, supports_analytics, supports_edge_recording,
 			created_at, updated_at
 		FROM cameras ORDER BY name`)
 	if err != nil {
@@ -153,7 +154,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			&cam.Status, &cam.Tags, &cam.RetentionDays,
 			&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 			&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
-			&cam.SupportsMedia2, &cam.SupportsAnalytics,
+			&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 			&cam.CreatedAt, &cam.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -173,7 +174,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			mediamtx_path = ?, status = ?, tags = ?, retention_days = ?,
 			supports_ptz = ?, supports_imaging = ?, supports_events = ?,
 			supports_relay = ?, supports_audio_backchannel = ?, snapshot_uri = ?,
-			supports_media2 = ?, supports_analytics = ?,
+			supports_media2 = ?, supports_analytics = ?, supports_edge_recording = ?,
 			updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
@@ -181,7 +182,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.Status, cam.Tags, cam.RetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
-		cam.SupportsMedia2, cam.SupportsAnalytics,
+		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {

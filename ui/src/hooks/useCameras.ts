@@ -19,6 +19,7 @@ export interface Camera {
   snapshot_uri?: string
   supports_media2?: boolean
   supports_analytics?: boolean
+  supports_edge_recording?: boolean
 }
 
 function getRefreshInterval(): number {

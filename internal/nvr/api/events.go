@@ -74,6 +74,15 @@ func (b *EventBroadcaster) PublishMotion(cameraName string) {
 	})
 }
 
+// PublishTampering publishes a tampering-detected event for the given camera.
+func (b *EventBroadcaster) PublishTampering(cameraName string) {
+	b.Publish(Event{
+		Type:    "tampering",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Tampering detected on %s", cameraName),
+	})
+}
+
 // PublishCameraOffline publishes a camera-offline event.
 func (b *EventBroadcaster) PublishCameraOffline(cameraName string) {
 	b.Publish(Event{

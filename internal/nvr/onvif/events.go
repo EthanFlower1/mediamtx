@@ -16,8 +16,25 @@ import (
 	"time"
 )
 
-// MotionCallback is invoked when motion state changes (true = motion detected).
-type MotionCallback func(detected bool)
+// DetectedEventType identifies the kind of ONVIF event detected.
+type DetectedEventType string
+
+const (
+	// EventMotion represents a motion detection event.
+	EventMotion DetectedEventType = "motion"
+	// EventTampering represents a camera tampering / global scene change event.
+	EventTampering DetectedEventType = "tampering"
+)
+
+// DetectedEvent carries the type and active state of a single ONVIF event.
+type DetectedEvent struct {
+	Type   DetectedEventType
+	Active bool
+}
+
+// EventCallback is invoked when an ONVIF event is detected.
+// eventType indicates the kind of event, active indicates whether it started or stopped.
+type EventCallback func(eventType DetectedEventType, active bool)
 
 // EventSubscriber manages an ONVIF WS-BaseNotification subscription where the
 // camera pushes events to the NVR via HTTP POST (no polling).
@@ -26,7 +43,7 @@ type EventSubscriber struct {
 	eventServiceURL string
 	username        string
 	password        string
-	callback        MotionCallback
+	callback        EventCallback
 	callbackURL     string // URL the camera will POST to
 
 	client *http.Client
@@ -36,7 +53,7 @@ type EventSubscriber struct {
 
 // NewEventSubscriber creates a new push-based event subscriber.
 // callbackURL is the NVR's webhook URL that the camera will POST notifications to.
-func NewEventSubscriber(xaddr, username, password, callbackURL string, cb MotionCallback) (*EventSubscriber, error) {
+func NewEventSubscriber(xaddr, username, password, callbackURL string, cb EventCallback) (*EventSubscriber, error) {
 	if xaddr == "" {
 		return nil, fmt.Errorf("onvif events: xaddr is required")
 	}
@@ -168,14 +185,14 @@ func (es *EventSubscriber) subscribe(ctx context.Context) (string, error) {
 // HandleNotification processes an incoming SOAP notification from the camera.
 // This is called by the HTTP handler when the camera POSTs to the callback URL.
 func (es *EventSubscriber) HandleNotification(body []byte) {
-	detected, hasMotion, err := parseMotionEvents(body)
+	events, err := parseEvents(body)
 	if err != nil {
 		log.Printf("onvif events [%s]: parse push notification error: %v", es.xaddr, err)
 		return
 	}
-	if hasMotion {
-		log.Printf("onvif events [%s]: motion=%v (push)", es.xaddr, detected)
-		es.callback(detected)
+	for _, evt := range events {
+		log.Printf("onvif events [%s]: %s=%v (push)", es.xaddr, evt.Type, evt.Active)
+		es.callback(evt.Type, evt.Active)
 	}
 }
 
@@ -209,13 +226,13 @@ func (es *EventSubscriber) fallbackPullPoint(ctx context.Context) error {
 				return fmt.Errorf("renew: %w", err)
 			}
 		case <-pollTicker.C:
-			detected, hasMotion, err := es.pullMessages(ctx, subRef)
+			events, err := es.pullMessages(ctx, subRef)
 			if err != nil {
 				return fmt.Errorf("pull messages: %w", err)
 			}
-			if hasMotion {
-				log.Printf("onvif events [%s]: motion=%v (poll)", es.xaddr, detected)
-				es.callback(detected)
+			for _, evt := range events {
+				log.Printf("onvif events [%s]: %s=%v (poll)", es.xaddr, evt.Type, evt.Active)
+				es.callback(evt.Type, evt.Active)
 			}
 		}
 	}
@@ -242,7 +259,7 @@ func (es *EventSubscriber) createPullPointSubscription(ctx context.Context) (str
 }
 
 // pullMessages sends a PullMessages request (fallback).
-func (es *EventSubscriber) pullMessages(ctx context.Context, subRef string) (bool, bool, error) {
+func (es *EventSubscriber) pullMessages(ctx context.Context, subRef string) ([]DetectedEvent, error) {
 	body := `<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
             xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
@@ -257,9 +274,9 @@ func (es *EventSubscriber) pullMessages(ctx context.Context, subRef string) (boo
 
 	respBody, err := es.doSOAP(ctx, subRef, body)
 	if err != nil {
-		return false, false, err
+		return nil, err
 	}
-	return parseMotionEvents(respBody)
+	return parseEvents(respBody)
 }
 
 func (es *EventSubscriber) renew(ctx context.Context, subRef string) error {
@@ -482,11 +499,25 @@ func parseSubscribeReference(body []byte) (string, error) {
 	return addr, nil
 }
 
-// parseMotionEvents scans for motion events in PullMessages or Notify responses.
-func parseMotionEvents(body []byte) (bool, bool, error) {
+// classifyTopic determines the DetectedEventType from a notification topic string.
+// Returns the event type and true if the topic is recognized, or ("", false) otherwise.
+func classifyTopic(topic string) (DetectedEventType, bool) {
+	lower := strings.ToLower(topic)
+	if strings.Contains(lower, "motion") || strings.Contains(lower, "cellmotion") {
+		return EventMotion, true
+	}
+	if strings.Contains(lower, "globalscenechange") || strings.Contains(lower, "tamper") {
+		return EventTampering, true
+	}
+	return "", false
+}
+
+// parseEvents scans PullMessages or Notify responses for all recognized events.
+// It returns ALL detected events (motion, tampering, etc.), not just the first match.
+func parseEvents(body []byte) ([]DetectedEvent, error) {
 	var env soapEnvelope
 	if err := xml.Unmarshal(body, &env); err != nil {
-		return false, false, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
 	// Check both PullMessages and Notify message arrays.
@@ -495,9 +526,10 @@ func parseMotionEvents(body []byte) (bool, bool, error) {
 		messages = env.Body.Notify.Messages
 	}
 
+	var detected []DetectedEvent
 	for _, msg := range messages {
-		topicLower := strings.ToLower(msg.Topic.Value)
-		if !strings.Contains(topicLower, "motion") && !strings.Contains(topicLower, "cellmotion") {
+		eventType, ok := classifyTopic(msg.Topic.Value)
+		if !ok {
 			continue
 		}
 
@@ -505,13 +537,17 @@ func parseMotionEvents(body []byte) (bool, bool, error) {
 			nameLower := strings.ToLower(item.Name)
 			if nameLower == "ismotion" || nameLower == "state" {
 				valueLower := strings.ToLower(strings.TrimSpace(item.Value))
-				detected := valueLower == "true" || valueLower == "1"
-				return detected, true, nil
+				active := valueLower == "true" || valueLower == "1"
+				detected = append(detected, DetectedEvent{
+					Type:   eventType,
+					Active: active,
+				})
+				break // one state per message
 			}
 		}
 	}
 
-	return false, false, nil
+	return detected, nil
 }
 
 func truncate(s string, maxLen int) string {

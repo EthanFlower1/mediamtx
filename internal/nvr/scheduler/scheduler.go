@@ -25,6 +25,7 @@ import (
 // This avoids a circular import with the api package.
 type EventPublisher interface {
 	PublishMotion(cameraName string)
+	PublishTampering(cameraName string)
 	PublishCameraOffline(cameraName string)
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)
@@ -411,24 +412,31 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 		}
 	}()
 
-	// Create the event subscriber. Wrap the motion callback to also publish events
+	// Create the event subscriber. Wrap the event callback to also publish events
 	// and persist motion events in the database.
-	motionCallback := func(detected bool) {
-		sm.OnMotion(detected)
-		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-		if detected {
-			_ = s.db.InsertMotionEvent(&db.MotionEvent{
-				CameraID:  camID,
-				StartedAt: now,
-			})
-			if s.eventPub != nil {
-				s.eventPub.PublishMotion(cam.Name)
+	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
+		switch eventType {
+		case onvif.EventMotion:
+			sm.OnMotion(active)
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  camID,
+					StartedAt: now,
+				})
+				if s.eventPub != nil {
+					s.eventPub.PublishMotion(cam.Name)
+				}
+			} else {
+				_ = s.db.EndMotionEvent(camID, now)
 			}
-		} else {
-			_ = s.db.EndMotionEvent(camID, now)
+		case onvif.EventTampering:
+			if active && s.eventPub != nil {
+				s.eventPub.PublishTampering(cam.Name)
+			}
 		}
 	}
-	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), motionCallback)
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), eventCallback)
 	if err != nil {
 		log.Printf("scheduler: create event subscriber for camera %s: %v", camID, err)
 		delete(s.motionSMs, camID)
@@ -475,37 +483,44 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 		return
 	}
 
-	motionCallback := func(detected bool) {
-		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-		if detected {
-			event := &db.MotionEvent{
-				CameraID:  cam.ID,
-				StartedAt: now,
-			}
-
-			// Capture thumbnail in background (don't block the event callback).
-			go func() {
-				thumbDir := "./thumbnails"
-				password := s.decryptPassword(cam.ONVIFPassword)
-				thumbPath, err := onvif.CaptureSnapshot(cam.RTSPURL, cam.ONVIFUsername, password, thumbDir, cam.ID, cam.SnapshotURI)
-				if err != nil {
-					log.Printf("scheduler: thumbnail capture failed for camera %s: %v", cam.ID, err)
-				} else {
-					event.ThumbnailPath = thumbPath
+	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
+		switch eventType {
+		case onvif.EventMotion:
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				event := &db.MotionEvent{
+					CameraID:  cam.ID,
+					StartedAt: now,
 				}
-				_ = s.db.InsertMotionEvent(event)
-			}()
 
-			if s.eventPub != nil {
-				s.eventPub.PublishMotion(cam.Name)
+				// Capture thumbnail in background (don't block the event callback).
+				go func() {
+					thumbDir := "./thumbnails"
+					password := s.decryptPassword(cam.ONVIFPassword)
+					thumbPath, err := onvif.CaptureSnapshot(cam.RTSPURL, cam.ONVIFUsername, password, thumbDir, cam.ID, cam.SnapshotURI)
+					if err != nil {
+						log.Printf("scheduler: thumbnail capture failed for camera %s: %v", cam.ID, err)
+					} else {
+						event.ThumbnailPath = thumbPath
+					}
+					_ = s.db.InsertMotionEvent(event)
+				}()
+
+				if s.eventPub != nil {
+					s.eventPub.PublishMotion(cam.Name)
+				}
+			} else {
+				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
-		} else {
-			_ = s.db.EndMotionEvent(cam.ID, now)
+		case onvif.EventTampering:
+			if active && s.eventPub != nil {
+				s.eventPub.PublishTampering(cam.Name)
+			}
 		}
 	}
 
 	cbURL := s.callbackURL(cam.ID)
-	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), cbURL, motionCallback)
+	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), cbURL, eventCallback)
 	if err != nil {
 		log.Printf("scheduler: create motion alert subscriber for camera %s: %v", cam.ID, err)
 		return

@@ -140,6 +140,21 @@ func (d *DB) UpdateRecordingRule(rule *RecordingRule) error {
 	return nil
 }
 
+// CountRecordingRules returns the total number of recording rules and how many
+// are enabled, using a single aggregate query instead of per-camera lookups.
+func (d *DB) CountRecordingRules() (total int, enabled int, err error) {
+	err = d.QueryRow(`SELECT COUNT(*), COALESCE(SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END), 0) FROM recording_rules`).Scan(&total, &enabled)
+	return
+}
+
+// CountCamerasWithRules returns the number of distinct cameras that have at
+// least one enabled recording rule.
+func (d *DB) CountCamerasWithRules() (int, error) {
+	var count int
+	err := d.QueryRow(`SELECT COUNT(DISTINCT camera_id) FROM recording_rules WHERE enabled = 1`).Scan(&count)
+	return count, err
+}
+
 // DeleteRecordingRule deletes a recording rule by its ID. Returns ErrNotFound if no match.
 func (d *DB) DeleteRecordingRule(id string) error {
 	res, err := d.Exec("DELETE FROM recording_rules WHERE id = ?", id)

@@ -63,6 +63,11 @@ func (n *NVR) Initialize() error {
 				return fmt.Errorf("persist JWT secret: %w", err)
 			}
 		}
+	} else {
+		// Validate user-provided secret strength.
+		if len(n.JWTSecret) < 32 {
+			return fmt.Errorf("JWT secret must be at least 32 characters (got %d); set a stronger nvrJWTSecret in config", len(n.JWTSecret))
+		}
 	}
 
 	// Expand ~ to the user's home directory.
@@ -127,9 +132,12 @@ func (n *NVR) startNotificationServer() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		// Allow CORS preflight.
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
+		// Allow CORS preflight — reflect the request origin instead of wildcard.
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			return
 		}
@@ -323,6 +331,7 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		if insertErr == nil {
 			return
 		}
+		fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
 		if attempt < 2 {
 			time.Sleep(1 * time.Second)
 		}

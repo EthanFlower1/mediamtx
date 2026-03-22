@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -157,7 +158,11 @@ func (h *RecordingHandler) Download(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "video/mp4")
+	contentType := "video/mp4"
+	if strings.HasSuffix(rec.FilePath, ".ts") {
+		contentType = "video/mp2t"
+	}
+	c.Header("Content-Type", contentType)
 	c.FileAttachment(rec.FilePath, filepath.Base(rec.FilePath))
 }
 

@@ -241,22 +241,15 @@ func (h *SystemHandler) ConfigSummary(c *gin.Context) {
 					}
 				}
 			}
+		}
 
-			// Count cameras that have at least one enabled recording rule.
-			camerasWithRules := make(map[string]bool)
-			for _, cam := range cameras {
-				rules, err := h.ConfigDB.ListRecordingRules(cam.ID)
-				if err == nil {
-					for _, rule := range rules {
-						totalRules++
-						if rule.Enabled {
-							activeRules++
-							camerasWithRules[cam.ID] = true
-						}
-					}
-				}
-			}
-			recordingCameras = len(camerasWithRules)
+		// Use aggregate queries instead of per-camera lookups.
+		if t, a, err := h.ConfigDB.CountRecordingRules(); err == nil {
+			totalRules = t
+			activeRules = a
+		}
+		if rc, err := h.ConfigDB.CountCamerasWithRules(); err == nil {
+			recordingCameras = rc
 		}
 
 		users, err := h.ConfigDB.ListUsers()
@@ -313,7 +306,8 @@ func (h *SystemHandler) getCameraStatuses() map[string]string {
 	}
 
 	url := fmt.Sprintf("http://%s/v3/paths/list", addr)
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return statuses
 	}
@@ -350,6 +344,7 @@ type configExport struct {
 	Cameras        []*db.Camera        `json:"cameras"`
 	RecordingRules []*db.RecordingRule `json:"recording_rules"`
 	Users          []*db.User          `json:"users"`
+	SavedClips     []*db.SavedClip     `json:"saved_clips"`
 }
 
 // ExportConfig returns the full NVR configuration as a downloadable JSON file.
@@ -391,12 +386,22 @@ func (h *SystemHandler) ExportConfig(c *gin.Context) {
 		u.PasswordHash = ""
 	}
 
+	clips, err := h.ConfigDB.ListSavedClips("")
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to list saved clips for config export", err)
+		return
+	}
+	if clips == nil {
+		clips = []*db.SavedClip{}
+	}
+
 	export := configExport{
 		Version:        "1",
 		ExportedAt:     time.Now().UTC().Format(time.RFC3339),
 		Cameras:        cameras,
 		RecordingRules: rules,
 		Users:          users,
+		SavedClips:     clips,
 	}
 
 	c.Header("Content-Disposition", "attachment; filename=nvr-config.json")

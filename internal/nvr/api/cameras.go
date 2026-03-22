@@ -118,7 +118,9 @@ func (h *CameraHandler) List(c *gin.Context) {
 	// Batch-fetch all path statuses in a single HTTP call instead of N+1 queries.
 	statuses := h.getPathStatuses()
 	for _, cam := range cameras {
-		if cam.MediaMTXPath != "" {
+		if statuses == nil {
+			cam.Status = "unknown" // API unreachable
+		} else if cam.MediaMTXPath != "" {
 			if s, ok := statuses[cam.MediaMTXPath]; ok {
 				cam.Status = s
 			} else {
@@ -132,25 +134,26 @@ func (h *CameraHandler) List(c *gin.Context) {
 
 // getPathStatuses fetches all paths from MediaMTX in one call and returns a
 // map of path name to status string ("online" or "disconnected").
+// Returns nil when the MediaMTX API is unreachable so callers can distinguish
+// "API down" from "all cameras disconnected" (empty map).
 func (h *CameraHandler) getPathStatuses() map[string]string {
-	statuses := make(map[string]string)
-
 	addr := h.APIAddress
 	if strings.HasPrefix(addr, ":") {
 		addr = "127.0.0.1" + addr
 	}
 
 	url := fmt.Sprintf("http://%s/v3/paths/list", addr)
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		nvrLogWarn("cameras", "failed to fetch path statuses from MediaMTX: "+err.Error())
-		return statuses
+		return nil // API unreachable
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		nvrLogWarn("cameras", fmt.Sprintf("MediaMTX paths list returned status %d", resp.StatusCode))
-		return statuses
+		return nil // API error
 	}
 
 	var result struct {
@@ -158,9 +161,10 @@ func (h *CameraHandler) getPathStatuses() map[string]string {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		nvrLogWarn("cameras", "failed to decode MediaMTX paths list: "+err.Error())
-		return statuses
+		return nil // API returned invalid data
 	}
 
+	statuses := make(map[string]string, len(result.Items))
 	for _, item := range result.Items {
 		if item.Ready {
 			statuses[item.Name] = "online"

@@ -4,6 +4,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "modernc.org/sqlite" // Pure-Go SQLite driver.
 )
@@ -31,6 +32,17 @@ func Open(path string) (*DB, error) {
 	if _, err := sqlDB.Exec("PRAGMA journal_mode = WAL"); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("set WAL mode: %w", err)
+	}
+
+	// Configure connection pool for SQLite.
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
+	// Validate connectivity.
+	if err := sqlDB.Ping(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("database ping: %w", err)
 	}
 
 	d := &DB{DB: sqlDB}

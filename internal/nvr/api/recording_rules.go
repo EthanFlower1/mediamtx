@@ -102,6 +102,11 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if len(req.Days) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one day is required"})
+		return
+	}
+
 	if err := validateRuleRequest(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -166,6 +171,11 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 	var req recordingRuleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if len(req.Days) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one day is required"})
 		return
 	}
 

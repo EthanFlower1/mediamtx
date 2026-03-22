@@ -68,6 +68,8 @@ export function useNotifications(isAuthenticated: boolean) {
   const [unreadCount, setUnreadCount] = useState(0)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconnectDelayRef = useRef(RECONNECT_DELAY_MS)
+  const MAX_RECONNECT_DELAY = 30000
 
   const addNotification = useCallback((notif: Notification) => {
     const prefs = getNotifPrefs()
@@ -116,6 +118,10 @@ export function useNotifications(isAuthenticated: boolean) {
     const ws = new WebSocket(url)
     wsRef.current = ws
 
+    ws.onopen = () => {
+      reconnectDelayRef.current = RECONNECT_DELAY_MS // reset backoff on success
+    }
+
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
@@ -140,7 +146,9 @@ export function useNotifications(isAuthenticated: boolean) {
       wsRef.current = null
       reconnectTimerRef.current = setTimeout(() => {
         if (isAuthenticated) connect()
-      }, RECONNECT_DELAY_MS)
+      }, reconnectDelayRef.current)
+      // Exponential backoff
+      reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, MAX_RECONNECT_DELAY)
     }
 
     ws.onerror = () => {

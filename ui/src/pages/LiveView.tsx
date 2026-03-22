@@ -5,6 +5,7 @@ import CameraGrid from '../components/CameraGrid'
 import VideoPlayer from '../components/VideoPlayer'
 import PTZControls from '../components/PTZControls'
 import AudioIntercom from '../components/AudioIntercom'
+import AnalyticsOverlay from '../components/AnalyticsOverlay'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 
 /** Full-screen modal overlay for a single camera with video + PTZ. */
@@ -13,6 +14,7 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
   const [stream, setStream] = useState<MediaStream | undefined>(undefined)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const modalVideoRef = useRef<HTMLVideoElement | null>(null)
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -161,12 +163,28 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
             </svg>
             Screenshot
           </button>
+          <button
+            onClick={() => setAnalyticsEnabled(prev => !prev)}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors text-xs font-medium ${
+              analyticsEnabled
+                ? 'text-nvr-accent bg-nvr-accent/20 hover:bg-nvr-accent/30'
+                : 'text-white/70 hover:text-white bg-white/10 hover:bg-white/20'
+            }`}
+            title="Toggle analytics overlay"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18M9 21V9" />
+            </svg>
+            Analytics
+          </button>
         </div>
 
         {/* Video player with PTZ overlay */}
         <div className="relative rounded-lg overflow-hidden">
           <VideoPlayer stream={stream} live onRetry={handleRetry} onVideoRef={handleVideoRef} />
           {camera.ptz_capable && <PTZControls cameraId={camera.id} />}
+          <AnalyticsOverlay cameraId={camera.id} videoElement={modalVideoRef.current} enabled={analyticsEnabled} />
         </div>
 
         {/* Audio intercom */}

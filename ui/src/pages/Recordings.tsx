@@ -6,6 +6,7 @@ import Timeline, { MotionEvent } from '../components/Timeline'
 import VideoPlayer from '../components/VideoPlayer'
 import MultiCameraPlayer from '../components/MultiCameraPlayer'
 import RecordingCalendar from '../components/RecordingCalendar'
+import CameraStorageBrowser from '../components/CameraStorageBrowser'
 import { apiFetch } from '../api/client'
 
 interface SavedClip {
@@ -137,6 +138,9 @@ export default function Recordings() {
   const [saveClipTags, setSaveClipTags] = useState('')
   const [saveClipNotes, setSaveClipNotes] = useState('')
   const [savingClip, setSavingClip] = useState(false)
+
+  // Storage view mode: "nvr" or "camera" (edge storage)
+  const [storageView, setStorageView] = useState<'nvr' | 'camera'>('nvr')
 
   // Calendar popover state
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -805,6 +809,39 @@ export default function Recordings() {
         )}
       </div>
 
+      {/* NVR / Camera Storage toggle */}
+      {selectedCamera && !isAllCameras && selectedCameraObj?.supports_edge_recording && (
+        <div className="flex items-center gap-1 mb-4">
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-lg inline-flex p-0.5">
+            <button
+              onClick={() => setStorageView('nvr')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                storageView === 'nvr'
+                  ? 'bg-nvr-accent text-white'
+                  : 'text-nvr-text-secondary hover:text-nvr-text-primary'
+              }`}
+            >
+              NVR Recordings
+            </button>
+            <button
+              onClick={() => setStorageView('camera')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                storageView === 'camera'
+                  ? 'bg-nvr-accent text-white'
+                  : 'text-nvr-text-secondary hover:text-nvr-text-primary'
+              }`}
+            >
+              Camera Storage
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Camera Storage Browser (edge recordings from SD card) */}
+      {selectedCamera && !isAllCameras && storageView === 'camera' && selectedCameraObj?.supports_edge_recording && (
+        <CameraStorageBrowser cameraId={selectedCamera} />
+      )}
+
       {/* Main content */}
       {!selectedCamera && cameras.length > 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -969,7 +1006,7 @@ export default function Recordings() {
         </>
       )}
 
-      {selectedCamera && !isAllCameras && (
+      {selectedCamera && !isAllCameras && (storageView === 'nvr' || !selectedCameraObj?.supports_edge_recording) && (
         <>
           {/* Timeline — full width, shows blue bars where footage exists */}
           <div className="mb-6">

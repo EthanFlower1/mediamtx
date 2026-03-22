@@ -12,6 +12,8 @@ type MotionEvent struct {
 	EndedAt       *string `json:"ended_at"`
 	ThumbnailPath string  `json:"thumbnail_path,omitempty"`
 	EventType     string  `json:"event_type"`
+	ObjectClass   string  `json:"object_class"`
+	Confidence    float64 `json:"confidence"`
 }
 
 // InsertMotionEvent inserts a new motion event into the database.
@@ -20,9 +22,10 @@ func (d *DB) InsertMotionEvent(event *MotionEvent) error {
 		event.EventType = "motion"
 	}
 	res, err := d.Exec(`
-		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type)
-		VALUES (?, ?, ?, ?, ?)`,
+		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type, object_class, confidence)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		event.CameraID, event.StartedAt, event.EndedAt, event.ThumbnailPath, event.EventType,
+		event.ObjectClass, event.Confidence,
 	)
 	if err != nil {
 		return err
@@ -64,7 +67,8 @@ func (d *DB) CloseOrphanedMotionEvents() error {
 // (ended_at IS NULL OR ended_at > start).
 func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*MotionEvent, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion')
+		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion'),
+		       COALESCE(object_class, ''), COALESCE(confidence, 0)
 		FROM motion_events
 		WHERE camera_id = ?
 		  AND started_at < ?
@@ -82,7 +86,51 @@ func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*Motion
 	var events []*MotionEvent
 	for rows.Next() {
 		ev := &MotionEvent{}
-		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType); err != nil {
+		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType,
+			&ev.ObjectClass, &ev.Confidence); err != nil {
+			return nil, err
+		}
+		events = append(events, ev)
+	}
+	return events, rows.Err()
+}
+
+// QueryMotionEventsByClass returns motion events for a camera that overlap the
+// given time range, optionally filtered by object class. When objectClass is
+// empty the filter is skipped and all events are returned.
+func (d *DB) QueryMotionEventsByClass(cameraID, objectClass string, start, end time.Time) ([]*MotionEvent, error) {
+	query := `
+		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion'),
+		       COALESCE(object_class, ''), COALESCE(confidence, 0)
+		FROM motion_events
+		WHERE camera_id = ?
+		  AND started_at < ?
+		  AND (ended_at IS NULL OR ended_at > ?)`
+
+	args := []interface{}{
+		cameraID,
+		end.UTC().Format(timeFormat),
+		start.UTC().Format(timeFormat),
+	}
+
+	if objectClass != "" {
+		query += ` AND object_class = ?`
+		args = append(args, objectClass)
+	}
+
+	query += ` ORDER BY started_at`
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*MotionEvent
+	for rows.Next() {
+		ev := &MotionEvent{}
+		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType,
+			&ev.ObjectClass, &ev.Confidence); err != nil {
 			return nil, err
 		}
 		events = append(events, ev)

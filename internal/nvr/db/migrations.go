@@ -172,4 +172,12 @@ ALTER TABLE motion_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'motion';
 		version: 11,
 		sql:     `ALTER TABLE cameras ADD COLUMN supports_edge_recording INTEGER NOT NULL DEFAULT 0;`,
 	},
+	{
+		version: 12,
+		sql: `
+ALTER TABLE motion_events ADD COLUMN object_class TEXT DEFAULT '';
+ALTER TABLE motion_events ADD COLUMN confidence REAL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_motion_events_object_class ON motion_events(camera_id, object_class);
+`,
+	},
 }

@@ -181,7 +181,9 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	start := date
 	end := date.Add(24 * time.Hour)
 
-	events, err := h.DB.QueryMotionEvents(cameraID, start, end)
+	objectClass := c.Query("object_class")
+
+	events, err := h.DB.QueryMotionEventsByClass(cameraID, objectClass, start, end)
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to query motion events", err)
 		return

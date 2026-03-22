@@ -5,6 +5,7 @@ import { apiFetch } from '../api/client'
 import RecordingRules from '../components/RecordingRules'
 import CameraSettings from '../components/CameraSettings'
 import DetectionZoneEditor from '../components/DetectionZoneEditor'
+import AnalyticsConfig from '../components/AnalyticsConfig'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 /** Small component to fetch and display the effective recording mode for a camera. */
@@ -744,6 +745,14 @@ export default function CameraManagement() {
                         cameraId={expandedCamera.id}
                         snapshotUrl={expandedCamera.snapshot_uri || undefined}
                       />
+                    </div>
+                  )}
+
+                  {/* Analytics modules & rules — only visible when camera supports analytics */}
+                  {expandedCamera.supports_analytics && (
+                    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+                      <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-3">Analytics</h4>
+                      <AnalyticsConfig cameraId={expandedCamera.id} />
                     </div>
                   )}
 

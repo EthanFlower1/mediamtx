@@ -4,6 +4,7 @@ import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import RecordingRules from '../components/RecordingRules'
 import CameraSettings from '../components/CameraSettings'
+import DetectionZoneEditor from '../components/DetectionZoneEditor'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 /** Small component to fetch and display the effective recording mode for a camera. */
@@ -735,6 +736,16 @@ export default function CameraManagement() {
                   )}
 
                   <CameraStoragePanel camera={expandedCamera} onRefresh={refresh} />
+
+                  {/* Motion Detection Zones — only visible when camera supports analytics */}
+                  {expandedCamera.supports_analytics && (
+                    <div className="mb-4">
+                      <DetectionZoneEditor
+                        cameraId={expandedCamera.id}
+                        snapshotUrl={expandedCamera.snapshot_uri || undefined}
+                      />
+                    </div>
+                  )}
 
                   <RecordingRules cameraId={expandedCamera.id} />
                 </div>

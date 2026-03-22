@@ -149,12 +149,38 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
             <div className="text-[10px] mt-0.5 opacity-70">Record on motion</div>
           </button>
         </div>
+        <p className="text-xs text-nvr-text-muted mt-1">Always: Record continuously during this time. Events: Record only when motion is detected.</p>
       </div>
 
       {/* Days: circle buttons */}
       <div className="mb-4">
-        <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Days</label>
-        <div className="flex gap-1.5 mb-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-xs font-medium text-nvr-text-secondary">Days</label>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDays([1, 2, 3, 4, 5])}
+              className="text-[10px] text-nvr-accent hover:text-nvr-accent-hover bg-nvr-accent/10 hover:bg-nvr-accent/20 border border-nvr-accent/30 rounded px-2 py-0.5 transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+            >
+              Weekdays
+            </button>
+            <button
+              type="button"
+              onClick={() => setDays([0, 6])}
+              className="text-[10px] text-nvr-accent hover:text-nvr-accent-hover bg-nvr-accent/10 hover:bg-nvr-accent/20 border border-nvr-accent/30 rounded px-2 py-0.5 transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+            >
+              Weekends
+            </button>
+            <button
+              type="button"
+              onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}
+              className="text-[10px] text-nvr-accent hover:text-nvr-accent-hover bg-nvr-accent/10 hover:bg-nvr-accent/20 border border-nvr-accent/30 rounded px-2 py-0.5 transition-colors font-medium focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+            >
+              Every Day
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-1.5">
           {DAY_LETTERS.map((letter, i) => (
             <button
               key={i}
@@ -169,29 +195,6 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
               {letter}
             </button>
           ))}
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setDays([1, 2, 3, 4, 5])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-          >
-            Weekdays
-          </button>
-          <button
-            type="button"
-            onClick={() => setDays([0, 6])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-          >
-            Weekends
-          </button>
-          <button
-            type="button"
-            onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])}
-            className="text-[10px] text-nvr-text-muted hover:text-nvr-text-secondary bg-nvr-bg-input border border-nvr-border rounded px-2 py-0.5 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-          >
-            Every Day
-          </button>
         </div>
       </div>
 
@@ -232,6 +235,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
             />
             <span className="text-xs text-nvr-text-muted">seconds after motion stops</span>
           </div>
+          <p className="text-xs text-nvr-text-muted mt-1">How many seconds to keep recording after motion stops. Prevents cutting off events too early.</p>
         </div>
       )}
 

@@ -95,13 +95,23 @@ type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'system', label: 'System' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'notifications', label: 'Notifications' },
   { id: 'storage', label: 'Storage' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'config', label: 'Configuration' },
   { id: 'audit', label: 'Audit Log' },
   { id: 'performance', label: 'Performance' },
 ]
+
+const TAB_DESCRIPTIONS: Record<TabId, string> = {
+  system: 'System version, uptime, and server information',
+  storage: 'Disk usage and per-camera storage breakdown',
+  notifications: 'Configure how you receive alerts for motion and camera events',
+  appearance: 'Theme, default layout, and display preferences',
+  config: 'Export and import your NVR configuration',
+  audit: 'Activity log of all user actions',
+  performance: 'Server resource usage and active connections',
+}
 
 const AUDIT_ACTIONS = ['create', 'update', 'delete', 'login', 'login_failed']
 
@@ -576,6 +586,8 @@ export default function Settings() {
           </button>
         ))}
       </div>
+
+      <p className="text-xs text-nvr-text-muted mb-4">{TAB_DESCRIPTIONS[activeTab]}</p>
 
       {/* ===== SYSTEM TAB ===== */}
       {activeTab === 'system' && (

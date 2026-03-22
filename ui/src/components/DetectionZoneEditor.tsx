@@ -230,6 +230,17 @@ export default function DetectionZoneEditor({ cameraId, snapshotUrl, onSave }: P
 
   return (
     <div className="border border-nvr-border rounded-lg bg-nvr-bg-tertiary overflow-hidden">
+      {/* Step-by-step instructions */}
+      <div className="bg-nvr-bg-tertiary/50 border-b border-nvr-border p-3">
+        <h4 className="text-sm font-medium text-nvr-text-primary mb-1">How to set up motion zones</h4>
+        <ol className="text-xs text-nvr-text-secondary space-y-1 list-decimal list-inside">
+          <li>Click "Add Zone" to start drawing</li>
+          <li>Click and drag on the image to draw a rectangle</li>
+          <li>Give the zone a name and click Save</li>
+          <li>The camera will only detect motion inside your zones</li>
+        </ol>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-nvr-border">
         <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide">

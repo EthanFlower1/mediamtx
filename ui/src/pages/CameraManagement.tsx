@@ -654,12 +654,22 @@ export default function CameraManagement() {
                       )}
                     </div>
                     {/* Capability badges */}
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {cam.ptz_capable && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">PTZ</span>}
-                      {cam.supports_relay && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Relay</span>}
-                      {cam.supports_audio_backchannel && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Audio</span>}
-                      {cam.supports_analytics && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Analytics</span>}
-                      {cam.supports_edge_recording && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">SD Card</span>}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {cam.ptz_capable && (
+                        <span className="text-[11px] bg-nvr-accent/10 text-nvr-accent px-2 py-0.5 rounded-full font-medium">PTZ</span>
+                      )}
+                      {cam.supports_audio_backchannel && (
+                        <span className="text-[11px] bg-nvr-accent/10 text-nvr-accent px-2 py-0.5 rounded-full font-medium">Audio</span>
+                      )}
+                      {cam.supports_analytics && (
+                        <span className="text-[11px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">Analytics</span>
+                      )}
+                      {cam.supports_edge_recording && (
+                        <span className="text-[11px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium">SD Card</span>
+                      )}
+                      {cam.supports_relay && (
+                        <span className="text-[11px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full font-medium">Relay</span>
+                      )}
                     </div>
                   </div>
 

@@ -233,9 +233,23 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false)
+  const [showShortcutsHint, setShowShortcutsHint] = useState(() => {
+    return !localStorage.getItem('nvr-shortcuts-seen')
+  })
   const { notifications, unreadCount, markAllRead } = useNotifications(isAuthenticated)
   const storageWarning = useStorageWarning(isAuthenticated)
   const location = useLocation()
+
+  // Show keyboard shortcuts hint for 10 seconds on first visit, then dismiss
+  useEffect(() => {
+    if (showShortcutsHint) {
+      const timer = setTimeout(() => {
+        setShowShortcutsHint(false)
+        localStorage.setItem('nvr-shortcuts-seen', 'true')
+      }, 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [showShortcutsHint])
 
   // Global keyboard shortcut: ? to toggle shortcuts help
   const globalShortcuts = useMemo(() => [
@@ -382,6 +396,22 @@ function Layout({ children }: { children: React.ReactNode }) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
+
+      {/* ---- Keyboard shortcuts hint (first visit) ---- */}
+      {showShortcutsHint && (
+        <div className="fixed bottom-4 left-4 bg-nvr-bg-secondary border border-nvr-border rounded-lg px-4 py-2 shadow-xl z-40 flex items-center gap-2 animate-fade-in">
+          <span className="text-xs text-nvr-text-secondary">Press</span>
+          <kbd className="bg-nvr-bg-tertiary text-nvr-text-primary text-xs px-1.5 py-0.5 rounded font-mono">?</kbd>
+          <span className="text-xs text-nvr-text-secondary">for keyboard shortcuts</span>
+          <button
+            onClick={() => { setShowShortcutsHint(false); localStorage.setItem('nvr-shortcuts-seen', 'true') }}
+            className="text-nvr-text-muted hover:text-nvr-text-primary ml-2 text-sm"
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* ---- Keyboard shortcuts help overlay ---- */}
       {showShortcutsHelp && (

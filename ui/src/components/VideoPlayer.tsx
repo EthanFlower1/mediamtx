@@ -282,28 +282,44 @@ export default function VideoPlayer({ src, stream, live, onTimeUpdate, onRetry, 
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <p className="text-white text-sm mb-3 text-center px-4 max-w-md">
-            {errorMessage || 'Playback error. Click retry to try again.'}
-          </p>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setVideoError(false)
-              setErrorMessage('')
-              if (onRetry) {
-                onRetry()
-              } else {
-                const video = videoRef.current
-                if (video && src) {
-                  video.src = src
-                  video.play().catch(() => {})
-                }
-              }
-            }}
-            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-          >
-            Retry
-          </button>
+          <div className="text-center px-4 max-w-md">
+            <p className="text-sm text-white mb-2">
+              {errorMessage || 'Playback error. Click retry to try again.'}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 mt-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setVideoError(false)
+                  setErrorMessage('')
+                  if (onRetry) {
+                    onRetry()
+                  } else {
+                    const video = videoRef.current
+                    if (video && src) {
+                      video.src = src
+                      video.play().catch(() => {})
+                    }
+                  }
+                }}
+                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                Retry
+              </button>
+              {!live && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setVideoError(false)
+                    setErrorMessage('')
+                  }}
+                  className="bg-white/10 hover:bg-white/20 text-white/80 font-medium px-4 py-2 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  Try a different time
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

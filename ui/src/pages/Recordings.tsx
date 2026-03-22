@@ -853,16 +853,19 @@ export default function Recordings() {
 
       {/* Main content */}
       {!selectedCamera && cameras.length > 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="flex items-center gap-3 mb-5">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className={`w-10 h-10 rounded-lg flex items-center justify-center ${i === 1 ? 'bg-nvr-accent/15' : 'bg-nvr-bg-tertiary'}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 ${i === 1 ? 'text-nvr-accent' : 'text-nvr-text-muted/50'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" /></svg>
-              </div>
-            ))}
+        <div className="text-center py-16">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 mx-auto mb-4 text-nvr-text-muted/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+          </svg>
+          <h3 className="text-lg font-semibold text-nvr-text-primary mb-2">View Your Recordings</h3>
+          <p className="text-sm text-nvr-text-secondary mb-4 max-w-md mx-auto">
+            Select a camera from the dropdown above to browse recordings, create clips, and review motion events.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 text-xs text-nvr-text-muted">
+            <span className="flex items-center gap-1">Browse by date</span>
+            <span className="flex items-center gap-1">Create clips</span>
+            <span className="flex items-center gap-1">Review motion events</span>
           </div>
-          <p className="text-nvr-text-secondary text-lg mb-1">Select a camera above to view its recordings</p>
-          <p className="text-nvr-text-muted text-sm">Choose from the dropdown to browse recorded footage</p>
         </div>
       )}
 

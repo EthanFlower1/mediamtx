@@ -180,6 +180,33 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
           </button>
         </div>
 
+        {/* Quick action badges */}
+        <div className="flex items-center gap-2 mt-2 mb-3">
+          <button
+            onClick={() => {
+              localStorage.setItem('nvr-recordings-camera', camera.id)
+              onClose()
+              navigate('/recordings')
+            }}
+            className="text-xs bg-white/10 hover:bg-white/20 text-white/80 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            </svg>
+            Recordings
+          </button>
+          {camera.ptz_capable && (
+            <span className="text-xs bg-nvr-accent/20 text-nvr-accent rounded-lg px-3 py-1.5">
+              PTZ Available
+            </span>
+          )}
+          {camera.supports_audio_backchannel && (
+            <span className="text-xs bg-emerald-500/20 text-emerald-400 rounded-lg px-3 py-1.5">
+              Two-Way Audio
+            </span>
+          )}
+        </div>
+
         {/* Video player with PTZ overlay */}
         <div className="relative rounded-lg overflow-hidden">
           <VideoPlayer stream={stream} live onRetry={handleRetry} onVideoRef={handleVideoRef} />
@@ -285,19 +312,30 @@ export default function LiveView() {
   if (cameras.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center px-4">
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-nvr-text-muted mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-        </svg>
-        <h2 className="text-xl font-semibold text-nvr-text-primary mb-2">No cameras yet</h2>
-        <p className="text-sm text-nvr-text-muted mb-6 max-w-md">
-          Add cameras to start viewing live feeds. You can discover ONVIF cameras on your network or add them manually.
+        <div className="w-16 h-16 rounded-2xl bg-nvr-accent/15 flex items-center justify-center mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-nvr-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Welcome to MediaMTX NVR</h2>
+        <p className="text-nvr-text-secondary mb-2 max-w-md">
+          Your video surveillance system is ready. Let's add your first camera to get started.
         </p>
-        <a
-          href="/cameras"
-          className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm"
-        >
-          Add your first camera
-        </a>
+        <div className="flex flex-col gap-3 mt-4">
+          <a
+            href="/cameras"
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-semibold px-6 py-3 rounded-lg transition-colors text-sm inline-flex items-center gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Add Your First Camera
+          </a>
+          <p className="text-xs text-nvr-text-muted">
+            Supports ONVIF cameras, RTSP streams, and more
+          </p>
+        </div>
       </div>
     )
   }

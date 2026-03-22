@@ -9,6 +9,19 @@ export interface MotionEvent {
   ended_at?: string | null
   thumbnail_path?: string
   event_type?: string
+  object_class?: string
+  confidence?: number
+}
+
+/** Return an emoji for the given event based on object_class / event_type. */
+export function eventEmoji(ev: MotionEvent): { emoji: string; label: string } {
+  if (ev.event_type === 'tampering') return { emoji: '\u{1F6E1}\uFE0F', label: 'Tampering event' }
+  switch (ev.object_class) {
+    case 'person':  return { emoji: '\u{1F464}', label: 'Person detected' }
+    case 'vehicle': return { emoji: '\u{1F697}', label: 'Vehicle detected' }
+    case 'animal':  return { emoji: '\u{1F43E}', label: 'Animal detected' }
+    default:        return { emoji: '\u{1F3C3}', label: 'Motion event' }
+  }
 }
 
 interface Props {
@@ -460,8 +473,8 @@ export default function Timeline({
           const endLabel = evEnd
             ? evEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
             : 'ongoing'
-          const isTampering = ev.event_type === 'tampering'
-          const eventLabel = isTampering ? 'Tampering' : 'Motion'
+          const { emoji, label: emojiLabel } = eventEmoji(ev)
+          const eventLabel = ev.event_type === 'tampering' ? 'Tampering' : ev.object_class || 'Motion'
           const tooltip = `${eventLabel} ${startLabel} – ${endLabel}`
 
           return (
@@ -478,8 +491,8 @@ export default function Timeline({
                 onEventClick?.(i)
               }}
             >
-              <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label={isTampering ? 'Tampering event' : 'Motion event'}>
-                {isTampering ? '\u{1F6E1}\uFE0F' : '\u{1F3C3}'}
+              <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label={emojiLabel}>
+                {emoji}
               </span>
               {hoveredEvent === i && (
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-nvr-bg-secondary border border-nvr-border rounded px-2 py-0.5 text-[10px] text-nvr-text-primary pointer-events-none z-30 whitespace-nowrap shadow-lg">

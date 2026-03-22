@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCameras } from '../hooks/useCameras'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
-import Timeline, { MotionEvent } from '../components/Timeline'
+import Timeline, { MotionEvent, eventEmoji } from '../components/Timeline'
 import VideoPlayer from '../components/VideoPlayer'
 import MultiCameraPlayer from '../components/MultiCameraPlayer'
 import RecordingCalendar from '../components/RecordingCalendar'
@@ -113,6 +113,7 @@ export default function Recordings() {
   const [motionPanelOpen, setMotionPanelOpen] = useState(false)
   const [highlightedEventIdx, setHighlightedEventIdx] = useState<number | null>(null)
   const eventRefs = useRef<(HTMLDivElement | null)[]>([])
+  const [objectClassFilter, setObjectClassFilter] = useState<string>('')
 
   // "All Cameras" mode
   const isAllCameras = selectedCamera === '__all__'
@@ -262,11 +263,16 @@ export default function Recordings() {
       return
     }
 
-    apiFetch(`/cameras/${selectedCamera}/motion-events?date=${date}`)
+    let url = `/cameras/${selectedCamera}/motion-events?date=${date}`
+    if (objectClassFilter) {
+      url += `&object_class=${encodeURIComponent(objectClassFilter)}`
+    }
+
+    apiFetch(url)
       .then(res => res.ok ? res.json() : [])
       .then((data: MotionEvent[]) => setMotionEvents(data))
       .catch(() => setMotionEvents([]))
-  }, [selectedCamera, date, isAllCameras])
+  }, [selectedCamera, date, isAllCameras, objectClassFilter])
 
   // Fetch all recording segments for the calendar (build date sets)
   useEffect(() => {
@@ -1034,6 +1040,33 @@ export default function Recordings() {
           {/* Motion Events panel — collapsible list */}
           {!isAllCameras && selectedCamera && !loadingRecordings && (
             <div className="mb-6">
+              {/* Object class filter chips */}
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {[
+                  { value: '',          label: 'All' },
+                  { value: 'motion',    label: '\u{1F3C3} Motion' },
+                  { value: 'person',    label: '\u{1F464} Person' },
+                  { value: 'vehicle',   label: '\u{1F697} Vehicle' },
+                  { value: 'animal',    label: '\u{1F43E} Animal' },
+                  { value: 'tampering', label: '\u{1F6E1}\uFE0F Tampering' },
+                ].map(chip => {
+                  const isActive = objectClassFilter === chip.value
+                  return (
+                    <button
+                      key={chip.value}
+                      onClick={() => setObjectClassFilter(chip.value)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+                        isActive
+                          ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
+                          : 'bg-nvr-bg-input border-nvr-border text-nvr-text-secondary hover:bg-nvr-bg-tertiary'
+                      }`}
+                    >
+                      {chip.label}
+                    </button>
+                  )
+                })}
+              </div>
+
               {/* Panel header — click to toggle */}
               <button
                 onClick={() => setMotionPanelOpen(prev => !prev)}
@@ -1108,8 +1141,8 @@ export default function Recordings() {
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                             />
                           ) : (
-                            <span className="text-base shrink-0" role="img" aria-label="Motion event">
-                              {'\u{1F3C3}'}
+                            <span className="text-base shrink-0" role="img" aria-label={eventEmoji(ev).label}>
+                              {eventEmoji(ev).emoji}
                             </span>
                           )}
 

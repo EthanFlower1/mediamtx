@@ -860,3 +860,206 @@ func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, settings)
 }
+
+// --- Analytics Rule Configuration API ---
+
+// analyticsConfigToken returns the analytics configuration token for a camera.
+// Uses the ONVIF profile token if set, or "000" as default.
+func analyticsConfigToken(cam *db.Camera) string {
+	if cam.ONVIFProfileToken != "" {
+		return cam.ONVIFProfileToken
+	}
+	return "000"
+}
+
+// GetAnalyticsRules returns all analytics rules for a camera.
+//
+//	GET /cameras/:id/analytics/rules
+func (h *CameraHandler) GetAnalyticsRules(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for analytics rules", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	rules, err := onvif.GetRules(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), analyticsConfigToken(cam))
+	if err != nil {
+		nvrLogError("analytics", fmt.Sprintf("failed to get analytics rules for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get analytics rules from device"})
+		return
+	}
+
+	if rules == nil {
+		rules = []onvif.AnalyticsRule{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"rules": rules})
+}
+
+// CreateAnalyticsRule creates a new analytics rule on the camera.
+//
+//	POST /cameras/:id/analytics/rules
+func (h *CameraHandler) CreateAnalyticsRule(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for analytics rule creation", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var rule onvif.AnalyticsRule
+	if err := c.ShouldBindJSON(&rule); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if rule.Name == "" || rule.Type == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name and type are required"})
+		return
+	}
+
+	if err := onvif.CreateRule(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), analyticsConfigToken(cam), rule); err != nil {
+		nvrLogError("analytics", fmt.Sprintf("failed to create analytics rule for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create analytics rule on device"})
+		return
+	}
+
+	nvrLogInfo("analytics", fmt.Sprintf("Created analytics rule %q on camera %s", rule.Name, id))
+	c.JSON(http.StatusCreated, gin.H{"status": "ok", "rule": rule})
+}
+
+// UpdateAnalyticsRule modifies an existing analytics rule on the camera.
+//
+//	PUT /cameras/:id/analytics/rules/:name
+func (h *CameraHandler) UpdateAnalyticsRule(c *gin.Context) {
+	id := c.Param("id")
+	ruleName := c.Param("name")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for analytics rule update", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var rule onvif.AnalyticsRule
+	if err := c.ShouldBindJSON(&rule); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	// Use the URL parameter name if not specified in the body.
+	if rule.Name == "" {
+		rule.Name = ruleName
+	}
+
+	if rule.Type == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type is required"})
+		return
+	}
+
+	if err := onvif.ModifyRule(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), analyticsConfigToken(cam), rule); err != nil {
+		nvrLogError("analytics", fmt.Sprintf("failed to update analytics rule %q for camera %s", ruleName, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to update analytics rule on device"})
+		return
+	}
+
+	nvrLogInfo("analytics", fmt.Sprintf("Updated analytics rule %q on camera %s", ruleName, id))
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "rule": rule})
+}
+
+// DeleteAnalyticsRule deletes an analytics rule from the camera.
+//
+//	DELETE /cameras/:id/analytics/rules/:name
+func (h *CameraHandler) DeleteAnalyticsRule(c *gin.Context) {
+	id := c.Param("id")
+	ruleName := c.Param("name")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for analytics rule deletion", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	if err := onvif.DeleteRule(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), analyticsConfigToken(cam), ruleName); err != nil {
+		nvrLogError("analytics", fmt.Sprintf("failed to delete analytics rule %q for camera %s", ruleName, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete analytics rule on device"})
+		return
+	}
+
+	nvrLogInfo("analytics", fmt.Sprintf("Deleted analytics rule %q from camera %s", ruleName, id))
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// GetAnalyticsModules returns all analytics modules for a camera.
+//
+//	GET /cameras/:id/analytics/modules
+func (h *CameraHandler) GetAnalyticsModules(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for analytics modules", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	modules, err := onvif.GetAnalyticsModules(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), analyticsConfigToken(cam))
+	if err != nil {
+		nvrLogError("analytics", fmt.Sprintf("failed to get analytics modules for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get analytics modules from device"})
+		return
+	}
+
+	if modules == nil {
+		modules = []onvif.AnalyticsModule{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"modules": modules})
+}

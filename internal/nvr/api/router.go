@@ -154,6 +154,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Audio capabilities.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
 
+	// Analytics rules and modules.
+	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
+	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)
+	protected.PUT("/cameras/:id/analytics/rules/:name", cameraHandler.UpdateAnalyticsRule)
+	protected.DELETE("/cameras/:id/analytics/rules/:name", cameraHandler.DeleteAnalyticsRule)
+	protected.GET("/cameras/:id/analytics/modules", cameraHandler.GetAnalyticsModules)
+
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)

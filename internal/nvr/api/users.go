@@ -90,9 +90,15 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
+	hashed, err := hashPassword(req.Password)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to hash password", err)
+		return
+	}
+
 	user := &db.User{
 		Username:          req.Username,
-		PasswordHash:      hashPassword(req.Password),
+		PasswordHash:      hashed,
 		Role:              req.Role,
 		CameraPermissions: req.CameraPermissions,
 	}
@@ -144,7 +150,12 @@ func (h *UserHandler) Update(c *gin.Context) {
 		existing.Username = req.Username
 	}
 	if req.Password != "" {
-		existing.PasswordHash = hashPassword(req.Password)
+		hashed, err := hashPassword(req.Password)
+		if err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to hash password", err)
+			return
+		}
+		existing.PasswordHash = hashed
 		passwordChanged = true
 	}
 	if req.Role != "" {
@@ -212,7 +223,12 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	user.PasswordHash = hashPassword(req.NewPassword)
+	hashed, err := hashPassword(req.NewPassword)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to hash password", err)
+		return
+	}
+	user.PasswordHash = hashed
 	if err := h.DB.UpdateUser(user); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to update password", err)
 		return

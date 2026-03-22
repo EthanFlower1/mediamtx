@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -110,7 +111,18 @@ func (n *NVR) Initialize() error {
 // startNotificationServer starts a WebSocket server on port 9998.
 func (n *NVR) startNotificationServer() {
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true // Allow non-browser clients
+			}
+			// Allow same-host connections (any port)
+			host := r.Host
+			if idx := strings.LastIndex(host, ":"); idx >= 0 {
+				host = host[:idx]
+			}
+			return strings.Contains(origin, host)
+		},
 	}
 
 	mux := http.NewServeMux()
@@ -166,8 +178,9 @@ func (n *NVR) startNotificationServer() {
 		}
 	})
 
+	wsAddr := n.wsPort()
 	n.wsServer = &http.Server{
-		Addr:    ":9998",
+		Addr:    wsAddr,
 		Handler: mux,
 	}
 
@@ -176,7 +189,17 @@ func (n *NVR) startNotificationServer() {
 			fmt.Printf("notification server error: %v\n", err)
 		}
 	}()
-	fmt.Println("NVR notification WebSocket server listening on :9998")
+	fmt.Printf("NVR notification WebSocket server listening on %s\n", wsAddr)
+}
+
+// wsPort derives the WebSocket server port from the API address (API port + 1).
+func (n *NVR) wsPort() string {
+	port := strings.TrimPrefix(n.APIAddress, ":")
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return ":9998" // fallback
+	}
+	return fmt.Sprintf(":%d", p+1)
 }
 
 // Close closes the NVR subsystem.

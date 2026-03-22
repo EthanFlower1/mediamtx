@@ -26,9 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const data = await res.json()
           setAccessToken(data.access_token)
           setIsAuthenticated(true)
-          // Decode JWT to get user info (payload is base64)
-          const payload = JSON.parse(atob(data.access_token.split('.')[1]))
-          setUser({ id: payload.sub, username: payload.username, role: payload.role })
+          setUser({ id: data.user.id, username: data.user.username, role: data.user.role })
         } else {
           // Check if setup is needed
           const healthRes = await fetch('/api/nvr/system/health')
@@ -51,8 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) throw new Error('Invalid credentials')
     const data = await res.json()
     setAccessToken(data.access_token)
-    const payload = JSON.parse(atob(data.access_token.split('.')[1]))
-    setUser({ id: payload.sub, username: payload.username, role: payload.role })
+    setUser({ id: data.user.id, username: data.user.username, role: data.user.role })
     setIsAuthenticated(true)
   }
 

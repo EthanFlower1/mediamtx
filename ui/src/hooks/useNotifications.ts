@@ -109,7 +109,9 @@ export function useNotifications(isAuthenticated: boolean) {
     if (!token) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.hostname}:9998/ws`
+    const apiPort = parseInt(window.location.port || '9997', 10)
+    const wsPort = apiPort + 1
+    const url = `${protocol}//${window.location.hostname}:${wsPort}/ws`
 
     const ws = new WebSocket(url)
     wsRef.current = ws

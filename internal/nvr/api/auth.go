@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +18,50 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
+
+// loginAttempts tracks per-IP login attempt counts for rate limiting.
+var loginAttempts = struct {
+	sync.Mutex
+	counts map[string]int
+	resets map[string]time.Time
+}{
+	counts: make(map[string]int),
+	resets: make(map[string]time.Time),
+}
+
+// checkLoginRateLimit returns true if the IP is allowed to attempt login.
+func checkLoginRateLimit(ip string) bool {
+	loginAttempts.Lock()
+	defer loginAttempts.Unlock()
+
+	if reset, ok := loginAttempts.resets[ip]; ok && time.Now().After(reset) {
+		delete(loginAttempts.counts, ip)
+		delete(loginAttempts.resets, ip)
+	}
+
+	count := loginAttempts.counts[ip]
+	if count >= 10 {
+		return false
+	}
+
+	loginAttempts.counts[ip]++
+	if _, ok := loginAttempts.resets[ip]; !ok {
+		loginAttempts.resets[ip] = time.Now().Add(15 * time.Minute)
+	}
+	return true
+}
+
+// sanitizeURL redacts credentials from a URL for safe logging.
+func sanitizeURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if u.User != nil {
+		u.User = url.UserPassword("***", "***")
+	}
+	return u.String()
+}
 
 // AuthHandler implements authentication endpoints.
 type AuthHandler struct {
@@ -53,9 +100,15 @@ func (h *AuthHandler) Setup(c *gin.Context) {
 		return
 	}
 
+	hashed, err := hashPassword(req.Password)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to hash password", err)
+		return
+	}
+
 	user := &db.User{
 		Username:          req.Username,
-		PasswordHash:      hashPassword(req.Password),
+		PasswordHash:      hashed,
 		Role:              "admin",
 		CameraPermissions: "*",
 	}
@@ -70,6 +123,11 @@ func (h *AuthHandler) Setup(c *gin.Context) {
 
 // Login validates credentials and issues a JWT access token and refresh token.
 func (h *AuthHandler) Login(c *gin.Context) {
+	if !checkLoginRateLimit(c.ClientIP()) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts, try again later"})
+		return
+	}
+
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
@@ -102,7 +160,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Build refresh token.
-	rawToken := generateRandomToken()
+	rawToken, err := generateRandomToken()
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to generate refresh token", err)
+		return
+	}
 	tokenHash := sha256Hash(rawToken)
 	refreshExpiry := now.Add(7 * 24 * time.Hour) // 7 days
 
@@ -127,6 +189,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"access_token": accessToken,
 		"token_type":   "Bearer",
 		"expires_in":   900,
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
 	})
 }
 
@@ -173,6 +240,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		"access_token": accessToken,
 		"token_type":   "Bearer",
 		"expires_in":   900,
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
 	})
 }
 
@@ -279,13 +351,13 @@ func buildMediaMTXPermissions(user *db.User) []map[string]any {
 }
 
 // hashPassword hashes a password using argon2.
-func hashPassword(password string) string {
+func hashPassword(password string) (string, error) {
 	cfg := argon2.DefaultConfig()
 	encoded, err := cfg.HashEncoded([]byte(password))
 	if err != nil {
-		panic("argon2 hash failed: " + err.Error())
+		return "", fmt.Errorf("hash password: %w", err)
 	}
-	return string(encoded)
+	return string(encoded), nil
 }
 
 // verifyPassword checks a password against an argon2 encoded hash.
@@ -295,12 +367,12 @@ func verifyPassword(password, encoded string) bool {
 }
 
 // generateRandomToken returns a 32-byte hex-encoded random string.
-func generateRandomToken() string {
+func generateRandomToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand failed: " + err.Error())
+		return "", fmt.Errorf("generate token: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // sha256Hash returns the hex-encoded SHA-256 hash of s.

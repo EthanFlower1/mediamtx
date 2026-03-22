@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -227,9 +229,22 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	// Populate ONVIF capability flags in the background if the camera has an ONVIF endpoint.
 	if cam.ONVIFEndpoint != "" {
 		go func(camCopy db.Camera) {
-			result, err := onvif.ProbeDeviceFull(camCopy.ONVIFEndpoint, camCopy.ONVIFUsername, h.decryptPassword(camCopy.ONVIFPassword))
-			if err != nil {
-				nvrLogWarn("cameras", fmt.Sprintf("background probe failed for camera %s: %v", camCopy.ID, err))
+			done := make(chan struct{})
+			var result *onvif.ProbeResult
+			var probeErr error
+			go func() {
+				defer close(done)
+				result, probeErr = onvif.ProbeDeviceFull(camCopy.ONVIFEndpoint, camCopy.ONVIFUsername, h.decryptPassword(camCopy.ONVIFPassword))
+			}()
+			select {
+			case <-done:
+				// probe completed
+			case <-time.After(15 * time.Second):
+				log.Printf("[NVR] [WARN] [cameras] ONVIF probe timed out for camera %s", camCopy.ID)
+				return
+			}
+			if probeErr != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("background probe failed for camera %s: %v", camCopy.ID, probeErr))
 				return
 			}
 			camCopy.SupportsPTZ = result.Capabilities.PTZ

@@ -225,6 +225,9 @@ func (s *Scheduler) evaluate() {
 
 	// Evaluate ALL cameras (not just those with rules) so we can subscribe
 	// to ONVIF events for motion alerts on every camera.
+	// Also start ONVIF event subscriptions for any camera that has an ONVIF
+	// endpoint but doesn't yet have a subscriber — regardless of recording rules.
+	// Both operations are done under a single lock to avoid a race on s.eventSubs.
 	s.mu.Lock()
 	evalCameras := make(map[string]struct{})
 	for _, c := range cameras {
@@ -233,12 +236,6 @@ func (s *Scheduler) evaluate() {
 	for camID := range s.states {
 		evalCameras[camID] = struct{}{}
 	}
-	s.mu.Unlock()
-
-	// Start ONVIF event subscriptions for any camera that has an ONVIF endpoint
-	// but doesn't yet have a subscriber — regardless of recording rules.
-	// This ensures motion alerts work even without "events" recording rules.
-	s.mu.Lock()
 	for _, cam := range cameras {
 		if cam.ONVIFEndpoint != "" {
 			if _, hasSub := s.eventSubs[cam.ID]; !hasSub {
@@ -320,7 +317,7 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 		cutoff := now.AddDate(0, 0, -cam.RetentionDays)
 		paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, cutoff)
 		if err != nil {
-			log.Printf("scheduler: retention cleanup for camera %s: %v", cam.Name, err)
+			log.Printf("scheduler: retention cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
 			continue
 		}
 		if len(paths) == 0 {

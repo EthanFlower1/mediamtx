@@ -28,6 +28,36 @@ function formatDuration(ms: number): string {
   return `${s}s`
 }
 
+function formatDurationShort(ms: number): string {
+  const totalSecs = Math.round(ms / 1000)
+  const m = Math.floor(totalSecs / 60)
+  const s = totalSecs % 60
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function thumbnailUrl(path: string | undefined): string | null {
+  if (!path) return null
+  const filename = path.split('/').pop()
+  return filename ? `/api/nvr/thumbnails/${filename}` : null
+}
+
+/** Badge color for event type. */
+function eventBadgeColor(ev: MotionEvent): string {
+  if (ev.event_type === 'tampering') return 'bg-red-500/20 text-red-400 border-red-500/30'
+  switch (ev.object_class) {
+    case 'person':  return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+    case 'vehicle': return 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+    case 'animal':  return 'bg-green-500/20 text-green-400 border-green-500/30'
+    default:        return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+  }
+}
+
+/** Position (0-1) of a time within the day. */
+function dayFraction(d: Date): number {
+  return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400
+}
+
 interface SavedClip {
   id: string
   camera_id: string
@@ -44,6 +74,8 @@ interface SearchResult extends MotionEvent {
   camera_name: string
 }
 
+type SortMode = 'newest' | 'oldest' | 'longest'
+
 const EVENT_TYPES = [
   { value: '', label: 'All Events' },
   { value: 'motion', label: 'Motion' },
@@ -56,6 +88,32 @@ const EVENT_TYPES = [
 const PAGE_SIZE = 20
 
 /* ------------------------------------------------------------------ */
+/*  Timeline Mini-Preview                                              */
+/* ------------------------------------------------------------------ */
+function TimelineMini({ startTime, endTime }: { startTime: Date; endTime: Date | null }) {
+  const startFrac = dayFraction(startTime)
+  const endFrac = endTime ? dayFraction(endTime) : Math.min(startFrac + 0.003, 1)
+  const width = Math.max(endFrac - startFrac, 0.003) // min visible width
+
+  return (
+    <div className="w-full h-1.5 bg-nvr-bg-input rounded-full overflow-hidden relative" title={`${startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} in the day`}>
+      {/* Hour markers */}
+      {[6, 12, 18].map(h => (
+        <div key={h} className="absolute top-0 bottom-0 w-px bg-nvr-border/40" style={{ left: `${(h / 24) * 100}%` }} />
+      ))}
+      {/* Event bar */}
+      <div
+        className="absolute top-0 bottom-0 bg-nvr-accent rounded-full min-w-[3px]"
+        style={{
+          left: `${startFrac * 100}%`,
+          width: `${width * 100}%`,
+        }}
+      />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Search Result Card                                                 */
 /* ------------------------------------------------------------------ */
 interface ResultCardProps {
@@ -66,80 +124,138 @@ interface ResultCardProps {
 }
 
 function ResultCard({ result, onPlay, onSave, onDownload }: ResultCardProps) {
+  const [hoverThumb, setHoverThumb] = useState(false)
   const startTime = new Date(result.started_at)
   const endTime = result.ended_at ? new Date(result.ended_at) : null
   const duration = endTime ? endTime.getTime() - startTime.getTime() : 0
   const { emoji, label } = eventEmoji(result)
+  const thumbSrc = thumbnailUrl(result.thumbnail_path)
+  const badgeColor = eventBadgeColor(result)
 
   return (
-    <div className="bg-nvr-bg-secondary border border-nvr-border rounded-lg p-4 hover:border-nvr-accent/30 transition-colors group">
-      {/* Thumbnail placeholder */}
-      {result.thumbnail_path ? (
-        <div className="aspect-video bg-nvr-bg-input rounded mb-3 overflow-hidden">
-          <img
-            src={`/api/nvr/thumbnails/${result.thumbnail_path}`}
-            alt="Event thumbnail"
-            className="w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
-        </div>
-      ) : (
-        <div className="aspect-video bg-nvr-bg-input rounded mb-3 flex items-center justify-center">
-          <span className="text-3xl">{emoji}</span>
-        </div>
-      )}
+    <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden hover:border-nvr-accent/40 transition-all group relative">
+      {/* Card body: horizontal layout */}
+      <div className="flex">
+        {/* Left: Thumbnail */}
+        <div
+          className="relative w-40 min-w-[160px] shrink-0"
+          onMouseEnter={() => setHoverThumb(true)}
+          onMouseLeave={() => setHoverThumb(false)}
+        >
+          {thumbSrc ? (
+            <img
+              src={thumbSrc}
+              alt="Event thumbnail"
+              className="w-full h-full object-cover aspect-video"
+              onError={(e) => {
+                const el = e.target as HTMLImageElement
+                el.style.display = 'none'
+                const sib = el.nextElementSibling as HTMLElement | null
+                if (sib) sib.style.display = 'flex'
+              }}
+            />
+          ) : null}
+          {/* Fallback placeholder (shown if no thumbnail or img fails) */}
+          <div
+            className="absolute inset-0 bg-nvr-bg-input flex items-center justify-center aspect-video"
+            style={thumbSrc ? { display: 'none' } : {}}
+          >
+            <span className="text-4xl select-none">{emoji}</span>
+          </div>
 
-      {/* Info */}
-      <div className="flex items-start gap-2 mb-2">
-        <span className="text-sm" role="img" aria-label={label}>{emoji}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-nvr-text-primary truncate">{result.camera_name}</p>
-          <p className="text-xs text-nvr-text-secondary">
-            {label}
-            {result.confidence ? ` (${Math.round(result.confidence * 100)}%)` : ''}
-          </p>
+          {/* Play overlay on hover */}
+          <button
+            onClick={onPlay}
+            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
+              <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </button>
+
+          {/* Hover preview tooltip */}
+          {hoverThumb && thumbSrc && (
+            <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none">
+              <div className="bg-nvr-bg-secondary border border-nvr-border rounded-lg shadow-2xl overflow-hidden">
+                <img src={thumbSrc} alt="Preview" className="w-72 h-auto" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Event details */}
+        <div className="flex-1 min-w-0 p-3 flex flex-col justify-between">
+          {/* Top row: camera name + badge */}
+          <div>
+            <p className="text-sm font-semibold text-nvr-text-primary truncate">{result.camera_name}</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${badgeColor}`}>
+                <span>{emoji}</span>
+                <span>{label}</span>
+              </span>
+              {result.confidence != null && result.confidence > 0 && (
+                <span className="text-[11px] font-medium text-nvr-text-muted bg-nvr-bg-input px-1.5 py-0.5 rounded">
+                  {Math.round(result.confidence * 100)}%
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Middle: time + duration */}
+          <div className="flex items-center gap-2 text-xs text-nvr-text-muted mt-2">
+            <span>
+              {startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })},{' '}
+              {startTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}
+            </span>
+            {duration > 0 && (
+              <span className="inline-flex items-center bg-nvr-bg-input text-nvr-text-secondary text-[11px] font-medium px-1.5 py-0.5 rounded">
+                {formatDurationShort(duration)}
+              </span>
+            )}
+          </div>
+
+          {/* Timeline mini-bar */}
+          <div className="mt-2">
+            <TimelineMini startTime={startTime} endTime={endTime} />
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-nvr-text-muted mb-3">
-        <span>{startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-        <span>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-        {duration > 0 && (
-          <>
-            <span className="text-nvr-border">|</span>
-            <span>{formatDuration(duration)}</span>
-          </>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-2">
+      {/* Bottom: action buttons */}
+      <div className="flex items-center border-t border-nvr-border/50">
         <button
           onClick={onPlay}
-          className="flex-1 flex items-center justify-center gap-1.5 bg-nvr-accent hover:bg-nvr-accent-hover text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-nvr-text-secondary hover:text-white hover:bg-nvr-accent py-2 transition-colors"
+          title="Play"
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
           </svg>
           Play
         </button>
+        <div className="w-px h-5 bg-nvr-border/50" />
         <button
           onClick={onDownload}
-          className="flex items-center justify-center gap-1.5 bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-nvr-text-secondary hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary py-2 transition-colors"
           title="Download clip"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
+          Download
         </button>
+        <div className="w-px h-5 bg-nvr-border/50" />
         <button
           onClick={onSave}
-          className="flex items-center justify-center gap-1.5 bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-nvr-text-secondary hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary py-2 transition-colors"
           title="Save clip bookmark"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
+          Save
         </button>
       </div>
     </div>
@@ -345,6 +461,7 @@ export default function ClipSearch() {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [eventType, setEventType] = useState('')
   const [cameraDropdownOpen, setCameraDropdownOpen] = useState(false)
+  const [sortMode, setSortMode] = useState<SortMode>('newest')
 
   // Results
   const [results, setResults] = useState<SearchResult[]>([])
@@ -387,6 +504,28 @@ export default function ClipSearch() {
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
+
+  // Sort results
+  const sortResults = useCallback((items: SearchResult[], mode: SortMode): SearchResult[] => {
+    const sorted = [...items]
+    switch (mode) {
+      case 'newest':
+        sorted.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+        break
+      case 'oldest':
+        sorted.sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
+        break
+      case 'longest': {
+        const dur = (r: SearchResult) => {
+          if (!r.ended_at) return 0
+          return new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()
+        }
+        sorted.sort((a, b) => dur(b) - dur(a))
+        break
+      }
+    }
+    return sorted
+  }, [])
 
   // Search function
   const handleSearch = async () => {
@@ -440,15 +579,21 @@ export default function ClipSearch() {
 
       await Promise.all(promises)
 
-      // Sort newest first
-      allResults.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
-      setResults(allResults)
+      setResults(sortResults(allResults, sortMode))
     } catch {
       setResults([])
     } finally {
       setSearching(false)
     }
   }
+
+  // Re-sort when sortMode changes
+  useEffect(() => {
+    if (results.length > 0) {
+      setResults(prev => sortResults(prev, sortMode))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortMode, sortResults])
 
   // Navigate to playback page with camera and time
   const handlePlayEvent = (result: SearchResult) => {
@@ -649,9 +794,22 @@ export default function ClipSearch() {
         </div>
 
         <div className="flex items-center justify-between mt-3">
-          <div className="text-xs text-nvr-text-muted">
-            {searched && !searching && (
-              <span>{results.length} result{results.length !== 1 ? 's' : ''} found</span>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-nvr-text-muted">
+              {searched && !searching && (
+                <span>{results.length} result{results.length !== 1 ? 's' : ''} found</span>
+              )}
+            </div>
+            {searched && results.length > 1 && (
+              <select
+                value={sortMode}
+                onChange={e => setSortMode(e.target.value as SortMode)}
+                className="bg-nvr-bg-input border border-nvr-border rounded-lg px-2 py-1 text-xs text-nvr-text-secondary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="longest">Longest duration</option>
+              </select>
             )}
           </div>
           <button
@@ -697,7 +855,7 @@ export default function ClipSearch() {
           <h2 className="text-sm font-semibold text-nvr-text-secondary uppercase tracking-wider mb-3">
             Search Results
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {visibleResults.map((result, i) => (
               <ResultCard
                 key={`${result.camera_id}-${result.started_at}-${i}`}

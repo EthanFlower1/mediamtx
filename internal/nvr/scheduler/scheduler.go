@@ -431,8 +431,18 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 				_ = s.db.EndMotionEvent(camID, now)
 			}
 		case onvif.EventTampering:
-			if active && s.eventPub != nil {
-				s.eventPub.PublishTampering(cam.Name)
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  camID,
+					StartedAt: now,
+					EventType: "tampering",
+				})
+				if s.eventPub != nil {
+					s.eventPub.PublishTampering(cam.Name)
+				}
+			} else {
+				_ = s.db.EndMotionEvent(camID, now)
 			}
 		}
 	}
@@ -513,8 +523,18 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
 		case onvif.EventTampering:
-			if active && s.eventPub != nil {
-				s.eventPub.PublishTampering(cam.Name)
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  cam.ID,
+					StartedAt: now,
+					EventType: "tampering",
+				})
+				if s.eventPub != nil {
+					s.eventPub.PublishTampering(cam.Name)
+				}
+			} else {
+				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
 		}
 	}

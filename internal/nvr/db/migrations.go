@@ -160,4 +160,12 @@ ALTER TABLE cameras ADD COLUMN supports_audio_backchannel INTEGER NOT NULL DEFAU
 ALTER TABLE cameras ADD COLUMN snapshot_uri TEXT DEFAULT '';
 `,
 	},
+	{
+		version: 10,
+		sql: `
+ALTER TABLE cameras ADD COLUMN supports_media2 INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cameras ADD COLUMN supports_analytics INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE motion_events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'motion';
+`,
+	},
 }

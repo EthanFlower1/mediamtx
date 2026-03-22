@@ -17,6 +17,8 @@ export interface Camera {
   supports_relay?: boolean
   supports_audio_backchannel?: boolean
   snapshot_uri?: string
+  supports_media2?: boolean
+  supports_analytics?: boolean
 }
 
 function getRefreshInterval(): number {

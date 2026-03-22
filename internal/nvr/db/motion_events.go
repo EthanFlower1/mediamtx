@@ -11,14 +11,18 @@ type MotionEvent struct {
 	StartedAt     string  `json:"started_at"`
 	EndedAt       *string `json:"ended_at"`
 	ThumbnailPath string  `json:"thumbnail_path,omitempty"`
+	EventType     string  `json:"event_type"`
 }
 
 // InsertMotionEvent inserts a new motion event into the database.
 func (d *DB) InsertMotionEvent(event *MotionEvent) error {
+	if event.EventType == "" {
+		event.EventType = "motion"
+	}
 	res, err := d.Exec(`
-		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path)
-		VALUES (?, ?, ?, ?)`,
-		event.CameraID, event.StartedAt, event.EndedAt, event.ThumbnailPath,
+		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type)
+		VALUES (?, ?, ?, ?, ?)`,
+		event.CameraID, event.StartedAt, event.EndedAt, event.ThumbnailPath, event.EventType,
 	)
 	if err != nil {
 		return err
@@ -60,7 +64,7 @@ func (d *DB) CloseOrphanedMotionEvents() error {
 // (ended_at IS NULL OR ended_at > start).
 func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*MotionEvent, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, '')
+		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion')
 		FROM motion_events
 		WHERE camera_id = ?
 		  AND started_at < ?
@@ -78,7 +82,7 @@ func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*Motion
 	var events []*MotionEvent
 	for rows.Next() {
 		ev := &MotionEvent{}
-		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath); err != nil {
+		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType); err != nil {
 			return nil, err
 		}
 		events = append(events, ev)

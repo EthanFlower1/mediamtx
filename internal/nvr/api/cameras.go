@@ -237,6 +237,8 @@ func (h *CameraHandler) Create(c *gin.Context) {
 			camCopy.SupportsEvents = result.Capabilities.Events
 			camCopy.SupportsRelay = result.Capabilities.DeviceIO
 			camCopy.SupportsAudioBackchannel = result.Capabilities.AudioBackchannel
+			camCopy.SupportsMedia2 = result.Capabilities.Media2
+			camCopy.SupportsAnalytics = result.Capabilities.Analytics
 			camCopy.SnapshotURI = result.SnapshotURI
 			if err := h.DB.UpdateCamera(&camCopy); err != nil {
 				nvrLogWarn("cameras", fmt.Sprintf("failed to store capabilities for camera %s: %v", camCopy.ID, err))

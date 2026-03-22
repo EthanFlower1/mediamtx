@@ -8,6 +8,7 @@ export interface MotionEvent {
   started_at: string
   ended_at?: string | null
   thumbnail_path?: string
+  event_type?: string
 }
 
 interface Props {
@@ -459,7 +460,9 @@ export default function Timeline({
           const endLabel = evEnd
             ? evEnd.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
             : 'ongoing'
-          const tooltip = `Motion ${startLabel} – ${endLabel}`
+          const isTampering = ev.event_type === 'tampering'
+          const eventLabel = isTampering ? 'Tampering' : 'Motion'
+          const tooltip = `${eventLabel} ${startLabel} – ${endLabel}`
 
           return (
             <div
@@ -475,8 +478,8 @@ export default function Timeline({
                 onEventClick?.(i)
               }}
             >
-              <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label="Motion event">
-                {'\u{1F3C3}'}
+              <span className="text-[10px] leading-none drop-shadow-sm" role="img" aria-label={isTampering ? 'Tampering event' : 'Motion event'}>
+                {isTampering ? '\u{1F6E1}\uFE0F' : '\u{1F3C3}'}
               </span>
               {hoveredEvent === i && (
                 <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-nvr-bg-secondary border border-nvr-border rounded px-2 py-0.5 text-[10px] text-nvr-text-primary pointer-events-none z-30 whitespace-nowrap shadow-lg">

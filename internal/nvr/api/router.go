@@ -154,6 +154,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Audio capabilities.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
 
+	// Edge recordings (camera SD card / Profile G).
+	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)
+	protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
+	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
+
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
 	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)

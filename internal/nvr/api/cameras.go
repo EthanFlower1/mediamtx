@@ -1066,3 +1066,130 @@ func (h *CameraHandler) GetAnalyticsModules(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"modules": modules})
 }
+
+// EdgeRecordings lists recordings stored on the camera's edge storage (SD card).
+//
+//	GET /cameras/:id/edge-recordings
+func (h *CameraHandler) EdgeRecordings(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for edge recordings", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	password := h.decryptPassword(cam.ONVIFPassword)
+
+	summary, err := onvif.GetRecordingSummary(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
+	if err != nil {
+		nvrLogError("edge-recordings", fmt.Sprintf("failed to get recording summary for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get recording summary from device"})
+		return
+	}
+
+	recordings, err := onvif.FindRecordings(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
+	if err != nil {
+		nvrLogError("edge-recordings", fmt.Sprintf("failed to find recordings for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to find recordings on device"})
+		return
+	}
+
+	if recordings == nil {
+		recordings = []onvif.EdgeRecording{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"summary":    summary,
+		"recordings": recordings,
+	})
+}
+
+// EdgePlayback returns the replay RTSP URI for a specific recording on the camera's edge storage.
+//
+//	GET /cameras/:id/edge-recordings/playback?recording_token=X
+func (h *CameraHandler) EdgePlayback(c *gin.Context) {
+	id := c.Param("id")
+	recordingToken := c.Query("recording_token")
+
+	if recordingToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recording_token query parameter is required"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for edge playback", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	replayUri, err := onvif.GetReplayUri(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), recordingToken)
+	if err != nil {
+		nvrLogError("edge-recordings", fmt.Sprintf("failed to get replay URI for camera %s token %s", id, recordingToken), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get replay URI from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"replay_uri": replayUri})
+}
+
+// EdgeImport returns the replay URI for importing an edge recording.
+// In v1 this simply returns the URI; future versions may download and re-mux locally.
+//
+//	POST /cameras/:id/edge-recordings/import
+func (h *CameraHandler) EdgeImport(c *gin.Context) {
+	id := c.Param("id")
+
+	var req struct {
+		RecordingToken string `json:"recording_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recording_token is required"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for edge import", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	replayUri, err := onvif.GetReplayUri(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.RecordingToken)
+	if err != nil {
+		nvrLogError("edge-recordings", fmt.Sprintf("failed to get replay URI for import camera %s token %s", id, req.RecordingToken), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get replay URI from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"replay_uri": replayUri,
+		"message":    "Use this RTSP URI to stream or record the edge recording. Local import is planned for a future version.",
+	})
+}

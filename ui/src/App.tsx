@@ -6,6 +6,8 @@ import Setup from './pages/Setup'
 import LiveView from './pages/LiveView'
 import CameraManagement from './pages/CameraManagement'
 import Recordings from './pages/Recordings'
+import Playback from './pages/Playback'
+import ClipSearch from './pages/ClipSearch'
 import Settings from './pages/Settings'
 import UserManagement from './pages/UserManagement'
 import ToastContainer from './components/Toast'
@@ -219,6 +221,19 @@ const IconRecordings = (
   </svg>
 )
 
+const IconPlayback = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+
+const IconClips = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+  </svg>
+)
+
 const IconSettings = (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -273,6 +288,8 @@ function Layout({ children }: { children: React.ReactNode }) {
     { to: '/live', icon: IconLive, label: 'Live View' },
     { to: '/cameras', icon: IconCamera, label: 'Cameras' },
     { to: '/recordings', icon: IconRecordings, label: 'Recordings' },
+    { to: '/playback', icon: IconPlayback, label: 'Playback' },
+    { to: '/clips', icon: IconClips, label: 'Clips' },
     { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
   ]
 
@@ -447,6 +464,8 @@ function AppRoutes() {
       <Route path="/live" element={<ProtectedRoute><Layout><LiveView /></Layout></ProtectedRoute>} />
       <Route path="/cameras" element={<ProtectedRoute><Layout><CameraManagement /></Layout></ProtectedRoute>} />
       <Route path="/recordings" element={<ProtectedRoute><Layout><Recordings /></Layout></ProtectedRoute>} />
+      <Route path="/playback" element={<ProtectedRoute><Layout><Playback /></Layout></ProtectedRoute>} />
+      <Route path="/clips" element={<ProtectedRoute><Layout><ClipSearch /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/live" replace />} />

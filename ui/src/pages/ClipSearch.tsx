@@ -1,0 +1,786 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useCameras } from '../hooks/useCameras'
+import { apiFetch } from '../api/client'
+import { MotionEvent, eventEmoji } from '../components/Timeline'
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function toLocalRFC3339(d: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const offset = -d.getTimezoneOffset()
+  const sign = offset >= 0 ? '+' : '-'
+  const absOffset = Math.abs(offset)
+  const offH = pad(Math.floor(absOffset / 60))
+  const offM = pad(absOffset % 60)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offH}:${offM}`
+}
+
+function formatDuration(ms: number): string {
+  const totalSecs = Math.round(ms / 1000)
+  const h = Math.floor(totalSecs / 3600)
+  const m = Math.floor((totalSecs % 3600) / 60)
+  const s = totalSecs % 60
+  if (h > 0) return `${h}h ${m}m ${s}s`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+interface SavedClip {
+  id: string
+  camera_id: string
+  name: string
+  start_time: string
+  end_time: string
+  tags: string
+  notes: string
+  created_at: string
+}
+
+interface SearchResult extends MotionEvent {
+  camera_id: string
+  camera_name: string
+}
+
+const EVENT_TYPES = [
+  { value: '', label: 'All Events' },
+  { value: 'motion', label: 'Motion' },
+  { value: 'person', label: 'Person' },
+  { value: 'vehicle', label: 'Vehicle' },
+  { value: 'animal', label: 'Animal' },
+  { value: 'tampering', label: 'Tampering' },
+]
+
+const PAGE_SIZE = 20
+
+/* ------------------------------------------------------------------ */
+/*  Search Result Card                                                 */
+/* ------------------------------------------------------------------ */
+interface ResultCardProps {
+  result: SearchResult
+  onPlay: () => void
+  onSave: () => void
+  onDownload: () => void
+}
+
+function ResultCard({ result, onPlay, onSave, onDownload }: ResultCardProps) {
+  const startTime = new Date(result.started_at)
+  const endTime = result.ended_at ? new Date(result.ended_at) : null
+  const duration = endTime ? endTime.getTime() - startTime.getTime() : 0
+  const { emoji, label } = eventEmoji(result)
+
+  return (
+    <div className="bg-nvr-bg-secondary border border-nvr-border rounded-lg p-4 hover:border-nvr-accent/30 transition-colors group">
+      {/* Thumbnail placeholder */}
+      {result.thumbnail_path ? (
+        <div className="aspect-video bg-nvr-bg-input rounded mb-3 overflow-hidden">
+          <img
+            src={`/api/nvr/thumbnails/${result.thumbnail_path}`}
+            alt="Event thumbnail"
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+      ) : (
+        <div className="aspect-video bg-nvr-bg-input rounded mb-3 flex items-center justify-center">
+          <span className="text-3xl">{emoji}</span>
+        </div>
+      )}
+
+      {/* Info */}
+      <div className="flex items-start gap-2 mb-2">
+        <span className="text-sm" role="img" aria-label={label}>{emoji}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-nvr-text-primary truncate">{result.camera_name}</p>
+          <p className="text-xs text-nvr-text-secondary">
+            {label}
+            {result.confidence ? ` (${Math.round(result.confidence * 100)}%)` : ''}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-nvr-text-muted mb-3">
+        <span>{startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+        <span>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        {duration > 0 && (
+          <>
+            <span className="text-nvr-border">|</span>
+            <span>{formatDuration(duration)}</span>
+          </>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onPlay}
+          className="flex-1 flex items-center justify-center gap-1.5 bg-nvr-accent hover:bg-nvr-accent-hover text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          Play
+        </button>
+        <button
+          onClick={onDownload}
+          className="flex items-center justify-center gap-1.5 bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          title="Download clip"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </button>
+        <button
+          onClick={onSave}
+          className="flex items-center justify-center gap-1.5 bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          title="Save clip bookmark"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Saved Clip Row                                                     */
+/* ------------------------------------------------------------------ */
+interface SavedClipRowProps {
+  clip: SavedClip
+  cameraName: string
+  onPlay: () => void
+  onDownload: () => void
+  onDelete: () => void
+}
+
+function SavedClipRow({ clip, cameraName, onPlay, onDownload, onDelete }: SavedClipRowProps) {
+  const startTime = new Date(clip.start_time)
+  const endTime = new Date(clip.end_time)
+  const duration = endTime.getTime() - startTime.getTime()
+  const tags = clip.tags ? clip.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+
+  return (
+    <div className="flex items-center gap-3 py-3 px-4 border-b border-nvr-border last:border-b-0 hover:bg-nvr-bg-tertiary/30 transition-colors group">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-nvr-text-primary truncate">{clip.name}</p>
+        <div className="flex items-center gap-2 text-xs text-nvr-text-muted mt-0.5">
+          <span>{cameraName}</span>
+          <span className="text-nvr-border">|</span>
+          <span>{startTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+          <span>{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <span className="text-nvr-border">|</span>
+          <span>{formatDuration(duration)}</span>
+        </div>
+        {tags.length > 0 && (
+          <div className="flex items-center gap-1 mt-1">
+            {tags.map(tag => (
+              <span key={tag} className="text-[10px] bg-nvr-accent/10 text-nvr-accent rounded px-1.5 py-0.5">{tag}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onPlay}
+          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-nvr-accent hover:bg-nvr-accent-hover text-white transition-colors"
+          title="Play"
+        >
+          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </button>
+        <button
+          onClick={onDownload}
+          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary transition-colors"
+          title="Download"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </button>
+        <button
+          onClick={onDelete}
+          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-danger/20 text-nvr-text-secondary hover:text-nvr-danger transition-colors"
+          title="Delete"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Save Clip Modal                                                    */
+/* ------------------------------------------------------------------ */
+interface SaveModalProps {
+  cameraId: string
+  startTime: Date
+  endTime: Date | null
+  onClose: () => void
+  onSaved: () => void
+}
+
+function SaveClipModal({ cameraId, startTime, endTime, onClose, onSaved }: SaveModalProps) {
+  const [name, setName] = useState('')
+  const [tags, setTags] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const clipEndTime = endTime ?? new Date(startTime.getTime() + 30000)
+      const res = await apiFetch('/saved-clips', {
+        method: 'POST',
+        body: JSON.stringify({
+          camera_id: cameraId,
+          name: name.trim(),
+          start_time: toLocalRFC3339(startTime),
+          end_time: toLocalRFC3339(clipEndTime),
+          tags: tags.trim(),
+          notes: notes.trim(),
+        }),
+      })
+      if (res.ok) {
+        onSaved()
+        onClose()
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative z-10 bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-semibold text-nvr-text-primary mb-4">Save Clip Bookmark</h3>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">Clip Name *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Front door motion"
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              value={tags}
+              onChange={e => setTags(e.target.value)}
+              placeholder="e.g. important, review"
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">Notes</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Optional notes..."
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50 resize-none"
+            />
+          </div>
+
+          <div className="text-xs text-nvr-text-muted">
+            <span>{startTime.toLocaleString()}</span>
+            {endTime && <span> to {endTime.toLocaleString()}</span>}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-nvr-text-secondary hover:text-nvr-text-primary bg-nvr-bg-tertiary hover:bg-nvr-bg-input rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="px-4 py-2 text-sm font-medium text-white bg-nvr-accent hover:bg-nvr-accent-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save Clip'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  ClipSearch Page                                                    */
+/* ------------------------------------------------------------------ */
+export default function ClipSearch() {
+  const navigate = useNavigate()
+  const { cameras, loading: camerasLoading } = useCameras()
+
+  // Search filters
+  const [selectedCameraIds, setSelectedCameraIds] = useState<string[]>([])
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [eventType, setEventType] = useState('')
+  const [cameraDropdownOpen, setCameraDropdownOpen] = useState(false)
+
+  // Results
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+
+  // Saved clips
+  const [savedClips, setSavedClips] = useState<SavedClip[]>([])
+  const [savedClipsOpen, setSavedClipsOpen] = useState(true)
+
+  // Save modal state
+  const [saveModal, setSaveModal] = useState<{ cameraId: string; startTime: Date; endTime: Date | null } | null>(null)
+
+  // Page title
+  useEffect(() => {
+    document.title = 'Clips \u2014 MediaMTX NVR'
+    return () => { document.title = 'MediaMTX NVR' }
+  }, [])
+
+  // Fetch saved clips
+  const fetchSavedClips = useCallback(() => {
+    apiFetch('/saved-clips')
+      .then(res => res.ok ? res.json() : [])
+      .then((data: SavedClip[]) => setSavedClips(data))
+      .catch(() => setSavedClips([]))
+  }, [])
+
+  useEffect(() => {
+    fetchSavedClips()
+  }, [fetchSavedClips])
+
+  // Camera name lookup
+  const cameraNameMap = new Map(cameras.map(c => [c.id, c.name]))
+  const cameraPathMap = new Map(cameras.map(c => [c.id, c.mediamtx_path]))
+
+  // Toggle camera selection
+  const toggleCamera = (id: string) => {
+    setSelectedCameraIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  // Search function
+  const handleSearch = async () => {
+    setSearching(true)
+    setSearched(true)
+    setVisibleCount(PAGE_SIZE)
+
+    const camsToSearch = selectedCameraIds.length > 0
+      ? cameras.filter(c => selectedCameraIds.includes(c.id))
+      : cameras
+
+    // Generate list of dates between startDate and endDate
+    const dates: string[] = []
+    const current = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T00:00:00')
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0])
+      current.setDate(current.getDate() + 1)
+    }
+
+    try {
+      const allResults: SearchResult[] = []
+
+      // For each camera and each day, fetch motion events
+      const promises: Promise<void>[] = []
+      for (const cam of camsToSearch) {
+        for (const d of dates) {
+          let url = `/cameras/${cam.id}/motion-events?date=${d}`
+          if (eventType === 'tampering') {
+            url += '&event_type=tampering'
+          } else if (eventType) {
+            url += `&object_class=${encodeURIComponent(eventType)}`
+          }
+
+          promises.push(
+            apiFetch(url)
+              .then(res => res.ok ? res.json() : [])
+              .then((events: MotionEvent[]) => {
+                events.forEach(ev => {
+                  allResults.push({
+                    ...ev,
+                    camera_id: cam.id,
+                    camera_name: cam.name,
+                  })
+                })
+              })
+              .catch(() => {})
+          )
+        }
+      }
+
+      await Promise.all(promises)
+
+      // Sort newest first
+      allResults.sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+      setResults(allResults)
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  // Navigate to playback page with camera and time
+  const handlePlayEvent = (result: SearchResult) => {
+    // Store state for the playback page to pick up
+    const startTime = new Date(new Date(result.started_at).getTime() - 5000)
+    localStorage.setItem('nvr-playback-camera', result.camera_id)
+    localStorage.setItem('nvr-playback-time', startTime.toISOString())
+    navigate('/playback')
+  }
+
+  // Download a clip segment
+  const handleDownloadEvent = async (result: SearchResult) => {
+    const path = cameraPathMap.get(result.camera_id)
+    if (!path) return
+    const startTime = new Date(result.started_at)
+    const endTime = result.ended_at ? new Date(result.ended_at) : new Date(startTime.getTime() + 30000)
+    const durationSecs = (endTime.getTime() - startTime.getTime()) / 1000
+    const startISO = toLocalRFC3339(startTime)
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `clip_${result.camera_name.replace(/[^a-zA-Z0-9_-]/g, '_')}_${startTime.toISOString().replace(/[:.]/g, '-')}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(url, '_blank')
+    }
+  }
+
+  // Play a saved clip via playback page
+  const handlePlaySavedClip = (clip: SavedClip) => {
+    localStorage.setItem('nvr-playback-camera', clip.camera_id)
+    localStorage.setItem('nvr-playback-time', clip.start_time)
+    navigate('/playback')
+  }
+
+  // Download a saved clip
+  const handleDownloadSavedClip = async (clip: SavedClip) => {
+    const path = cameraPathMap.get(clip.camera_id)
+    if (!path) return
+    const startTime = new Date(clip.start_time)
+    const endTime = new Date(clip.end_time)
+    const durationSecs = (endTime.getTime() - startTime.getTime()) / 1000
+    const startISO = toLocalRFC3339(startTime)
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `${clip.name.replace(/[^a-zA-Z0-9_-]/g, '_')}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(url, '_blank')
+    }
+  }
+
+  // Delete a saved clip
+  const handleDeleteSavedClip = async (clipId: string) => {
+    try {
+      const res = await apiFetch(`/saved-clips/${clipId}`, { method: 'DELETE' })
+      if (res.ok) fetchSavedClips()
+    } catch {
+      // silently fail
+    }
+  }
+
+  const visibleResults = results.slice(0, visibleCount)
+  const hasMore = visibleCount < results.length
+
+  if (camerasLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <svg className="w-8 h-8 text-nvr-accent animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary mb-6">Clip Search</h1>
+
+      {/* ---- Search bar ---- */}
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Camera filter (multi-select dropdown) */}
+          <div className="relative">
+            <label className="text-xs text-nvr-text-muted block mb-1">Cameras</label>
+            <button
+              onClick={() => setCameraDropdownOpen(!cameraDropdownOpen)}
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+            >
+              <span className="truncate">
+                {selectedCameraIds.length === 0
+                  ? 'All cameras'
+                  : `${selectedCameraIds.length} selected`}
+              </span>
+              <svg className={`w-4 h-4 text-nvr-text-muted transition-transform ${cameraDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {cameraDropdownOpen && (
+              <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-nvr-bg-secondary border border-nvr-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                <button
+                  onClick={() => setSelectedCameraIds([])}
+                  className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                    selectedCameraIds.length === 0
+                      ? 'text-nvr-accent bg-nvr-accent/10'
+                      : 'text-nvr-text-secondary hover:bg-nvr-bg-tertiary'
+                  }`}
+                >
+                  All cameras
+                </button>
+                {cameras.map(cam => (
+                  <button
+                    key={cam.id}
+                    onClick={() => toggleCamera(cam.id)}
+                    className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 ${
+                      selectedCameraIds.includes(cam.id)
+                        ? 'text-nvr-accent bg-nvr-accent/10'
+                        : 'text-nvr-text-secondary hover:bg-nvr-bg-tertiary'
+                    }`}
+                  >
+                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                      selectedCameraIds.includes(cam.id)
+                        ? 'bg-nvr-accent border-nvr-accent'
+                        : 'border-nvr-border'
+                    }`}>
+                      {selectedCameraIds.includes(cam.id) && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="truncate">{cam.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Start date */}
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              max={endDate}
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+            />
+          </div>
+
+          {/* End date */}
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              min={startDate}
+              max={new Date().toISOString().split('T')[0]}
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+            />
+          </div>
+
+          {/* Event type */}
+          <div>
+            <label className="text-xs text-nvr-text-muted block mb-1">Event Type</label>
+            <select
+              value={eventType}
+              onChange={e => setEventType(e.target.value)}
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:outline-none focus:ring-2 focus:ring-nvr-accent/50"
+            >
+              {EVENT_TYPES.map(et => (
+                <option key={et.value} value={et.value}>{et.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mt-3">
+          <div className="text-xs text-nvr-text-muted">
+            {searched && !searching && (
+              <span>{results.length} result{results.length !== 1 ? 's' : ''} found</span>
+            )}
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={searching}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {searching ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Searching...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Search
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ---- Search Results ---- */}
+      {searched && !searching && results.length === 0 && (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-nvr-bg-tertiary flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <p className="text-nvr-text-secondary text-sm">No events found for your search criteria.</p>
+          <p className="text-nvr-text-muted text-xs mt-1">Try adjusting your filters or date range.</p>
+        </div>
+      )}
+
+      {visibleResults.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-nvr-text-secondary uppercase tracking-wider mb-3">
+            Search Results
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {visibleResults.map((result, i) => (
+              <ResultCard
+                key={`${result.camera_id}-${result.started_at}-${i}`}
+                result={result}
+                onPlay={() => handlePlayEvent(result)}
+                onSave={() => setSaveModal({
+                  cameraId: result.camera_id,
+                  startTime: new Date(result.started_at),
+                  endTime: result.ended_at ? new Date(result.ended_at) : null,
+                })}
+                onDownload={() => handleDownloadEvent(result)}
+              />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                className="bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-text-primary font-medium px-6 py-2.5 rounded-lg transition-colors text-sm"
+              >
+                Load More ({results.length - visibleCount} remaining)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- Saved Clips ---- */}
+      <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
+        <button
+          onClick={() => setSavedClipsOpen(!savedClipsOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-nvr-bg-tertiary/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            <span className="text-sm font-semibold text-nvr-text-primary">Saved Clips</span>
+            {savedClips.length > 0 && (
+              <span className="text-xs bg-nvr-bg-tertiary text-nvr-text-secondary rounded-full px-2 py-0.5">
+                {savedClips.length}
+              </span>
+            )}
+          </div>
+          <svg className={`w-4 h-4 text-nvr-text-muted transition-transform ${savedClipsOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {savedClipsOpen && (
+          <div className="border-t border-nvr-border">
+            {savedClips.length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <p className="text-sm text-nvr-text-muted">No saved clips yet.</p>
+                <p className="text-xs text-nvr-text-muted mt-1">Search for events and save them as clips for quick access.</p>
+              </div>
+            ) : (
+              savedClips.map(clip => (
+                <SavedClipRow
+                  key={clip.id}
+                  clip={clip}
+                  cameraName={cameraNameMap.get(clip.camera_id) ?? 'Unknown'}
+                  onPlay={() => handlePlaySavedClip(clip)}
+                  onDownload={() => handleDownloadSavedClip(clip)}
+                  onDelete={() => handleDeleteSavedClip(clip.id)}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Save clip modal */}
+      {saveModal && (
+        <SaveClipModal
+          cameraId={saveModal.cameraId}
+          startTime={saveModal.startTime}
+          endTime={saveModal.endTime}
+          onClose={() => setSaveModal(null)}
+          onSaved={fetchSavedClips}
+        />
+      )}
+    </div>
+  )
+}

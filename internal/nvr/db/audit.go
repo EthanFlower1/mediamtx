@@ -101,3 +101,10 @@ func (d *DB) QueryAuditLog(limit, offset int, userID, action string) ([]*AuditEn
 
 	return entries, total, nil
 }
+
+// DeleteAuditEntriesBefore deletes all audit log entries created before the
+// given time. This is used for retention cleanup.
+func (d *DB) DeleteAuditEntriesBefore(before time.Time) error {
+	_, err := d.Exec("DELETE FROM audit_log WHERE created_at < ?", before.UTC().Format(timeFormat))
+	return err
+}

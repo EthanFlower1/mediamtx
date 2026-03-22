@@ -307,7 +307,7 @@ func (s *Scheduler) evaluate() {
 
 // runRetentionCleanup iterates over cameras with retention_days > 0 and
 // deletes recordings (both DB records and disk files) older than the
-// retention period.
+// retention period. It also cleans up old audit log entries.
 func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 	now := time.Now().UTC()
 	for _, cam := range cameras {
@@ -332,6 +332,10 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 		log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
 			cam.Name, len(paths), filesRemoved, cutoff.Format(time.RFC3339))
 	}
+
+	// Clean audit log entries older than 90 days.
+	auditCutoff := now.AddDate(0, 0, -90)
+	_ = s.db.DeleteAuditEntriesBefore(auditCutoff)
 }
 
 // handleEventPipelineTransitionLocked manages the event subscriber and motion

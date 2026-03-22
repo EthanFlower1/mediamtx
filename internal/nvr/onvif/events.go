@@ -91,6 +91,9 @@ func NewEventSubscriber(xaddr, username, password, callbackURL string, cb EventC
 func (es *EventSubscriber) Start(ctx context.Context) {
 	ctx, es.cancel = context.WithCancel(ctx)
 
+	backoff := 5 * time.Second
+	maxBackoff := 5 * time.Minute
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -103,13 +106,22 @@ func (es *EventSubscriber) Start(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			log.Printf("onvif events [%s]: %v, retrying in 5s", es.xaddr, err)
+			log.Printf("onvif events [%s]: %v, retrying in %v", es.xaddr, err, backoff)
+		} else {
+			// Reset backoff on successful subscription session.
+			backoff = 5 * time.Second
 		}
 
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(backoff):
 		case <-ctx.Done():
 			return
+		}
+
+		// Exponential backoff with cap.
+		backoff = backoff * 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
 		}
 	}
 }

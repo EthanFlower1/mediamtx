@@ -1,4 +1,5 @@
 let accessToken: string | null = null
+let refreshPromise: Promise<boolean> | null = null
 
 const DEFAULT_TIMEOUT_MS = 10000
 const MAX_RETRIES = 3
@@ -41,6 +42,36 @@ function shouldRetry(error: unknown, response: Response | null): boolean {
   // Retry on 5xx server errors.
   if (response && response.status >= 500) return true
   return false
+}
+
+async function refreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetchWithTimeout('/api/nvr/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      }, DEFAULT_TIMEOUT_MS)
+
+      if (res.ok) {
+        const data = await res.json()
+        accessToken = data.access_token
+        return true
+      }
+      accessToken = null
+      window.location.href = '/login'
+      return false
+    } catch {
+      accessToken = null
+      window.location.href = '/login'
+      return false
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
 }
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -89,24 +120,10 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 
   // Handle 401 with token refresh (no retry loop here, just one attempt).
   if (res.status === 401 && accessToken) {
-    try {
-      const refreshRes = await fetchWithTimeout('/api/nvr/auth/refresh', {
-        method: 'POST',
-        credentials: 'include',
-      }, DEFAULT_TIMEOUT_MS)
-
-      if (refreshRes.ok) {
-        const data = await refreshRes.json()
-        accessToken = data.access_token
-        headers.set('Authorization', `Bearer ${accessToken}`)
-        res = await fetchWithTimeout(url, { ...options, headers, credentials: 'include' }, DEFAULT_TIMEOUT_MS)
-      } else {
-        accessToken = null
-        window.location.href = '/login'
-      }
-    } catch {
-      accessToken = null
-      window.location.href = '/login'
+    const refreshed = await refreshToken()
+    if (refreshed) {
+      headers.set('Authorization', `Bearer ${accessToken}`)
+      res = await fetchWithTimeout(url, { ...options, headers, credentials: 'include' }, DEFAULT_TIMEOUT_MS)
     }
   }
 

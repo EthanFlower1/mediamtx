@@ -233,7 +233,14 @@ func (w *Writer) SetPathValue(pathName, key string, value interface{}) error {
 		_ = blockEnd // not needed for insert case
 	}
 
-	return w.backupAndWrite(strings.Join(lines, "\n"))
+	newContent := strings.Join(lines, "\n")
+
+	// Validate the resulting YAML before writing.
+	if _, err := parser.ParseBytes([]byte(newContent), 0); err != nil {
+		return fmt.Errorf("invalid YAML after SetPathValue: %w", err)
+	}
+
+	return w.backupAndWrite(newContent)
 }
 
 // formatScalar converts a Go value to its YAML scalar representation.

@@ -6,6 +6,7 @@ import RecordingRules from '../components/RecordingRules'
 import CameraSettings from '../components/CameraSettings'
 import DetectionZoneEditor from '../components/DetectionZoneEditor'
 import AnalyticsConfig from '../components/AnalyticsConfig'
+import RelayControls from '../components/RelayControls'
 import ConfirmDialog from '../components/ConfirmDialog'
 
 /** Small component to fetch and display the effective recording mode for a camera. */
@@ -652,6 +653,14 @@ export default function CameraManagement() {
                         </span>
                       )}
                     </div>
+                    {/* Capability badges */}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {cam.ptz_capable && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">PTZ</span>}
+                      {cam.supports_relay && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Relay</span>}
+                      {cam.supports_audio_backchannel && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Audio</span>}
+                      {cam.supports_analytics && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">Analytics</span>}
+                      {cam.supports_edge_recording && <span className="text-[10px] bg-nvr-bg-tertiary text-nvr-text-muted px-1.5 py-0.5 rounded">SD Card</span>}
+                    </div>
                   </div>
 
                   {/* Right: action buttons */}
@@ -713,7 +722,7 @@ export default function CameraManagement() {
                   {/* Tabs for Recording Rules / Camera Settings */}
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-sm font-semibold text-nvr-text-primary">Recording Rules</span>
-                    {expandedCamera.onvif_endpoint && (
+                    {(expandedCamera.onvif_endpoint && expandedCamera.supports_imaging) && (
                       <button
                         onClick={() => setShowSettings(!showSettings)}
                         className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
@@ -727,8 +736,9 @@ export default function CameraManagement() {
                     )}
                   </div>
 
-                  {showSettings && expandedCamera.onvif_endpoint && (
+                  {showSettings && expandedCamera.onvif_endpoint && expandedCamera.supports_imaging && (
                     <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+                      <p className="text-xs text-nvr-text-muted mb-2">Adjust brightness, contrast, and other image parameters on the camera</p>
                       <CameraSettings
                         cameraId={expandedCamera.id}
                         onClose={() => setShowSettings(false)}
@@ -738,9 +748,20 @@ export default function CameraManagement() {
 
                   <CameraStoragePanel camera={expandedCamera} onRefresh={refresh} />
 
+                  {/* Relay Controls — only visible when camera supports relay outputs */}
+                  {expandedCamera.supports_relay && (
+                    <div className="mt-4">
+                      <div className="mb-1">
+                        <p className="text-xs text-nvr-text-muted">Control physical outputs on your camera (sirens, lights, door locks)</p>
+                      </div>
+                      <RelayControls cameraId={expandedCamera.id} />
+                    </div>
+                  )}
+
                   {/* Motion Detection Zones — only visible when camera supports analytics */}
                   {expandedCamera.supports_analytics && (
                     <div className="mb-4">
+                      <p className="text-xs text-nvr-text-muted mb-1">Draw zones on the camera view to define where motion should be detected</p>
                       <DetectionZoneEditor
                         cameraId={expandedCamera.id}
                         snapshotUrl={expandedCamera.snapshot_uri || undefined}
@@ -751,7 +772,8 @@ export default function CameraManagement() {
                   {/* Analytics modules & rules — only visible when camera supports analytics */}
                   {expandedCamera.supports_analytics && (
                     <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
-                      <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-3">Analytics</h4>
+                      <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-1">Analytics</h4>
+                      <p className="text-xs text-nvr-text-muted mb-3">Configure motion detection rules and analytics modules</p>
                       <AnalyticsConfig cameraId={expandedCamera.id} />
                     </div>
                   )}

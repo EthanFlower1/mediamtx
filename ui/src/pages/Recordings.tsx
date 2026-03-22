@@ -845,7 +845,10 @@ export default function Recordings() {
 
       {/* Camera Storage Browser (edge recordings from SD card) */}
       {selectedCamera && !isAllCameras && storageView === 'camera' && selectedCameraObj?.supports_edge_recording && (
-        <CameraStorageBrowser cameraId={selectedCamera} />
+        <div>
+          <p className="text-xs text-nvr-text-muted mb-2">Browse recordings stored on the camera's SD card</p>
+          <CameraStorageBrowser cameraId={selectedCamera} />
+        </div>
       )}
 
       {/* Main content */}

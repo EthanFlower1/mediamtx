@@ -190,6 +190,7 @@ function CameraModal({ camera, onClose }: { camera: Camera; onClose: () => void 
         {/* Audio intercom */}
         {camera.supports_audio_backchannel && (
           <div className="mt-3">
+            <p className="text-xs text-nvr-text-muted mb-1">Two-way audio communication with the camera</p>
             <AudioIntercom cameraId={camera.id} />
           </div>
         )}

@@ -11,7 +11,6 @@ export interface Camera {
   onvif_endpoint?: string
   updated_at?: string
   retention_days?: number
-  supports_ptz?: boolean
   supports_imaging?: boolean
   supports_events?: boolean
   supports_relay?: boolean

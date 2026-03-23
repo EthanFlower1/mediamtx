@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -43,6 +45,10 @@ type NVR struct {
 	events      *api.EventBroadcaster
 	callbackMgr *onvif.CallbackManager
 	wsServer    *http.Server // separate WebSocket server for notifications
+
+	aiDetector  *ai.Detector
+	aiEmbedder  *ai.Embedder
+	aiPipelines map[string]*ai.AIPipeline // camera ID -> pipeline
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -108,6 +114,46 @@ func (n *NVR) Initialize() error {
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
 		return fmt.Errorf("load or generate keys: %w", err)
+	}
+
+	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
+	n.aiPipelines = make(map[string]*ai.AIPipeline)
+	if err := ai.InitONNXRuntime(); err != nil {
+		log.Printf("AI: ONNX Runtime not available: %v", err)
+	} else {
+		modelsDir := "./models"
+		nanoPath := filepath.Join(modelsDir, "yolov8n.onnx")
+		if _, err := os.Stat(nanoPath); err == nil {
+			det, err := ai.NewDetector(nanoPath)
+			if err != nil {
+				log.Printf("AI: failed to load YOLOv8n: %v", err)
+			} else {
+				n.aiDetector = det
+				log.Printf("AI: YOLOv8n detector loaded from %s", nanoPath)
+			}
+		} else {
+			log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
+		}
+
+		// Load CLIP embedder if model files exist (optional).
+		visualPath := filepath.Join(modelsDir, "clip-vit-base-patch32-visual.onnx")
+		textPath := filepath.Join(modelsDir, "clip-vit-base-patch32-textual.onnx")
+		vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
+		if _, err := os.Stat(visualPath); err == nil {
+			if _, err := os.Stat(textPath); err == nil {
+				if _, err := os.Stat(vocabPath); err == nil {
+					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath)
+					if err != nil {
+						log.Printf("AI: failed to load CLIP embedder: %v", err)
+					} else {
+						n.aiEmbedder = emb
+						log.Printf("AI: CLIP embedder loaded")
+					}
+				}
+			}
+		}
+
+		n.startAIPipelines()
 	}
 
 	return nil
@@ -212,6 +258,18 @@ func (n *NVR) wsPort() string {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	// Stop AI pipelines first so they don't write to the DB after it's closed.
+	for id, p := range n.aiPipelines {
+		p.Stop()
+		log.Printf("AI: stopped pipeline for camera %s", id)
+	}
+	if n.aiDetector != nil {
+		n.aiDetector.Close()
+	}
+	if n.aiEmbedder != nil {
+		n.aiEmbedder.Close()
+	}
+
 	if n.wsServer != nil {
 		n.wsServer.Close()
 	}
@@ -221,6 +279,57 @@ func (n *NVR) Close() {
 	if n.database != nil {
 		n.database.Close()
 	}
+}
+
+// startAIPipelines starts AI detection pipelines for all cameras that have
+// ai_enabled set and a snapshot_uri configured. Each pipeline runs in its
+// own goroutine, capturing snapshots at 2 FPS and running YOLO detection.
+func (n *NVR) startAIPipelines() {
+	if n.aiDetector == nil {
+		return
+	}
+
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		log.Printf("AI: failed to list cameras: %v", err)
+		return
+	}
+
+	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+
+	for _, cam := range cameras {
+		if !cam.AIEnabled {
+			continue
+		}
+		if cam.SnapshotURI == "" {
+			log.Printf("AI: camera %s (%s) has AI enabled but no snapshot URI, skipping", cam.Name, cam.ID)
+			continue
+		}
+
+		pipeline := ai.NewAIPipeline(cam.ID, n.aiDetector, n.aiEmbedder, n.database)
+		n.aiPipelines[cam.ID] = pipeline
+
+		password := n.decryptPassword(encKey, cam.ONVIFPassword)
+		go pipeline.Run(cam.SnapshotURI, cam.ONVIFUsername, password, 2.0)
+		log.Printf("AI: started pipeline for camera %s (%s) at 2 FPS", cam.Name, cam.ID)
+	}
+}
+
+// decryptPassword decrypts an ONVIF password from the DB if it was encrypted
+// with the "enc:" prefix.
+func (n *NVR) decryptPassword(encKey []byte, encrypted string) string {
+	if len(encKey) == 0 || !strings.HasPrefix(encrypted, "enc:") {
+		return encrypted
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(encrypted, "enc:"))
+	if err != nil {
+		return encrypted
+	}
+	plain, err := crypto.Decrypt(encKey, ciphertext)
+	if err != nil {
+		return encrypted
+	}
+	return string(plain)
 }
 
 // IsSetupRequired returns true if no users exist in the database.

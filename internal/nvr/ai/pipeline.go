@@ -1,10 +1,18 @@
 package ai
 
 import (
+	"crypto/md5"
 	"encoding/binary"
 	"fmt"
 	"image"
+	"image/jpeg"
+	"io"
+	"log"
 	"math"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -145,6 +153,34 @@ func (p *AIPipeline) ProcessFrame(img image.Image, timestamp time.Time) error {
 	return nil
 }
 
+// Run starts the AI pipeline's frame capture and inference loop.
+// It captures JPEG snapshots from the camera at approximately the given FPS
+// and runs detection on each frame. Blocks until Stop is called.
+func (p *AIPipeline) Run(snapshotURL, username, password string, fps float64) {
+	interval := time.Duration(float64(time.Second) / fps)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for {
+		select {
+		case <-p.stopCh:
+			return
+		case <-ticker.C:
+			img, err := captureAndDecode(client, snapshotURL, username, password)
+			if err != nil {
+				// Silently skip failed captures to avoid log spam during transient
+				// network issues. The ticker will retry on the next interval.
+				continue
+			}
+			if err := p.ProcessFrame(img, time.Now()); err != nil {
+				log.Printf("AI pipeline %s: process frame: %v", p.cameraID, err)
+			}
+		}
+	}
+}
+
 // Stop signals the pipeline to stop processing.
 func (p *AIPipeline) Stop() {
 	select {
@@ -158,6 +194,209 @@ func (p *AIPipeline) Stop() {
 	if p.currentEventID > 0 {
 		p.closeCurrentEvent(time.Now())
 	}
+}
+
+// captureAndDecode fetches a JPEG snapshot from the camera's snapshot URL and
+// decodes it to an image.Image. It tries multiple auth methods in order:
+// URL-embedded credentials, Basic auth, Digest auth, and no auth.
+func captureAndDecode(client *http.Client, snapshotURL, username, password string) (image.Image, error) {
+	// Try 1: URL with credentials embedded.
+	if username != "" {
+		u, err := url.Parse(snapshotURL)
+		if err == nil {
+			u.User = url.UserPassword(username, password)
+			if img, err := tryFetchAndDecode(client, u.String(), "", ""); err == nil {
+				return img, nil
+			}
+		}
+	}
+
+	// Try 2: Basic auth.
+	if username != "" {
+		if img, err := tryFetchAndDecode(client, snapshotURL, username, password); err == nil {
+			return img, nil
+		}
+	}
+
+	// Try 3: Digest auth (challenge-response).
+	if username != "" {
+		if img, err := tryFetchAndDecodeDigest(client, snapshotURL, username, password); err == nil {
+			return img, nil
+		}
+	}
+
+	// Try 4: No auth.
+	if img, err := tryFetchAndDecode(client, snapshotURL, "", ""); err == nil {
+		return img, nil
+	}
+
+	return nil, fmt.Errorf("snapshot capture failed for %s", snapshotURL)
+}
+
+// tryFetchAndDecode fetches a URL with optional Basic auth and decodes the JPEG response.
+func tryFetchAndDecode(client *http.Client, snapURL, username, password string) (image.Image, error) {
+	req, err := http.NewRequest("GET", snapURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if username != "" {
+		req.SetBasicAuth(username, password)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	// Limit to 10 MB to prevent memory exhaustion from misbehaving cameras.
+	img, err := jpeg.Decode(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, fmt.Errorf("decode JPEG: %w", err)
+	}
+	return img, nil
+}
+
+// tryFetchAndDecodeDigest performs HTTP Digest auth challenge-response and decodes the JPEG.
+func tryFetchAndDecodeDigest(client *http.Client, snapURL, username, password string) (image.Image, error) {
+	// Step 1: Initial request to get Digest challenge.
+	resp, err := client.Get(snapURL)
+	if err != nil {
+		return nil, err
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		return nil, fmt.Errorf("expected 401 for digest challenge, got %d", resp.StatusCode)
+	}
+
+	authHeader := resp.Header.Get("WWW-Authenticate")
+	if !strings.HasPrefix(authHeader, "Digest ") {
+		return nil, fmt.Errorf("not digest auth: %q", authHeader)
+	}
+
+	// Step 2: Build Digest Authorization header and retry.
+	u, err := url.Parse(snapURL)
+	if err != nil {
+		return nil, err
+	}
+	digestValue := buildDigestAuthHeader(username, password, "GET", u.RequestURI(), authHeader)
+
+	req, err := http.NewRequest("GET", snapURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", digestValue)
+
+	resp2, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp2.Body)
+		return nil, fmt.Errorf("digest auth failed: HTTP %d", resp2.StatusCode)
+	}
+
+	img, err := jpeg.Decode(io.LimitReader(resp2.Body, 10<<20))
+	if err != nil {
+		return nil, fmt.Errorf("decode JPEG: %w", err)
+	}
+	return img, nil
+}
+
+// buildDigestAuthHeader constructs an HTTP Digest Authorization header value from
+// the server's WWW-Authenticate challenge. This mirrors the logic in
+// onvif/snapshot.go but is kept local to avoid a circular dependency.
+func buildDigestAuthHeader(username, password, method, uri, challenge string) string {
+	fields := parseDigestFields(challenge)
+
+	realm := fields["realm"]
+	nonce := fields["nonce"]
+	qop := fields["qop"]
+	opaque := fields["opaque"]
+
+	cnonce := fmt.Sprintf("%08x", rand.Uint32())
+	nc := "00000001"
+
+	ha1 := digestMD5Hex(fmt.Sprintf("%s:%s:%s", username, realm, password))
+	ha2 := digestMD5Hex(fmt.Sprintf("%s:%s", method, uri))
+
+	var response string
+	if qop == "auth" || qop == "auth-int" {
+		response = digestMD5Hex(fmt.Sprintf("%s:%s:%s:%s:%s:%s", ha1, nonce, nc, cnonce, qop, ha2))
+	} else {
+		response = digestMD5Hex(fmt.Sprintf("%s:%s:%s", ha1, nonce, ha2))
+	}
+
+	parts := []string{
+		fmt.Sprintf(`username="%s"`, username),
+		fmt.Sprintf(`realm="%s"`, realm),
+		fmt.Sprintf(`nonce="%s"`, nonce),
+		fmt.Sprintf(`uri="%s"`, uri),
+		fmt.Sprintf(`response="%s"`, response),
+	}
+	if qop != "" {
+		parts = append(parts, fmt.Sprintf(`qop=%s`, qop))
+		parts = append(parts, fmt.Sprintf(`nc=%s`, nc))
+		parts = append(parts, fmt.Sprintf(`cnonce="%s"`, cnonce))
+	}
+	if opaque != "" {
+		parts = append(parts, fmt.Sprintf(`opaque="%s"`, opaque))
+	}
+
+	return "Digest " + strings.Join(parts, ", ")
+}
+
+// parseDigestFields parses key=value pairs from a WWW-Authenticate: Digest header.
+func parseDigestFields(header string) map[string]string {
+	result := make(map[string]string)
+	s := strings.TrimPrefix(header, "Digest ")
+
+	var current strings.Builder
+	inQuote := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '"' {
+			inQuote = !inQuote
+			current.WriteByte(c)
+		} else if c == ',' && !inQuote {
+			parseDigestField(current.String(), result)
+			current.Reset()
+		} else {
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		parseDigestField(current.String(), result)
+	}
+	return result
+}
+
+func parseDigestField(part string, result map[string]string) {
+	part = strings.TrimSpace(part)
+	eqIdx := strings.IndexByte(part, '=')
+	if eqIdx < 0 {
+		return
+	}
+	key := strings.TrimSpace(part[:eqIdx])
+	val := strings.TrimSpace(part[eqIdx+1:])
+	if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
+		val = val[1 : len(val)-1]
+	}
+	result[key] = val
+}
+
+func digestMD5Hex(s string) string {
+	h := md5.Sum([]byte(s))
+	return fmt.Sprintf("%x", h)
 }
 
 // ensureMotionEvent ensures there is an open motion event for the current

@@ -82,6 +82,9 @@ type Scheduler struct {
 
 	pendingWrites   map[string]bool // mediamtx path -> desired record state
 	pendingWritesMu sync.Mutex
+
+	motionTimers   map[string]*time.Timer // camera ID -> auto-close timer
+	motionTimersMu sync.Mutex
 	writeTimer      *time.Timer
 
 	lastRetentionCheck time.Time // timestamp of last retention cleanup run
@@ -100,6 +103,7 @@ func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr 
 		pendingWrites: make(map[string]bool),
 		motionSMs:     make(map[string]*MotionSM),
 		eventSubs:     make(map[string]*onvif.EventSubscriber),
+		motionTimers:  make(map[string]*time.Timer),
 	}
 }
 
@@ -127,6 +131,14 @@ func (s *Scheduler) Stop() {
 		s.stopEventPipelineLocked(camID)
 	}
 	s.mu.Unlock()
+
+	// Cancel all pending motion auto-close timers.
+	s.motionTimersMu.Lock()
+	for _, timer := range s.motionTimers {
+		timer.Stop()
+	}
+	s.motionTimers = make(map[string]*time.Timer)
+	s.motionTimersMu.Unlock()
 
 	// Flush any remaining pending writes.
 	s.pendingWritesMu.Lock()
@@ -181,12 +193,12 @@ func (s *Scheduler) run() {
 
 	s.evaluate()
 
-	ticker := time.NewTicker(evalInterval)
-	defer ticker.Stop()
+	evalTicker := time.NewTicker(evalInterval)
+	defer evalTicker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-evalTicker.C:
 			s.evaluate()
 		case <-s.stopCh:
 			return
@@ -304,17 +316,55 @@ func (s *Scheduler) evaluate() {
 		s.lastRetentionCheck = time.Now()
 	}
 
-	// Auto-close stale motion events per camera's configured timeout.
-	for _, cam := range cameras {
-		timeout := time.Duration(cam.MotionTimeoutSeconds) * time.Second
-		if timeout <= 0 {
-			timeout = 8 * time.Second // default
+}
+
+// StartMotionTimer starts a timer for the given camera that will auto-close
+// the open motion event after the camera's configured timeout. If a timer
+// is already running for this camera, it is reset. Call this when motion=true
+// is received. Call CancelMotionTimer when motion=false is received.
+func (s *Scheduler) StartMotionTimer(cameraID string, timeoutSeconds int) {
+	s.motionTimersMu.Lock()
+	defer s.motionTimersMu.Unlock()
+
+	// Cancel any existing timer for this camera.
+	if existing, ok := s.motionTimers[cameraID]; ok {
+		existing.Stop()
+	}
+
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 8 * time.Second
+	}
+
+	s.motionTimers[cameraID] = time.AfterFunc(timeout, func() {
+		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+		_ = s.db.EndMotionEvent(cameraID, now)
+
+		// Also signal the recording state machine so it starts its post-buffer
+		// countdown. Without this, recording would continue indefinitely.
+		s.mu.Lock()
+		if sm, ok := s.motionSMs[cameraID]; ok {
+			sm.OnMotion(false)
 		}
-		if closed, err := s.db.CloseStaleMotionEventsForCamera(cam.ID, timeout); err != nil {
-			log.Printf("scheduler: close stale events for %s: %v", cam.Name, err)
-		} else if closed > 0 {
-			log.Printf("scheduler: auto-closed %d stale motion events for %s (>%v)", closed, cam.Name, timeout)
-		}
+		s.mu.Unlock()
+
+		s.motionTimersMu.Lock()
+		delete(s.motionTimers, cameraID)
+		s.motionTimersMu.Unlock()
+
+		log.Printf("scheduler: auto-closed motion event for camera %s after %v timeout", cameraID, timeout)
+	})
+}
+
+// CancelMotionTimer cancels any pending auto-close timer for the given camera.
+// Call this when motion=false is received (the event is closed explicitly).
+func (s *Scheduler) CancelMotionTimer(cameraID string) {
+	s.motionTimersMu.Lock()
+	defer s.motionTimersMu.Unlock()
+
+	if timer, ok := s.motionTimers[cameraID]; ok {
+		timer.Stop()
+		delete(s.motionTimers, cameraID)
 	}
 }
 
@@ -380,14 +430,12 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 		return
 	}
 
-	// Compute max PostEventSeconds from active rules.
-	maxPostEvent := 30 // default 30 seconds
-	for _, r := range activeRules {
-		if r.Mode == "events" && r.PostEventSeconds > maxPostEvent {
-			maxPostEvent = r.PostEventSeconds
-		}
+	// Use the camera's motion_timeout_seconds as the post-event recording buffer.
+	postEventSecs := cam.MotionTimeoutSeconds
+	if postEventSecs <= 0 {
+		postEventSecs = 8
 	}
-	postEventDuration := time.Duration(maxPostEvent) * time.Second
+	postEventDuration := time.Duration(postEventSecs) * time.Second
 
 	// Create the motion state machine.
 	sm := NewMotionSM(camID, cam.MediaMTXPath, postEventDuration, func(path string, record bool) {
@@ -434,7 +482,7 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			sm.OnMotion(active)
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
-				// Only create a new event if there isn't one already open.
+				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
 				if !s.db.HasOpenMotionEvent(camID) {
 					_ = s.db.InsertMotionEvent(&db.MotionEvent{
 						CameraID:  camID,
@@ -445,6 +493,7 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 					}
 				}
 			} else {
+				s.CancelMotionTimer(camID)
 				_ = s.db.EndMotionEvent(camID, now)
 			}
 		case onvif.EventTampering:
@@ -515,8 +564,10 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 		case onvif.EventMotion:
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
-				// Only create a new event if there isn't one already open for this camera.
-				// Multiple motion=true pushes during continuous motion are just continuations.
+				// Reset the auto-close timer on every motion=true (keeps event alive).
+				s.StartMotionTimer(cam.ID, cam.MotionTimeoutSeconds)
+
+				// Only create a new DB event if there isn't one already open.
 				if s.db.HasOpenMotionEvent(cam.ID) {
 					break
 				}
@@ -526,7 +577,7 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					StartedAt: now,
 				}
 
-				// Capture thumbnail in background (don't block the event callback).
+				// Capture thumbnail in background.
 				go func() {
 					thumbDir := "./thumbnails"
 					password := s.decryptPassword(cam.ONVIFPassword)
@@ -543,6 +594,8 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					s.eventPub.PublishMotion(cam.Name)
 				}
 			} else {
+				// Explicit motion=false: close immediately and cancel timer.
+				s.CancelMotionTimer(cam.ID)
 				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
 		case onvif.EventTampering:

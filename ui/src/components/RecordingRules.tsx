@@ -90,7 +90,6 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
   const [days, setDays] = useState<number[]>(initial ? parseDays(initial.days) : [0, 1, 2, 3, 4, 5, 6])
   const [startTime, setStartTime] = useState(initial?.start_time ?? '00:00')
   const [endTime, setEndTime] = useState(initial?.end_time ?? '23:59')
-  const [postEventSeconds, setPostEventSeconds] = useState(initial?.post_event_seconds ?? 30)
   const [enabled, setEnabled] = useState(initial?.enabled ?? true)
 
   const toggleDay = (d: number) => {
@@ -99,7 +98,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    onSave({ name, mode, days, start_time: startTime, end_time: endTime, post_event_seconds: postEventSeconds, enabled })
+    onSave({ name, mode, days, start_time: startTime, end_time: endTime, post_event_seconds: 30, enabled })
   }
 
   return (
@@ -220,22 +219,10 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
         </div>
       </div>
 
-      {/* Post-event buffer (events mode only) */}
+      {/* Events mode note */}
       {mode === 'events' && (
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-nvr-text-secondary mb-1">Post-event buffer</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              value={postEventSeconds}
-              onChange={e => setPostEventSeconds(Number(e.target.value))}
-              min={0}
-              max={600}
-              className="w-20 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-            />
-            <span className="text-xs text-nvr-text-muted">seconds after motion stops</span>
-          </div>
-          <p className="text-xs text-nvr-text-muted mt-1">How many seconds to keep recording after motion stops. Prevents cutting off events too early.</p>
+        <div className="mb-4 p-3 bg-nvr-bg-input border border-nvr-border rounded-lg">
+          <p className="text-xs text-nvr-text-muted">Recording continues for the camera's motion timeout duration after motion stops. Recording duration after motion is controlled by the camera's Motion Event Timeout setting.</p>
         </div>
       )}
 
@@ -307,9 +294,6 @@ function RuleCard({ rule, isEditing, onEdit, onDelete, onToggle, onSave, onCance
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-nvr-text-muted">
           <span>{formatDays(rule.days)}</span>
           <span>{rule.start_time} - {rule.end_time}</span>
-          {rule.mode === 'events' && (
-            <span>Buffer: {rule.post_event_seconds}s</span>
-          )}
         </div>
       </div>
 

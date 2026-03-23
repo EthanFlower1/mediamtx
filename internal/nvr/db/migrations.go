@@ -184,4 +184,31 @@ CREATE INDEX IF NOT EXISTS idx_motion_events_object_class ON motion_events(camer
 		version: 13,
 		sql:     `ALTER TABLE cameras ADD COLUMN motion_timeout_seconds INTEGER NOT NULL DEFAULT 8;`,
 	},
+	{
+		version: 14,
+		sql: `
+ALTER TABLE cameras ADD COLUMN sub_stream_url TEXT DEFAULT '';
+ALTER TABLE cameras ADD COLUMN ai_enabled INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE motion_events ADD COLUMN embedding BLOB;
+ALTER TABLE motion_events ADD COLUMN description TEXT DEFAULT '';
+
+CREATE TABLE detections (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	motion_event_id INTEGER NOT NULL,
+	frame_time TEXT NOT NULL,
+	class TEXT NOT NULL,
+	confidence REAL NOT NULL,
+	box_x REAL NOT NULL,
+	box_y REAL NOT NULL,
+	box_w REAL NOT NULL,
+	box_h REAL NOT NULL,
+	embedding BLOB,
+	attributes TEXT DEFAULT '',
+	FOREIGN KEY (motion_event_id) REFERENCES motion_events(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_detections_event ON detections(motion_event_id);
+CREATE INDEX idx_detections_class ON detections(class);
+`,
+	},
 }

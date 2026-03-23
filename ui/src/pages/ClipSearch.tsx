@@ -498,6 +498,12 @@ export default function ClipSearch() {
   // Save modal state
   const [saveModal, setSaveModal] = useState<{ cameraId: string; startTime: Date; endTime: Date | null } | null>(null)
 
+  // AI semantic search state
+  const [semanticQuery, setSemanticQuery] = useState('')
+  const [semanticResults, setSemanticResults] = useState<SearchResult[]>([])
+  const [semanticSearching, setSemanticSearching] = useState(false)
+  const [semanticSearched, setSemanticSearched] = useState(false)
+
   // Inline video player state
   const [playingClip, setPlayingClip] = useState<{
     url: string
@@ -558,6 +564,30 @@ export default function ClipSearch() {
     }
     return sorted
   }, [])
+
+  // AI semantic search function
+  const handleSemanticSearch = async () => {
+    if (!semanticQuery.trim()) return
+    setSemanticSearching(true)
+    setSemanticSearched(true)
+    try {
+      const res = await apiFetch(`/search?q=${encodeURIComponent(semanticQuery.trim())}&limit=20`)
+      if (res.ok) {
+        const data = await res.json()
+        const items: SearchResult[] = (data.results || data || []).map((r: SearchResult & { similarity?: number }) => ({
+          ...r,
+          camera_name: r.camera_name || cameraNameMap.get(r.camera_id) || 'Unknown',
+        }))
+        setSemanticResults(items)
+      } else {
+        setSemanticResults([])
+      }
+    } catch {
+      setSemanticResults([])
+    } finally {
+      setSemanticSearching(false)
+    }
+  }
 
   // Search function
   const handleSearch = async () => {
@@ -747,6 +777,91 @@ export default function ClipSearch() {
   return (
     <div>
       <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary mb-6">Clip Search</h1>
+
+      {/* AI Semantic Search */}
+      <div className="mb-6 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={semanticQuery}
+              onChange={e => setSemanticQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSemanticSearch() }}
+              placeholder="Search: 'person in red shirt', 'white car', 'dog at door'..."
+              className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nvr-text-muted" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="11" cy="11" r="8" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
+            </svg>
+          </div>
+          <button
+            onClick={handleSemanticSearch}
+            disabled={semanticSearching || !semanticQuery.trim()}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2.5 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {semanticSearching ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+        <p className="text-xs text-nvr-text-muted mt-2">
+          AI-powered search across all camera footage using natural language
+        </p>
+      </div>
+
+      {/* AI Search Results */}
+      {semanticSearched && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            <h2 className="text-sm font-semibold text-purple-400">AI Search Results</h2>
+            {semanticResults.length > 0 && (
+              <span className="text-xs text-nvr-text-muted bg-nvr-bg-input px-2 py-0.5 rounded-full">
+                {semanticResults.length} match{semanticResults.length !== 1 ? 'es' : ''}
+              </span>
+            )}
+          </div>
+          {semanticSearching ? (
+            <div className="flex items-center justify-center py-8">
+              <svg className="w-6 h-6 text-nvr-accent animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </div>
+          ) : semanticResults.length === 0 ? (
+            <div className="text-center py-8 bg-nvr-bg-secondary border border-nvr-border rounded-xl">
+              <p className="text-sm text-nvr-text-muted">No matches found. Try different search terms.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {semanticResults.map((result, idx) => (
+                <div key={`semantic-${idx}`} className="relative">
+                  <ResultCard
+                    result={result}
+                    onPlay={() => handlePlayEvent(result)}
+                    onPlayInPlayback={() => {
+                      localStorage.setItem('nvr-playback-camera', result.camera_id)
+                      localStorage.setItem('nvr-playback-time', new Date(result.started_at).toISOString())
+                      navigate('/playback')
+                    }}
+                    onSave={() => setSaveModal({
+                      cameraId: result.camera_id,
+                      startTime: new Date(result.started_at),
+                      endTime: result.ended_at ? new Date(result.ended_at) : null,
+                    })}
+                    onDownload={() => handleDownloadEvent(result)}
+                  />
+                  {/* Similarity badge */}
+                  {(result as SearchResult & { similarity?: number }).similarity != null && (
+                    <div className="absolute top-2 right-2 bg-purple-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {Math.round(((result as SearchResult & { similarity?: number }).similarity ?? 0) * 100)}% match
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ---- Inline Video Player ---- */}
       {playingClip && (

@@ -372,6 +372,107 @@ function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: 
   )
 }
 
+/** AI Detection toggle + sub stream URL for a camera. */
+function AIDetectionPanel({ camera, onRefresh }: { camera: Camera; onRefresh: () => void }) {
+  const [aiEnabled, setAiEnabled] = useState(camera.ai_enabled ?? false)
+  const [subStreamUrl, setSubStreamUrl] = useState(camera.sub_stream_url ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleToggleAI = async () => {
+    const newEnabled = !aiEnabled
+    setSaving(true)
+    try {
+      const res = await apiFetch(`/cameras/${camera.id}/ai`, {
+        method: 'PUT',
+        body: JSON.stringify({ ai_enabled: newEnabled, sub_stream_url: subStreamUrl }),
+      })
+      if (res.ok) {
+        setAiEnabled(newEnabled)
+        onRefresh()
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveSubStream = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      const res = await apiFetch(`/cameras/${camera.id}/ai`, {
+        method: 'PUT',
+        body: JSON.stringify({ ai_enabled: aiEnabled, sub_stream_url: subStreamUrl }),
+      })
+      if (res.ok) {
+        setSaved(true)
+        onRefresh()
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+      <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-1">AI Detection</h4>
+      <p className="text-xs text-nvr-text-muted mb-3">Enable AI object detection on this camera's sub stream</p>
+
+      {/* AI Toggle */}
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm text-nvr-text-primary">Enable AI</span>
+        <button
+          onClick={handleToggleAI}
+          disabled={saving}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ml-4 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
+            aiEnabled ? 'bg-nvr-accent' : 'bg-nvr-bg-tertiary border border-nvr-border'
+          }`}
+          role="switch"
+          aria-checked={aiEnabled}
+        >
+          <span
+            className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+              aiEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Sub Stream URL */}
+      {aiEnabled && (
+        <div className="mb-3">
+          <label className="text-xs text-nvr-text-secondary mb-1 block">Detection Stream (Sub Stream)</label>
+          <p className="text-xs text-nvr-text-muted mb-2">Select a low-resolution stream for AI processing. MJPEG recommended.</p>
+          <input
+            type="text"
+            value={subStreamUrl}
+            onChange={e => setSubStreamUrl(e.target.value)}
+            placeholder="rtsp://camera-ip/sub_stream"
+            className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-1.5 text-xs text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors mb-2"
+          />
+          <button
+            onClick={handleSaveSubStream}
+            disabled={saving}
+            className="text-xs bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-3 py-1 rounded transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
+      )}
+
+      {aiEnabled && subStreamUrl && (
+        <div className="text-xs text-nvr-success flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          AI detection active
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CameraManagement() {
   const navigate = useNavigate()
   const { cameras, loading, refresh } = useCameras()
@@ -811,6 +912,9 @@ export default function CameraManagement() {
                   )}
 
                   <CameraStoragePanel camera={expandedCamera} onRefresh={refresh} />
+
+                  {/* AI Detection Settings */}
+                  <AIDetectionPanel camera={expandedCamera} onRefresh={refresh} />
 
                   {/* Relay Controls — only visible when camera supports relay outputs */}
                   {expandedCamera.supports_relay && (

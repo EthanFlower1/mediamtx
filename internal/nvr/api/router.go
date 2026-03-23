@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
@@ -32,6 +33,7 @@ type RouterConfig struct {
 	CallbackManager *onvif.CallbackManager
 	EncryptionKey   []byte // AES-256 key for ONVIF credential encryption
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
+	Embedder       *ai.Embedder // CLIP embedder for semantic search (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -83,6 +85,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	savedClipHandler := &SavedClipHandler{
 		DB: cfg.DB,
+	}
+
+	searchHandler := &SearchHandler{
+		DB:       cfg.DB,
+		Embedder: cfg.Embedder,
 	}
 
 	auditHandler := &AuditHandler{
@@ -161,6 +168,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
 	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
 
+	// Camera AI configuration.
+	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
+
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
 	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)
@@ -207,6 +217,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// AI semantic search.
+	protected.GET("/search", searchHandler.Search)
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)

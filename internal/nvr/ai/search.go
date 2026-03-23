@@ -1,0 +1,142 @@
+package ai
+
+import (
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/bluenviron/mediamtx/internal/nvr/db"
+)
+
+// SearchResult represents a single result from a semantic search query.
+type SearchResult struct {
+	DetectionID   int64   `json:"detection_id"`
+	EventID       int64   `json:"event_id"`
+	CameraID      string  `json:"camera_id"`
+	CameraName    string  `json:"camera_name"`
+	Class         string  `json:"class"`
+	Confidence    float64 `json:"confidence"`
+	Similarity    float64 `json:"similarity"`
+	FrameTime     string  `json:"frame_time"`
+	ThumbnailPath string  `json:"thumbnail_path,omitempty"`
+}
+
+// Search performs a semantic search over stored detections using CLIP text
+// embeddings or class-name matching.
+//
+// When a CLIP embedder is available and detections have stored visual embeddings,
+// the search computes cosine similarity between the text query embedding and
+// each detection's visual embedding. Since the CLIP visual encoder (768-dim) and
+// text encoder (512-dim) produce different-sized vectors in these models, the
+// search uses a hybrid approach: class-name matching is combined with embedding
+// similarity when dimensions match, and class-name matching alone is used
+// otherwise.
+//
+// Results are sorted by similarity score descending and limited to the top N.
+func Search(embedder *Embedder, database *db.DB, query string, cameraID string, start, end time.Time, limit int) ([]SearchResult, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	// Fetch detections with their event/camera metadata.
+	dets, err := database.ListDetectionsWithEvents(cameraID, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(dets) == 0 {
+		return []SearchResult{}, nil
+	}
+
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	queryWords := strings.Fields(queryLower)
+
+	// Score each detection.
+	type scored struct {
+		det   *db.DetectionWithEvent
+		score float64
+	}
+	var results []scored
+
+	for _, det := range dets {
+		score := classMatchScore(det.Class, queryWords)
+
+		// If embedder is available, try embedding-based similarity.
+		// Note: with separate CLIP models, visual embeddings are 768-dim and
+		// text embeddings are 512-dim. Cosine similarity only works when
+		// dimensions match. This will be resolved in a future version with
+		// unified projection models.
+		if embedder != nil && len(det.Embedding) > 0 {
+			visualEmb := bytesToFloat32Slice(det.Embedding)
+			if visualEmb != nil {
+				textEmb, err := embedder.EncodeText(query)
+				if err == nil && len(textEmb) == len(visualEmb) {
+					sim := CosineSimilarity(textEmb, visualEmb)
+					// Combine class match and embedding similarity.
+					// Weight embedding similarity higher when available.
+					score = 0.3*score + 0.7*sim
+				}
+			}
+		}
+
+		if score > 0 {
+			results = append(results, scored{det: det, score: score})
+		}
+	}
+
+	// Sort by score descending.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].score > results[j].score
+	})
+
+	// Limit results.
+	if len(results) > limit {
+		results = results[:limit]
+	}
+
+	// Convert to SearchResult.
+	out := make([]SearchResult, len(results))
+	for i, r := range results {
+		out[i] = SearchResult{
+			DetectionID:   r.det.ID,
+			EventID:       r.det.MotionEventID,
+			CameraID:      r.det.CameraID,
+			CameraName:    r.det.CameraName,
+			Class:         r.det.Class,
+			Confidence:    r.det.Confidence,
+			Similarity:    r.score,
+			FrameTime:     r.det.FrameTime,
+			ThumbnailPath: r.det.ThumbnailPath,
+		}
+	}
+
+	return out, nil
+}
+
+// classMatchScore computes a simple relevance score by matching query words
+// against the detection class name. Returns a value between 0 and 1.
+func classMatchScore(className string, queryWords []string) float64 {
+	if len(queryWords) == 0 {
+		return 0
+	}
+
+	classLower := strings.ToLower(className)
+	classWords := strings.Fields(classLower)
+
+	matched := 0
+	for _, qw := range queryWords {
+		for _, cw := range classWords {
+			if cw == qw || strings.Contains(cw, qw) || strings.Contains(qw, cw) {
+				matched++
+				break
+			}
+		}
+	}
+
+	if matched == 0 {
+		return 0
+	}
+
+	// Score based on fraction of query words matched, boosted by confidence.
+	return float64(matched) / float64(len(queryWords))
+}

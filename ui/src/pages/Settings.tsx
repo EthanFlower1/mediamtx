@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiFetch } from '../api/client'
+import { useCameras } from '../hooks/useCameras'
 
 interface SystemInfo {
   version: string
@@ -91,11 +92,12 @@ interface ConfigExport {
   users: unknown[]
 }
 
-type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 'audit' | 'performance'
+type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 'audit' | 'performance' | 'ai'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'system', label: 'System' },
   { id: 'storage', label: 'Storage' },
+  { id: 'ai', label: 'AI Analytics' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'config', label: 'Configuration' },
@@ -106,6 +108,7 @@ const TABS: { id: TabId; label: string }[] = [
 const TAB_DESCRIPTIONS: Record<TabId, string> = {
   system: 'System version, uptime, and server information',
   storage: 'Disk usage and per-camera storage breakdown',
+  ai: 'AI-powered object detection, classification, and semantic search',
   notifications: 'Configure how you receive alerts for motion and camera events',
   appearance: 'Theme, default layout, and display preferences',
   config: 'Export and import your NVR configuration',
@@ -255,6 +258,7 @@ export default function Settings() {
   }, [])
 
   const [activeTab, setActiveTab] = useState<TabId>('system')
+  const { cameras: allCameras } = useCameras()
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null)
   const [storage, setStorage] = useState<StorageInfo | null>(null)
   const [storageLoading, setStorageLoading] = useState(true)
@@ -1330,6 +1334,79 @@ export default function Settings() {
       )}
 
       {/* ===== PERFORMANCE TAB ===== */}
+      {/* ===== AI ANALYTICS TAB ===== */}
+      {activeTab === 'ai' && (
+        <div className="space-y-6">
+          {/* Model Info */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">AI Models</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-nvr-bg-input rounded-lg p-3">
+                <p className="text-sm font-medium text-nvr-text-primary">YOLOv8n</p>
+                <p className="text-xs text-nvr-text-muted">Real-time detection</p>
+                <p className="text-xs text-nvr-success mt-1">Loaded</p>
+              </div>
+              <div className="bg-nvr-bg-input rounded-lg p-3">
+                <p className="text-sm font-medium text-nvr-text-primary">YOLOv8m</p>
+                <p className="text-xs text-nvr-text-muted">High-accuracy refinement</p>
+                <p className="text-xs text-nvr-success mt-1">Loaded</p>
+              </div>
+              <div className="bg-nvr-bg-input rounded-lg p-3">
+                <p className="text-sm font-medium text-nvr-text-primary">CLIP ViT-B/32</p>
+                <p className="text-xs text-nvr-text-muted">Semantic search</p>
+                <p className="text-xs text-nvr-success mt-1">Loaded</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cameras with AI */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-4">Active Cameras</h2>
+            <p className="text-xs text-nvr-text-muted mb-3">Cameras with AI detection enabled</p>
+            {(() => {
+              const aiCameras = allCameras.filter(c => c.ai_enabled)
+              if (aiCameras.length === 0) {
+                return (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-nvr-text-muted">No cameras have AI detection enabled.</p>
+                    <p className="text-xs text-nvr-text-muted mt-1">Enable AI on individual cameras in the Cameras page.</p>
+                  </div>
+                )
+              }
+              return (
+                <div className="space-y-2">
+                  {aiCameras.map(cam => (
+                    <div key={cam.id} className="flex items-center justify-between bg-nvr-bg-input rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'}`} />
+                        <div>
+                          <p className="text-sm font-medium text-nvr-text-primary">{cam.name}</p>
+                          {cam.sub_stream_url && (
+                            <p className="text-xs text-nvr-text-muted font-mono truncate max-w-[300px]">{cam.sub_stream_url}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-nvr-success font-medium">AI Active</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* How it works */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-2">How AI Detection Works</h2>
+            <div className="text-sm text-nvr-text-secondary space-y-2">
+              <p>Each enabled camera's sub stream is analyzed frame-by-frame</p>
+              <p>YOLOv8 detects people, vehicles, and animals in real-time</p>
+              <p>CLIP generates visual embeddings for each detection</p>
+              <p>Search across all detections using natural language</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'performance' && (
         <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">

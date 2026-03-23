@@ -180,4 +180,8 @@ ALTER TABLE motion_events ADD COLUMN confidence REAL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_motion_events_object_class ON motion_events(camera_id, object_class);
 `,
 	},
+	{
+		version: 13,
+		sql:     `ALTER TABLE cameras ADD COLUMN motion_timeout_seconds INTEGER NOT NULL DEFAULT 8;`,
+	},
 }

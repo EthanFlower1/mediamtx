@@ -490,6 +490,46 @@ func (h *CameraHandler) UpdateRetention(c *gin.Context) {
 	c.JSON(http.StatusOK, cam)
 }
 
+// motionTimeoutRequest is the JSON body for updating a camera's motion timeout.
+type motionTimeoutRequest struct {
+	MotionTimeoutSeconds int `json:"motion_timeout_seconds"`
+}
+
+// UpdateMotionTimeout updates the motion_timeout_seconds field for a specific camera.
+//
+//	PUT /cameras/:id/motion-timeout
+func (h *CameraHandler) UpdateMotionTimeout(c *gin.Context) {
+	id := c.Param("id")
+
+	var req motionTimeoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if req.MotionTimeoutSeconds < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "motion_timeout_seconds must be >= 1"})
+		return
+	}
+
+	if err := h.DB.UpdateCameraMotionTimeout(id, req.MotionTimeoutSeconds); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to update motion timeout", err)
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera after motion timeout update", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, cam)
+}
+
 // ptzRequest is the JSON body for PTZ commands.
 type ptzRequest struct {
 	Action      string  `json:"action" binding:"required"` // "move", "stop", "preset", "home"

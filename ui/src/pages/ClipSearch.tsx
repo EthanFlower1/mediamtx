@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCameras } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
@@ -504,7 +504,9 @@ export default function ClipSearch() {
     title: string
     cameraId: string
     startTime: Date
+    durationSecs: number
   } | null>(null)
+  const clipVideoRef = useRef<HTMLVideoElement | null>(null)
 
   // Page title
   useEffect(() => {
@@ -629,14 +631,20 @@ export default function ClipSearch() {
   const handlePlayEvent = (result: SearchResult) => {
     const path = cameraPathMap.get(result.camera_id)
     if (!path) return
-    const startTime = new Date(new Date(result.started_at).getTime() - 5000) // 5s pre-roll
+    const eventStart = new Date(result.started_at)
+    const eventEnd = result.ended_at ? new Date(result.ended_at) : new Date(eventStart.getTime() + 30000)
+    const preRoll = 5000
+    const postRoll = 5000
+    const startTime = new Date(eventStart.getTime() - preRoll)
+    const durationSecs = (eventEnd.getTime() - eventStart.getTime() + preRoll + postRoll) / 1000
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
     setPlayingClip({
       url,
-      title: `${result.camera_name} — ${startTime.toLocaleTimeString()}`,
+      title: `${result.camera_name} — ${eventStart.toLocaleTimeString()}`,
       cameraId: result.camera_id,
       startTime,
+      durationSecs,
     })
   }
 
@@ -672,13 +680,16 @@ export default function ClipSearch() {
     const path = cameraPathMap.get(clip.camera_id)
     if (!path) return
     const startTime = new Date(clip.start_time)
+    const endTime = new Date(clip.end_time)
+    const durationSecs = Math.max((endTime.getTime() - startTime.getTime()) / 1000, 10)
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
     setPlayingClip({
       url,
       title: `${cameraNameMap.get(clip.camera_id) ?? 'Unknown'} — ${startTime.toLocaleTimeString()}`,
       cameraId: clip.camera_id,
       startTime,
+      durationSecs,
     })
   }
 
@@ -741,7 +752,12 @@ export default function ClipSearch() {
       {playingClip && (
         <div className="mb-6 bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 border-b border-nvr-border">
-            <span className="text-sm font-medium text-nvr-text-primary">{playingClip.title}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-nvr-text-primary">{playingClip.title}</span>
+              <span className="text-xs text-nvr-text-muted bg-nvr-bg-input px-2 py-0.5 rounded">
+                {formatDuration(playingClip.durationSecs * 1000)}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
@@ -759,10 +775,11 @@ export default function ClipSearch() {
             </div>
           </div>
           <video
+            ref={clipVideoRef}
             src={playingClip.url}
             autoPlay
             controls
-            className="w-full max-h-[50vh]"
+            className="w-full max-h-[50vh] bg-black"
           />
         </div>
       )}

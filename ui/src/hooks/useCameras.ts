@@ -19,6 +19,7 @@ export interface Camera {
   supports_media2?: boolean
   supports_analytics?: boolean
   supports_edge_recording?: boolean
+  motion_timeout_seconds?: number
 }
 
 function getRefreshInterval(): number {

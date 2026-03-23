@@ -303,6 +303,19 @@ func (s *Scheduler) evaluate() {
 		s.runRetentionCleanup(cameras)
 		s.lastRetentionCheck = time.Now()
 	}
+
+	// Auto-close stale motion events per camera's configured timeout.
+	for _, cam := range cameras {
+		timeout := time.Duration(cam.MotionTimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = 8 * time.Second // default
+		}
+		if closed, err := s.db.CloseStaleMotionEventsForCamera(cam.ID, timeout); err != nil {
+			log.Printf("scheduler: close stale events for %s: %v", cam.Name, err)
+		} else if closed > 0 {
+			log.Printf("scheduler: auto-closed %d stale motion events for %s (>%v)", closed, cam.Name, timeout)
+		}
+	}
 }
 
 // runRetentionCleanup iterates over cameras with retention_days > 0 and
@@ -421,12 +434,15 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			sm.OnMotion(active)
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
-				_ = s.db.InsertMotionEvent(&db.MotionEvent{
-					CameraID:  camID,
-					StartedAt: now,
-				})
-				if s.eventPub != nil {
-					s.eventPub.PublishMotion(cam.Name)
+				// Only create a new event if there isn't one already open.
+				if !s.db.HasOpenMotionEvent(camID) {
+					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+						CameraID:  camID,
+						StartedAt: now,
+					})
+					if s.eventPub != nil {
+						s.eventPub.PublishMotion(cam.Name)
+					}
 				}
 			} else {
 				_ = s.db.EndMotionEvent(camID, now)
@@ -499,6 +515,12 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 		case onvif.EventMotion:
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
+				// Only create a new event if there isn't one already open for this camera.
+				// Multiple motion=true pushes during continuous motion are just continuations.
+				if s.db.HasOpenMotionEvent(cam.ID) {
+					break
+				}
+
 				event := &db.MotionEvent{
 					CameraID:  cam.ID,
 					StartedAt: now,

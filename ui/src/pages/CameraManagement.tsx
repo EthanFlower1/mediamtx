@@ -150,6 +150,11 @@ function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: 
   const [retentionInput, setRetentionInput] = useState(String(retentionDays))
   const [savingRetention, setSavingRetention] = useState(false)
 
+  // Motion timeout state
+  const [motionTimeout, setMotionTimeout] = useState(camera.motion_timeout_seconds ?? 8)
+  const [motionTimeoutInput, setMotionTimeoutInput] = useState(String(camera.motion_timeout_seconds ?? 8))
+  const [savingMotionTimeout, setSavingMotionTimeout] = useState(false)
+
   // Cleanup state
   const [showCleanup, setShowCleanup] = useState(false)
   const [cleanupDate, setCleanupDate] = useState(new Date().toISOString().slice(0, 10))
@@ -180,6 +185,21 @@ function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: 
       onRefresh()
     }
     setSavingRetention(false)
+  }
+
+  const handleSaveMotionTimeout = async () => {
+    const seconds = parseInt(motionTimeoutInput, 10)
+    if (isNaN(seconds) || seconds < 1) return
+    setSavingMotionTimeout(true)
+    const res = await apiFetch(`/cameras/${camera.id}/motion-timeout`, {
+      method: 'PUT',
+      body: JSON.stringify({ motion_timeout_seconds: seconds }),
+    })
+    if (res.ok) {
+      setMotionTimeout(seconds)
+      onRefresh()
+    }
+    setSavingMotionTimeout(false)
   }
 
   const handleCleanup = async () => {
@@ -260,6 +280,40 @@ function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: 
                 Cancel
               </button>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Motion timeout section */}
+      <div className="mb-3 p-2.5 bg-nvr-bg-primary rounded-lg border border-nvr-border/50">
+        <label className="text-[10px] font-semibold text-nvr-text-muted uppercase tracking-wide">Motion Event Timeout</label>
+        <p className="text-xs text-nvr-text-muted mt-0.5">Seconds before an open motion event is auto-closed if no motion=false is received</p>
+        <div className="flex items-center gap-2 mt-1">
+          <input
+            type="number"
+            min="1"
+            max="300"
+            value={motionTimeoutInput}
+            onChange={e => setMotionTimeoutInput(e.target.value)}
+            className="w-16 bg-nvr-bg-input border border-nvr-border rounded px-1.5 py-0.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:outline-none"
+          />
+          <span className="text-xs text-nvr-text-muted">seconds</span>
+          {String(motionTimeout) !== motionTimeoutInput && (
+            <>
+              <button
+                onClick={handleSaveMotionTimeout}
+                disabled={savingMotionTimeout}
+                className="text-nvr-accent hover:text-nvr-accent-hover text-[10px] font-medium transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setMotionTimeoutInput(String(motionTimeout))}
+                className="text-nvr-text-muted hover:text-nvr-text-secondary text-[10px] transition-colors"
+              >
+                Cancel
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -18,15 +18,32 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
+// EventPublisher is the interface for publishing motion events to notification
+// subscribers. The AIPipeline calls PublishMotion when a new detection event
+// starts for an important object class (person, vehicle, animal).
+type EventPublisher interface {
+	PublishMotion(cameraName string)
+}
+
+// importantClasses are COCO classes that should trigger notifications.
+var importantClasses = map[string]bool{
+	"person": true, "bicycle": true, "car": true, "motorcycle": true,
+	"bus": true, "truck": true, "boat": true,
+	"cat": true, "dog": true, "horse": true, "sheep": true, "cow": true,
+	"elephant": true, "bear": true, "zebra": true, "giraffe": true,
+}
+
 // AIPipeline processes video frames through YOLO detection and CLIP embedding.
 // It manages detection lifecycle including motion event creation and detection
 // storage.
 type AIPipeline struct {
-	cameraID string
-	detector *Detector
-	embedder *Embedder // may be nil if CLIP is not available
-	db       *db.DB
-	stopCh   chan struct{}
+	cameraID   string
+	cameraName string
+	detector   *Detector
+	embedder   *Embedder // may be nil if CLIP is not available
+	db         *db.DB
+	eventPub   EventPublisher // may be nil
+	stopCh     chan struct{}
 
 	// confThreshold is the minimum YOLO confidence to consider a detection.
 	confThreshold float32
@@ -40,13 +57,16 @@ type AIPipeline struct {
 
 // NewAIPipeline creates a new AI processing pipeline for the given camera.
 // The embedder may be nil if CLIP models are not available; in that case,
-// detections will be stored without embeddings.
-func NewAIPipeline(cameraID string, detector *Detector, embedder *Embedder, database *db.DB) *AIPipeline {
+// detections will be stored without embeddings. The eventPub may be nil if
+// notifications are not needed.
+func NewAIPipeline(cameraID, cameraName string, detector *Detector, embedder *Embedder, database *db.DB, eventPub EventPublisher) *AIPipeline {
 	return &AIPipeline{
 		cameraID:      cameraID,
+		cameraName:    cameraName,
 		detector:      detector,
 		embedder:      embedder,
 		db:            database,
+		eventPub:      eventPub,
 		stopCh:        make(chan struct{}),
 		confThreshold: 0.5,
 		motionGap:     30 * time.Second,
@@ -434,6 +454,12 @@ func (p *AIPipeline) ensureMotionEvent(detections []YOLODetection, timestamp tim
 	}
 
 	p.currentEventID = event.ID
+
+	// Publish a notification when a new event starts for an important object.
+	if p.eventPub != nil && importantClasses[best.ClassName] {
+		p.eventPub.PublishMotion(p.cameraName)
+	}
+
 	return nil
 }
 

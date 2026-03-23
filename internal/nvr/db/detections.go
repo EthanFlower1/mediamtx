@@ -167,3 +167,35 @@ func (d *DB) ListDetectionsWithEvents(cameraID string, start, end time.Time) ([]
 	}
 	return results, rows.Err()
 }
+
+// GetRecentDetections returns detections for the given camera that occurred
+// after the given time. It joins with motion_events to filter by camera_id.
+func (d *DB) GetRecentDetections(cameraID string, since time.Time) ([]*Detection, error) {
+	rows, err := d.Query(`
+		SELECT d.id, d.motion_event_id, d.frame_time, d.class, d.confidence,
+			d.box_x, d.box_y, d.box_w, d.box_h, COALESCE(d.attributes, '')
+		FROM detections d
+		JOIN motion_events me ON d.motion_event_id = me.id
+		WHERE me.camera_id = ? AND d.frame_time > ?
+		ORDER BY d.frame_time DESC`,
+		cameraID, since.UTC().Format(timeFormat),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var detections []*Detection
+	for rows.Next() {
+		det := &Detection{}
+		if err := rows.Scan(
+			&det.ID, &det.MotionEventID, &det.FrameTime, &det.Class,
+			&det.Confidence, &det.BoxX, &det.BoxY, &det.BoxW, &det.BoxH,
+			&det.Attributes,
+		); err != nil {
+			return nil, err
+		}
+		detections = append(detections, det)
+	}
+	return detections, rows.Err()
+}

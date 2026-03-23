@@ -1287,3 +1287,22 @@ func (h *CameraHandler) UpdateAIConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, cam)
 }
+
+// LatestDetections returns the most recent detections (last 2 seconds) for a
+// camera. The frontend polls this endpoint to render bounding box overlays.
+//
+// GET /api/nvr/cameras/:id/detections/latest
+func (h *CameraHandler) LatestDetections(c *gin.Context) {
+	id := c.Param("id")
+	since := time.Now().Add(-2 * time.Second)
+
+	detections, err := h.DB.GetRecentDetections(id, since)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query recent detections", err)
+		return
+	}
+	if detections == nil {
+		detections = []*db.Detection{}
+	}
+	c.JSON(http.StatusOK, detections)
+}

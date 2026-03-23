@@ -306,7 +306,7 @@ func (n *NVR) startAIPipelines() {
 			continue
 		}
 
-		pipeline := ai.NewAIPipeline(cam.ID, n.aiDetector, n.aiEmbedder, n.database)
+		pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
 		n.aiPipelines[cam.ID] = pipeline
 
 		password := n.decryptPassword(encKey, cam.ONVIFPassword)

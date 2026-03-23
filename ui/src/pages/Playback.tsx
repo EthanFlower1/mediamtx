@@ -155,11 +155,12 @@ interface VerticalTimelineProps {
   playbackTime: Date | null
   onSeek: (time: Date) => void
   cameras: Camera[]
+  markerRef?: React.RefObject<HTMLDivElement>
 }
 
 const COLORS = ['bg-blue-500/60', 'bg-emerald-500/60', 'bg-purple-500/60', 'bg-amber-500/60', 'bg-rose-500/60', 'bg-cyan-500/60']
 
-function VerticalTimeline({ date, cameraRanges, events, playbackTime, onSeek, cameras }: VerticalTimelineProps) {
+function VerticalTimeline({ date, cameraRanges, events, playbackTime, onSeek, cameras, markerRef }: VerticalTimelineProps) {
   const barRef = useRef<HTMLDivElement>(null)
   const TOTAL_HEIGHT = 960 // pixels for 24 hours
   const dayStart = new Date(date + 'T00:00:00')
@@ -268,15 +269,21 @@ function VerticalTimeline({ date, cameraRanges, events, playbackTime, onSeek, ca
           )
         })}
 
-        {/* Playback position marker */}
+        {/* Playback position marker — static from state */}
         {playbackY !== null && playbackY >= 0 && playbackY <= TOTAL_HEIGHT && (
           <div
-            className="absolute left-0 right-0 h-0.5 bg-white z-10 pointer-events-none"
+            className="absolute left-0 right-0 h-0.5 bg-white/40 z-10 pointer-events-none"
             style={{ top: `${playbackY}px` }}
-          >
-            <div className="absolute -top-1.5 left-9 w-3 h-3 bg-white rounded-full shadow" />
-          </div>
+          />
         )}
+        {/* Live playback position marker — updated via ref, no re-renders */}
+        <div
+          ref={markerRef}
+          className="absolute left-0 right-0 h-0.5 bg-white z-10 pointer-events-none"
+          style={{ display: 'none' }}
+        >
+          <div className="absolute -top-1.5 left-9 w-3 h-3 bg-white rounded-full shadow" />
+        </div>
       </div>
     </div>
   )
@@ -562,16 +569,29 @@ export default function Playback() {
     })
   }, [selectedCameras, date])
 
-  // Periodically update playback time while playing
+  // Track the current playback wall-clock time in a ref (not state) to avoid
+  // re-rendering 4x/sec which causes video flicker. The timeline reads from
+  // this ref via a separate lightweight DOM update.
+  const livePlaybackTimeRef = useRef<Date | null>(null)
+  const timelineMarkerRef = useRef<HTMLDivElement | null>(null)
+
   useEffect(() => {
     if (playing && videoStartTimeRef.current) {
-      // Pick the first video element to track time
       const firstVideo = videoRefs.current.values().next().value
       if (firstVideo) {
         timeUpdateIntervalRef.current = setInterval(() => {
           if (videoStartTimeRef.current && firstVideo && !firstVideo.paused) {
             const wallTime = new Date(videoStartTimeRef.current.getTime() + firstVideo.currentTime * 1000)
-            setPlaybackTime(wallTime)
+            livePlaybackTimeRef.current = wallTime
+            // Update timeline marker position directly in DOM (no React re-render)
+            if (timelineMarkerRef.current) {
+              const dayStart = new Date(date + 'T00:00:00')
+              const dayMs = 24 * 60 * 60 * 1000
+              const TOTAL_HEIGHT = 960
+              const px = ((wallTime.getTime() - dayStart.getTime()) / dayMs) * TOTAL_HEIGHT
+              timelineMarkerRef.current.style.top = `${Math.max(0, Math.min(TOTAL_HEIGHT, px))}px`
+              timelineMarkerRef.current.style.display = px >= 0 && px <= TOTAL_HEIGHT ? 'block' : 'none'
+            }
           }
         }, 250)
       }
@@ -787,6 +807,7 @@ export default function Playback() {
           playbackTime={playbackTime}
           onSeek={handleSeek}
           cameras={selectedCameras}
+          markerRef={timelineMarkerRef}
         />
 
         {/* VCR Controls */}

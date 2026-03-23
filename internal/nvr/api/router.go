@@ -171,6 +171,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 
+	// Real-time detections for live overlay.
+	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
+
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
 	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)

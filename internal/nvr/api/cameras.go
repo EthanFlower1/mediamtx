@@ -1252,3 +1252,38 @@ func (h *CameraHandler) EdgeImport(c *gin.Context) {
 		"message":    "Use this RTSP URI to stream or record the edge recording. Local import is planned for a future version.",
 	})
 }
+
+// aiConfigRequest is the JSON body for updating AI configuration on a camera.
+type aiConfigRequest struct {
+	AIEnabled    bool   `json:"ai_enabled"`
+	SubStreamURL string `json:"sub_stream_url"`
+}
+
+// UpdateAIConfig handles PUT /cameras/:id/ai — updates AI-specific configuration
+// for a camera (ai_enabled flag and sub-stream URL for AI processing).
+func (h *CameraHandler) UpdateAIConfig(c *gin.Context) {
+	id := c.Param("id")
+
+	var req aiConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.DB.UpdateCameraAIConfig(id, req.AIEnabled, req.SubStreamURL); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to update AI config", err)
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera after AI config update", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, cam)
+}

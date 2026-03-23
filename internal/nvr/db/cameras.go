@@ -256,6 +256,30 @@ func (d *DB) UpdateCameraMotionTimeout(id string, seconds int) error {
 	return nil
 }
 
+// UpdateCameraAIConfig updates only the ai_enabled and sub_stream_url fields
+// of a camera. Returns ErrNotFound if no match.
+func (d *DB) UpdateCameraAIConfig(id string, aiEnabled bool, subStreamURL string) error {
+	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+
+	res, err := d.Exec(`
+		UPDATE cameras SET ai_enabled = ?, sub_stream_url = ?, updated_at = ?
+		WHERE id = ?`,
+		aiEnabled, subStreamURL, updatedAt, id,
+	)
+	if err != nil {
+		return err
+	}
+
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DeleteCamera deletes a camera by its ID. Returns ErrNotFound if no match.
 func (d *DB) DeleteCamera(id string) error {
 	res, err := d.Exec("DELETE FROM cameras WHERE id = ?", id)

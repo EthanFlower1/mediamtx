@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
+import { apiFetch } from '../api/client'
 
 export interface Detection {
   id: number
@@ -9,6 +10,7 @@ export interface Detection {
   box_w: number
   box_h: number
   frame_time: string
+  track_id?: number
 }
 
 interface Props {
@@ -53,6 +55,7 @@ function formatLabel(className: string, confidence: number): string {
 export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [detections, setDetections] = useState<Detection[]>([])
+  const [zones, setZones] = useState<Array<{id: number, name: string, polygon: [number, number][]}>>([])
   const animFrameRef = useRef<number>(0)
   const lastUpdateRef = useRef<number>(Date.now())
 
@@ -64,10 +67,7 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
 
     const poll = async () => {
       try {
-        const token = localStorage.getItem('nvr_token')
-        const resp = await fetch(`/api/nvr/cameras/${cameraId}/detections/latest`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
+        const resp = await apiFetch(`/cameras/${cameraId}/detections/latest`)
         if (resp.ok && !cancelled) {
           const data: Detection[] = await resp.json()
           setDetections(data)
@@ -84,6 +84,24 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
       cancelled = true
       clearInterval(interval)
     }
+  }, [enabled, cameraId])
+
+  // Poll zones every 30 seconds (zones change rarely).
+  useEffect(() => {
+    if (!enabled || !cameraId) return
+    let cancelled = false
+    const fetchZones = async () => {
+      try {
+        const resp = await apiFetch(`/cameras/${cameraId}/zones`)
+        if (resp.ok && !cancelled) {
+          const data = await resp.json()
+          setZones(data)
+        }
+      } catch { /* ignore */ }
+    }
+    fetchZones()
+    const interval = setInterval(fetchZones, 30000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [enabled, cameraId])
 
   /** Resize the canvas to match the video's rendered size. */
@@ -106,6 +124,29 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+    // Draw zone polygons (always visible, no fade)
+    for (const zone of zones) {
+      if (!zone.polygon || zone.polygon.length < 3) continue
+      ctx.beginPath()
+      ctx.moveTo(zone.polygon[0][0] * canvas.width, zone.polygon[0][1] * canvas.height)
+      for (let i = 1; i < zone.polygon.length; i++) {
+        ctx.lineTo(zone.polygon[i][0] * canvas.width, zone.polygon[i][1] * canvas.height)
+      }
+      ctx.closePath()
+      ctx.strokeStyle = '#6366f1' // indigo
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([4, 4])
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.08)' // very subtle fill
+      ctx.fill()
+
+      // Zone label
+      ctx.font = '11px Inter, system-ui, sans-serif'
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.7)'
+      ctx.fillText(zone.name, zone.polygon[0][0] * canvas.width + 4, zone.polygon[0][1] * canvas.height + 12)
+    }
+
     // Fade out detections after 1 second since last update.
     const elapsed = Date.now() - lastUpdateRef.current
     const opacity = Math.max(0, 1 - (elapsed - 1000) / 500)
@@ -127,7 +168,9 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
       ctx.strokeRect(x, y, w, h)
 
       // Label background
-      const label = formatLabel(det.class, det.confidence)
+      const label = det.track_id
+        ? `${displayLabel(det.class)} #${det.track_id} ${Math.round(det.confidence * 100)}%`
+        : formatLabel(det.class, det.confidence)
       ctx.font = '12px Inter, system-ui, sans-serif'
       const textMetrics = ctx.measureText(label)
       const textH = 16
@@ -140,7 +183,7 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
     }
 
     ctx.globalAlpha = 1
-  }, [detections])
+  }, [detections, zones])
 
   // Render loop: sync size and draw every frame while enabled
   useEffect(() => {

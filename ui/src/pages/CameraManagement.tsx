@@ -768,16 +768,39 @@ export default function CameraManagement() {
                     </div>
                   )}
 
-                  {/* Motion Detection Zones — only visible when camera supports analytics */}
-                  {expandedCamera.supports_analytics && (
-                    <div className="mb-4">
-                      <p className="text-xs text-nvr-text-muted mb-1">Draw zones on the camera view to define where motion should be detected</p>
-                      <DetectionZoneEditor
-                        cameraId={expandedCamera.id}
-                        snapshotUrl={expandedCamera.snapshot_uri || undefined}
-                      />
-                    </div>
-                  )}
+                  {/* Motion Detection Zones */}
+                  <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+                    <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-1">Motion Detection Zones</h4>
+                    {expandedCamera.supports_analytics ? (
+                      <>
+                        <p className="text-xs text-nvr-text-muted mb-3">Draw zones on the camera view to define where motion should be detected</p>
+                        <DetectionZoneEditor
+                          cameraId={expandedCamera.id}
+                          snapshotUrl={expandedCamera.snapshot_uri || undefined}
+                        />
+                      </>
+                    ) : (
+                      <div className="py-3">
+                        <p className="text-sm text-nvr-text-secondary mb-2">
+                          This camera manages motion detection zones through its own web interface.
+                        </p>
+                        {expandedCamera.onvif_endpoint && (
+                          <a
+                            href={`http://${new URL(expandedCamera.onvif_endpoint).hostname}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Open Camera Web Interface
+                          </a>
+                        )}
+                        <p className="text-xs text-nvr-text-muted mt-2">
+                          Motion events from this camera are still received and shown on the recordings timeline.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Analytics modules & rules — only visible when camera supports analytics */}
                   {expandedCamera.supports_analytics && (

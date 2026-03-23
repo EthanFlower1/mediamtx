@@ -39,7 +39,7 @@ function formatDurationShort(ms: number): string {
 function thumbnailUrl(path: string | undefined): string | null {
   if (!path) return null
   const filename = path.split('/').pop()
-  return filename ? `/api/nvr/thumbnails/${filename}` : null
+  return filename ? `/thumbnails/${filename}` : null
 }
 
 /** Badge color for event type. */
@@ -119,11 +119,12 @@ function TimelineMini({ startTime, endTime }: { startTime: Date; endTime: Date |
 interface ResultCardProps {
   result: SearchResult
   onPlay: () => void
+  onPlayInPlayback: () => void
   onSave: () => void
   onDownload: () => void
 }
 
-function ResultCard({ result, onPlay, onSave, onDownload }: ResultCardProps) {
+function ResultCard({ result, onPlay, onPlayInPlayback, onSave, onDownload }: ResultCardProps) {
   const [hoverThumb, setHoverThumb] = useState(false)
   const startTime = new Date(result.started_at)
   const endTime = result.ended_at ? new Date(result.ended_at) : null
@@ -237,6 +238,17 @@ function ResultCard({ result, onPlay, onSave, onDownload }: ResultCardProps) {
         </button>
         <div className="w-px h-5 bg-nvr-border/50" />
         <button
+          onClick={onPlayInPlayback}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-nvr-text-secondary hover:text-nvr-accent hover:bg-nvr-bg-tertiary py-2 transition-colors"
+          title="Open in multi-camera Playback page"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          Playback
+        </button>
+        <div className="w-px h-5 bg-nvr-border/50" />
+        <button
           onClick={onDownload}
           className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium text-nvr-text-secondary hover:text-nvr-text-primary hover:bg-nvr-bg-tertiary py-2 transition-colors"
           title="Download clip"
@@ -269,11 +281,12 @@ interface SavedClipRowProps {
   clip: SavedClip
   cameraName: string
   onPlay: () => void
+  onPlayInPlayback: () => void
   onDownload: () => void
   onDelete: () => void
 }
 
-function SavedClipRow({ clip, cameraName, onPlay, onDownload, onDelete }: SavedClipRowProps) {
+function SavedClipRow({ clip, cameraName, onPlay, onPlayInPlayback, onDownload, onDelete }: SavedClipRowProps) {
   const startTime = new Date(clip.start_time)
   const endTime = new Date(clip.end_time)
   const duration = endTime.getTime() - startTime.getTime()
@@ -308,6 +321,15 @@ function SavedClipRow({ clip, cameraName, onPlay, onDownload, onDelete }: SavedC
         >
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
+          </svg>
+        </button>
+        <button
+          onClick={onPlayInPlayback}
+          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg bg-nvr-bg-tertiary hover:bg-nvr-bg-input text-nvr-text-secondary hover:text-nvr-accent transition-colors"
+          title="Open in Playback"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </button>
         <button
@@ -476,6 +498,14 @@ export default function ClipSearch() {
   // Save modal state
   const [saveModal, setSaveModal] = useState<{ cameraId: string; startTime: Date; endTime: Date | null } | null>(null)
 
+  // Inline video player state
+  const [playingClip, setPlayingClip] = useState<{
+    url: string
+    title: string
+    cameraId: string
+    startTime: Date
+  } | null>(null)
+
   // Page title
   useEffect(() => {
     document.title = 'Clips \u2014 MediaMTX NVR'
@@ -595,13 +625,19 @@ export default function ClipSearch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortMode, sortResults])
 
-  // Navigate to playback page with camera and time
+  // Play event inline in the clip player
   const handlePlayEvent = (result: SearchResult) => {
-    // Store state for the playback page to pick up
-    const startTime = new Date(new Date(result.started_at).getTime() - 5000)
-    localStorage.setItem('nvr-playback-camera', result.camera_id)
-    localStorage.setItem('nvr-playback-time', startTime.toISOString())
-    navigate('/playback')
+    const path = cameraPathMap.get(result.camera_id)
+    if (!path) return
+    const startTime = new Date(new Date(result.started_at).getTime() - 5000) // 5s pre-roll
+    const startISO = toLocalRFC3339(startTime)
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    setPlayingClip({
+      url,
+      title: `${result.camera_name} — ${startTime.toLocaleTimeString()}`,
+      cameraId: result.camera_id,
+      startTime,
+    })
   }
 
   // Download a clip segment
@@ -631,11 +667,19 @@ export default function ClipSearch() {
     }
   }
 
-  // Play a saved clip via playback page
+  // Play a saved clip inline
   const handlePlaySavedClip = (clip: SavedClip) => {
-    localStorage.setItem('nvr-playback-camera', clip.camera_id)
-    localStorage.setItem('nvr-playback-time', clip.start_time)
-    navigate('/playback')
+    const path = cameraPathMap.get(clip.camera_id)
+    if (!path) return
+    const startTime = new Date(clip.start_time)
+    const startISO = toLocalRFC3339(startTime)
+    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    setPlayingClip({
+      url,
+      title: `${cameraNameMap.get(clip.camera_id) ?? 'Unknown'} — ${startTime.toLocaleTimeString()}`,
+      cameraId: clip.camera_id,
+      startTime,
+    })
   }
 
   // Download a saved clip
@@ -692,6 +736,36 @@ export default function ClipSearch() {
   return (
     <div>
       <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary mb-6">Clip Search</h1>
+
+      {/* ---- Inline Video Player ---- */}
+      {playingClip && (
+        <div className="mb-6 bg-nvr-bg-secondary border border-nvr-border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-nvr-border">
+            <span className="text-sm font-medium text-nvr-text-primary">{playingClip.title}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  localStorage.setItem('nvr-playback-camera', playingClip.cameraId)
+                  localStorage.setItem('nvr-playback-time', playingClip.startTime.toISOString())
+                  navigate('/playback')
+                }}
+                className="text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors flex items-center gap-1"
+              >
+                Open in Playback →
+              </button>
+              <button onClick={() => setPlayingClip(null)} className="text-nvr-text-muted hover:text-nvr-text-primary transition-colors">
+                ✕
+              </button>
+            </div>
+          </div>
+          <video
+            src={playingClip.url}
+            autoPlay
+            controls
+            className="w-full max-h-[50vh]"
+          />
+        </div>
+      )}
 
       {/* ---- Search bar ---- */}
       <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 mb-6">
@@ -861,6 +935,11 @@ export default function ClipSearch() {
                 key={`${result.camera_id}-${result.started_at}-${i}`}
                 result={result}
                 onPlay={() => handlePlayEvent(result)}
+                onPlayInPlayback={() => {
+                  localStorage.setItem('nvr-playback-camera', result.camera_id)
+                  localStorage.setItem('nvr-playback-time', new Date(new Date(result.started_at).getTime() - 5000).toISOString())
+                  navigate('/playback')
+                }}
                 onSave={() => setSaveModal({
                   cameraId: result.camera_id,
                   startTime: new Date(result.started_at),
@@ -920,6 +999,11 @@ export default function ClipSearch() {
                   clip={clip}
                   cameraName={cameraNameMap.get(clip.camera_id) ?? 'Unknown'}
                   onPlay={() => handlePlaySavedClip(clip)}
+                  onPlayInPlayback={() => {
+                    localStorage.setItem('nvr-playback-camera', clip.camera_id)
+                    localStorage.setItem('nvr-playback-time', clip.start_time)
+                    navigate('/playback')
+                  }}
                   onDownload={() => handleDownloadSavedClip(clip)}
                   onDelete={() => handleDeleteSavedClip(clip.id)}
                 />

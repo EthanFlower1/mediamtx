@@ -1141,7 +1141,7 @@ export default function Recordings() {
                           {/* Thumbnail or emoji fallback */}
                           {ev.thumbnail_path ? (
                             <img
-                              src={`/api/nvr/thumbnails/${ev.thumbnail_path.split('/').pop()}`}
+                              src={`/thumbnails/${ev.thumbnail_path.split('/').pop()}`}
                               alt="Motion event"
                               className="w-16 h-10 object-cover rounded shrink-0 bg-nvr-bg-tertiary"
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}

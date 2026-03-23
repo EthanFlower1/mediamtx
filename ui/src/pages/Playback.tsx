@@ -55,6 +55,8 @@ interface CameraTileProps {
 function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove }: CameraTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [error, setError] = useState(false)
+  // Track the last seek time as a string to avoid re-rendering on Date object identity changes.
+  const lastSeekRef = useRef<string>('')
 
   const src = useMemo(() => {
     if (!camera.mediamtx_path || !playbackTime) return null
@@ -62,29 +64,33 @@ function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove
     return `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(camera.mediamtx_path)}&start=${encodeURIComponent(startISO)}&duration=86400`
   }, [camera.mediamtx_path, playbackTime])
 
-  // Set src on video element
+  // Only reload video when src actually changes (new seek, not play/pause).
   useEffect(() => {
     const video = videoRef.current
     if (!video || !src) return
+    // Avoid reloading if src hasn't actually changed.
+    if (src === lastSeekRef.current) return
+    lastSeekRef.current = src
     setError(false)
     video.src = src
+    video.load()
     if (playing) {
       video.play().catch(() => {})
     }
-  }, [src])
+  }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Play/pause sync
+  // Play/pause sync — does NOT reload the video.
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !src) return
+    if (!video || !video.src) return
     if (playing) {
       video.play().catch(() => {})
     } else {
       video.pause()
     }
-  }, [playing, src])
+  }, [playing])
 
-  // Speed sync
+  // Speed sync — does NOT reload the video.
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -425,6 +431,9 @@ export default function Playback() {
   // Video element refs (keyed by camera ID)
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
 
+  // Track whether we've already consumed localStorage auto-load params
+  const consumedLocalStorageRef = useRef(false)
+
   // Recording ranges per camera
   const [cameraRanges, setCameraRanges] = useState<CameraRanges[]>([])
 
@@ -440,6 +449,30 @@ export default function Playback() {
     document.title = 'Playback \u2014 MediaMTX NVR'
     return () => { document.title = 'MediaMTX NVR' }
   }, [])
+
+  // Auto-load camera and time from Clips page navigation
+  useEffect(() => {
+    if (consumedLocalStorageRef.current || cameras.length === 0) return
+
+    const cameraId = localStorage.getItem('nvr-playback-camera')
+    const timeStr = localStorage.getItem('nvr-playback-time')
+
+    if (cameraId && timeStr) {
+      consumedLocalStorageRef.current = true
+      localStorage.removeItem('nvr-playback-camera')
+      localStorage.removeItem('nvr-playback-time')
+
+      const cam = cameras.find(c => c.id === cameraId)
+      if (cam) {
+        setSelectedCameras([cam])
+        videoRefs.current.clear()
+        const time = new Date(timeStr)
+        setPlaybackTime(time)
+        setPlaying(true)
+        setDate(time.toISOString().split('T')[0])
+      }
+    }
+  }, [cameras])
 
   // Fetch recording ranges for each selected camera when date or cameras change
   useEffect(() => {
@@ -648,9 +681,9 @@ export default function Playback() {
   }
 
   return (
-    <div className="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8 -my-6 min-h-[calc(100vh-3.5rem)]">
+    <div className="flex gap-0 -mx-4 sm:-mx-6 lg:-mx-8 -my-6 h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* ---- Left Panel: Camera Grid ---- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Camera selector bar */}
         <div className="px-4 py-3 border-b border-nvr-border bg-nvr-bg-secondary/50">
           <div className="flex items-center gap-3 flex-wrap">
@@ -683,13 +716,13 @@ export default function Playback() {
 
         {/* Grid area */}
         <div
-          className={`flex-1 p-4 ${dropHighlight ? 'bg-nvr-accent/5 ring-2 ring-nvr-accent/30 ring-inset' : 'bg-nvr-bg-primary'}`}
+          className={`flex-1 p-4 overflow-auto ${dropHighlight ? 'bg-nvr-accent/5 ring-2 ring-nvr-accent/30 ring-inset' : 'bg-nvr-bg-primary'}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {selectedCameras.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center min-h-[400px]">
+            <div className="h-full flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 rounded-2xl bg-nvr-accent/15 flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -719,7 +752,7 @@ export default function Playback() {
       </div>
 
       {/* ---- Right Panel: Timeline & Controls ---- */}
-      <div className="w-80 lg:w-96 border-l border-nvr-border bg-nvr-bg-secondary flex flex-col flex-shrink-0">
+      <div className="w-80 lg:w-96 border-l border-nvr-border bg-nvr-bg-secondary flex flex-col flex-shrink-0 overflow-hidden">
         {/* Date picker */}
         <div className="px-4 py-3 border-b border-nvr-border">
           <label className="text-xs text-nvr-text-muted block mb-1">Date</label>

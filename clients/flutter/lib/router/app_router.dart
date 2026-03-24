@@ -1,0 +1,52 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../screens/server_setup_screen.dart';
+import '../screens/login_screen.dart';
+import '../screens/setup_screen.dart';
+import '../screens/home_placeholder.dart';
+import '../widgets/adaptive_layout.dart';
+
+int _indexFromPath(String path) {
+  const paths = ['/live', '/playback', '/search', '/cameras', '/settings'];
+  final idx = paths.indexOf(path);
+  return idx >= 0 ? idx : 0;
+}
+
+void _navigateToIndex(BuildContext context, int index) {
+  const paths = ['/live', '/playback', '/search', '/cameras', '/settings'];
+  context.go(paths[index]);
+}
+
+final routerProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/live',
+    redirect: (context, state) {
+      // Auth guard — wired in Task 7
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/server-setup', builder: (_, __) => const ServerSetupScreen()),
+      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/setup', builder: (_, __) => const SetupScreen()),
+      ShellRoute(
+        builder: (context, state, child) {
+          final index = _indexFromPath(state.uri.path);
+          return AdaptiveLayout(
+            selectedIndex: index,
+            onDestinationSelected: (i) => _navigateToIndex(context, i),
+            child: child,
+          );
+        },
+        routes: [
+          GoRoute(path: '/live', builder: (_, __) => const HomePlaceholder(title: 'Live View')),
+          GoRoute(path: '/playback', builder: (_, __) => const HomePlaceholder(title: 'Playback')),
+          GoRoute(path: '/search', builder: (_, __) => const HomePlaceholder(title: 'Search')),
+          GoRoute(path: '/cameras', builder: (_, __) => const HomePlaceholder(title: 'Cameras')),
+          GoRoute(path: '/settings', builder: (_, __) => const HomePlaceholder(title: 'Settings')),
+        ],
+      ),
+    ],
+  );
+});

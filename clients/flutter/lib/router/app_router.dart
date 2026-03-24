@@ -6,6 +6,9 @@ import '../screens/server_setup_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/setup_screen.dart';
 import '../screens/home_placeholder.dart';
+import '../screens/live_view/live_view_screen.dart';
+import '../screens/live_view/fullscreen_view.dart';
+import '../models/camera.dart';
 import '../widgets/adaptive_layout.dart';
 import '../providers/auth_provider.dart';
 
@@ -53,7 +56,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
         routes: [
-          GoRoute(path: '/live', builder: (_, __) => const HomePlaceholder(title: 'Live View')),
+          GoRoute(
+            path: '/live',
+            builder: (_, __) => const LiveViewScreen(),
+            routes: [
+              GoRoute(
+                path: 'fullscreen',
+                builder: (_, state) {
+                  final camera = state.extra as Camera;
+                  return FullscreenView(camera: camera);
+                },
+              ),
+            ],
+          ),
           GoRoute(path: '/playback', builder: (_, __) => const HomePlaceholder(title: 'Playback')),
           GoRoute(path: '/search', builder: (_, __) => const HomePlaceholder(title: 'Search')),
           GoRoute(path: '/cameras', builder: (_, __) => const HomePlaceholder(title: 'Cameras')),

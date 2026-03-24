@@ -30,11 +30,18 @@ class PlaybackController extends ChangeNotifier {
   // Players — created when session returns stream URLs
   final Map<String, Player> _players = {};
   final Map<String, VideoController> _videoControllers = {};
+  StreamSubscription<Duration>? _positionSub;
+
+  // The server's stream starts at _streamOrigin (the seek target).
+  // The player reports position relative to stream start (0 = stream start).
+  // Display position = _streamOrigin + player position.
+  Duration _streamOrigin = Duration.zero;
 
   // Camera paths for session creation
   final Map<String, String> _cameraPaths = {};
 
   static const _maxPosition = Duration(hours: 24);
+  static const _positionThrottle = Duration(milliseconds: 66);
 
   PlaybackController({required this.playbackService});
 
@@ -131,9 +138,10 @@ class PlaybackController extends ChangeNotifier {
             .map((k, v) => MapEntry(k, v as String));
         _openStreams(streams);
       case 'position':
-        final secs = (event['position'] as num).toDouble();
-        _position = Duration(milliseconds: (secs * 1000).round());
-        notifyListeners();
+        // Server position tracks where the muxer is writing — use it to
+        // update _streamOrigin but NOT _position. The player's own position
+        // stream is more accurate for display (reflects decode/render time).
+        break;
       case 'state':
         if (event['playing'] != null) _isPlaying = event['playing'] as bool;
         if (event['speed'] != null) {
@@ -141,7 +149,10 @@ class PlaybackController extends ChangeNotifier {
         }
         if (event['position'] != null) {
           final secs = (event['position'] as num).toDouble();
-          _position = Duration(milliseconds: (secs * 1000).round());
+          _streamOrigin = Duration(milliseconds: (secs * 1000).round());
+          // Only update display position on state events (seek/play/pause),
+          // not on continuous position ticks
+          _position = _streamOrigin;
         }
         _isSeeking = false;
         notifyListeners();
@@ -173,6 +184,29 @@ class PlaybackController extends ChangeNotifier {
       }
       _players[camId]!.open(Media(url), play: false);
     }
+
+    // Subscribe to the first player's position stream for accurate
+    // display timing. The player reports time relative to stream start;
+    // we add _streamOrigin to get day-absolute position.
+    _positionSub?.cancel();
+    if (_players.isNotEmpty) {
+      DateTime? lastUpdate;
+      _positionSub =
+          _players.values.first.stream.position.listen((streamPos) {
+        if (_isSeeking) return;
+
+        final now = DateTime.now();
+        if (lastUpdate != null &&
+            now.difference(lastUpdate!) < _positionThrottle) {
+          return;
+        }
+        lastUpdate = now;
+
+        _position = _streamOrigin + streamPos;
+        notifyListeners();
+      });
+    }
+
     notifyListeners();
   }
 
@@ -241,6 +275,7 @@ class PlaybackController extends ChangeNotifier {
 
     _isSeeking = true;
     _position = clamped;
+    _streamOrigin = clamped;
     notifyListeners();
 
     _sendCommand({'cmd': 'seek', 'position': secs});
@@ -374,6 +409,7 @@ class PlaybackController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _positionSub?.cancel();
     if (_sessionCreated) {
       _sendCommand({'cmd': 'close'});
     }

@@ -13,6 +13,7 @@ class PlaybackController extends ChangeNotifier {
   bool _isPlaying = false;
   double _speed = 1.0;
   bool _isSeeking = false;
+  Duration? _seekTarget; // reject stale stream positions far from this
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
@@ -96,6 +97,19 @@ class PlaybackController extends ChangeNotifier {
       DateTime? lastUpdate;
       _positionSub = _players.values.first.stream.position.listen((pos) {
         if (_isSeeking) return;
+
+        // After a seek, reject stream positions that haven't caught up yet.
+        // The player may report stale positions for several frames.
+        if (_seekTarget != null) {
+          final diff = (pos.inMilliseconds - _seekTarget!.inMilliseconds).abs();
+          if (diff > 5000) {
+            // Still reporting old position — ignore
+            return;
+          }
+          // Player has caught up to near the seek target
+          _seekTarget = null;
+        }
+
         final now = DateTime.now();
         if (lastUpdate != null &&
             now.difference(lastUpdate!) < _positionThrottle) {
@@ -188,19 +202,17 @@ class PlaybackController extends ChangeNotifier {
     final snapped = snapToSegment(_segments, dayStart, clamped);
 
     _isSeeking = true;
+    _seekTarget = snapped;
     _position = snapped;
     notifyListeners();
 
     final futures = _players.values.map((p) => p.seek(snapped));
     await Future.wait(futures);
 
-    // Keep _isSeeking true briefly so stale position stream updates
-    // (still reporting the old position) don't overwrite _position.
-    await Future.delayed(const Duration(milliseconds: 200));
-
     _isSeeking = false;
-    // Don't notify here — let the next position stream tick update naturally.
-    // _position is already set to the correct value.
+    // _seekTarget stays set — the position stream listener will reject
+    // stale positions until the player reports a position near the target.
+    notifyListeners();
   }
 
   void stepFrame(int direction) {

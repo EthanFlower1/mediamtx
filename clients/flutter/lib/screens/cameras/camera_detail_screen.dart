@@ -131,6 +131,8 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
   late final TextEditingController _rtspCtrl;
   late final TextEditingController _onvifCtrl;
   bool _saving = false;
+  List<Map<String, dynamic>> _profiles = [];
+  bool _loadingProfiles = false;
 
   @override
   void initState() {
@@ -176,8 +178,49 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
     }
   }
 
+  Future<void> _fetchProfiles() async {
+    final endpoint = _onvifCtrl.text.trim();
+    if (endpoint.isEmpty) return;
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    setState(() {
+      _loadingProfiles = true;
+      _profiles = [];
+    });
+    try {
+      final res = await api.post<dynamic>('/cameras/probe', data: {
+        'endpoint': endpoint,
+        'username': widget.camera.name, // placeholder; real creds not stored client-side
+        'password': '',
+      });
+      final data = res.data;
+      if (data is Map<String, dynamic>) {
+        final raw = data['profiles'];
+        if (raw is List) {
+          setState(() {
+            _profiles = raw.whereType<Map<String, dynamic>>().toList();
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: NvrColors.danger,
+            content: Text('Failed to fetch profiles: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingProfiles = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasOnvif = _onvifCtrl.text.trim().isNotEmpty ||
+        widget.camera.onvifEndpoint.isNotEmpty;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
@@ -207,6 +250,123 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
               hint: 'http://192.168.1.100/onvif/device_service',
               keyboardType: TextInputType.url,
             ),
+
+            // ── ONVIF Profiles ──────────────────────────────────────────
+            if (hasOnvif) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: NvrColors.accent,
+                  side: const BorderSide(color: NvrColors.accent),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: _loadingProfiles ? null : _fetchProfiles,
+                icon: _loadingProfiles
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: NvrColors.accent,
+                        ),
+                      )
+                    : const Icon(Icons.search, size: 18),
+                label: const Text('Fetch Profiles'),
+              ),
+              if (_profiles.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Available Profiles',
+                  style: TextStyle(
+                    color: NvrColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._profiles.map((profile) {
+                  final name = profile['name'] as String? ?? 'Profile';
+                  final resolution = profile['resolution'] as String? ?? '';
+                  final codec = profile['codec'] as String? ?? '';
+                  final rtspUrl = profile['rtsp_url'] as String? ?? '';
+                  return Card(
+                    color: NvrColors.bgSecondary,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: NvrColors.border),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              color: NvrColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (resolution.isNotEmpty || codec.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                [if (resolution.isNotEmpty) resolution, if (codec.isNotEmpty) codec]
+                                    .join(' · '),
+                                style: const TextStyle(
+                                  color: NvrColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          if (rtspUrl.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                rtspUrl,
+                                style: const TextStyle(
+                                  color: NvrColors.textMuted,
+                                  fontSize: 11,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          if (rtspUrl.isNotEmpty)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: NvrColors.accent,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () {
+                                  _rtspCtrl.text = rtspUrl;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: NvrColors.success,
+                                      content: Text('Using profile: $name'),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Use This Profile'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ],
+
             const SizedBox(height: 24),
             ElevatedButton(
               style: ElevatedButton.styleFrom(

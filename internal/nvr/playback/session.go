@@ -134,6 +134,29 @@ func (s *PlaybackSession) CreatedAt() time.Time {
 	return s.createdAt
 }
 
+// IsPlaying returns true when the session is in the playing state.
+func (s *PlaybackSession) IsPlaying() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state == StatePlaying
+}
+
+// SetEventCallback replaces the event callback, allowing a new WebSocket
+// connection to receive events for an existing session.
+func (s *PlaybackSession) SetEventCallback(fn func(Event)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onEvent = fn
+}
+
+// IsIdle returns true when the session has had no activity for longer than
+// the given grace period.
+func (s *PlaybackSession) IsIdle(grace time.Duration) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return time.Since(s.lastActivity) > grace
+}
+
 // AddCamera finds recording segments for the given camera and adds it to the session.
 func (s *PlaybackSession) AddCamera(cameraID, mediamtxPath, recordPathPattern string) error {
 	s.mu.Lock()

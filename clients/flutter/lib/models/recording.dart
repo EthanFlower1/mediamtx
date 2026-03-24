@@ -1,13 +1,36 @@
 class RecordingSegment {
-  final String start;
+  final int id;
+  final String cameraId;
+  final DateTime startTime;
+  final DateTime endTime;
+  final int durationMs;
+  final String? filePath;
+  final int? fileSize;
+  final String? format;
 
-  const RecordingSegment({required this.start});
+  const RecordingSegment({
+    required this.id,
+    required this.cameraId,
+    required this.startTime,
+    required this.endTime,
+    required this.durationMs,
+    this.filePath,
+    this.fileSize,
+    this.format,
+  });
 
   factory RecordingSegment.fromJson(Map<String, dynamic> json) {
-    return RecordingSegment(start: json['start'] as String);
+    return RecordingSegment(
+      id: json['id'] as int,
+      cameraId: json['camera_id'] as String,
+      startTime: DateTime.parse(json['start_time'] as String),
+      endTime: DateTime.parse(json['end_time'] as String),
+      durationMs: json['duration_ms'] as int,
+      filePath: json['file_path'] as String?,
+      fileSize: json['file_size'] as int?,
+      format: json['format'] as String?,
+    );
   }
-
-  DateTime get startTime => DateTime.parse(start);
 }
 
 class MotionEvent {
@@ -33,7 +56,7 @@ class MotionEvent {
 
   factory MotionEvent.fromJson(Map<String, dynamic> json) {
     return MotionEvent(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       cameraId: json['camera_id'] as String,
       startedAt: json['started_at'] as String,
       endedAt: json['ended_at'] as String?,

@@ -9,9 +9,9 @@ final recordingSegmentsProvider =
   final api = ref.watch(apiClientProvider);
   if (api == null) return [];
 
-  // Build start/end from date (yyyy-MM-dd)
-  final start = '${key.date}T00:00:00';
-  final end = '${key.date}T23:59:59';
+  // Build start/end from date (yyyy-MM-dd) with UTC suffix
+  final start = '${key.date}T00:00:00Z';
+  final end = '${key.date}T23:59:59Z';
 
   final res = await api.get<dynamic>('/recordings', queryParameters: {
     'camera_id': key.cameraId,
@@ -32,12 +32,9 @@ final motionEventsProvider =
   final api = ref.watch(apiClientProvider);
   if (api == null) return [];
 
-  final start = '${key.date}T00:00:00';
-  final end = '${key.date}T23:59:59';
-
   final res = await api.get<dynamic>(
     '/cameras/${key.cameraId}/motion-events',
-    queryParameters: {'start': start, 'end': end},
+    queryParameters: {'date': key.date},
   );
 
   final data = res.data;

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -24,6 +25,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/playback"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -46,9 +48,10 @@ type NVR struct {
 	callbackMgr *onvif.CallbackManager
 	wsServer    *http.Server // separate WebSocket server for notifications
 
-	aiDetector  *ai.Detector
-	aiEmbedder  *ai.Embedder
-	aiPipelines map[string]*ai.AIPipeline // camera ID -> pipeline
+	aiDetector      *ai.Detector
+	aiEmbedder      *ai.Embedder
+	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
+	playbackManager *playback.SessionManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -97,6 +100,16 @@ func (n *NVR) Initialize() error {
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
 
+	// Initialize playback session manager.
+	recordPathPattern := n.RecordingsPath
+	if !strings.HasSuffix(recordPathPattern, "/") {
+		recordPathPattern += "/"
+	}
+	if !strings.Contains(recordPathPattern, "%path") {
+		recordPathPattern = recordPathPattern + "%path/%Y-%m-%d_%H-%M-%S-%f"
+	}
+	n.playbackManager = playback.NewSessionManager(n.database, recordPathPattern)
+
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.discovery = onvif.NewDiscovery()
 	n.events = api.NewEventBroadcaster()
@@ -136,8 +149,8 @@ func (n *NVR) Initialize() error {
 		}
 
 		// Load CLIP embedder if model files exist (optional).
-		visualPath := filepath.Join(modelsDir, "clip-vit-base-patch32-visual.onnx")
-		textPath := filepath.Join(modelsDir, "clip-vit-base-patch32-textual.onnx")
+		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
+		textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
 		vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
 		if _, err := os.Stat(visualPath); err == nil {
 			if _, err := os.Stat(textPath); err == nil {
@@ -155,6 +168,10 @@ func (n *NVR) Initialize() error {
 
 		n.startAIPipelines()
 	}
+
+	// Sync audio_transcode flag with YAML config: if a -live path exists
+	// in the YAML but the DB doesn't know about it, update the DB.
+	n.syncAudioTranscodeState()
 
 	return nil
 }
@@ -195,6 +212,19 @@ func (n *NVR) startNotificationServer() {
 		defer conn.Close()
 
 		conn.WriteJSON(map[string]string{"type": "connected"})
+
+		// Replay any active AI detection events so the client doesn't miss
+		// notifications that fired before it connected.
+		for _, p := range n.aiPipelines {
+			if p.HasActiveEvent() {
+				conn.WriteJSON(api.Event{
+					Type:    "ai_detection",
+					Camera:  p.CameraName(),
+					Message: fmt.Sprintf("Activity detected on %s", p.CameraName()),
+					Time:    time.Now().UTC().Format(time.RFC3339),
+				})
+			}
+		}
 
 		ch := n.events.Subscribe()
 		defer n.events.Unsubscribe(ch)
@@ -281,6 +311,45 @@ func (n *NVR) Close() {
 	}
 }
 
+// syncAudioTranscodeState checks the YAML config for existing -live paths
+// and updates the database to match. This handles the case where the
+// audio_transcode column was added after -live paths already existed.
+func (n *NVR) syncAudioTranscodeState() {
+	paths, err := n.yamlWriter.GetNVRPaths()
+	if err != nil {
+		log.Printf("NVR: failed to read YAML paths for audio sync: %v", err)
+		return
+	}
+
+	// Build a set of base paths that have a -live companion.
+	liveSet := make(map[string]bool)
+	for _, p := range paths {
+		if strings.HasSuffix(p, "-live") {
+			liveSet[strings.TrimSuffix(p, "-live")] = true
+		}
+	}
+	if len(liveSet) == 0 {
+		return
+	}
+
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		log.Printf("NVR: failed to list cameras for audio sync: %v", err)
+		return
+	}
+
+	for _, cam := range cameras {
+		if liveSet[cam.MediaMTXPath] && !cam.AudioTranscode {
+			cam.AudioTranscode = true
+			if err := n.database.UpdateCamera(cam); err != nil {
+				log.Printf("NVR: failed to sync audio_transcode for %s: %v", cam.Name, err)
+			} else {
+				log.Printf("NVR: synced audio_transcode=true for %s", cam.Name)
+			}
+		}
+	}
+}
+
 // startAIPipelines starts AI detection pipelines for all cameras that have
 // ai_enabled set and a snapshot_uri configured. Each pipeline runs in its
 // own goroutine, capturing snapshots at 2 FPS and running YOLO detection.
@@ -309,10 +378,62 @@ func (n *NVR) startAIPipelines() {
 		pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
 		n.aiPipelines[cam.ID] = pipeline
 
+		username := cam.ONVIFUsername
 		password := n.decryptPassword(encKey, cam.ONVIFPassword)
-		go pipeline.Run(cam.SnapshotURI, cam.ONVIFUsername, password, 2.0)
+		// Fall back to credentials embedded in the RTSP URL if ONVIF creds are empty.
+		if username == "" && cam.RTSPURL != "" {
+			if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
+				username = u.User.Username()
+				if p, ok := u.User.Password(); ok {
+					password = p
+				}
+			}
+		}
+		go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
 		log.Printf("AI: started pipeline for camera %s (%s) at 2 FPS", cam.Name, cam.ID)
 	}
+}
+
+// RestartAIPipeline stops and restarts the AI pipeline for the given camera ID.
+// Called by the API after camera settings change (credentials, AI toggle, etc.).
+func (n *NVR) RestartAIPipeline(cameraID string) {
+	if n.aiDetector == nil {
+		return
+	}
+
+	// Stop existing pipeline if running.
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+		log.Printf("AI: stopped pipeline for camera %s", cameraID)
+	}
+
+	cam, err := n.database.GetCamera(cameraID)
+	if err != nil {
+		log.Printf("AI: failed to get camera %s for pipeline restart: %v", cameraID, err)
+		return
+	}
+
+	if !cam.AIEnabled || cam.SnapshotURI == "" {
+		return
+	}
+
+	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+	username := cam.ONVIFUsername
+	password := n.decryptPassword(encKey, cam.ONVIFPassword)
+	if username == "" && cam.RTSPURL != "" {
+		if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
+			username = u.User.Username()
+			if p, ok := u.User.Password(); ok {
+				password = p
+			}
+		}
+	}
+
+	pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	n.aiPipelines[cam.ID] = pipeline
+	go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
+	log.Printf("AI: restarted pipeline for camera %s (%s)", cam.Name, cam.ID)
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted
@@ -385,6 +506,9 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		CallbackManager: n.callbackMgr,
 		EncryptionKey:   credKey,
 		ConfigPath:      n.ConfigPath,
+		Embedder:        n.aiEmbedder,
+		AIRestarter:     n,
+		PlaybackManager: n.playbackManager,
 	})
 }
 

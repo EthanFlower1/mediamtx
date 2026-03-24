@@ -12,6 +12,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/playback"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -33,7 +34,9 @@ type RouterConfig struct {
 	CallbackManager *onvif.CallbackManager
 	EncryptionKey   []byte // AES-256 key for ONVIF credential encryption
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
-	Embedder       *ai.Embedder // CLIP embedder for semantic search (may be nil)
+	Embedder        *ai.Embedder // CLIP embedder for semantic search (may be nil)
+	AIRestarter     AIPipelineRestarter // restart AI pipeline on camera settings change (may be nil)
+	PlaybackManager *playback.SessionManager // playback session manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -54,6 +57,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Scheduler:     cfg.Scheduler,
 		Audit:         audit,
 		EncryptionKey: cfg.EncryptionKey,
+		AIRestarter:   cfg.AIRestarter,
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -131,6 +135,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		})
 	}
 
+	// Playback stream (no JWT — session ID is the bearer token).
+	if cfg.PlaybackManager != nil {
+		nvr.GET("/playback/stream/:session/:camera", playback.HandleStream(cfg.PlaybackManager))
+	}
+
 	// Protected routes (JWT auth required).
 	protected := nvr.Group("", middleware.Handler())
 
@@ -170,6 +179,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
+	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
 
 	// Real-time detections for live overlay.
 	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
@@ -223,6 +233,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
+
+	// Playback WebSocket (JWT required — creates/resumes sessions).
+	if cfg.PlaybackManager != nil {
+		protected.GET("/playback/ws", playback.HandleWebSocket(cfg.PlaybackManager))
+	}
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)

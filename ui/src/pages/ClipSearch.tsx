@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCameras } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import { MotionEvent, eventEmoji } from '../components/Timeline'
+import { pushToast } from '../components/Toast'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -391,9 +392,24 @@ function SaveClipModal({ cameraId, startTime, endTime, onClose, onSaved }: SaveM
       if (res.ok) {
         onSaved()
         onClose()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        pushToast({
+          id: crypto.randomUUID(),
+          type: 'error',
+          title: 'Save Failed',
+          message: (data as any).error || 'Server error saving clip',
+          timestamp: new Date(),
+        })
       }
     } catch {
-      // silently fail
+      pushToast({
+        id: crypto.randomUUID(),
+        type: 'error',
+        title: 'Save Failed',
+        message: 'Failed to save clip. Please try again.',
+        timestamp: new Date(),
+      })
     } finally {
       setSaving(false)
     }
@@ -763,9 +779,26 @@ export default function ClipSearch() {
   const handleDeleteSavedClip = async (clipId: string) => {
     try {
       const res = await apiFetch(`/saved-clips/${clipId}`, { method: 'DELETE' })
-      if (res.ok) fetchSavedClips()
+      if (res.ok) {
+        fetchSavedClips()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        pushToast({
+          id: crypto.randomUUID(),
+          type: 'error',
+          title: 'Delete Failed',
+          message: (data as any).error || 'Server error deleting clip',
+          timestamp: new Date(),
+        })
+      }
     } catch {
-      // silently fail
+      pushToast({
+        id: crypto.randomUUID(),
+        type: 'error',
+        title: 'Delete Failed',
+        message: 'Failed to delete clip. Please try again.',
+        timestamp: new Date(),
+      })
     }
   }
 
@@ -813,7 +846,7 @@ export default function ClipSearch() {
           </button>
         </div>
         <p className="text-xs text-nvr-text-muted mt-2">
-          AI-powered search across all camera footage using natural language
+          Search by object class (person, car, dog) or natural language if AI models are installed
         </p>
       </div>
 

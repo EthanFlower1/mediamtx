@@ -27,7 +27,7 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 - `seek(Duration position)` — seeks player, updates position
 - `play()` / `pause()` / `togglePlayPause()`
 - `setSpeed(double speed)` — sets playback rate on the player
-- `stepFrame(int direction)` — pause, then seek +/-33ms (~1 frame at 30fps)
+- `stepFrame(int direction)` — for forward: use `media_kit`'s native `player.step()` (mpv frame-step). For backward: seek to nearest prior keyframe (~2-5s back depending on GOP). True single-frame reverse is not supported by mpv.
 - `skipToNextEvent()` / `skipToPreviousEvent()` — binary search sorted events list, seek to nearest
 - `skipToNextGap()` / `skipToPreviousGap()` — find nearest recording gap, seek to gap boundary
 
@@ -36,8 +36,15 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 - Sets `_isSeeking = true` during seeks to prevent playhead jitter from stale stream updates
 - Resumes listening after player confirms seek complete
 
+**Multi-player management:**
+- The controller owns a `Map<String, Player>` keyed by camera ID
+- `position` on the controller is the "master" position — all players are kept in sync to this
+- When `seek()` is called, all players seek to the same position
+- When cameras are added/removed from selection, players are created/disposed accordingly
+- Position stream is read from the first active player; others follow
+
 **Edge cases:**
-- Seeking into a gap: detect no position progress for 2s, auto-advance to next recording segment
+- Seeking into a gap: controller has the full recording segments list, so before seeking, check if target falls within any segment. If it falls in a gap, immediately seek to the next segment's start. This is deterministic and instant — no timeout heuristic.
 - End of recordings: auto-pause at last segment's end time
 - Position clamped to 0–86400s (one day), no date wrapping
 
@@ -61,10 +68,10 @@ Manages the visible time window within 0–24h:
 2. **RecordingLayer** — Filled rectangular bars for each recording segment using actual `startTime` + `endTime` from backend. Semi-transparent accent color. Gaps are visually obvious as empty space.
 
 3. **EventLayer** — Event duration bars (not just dots). Each event renders as a thin horizontal bar color-coded by class:
-   - Person → Blue
-   - Vehicle → Green
-   - Motion → Amber
-   - Other → Red
+   - Person ("person") → Blue
+   - Vehicle ("car", "truck", "bus", "motorcycle") → Green
+   - Motion ("motion") → Amber
+   - Other (any unrecognized `object_class`) → Red
 
    At low zoom, events collapse to dots. At high zoom, duration bars become visible.
 
@@ -81,7 +88,8 @@ Manages the visible time window within 0–24h:
 A 32px-tall bar always visible above the main timeline:
 - Shows full 24h with tiny recording bars and event markers
 - Highlighted rectangle shows currently visible range
-- Draggable to pan the main view
+- Drag the highlighted rectangle to pan the main view proportionally
+- Tap outside the rectangle to jump the viewport to that time region
 
 ### Orientation
 
@@ -112,15 +120,17 @@ Frame step buttons auto-pause if playing. Tooltips on each button.
 Horizontal slider for variable-speed scrubbing:
 - Range: -2.0x to +2.0x
 - Center (0.0) = paused
-- Right = forward, left = reverse (reverse simulated via rapid backward seeks if `media_kit` doesn't support native reverse)
+- Right = forward at proportional speed, left = reverse. Try `player.setRate(-x)` for native reverse first; if unsupported, fall back to timer-based backward seeks (every 100ms, seek backward by `jog_position * 200ms` — so at full -2x, it seeks back 400ms every 100ms)
 - On release: spring animation back to center (paused)
-- Speed label displayed above thumb
+- Speed label displayed above thumb (e.g. "-1.2x", "+0.5x")
 - Separate from the normal speed dropdown (1x, 2x, 4x, etc.) which remains for standard playback
+- When jog slider is active, `_isSeeking` stays true to suppress position stream jitter from rapid seeks
 
 ### Layout
 
-**Narrow screen:**
+**Narrow screen (< 720px):**
 ```
+[ Video (single camera)              ]
 [ MiniOverviewBar                    ]
 [ Main Timeline (expandable height)  ]
 [ Transport Controls row             ]
@@ -128,12 +138,15 @@ Horizontal slider for variable-speed scrubbing:
 [ Speed: 1.0x dropdown               ]
 ```
 
-**Wide screen:**
+**Wide screen (>= 720px):**
 ```
-[ MiniOverviewBar          ]  [ Video Grid    ]
-[ Main Timeline (tall)     ]  [               ]
-[ Transport | Jog | Speed  ]  [               ]
+[ Video Grid (1-4 cameras)           ]
+[ MiniOverviewBar                    ]
+[ Main Timeline                      ]
+[ Transport | Jog | Speed            ]
 ```
+
+Timeline is always horizontal below the video in both layouts. The current vertical sidebar layout is removed.
 
 ---
 
@@ -159,24 +172,35 @@ Triggered by long-press on an event marker in the timeline.
 
 **Problem:** Flutter `RecordingSegment` only parses `start`. Backend already returns `startTime`, `endTime`, `durationMs`.
 
-**Fix:** Update model to:
+**Fix:** Update model to match backend JSON keys:
 ```dart
 class RecordingSegment {
   final int id;
-  final String cameraId;
-  final String startTime;  // ISO8601
-  final String endTime;    // ISO8601
-  final int durationMs;
-  final String? filePath;
+  final String cameraId;    // json: "camera_id"
+  final String startTime;   // json: "start_time" (ISO8601)
+  final String endTime;     // json: "end_time" (ISO8601)
+  final int durationMs;     // json: "duration_ms"
+  final String? filePath;   // json: "file_path"
+
+  factory RecordingSegment.fromJson(Map<String, dynamic> json) => RecordingSegment(
+    id: json['id'],
+    cameraId: json['camera_id'],
+    startTime: json['start_time'],
+    endTime: json['end_time'],
+    durationMs: json['duration_ms'],
+    filePath: json['file_path'],
+  );
 }
 ```
 
 Eliminates the guesswork of estimating duration from the next segment or hardcoding +15min.
 
-**Provider changes:**
-- `recordingSegmentsProvider` — same API, parse full response
-- `motionEventsProvider` — no change
+**Provider fixes (pre-existing bugs):**
+- `recordingSegmentsProvider` — timestamps must include timezone for RFC3339 compliance. Change `'${key.date}T00:00:00'` to `'${key.date}T00:00:00Z'` (and same for end time). Parse full response fields.
+- `motionEventsProvider` — backend expects a `date` query param (YYYY-MM-DD), not `start`/`end`. Change to send `queryParameters: {'date': key.date}` instead.
 - Both passed into `PlaybackController` for skip-to-event and skip-to-gap logic
+
+**Playback URL:** The backend serves a continuous stream for the full requested duration. `player.seek()` works within the stream — no need to reconstruct the URL on every seek. The current `ValueKey` that includes `position.inSeconds` (causing player recreation on every seek) must be changed to exclude position.
 
 ---
 
@@ -190,6 +214,8 @@ Eliminates the guesswork of estimating duration from the next segment or hardcod
 5. Seek completes → `_isSeeking = false`, resume position stream
 
 **Time display:** `Text` widget showing `HH:MM:SS` from controller position, plus selected date.
+
+**Loading states:** While recording segments or motion events are loading (AsyncValue.loading), the RecordingLayer and EventLayer show a subtle shimmer/skeleton animation across the timeline area. The GridLayer and PlayheadLayer render immediately since they don't depend on data.
 
 ---
 

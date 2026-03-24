@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/camera.dart';
-import '../../models/recording.dart';
 import '../../providers/cameras_provider.dart';
-import '../../providers/recordings_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
@@ -296,11 +294,6 @@ class _WideLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final motionAsync = cameras.isNotEmpty
-        ? ref.watch(motionEventsProvider(
-            (cameraId: cameras.first.id, date: dateKey)))
-        : const AsyncValue<List<MotionEvent>>.data([]);
-
     return Row(
       children: [
         // Video area
@@ -315,19 +308,14 @@ class _WideLayout extends ConsumerWidget {
           ),
         ),
         // Vertical timeline
-        Container(
-          width: 64,
-          color: NvrColors.bgTertiary,
-          child: motionAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (events) => TimelineWidget(
-              motionEvents: events,
-              selectedDate: date,
-              position: position,
-              vertical: true,
-              onSeek: onSeek,
-            ),
+        SizedBox(
+          width: 220,
+          child: TimelineWidget(
+            cameraIds: cameras.map((c) => c.id).toList(),
+            selectedDate: date,
+            position: position,
+            vertical: true,
+            onSeek: onSeek,
           ),
         ),
       ],
@@ -356,11 +344,6 @@ class _NarrowLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final motionAsync = cameras.isNotEmpty
-        ? ref.watch(motionEventsProvider(
-            (cameraId: cameras.first.id, date: dateKey)))
-        : const AsyncValue<List<MotionEvent>>.data([]);
-
     return Column(
       children: [
         // Video area
@@ -375,19 +358,14 @@ class _NarrowLayout extends ConsumerWidget {
           ),
         ),
         // Horizontal timeline
-        Container(
-          height: 64,
-          color: NvrColors.bgTertiary,
-          child: motionAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (events) => TimelineWidget(
-              motionEvents: events,
-              selectedDate: date,
-              position: position,
-              vertical: false,
-              onSeek: onSeek,
-            ),
+        SizedBox(
+          height: 140,
+          child: TimelineWidget(
+            cameraIds: cameras.map((c) => c.id).toList(),
+            selectedDate: date,
+            position: position,
+            vertical: false,
+            onSeek: onSeek,
           ),
         ),
       ],

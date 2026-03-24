@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/recording.dart';
+import '../../providers/recordings_provider.dart';
 import '../../theme/nvr_colors.dart';
 
-class TimelineWidget extends StatelessWidget {
-  final List<MotionEvent> motionEvents;
+class TimelineWidget extends ConsumerStatefulWidget {
+  final List<String> cameraIds;
   final DateTime selectedDate;
   final Duration position;
   final bool vertical;
@@ -11,7 +13,7 @@ class TimelineWidget extends StatelessWidget {
 
   const TimelineWidget({
     super.key,
-    required this.motionEvents,
+    required this.cameraIds,
     required this.selectedDate,
     required this.position,
     required this.onSeek,
@@ -19,148 +21,367 @@ class TimelineWidget extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (details) => _handleTap(context, details),
-      child: CustomPaint(
-        painter: _TimelinePainter(
-          motionEvents: motionEvents,
-          selectedDate: selectedDate,
-          position: position,
-          vertical: vertical,
-        ),
-        child: vertical
-            ? const SizedBox(width: 64, height: double.infinity)
-            : const SizedBox(height: 64, width: double.infinity),
-      ),
-    );
+  ConsumerState<TimelineWidget> createState() => _TimelineWidgetState();
+}
+
+class _TimelineWidgetState extends ConsumerState<TimelineWidget> {
+  bool _dragging = false;
+
+  String get _dateKey =>
+      '${widget.selectedDate.year}-'
+      '${widget.selectedDate.month.toString().padLeft(2, '0')}-'
+      '${widget.selectedDate.day.toString().padLeft(2, '0')}';
+
+  Duration _pixelToDuration(double pixel, double totalPixels) {
+    final fraction = (pixel / totalPixels).clamp(0.0, 1.0);
+    return Duration(milliseconds: (fraction * 86400000).round());
   }
 
-  void _handleTap(BuildContext context, TapDownDetails details) {
-    final box = context.findRenderObject() as RenderBox;
-    final size = box.size;
-    double fraction;
-    if (vertical) {
-      fraction = details.localPosition.dy / size.height;
-    } else {
-      fraction = details.localPosition.dx / size.width;
+  void _handleDragUpdate(DragUpdateDetails details, BoxConstraints constraints) {
+    final totalPixels =
+        widget.vertical ? constraints.maxHeight : constraints.maxWidth;
+    final pixel = widget.vertical
+        ? details.localPosition.dy
+        : details.localPosition.dx;
+    widget.onSeek(_pixelToDuration(pixel, totalPixels));
+  }
+
+  void _handleTapDown(TapDownDetails details, BoxConstraints constraints) {
+    final totalPixels =
+        widget.vertical ? constraints.maxHeight : constraints.maxWidth;
+    final pixel = widget.vertical
+        ? details.localPosition.dy
+        : details.localPosition.dx;
+    widget.onSeek(_pixelToDuration(pixel, totalPixels));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Fetch data for all selected cameras; merge results.
+    final List<RecordingSegment> allSegments = [];
+    final List<MotionEvent> allEvents = [];
+
+    for (final cameraId in widget.cameraIds) {
+      final key = (cameraId: cameraId, date: _dateKey);
+
+      final segmentsAsync = ref.watch(recordingSegmentsProvider(key));
+      segmentsAsync.whenData((segs) => allSegments.addAll(segs));
+
+      final eventsAsync = ref.watch(motionEventsProvider(key));
+      eventsAsync.whenData((evts) => allEvents.addAll(evts));
     }
-    fraction = fraction.clamp(0.0, 1.0);
-    final seeked = Duration(seconds: (fraction * 86400).round());
-    onSeek(seeked);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onTapDown: (d) => _handleTapDown(d, constraints),
+          onVerticalDragStart: widget.vertical
+              ? (_) => setState(() => _dragging = true)
+              : null,
+          onVerticalDragUpdate: widget.vertical
+              ? (d) => _handleDragUpdate(d, constraints)
+              : null,
+          onVerticalDragEnd: widget.vertical
+              ? (_) => setState(() => _dragging = false)
+              : null,
+          onHorizontalDragStart: !widget.vertical
+              ? (_) => setState(() => _dragging = true)
+              : null,
+          onHorizontalDragUpdate: !widget.vertical
+              ? (d) => _handleDragUpdate(d, constraints)
+              : null,
+          onHorizontalDragEnd: !widget.vertical
+              ? (_) => setState(() => _dragging = false)
+              : null,
+          child: CustomPaint(
+            painter: _TimelinePainter(
+              segments: allSegments,
+              motionEvents: allEvents,
+              selectedDate: widget.selectedDate,
+              position: widget.position,
+              vertical: widget.vertical,
+              dragging: _dragging,
+            ),
+            size: Size(constraints.maxWidth, constraints.maxHeight),
+          ),
+        );
+      },
+    );
   }
 }
 
+// ── Painter ───────────────────────────────────────────────────────────────────
+
 class _TimelinePainter extends CustomPainter {
+  final List<RecordingSegment> segments;
   final List<MotionEvent> motionEvents;
   final DateTime selectedDate;
   final Duration position;
   final bool vertical;
+  final bool dragging;
 
   _TimelinePainter({
+    required this.segments,
     required this.motionEvents,
     required this.selectedDate,
     required this.position,
     required this.vertical,
+    required this.dragging,
   });
+
+  static const double _totalMs = 86400000.0;
+
+  double _frac(DateTime dt) {
+    final dayStart =
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    return (dt.difference(dayStart).inMilliseconds / _totalMs).clamp(0.0, 1.0);
+  }
+
+  double _posFrac() =>
+      (position.inMilliseconds / _totalMs).clamp(0.0, 1.0);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = NvrColors.bgTertiary;
+    // Background
+    final bgPaint = Paint()..color = NvrColors.bgPrimary;
     canvas.drawRect(Offset.zero & size, bgPaint);
 
-    const totalSecs = 86400.0;
+    if (vertical) {
+      _paintVertical(canvas, size);
+    } else {
+      _paintHorizontal(canvas, size);
+    }
+  }
 
-    // Draw hour grid lines + labels
+  // ── Vertical (wide layout) ─────────────────────────────────────────────────
+
+  void _paintVertical(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Recording segments band (left 40% of width)
+    final segPaint = Paint()
+      ..color = NvrColors.accent.withValues(alpha: 0.4);
+    final segBandRight = w * 0.42;
+    const segBandLeft = 0.0;
+
+    final dayStart =
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+
+    for (int i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      final startFrac = _frac(seg.startTime);
+      // Use next segment start as end, or 15 minutes if last segment
+      final double endFrac;
+      if (i + 1 < segments.length) {
+        endFrac = (_frac(segments[i + 1].startTime)).clamp(0.0, 1.0);
+      } else {
+        final endMs =
+            seg.startTime.difference(dayStart).inMilliseconds + 15 * 60 * 1000;
+        endFrac = (endMs / _totalMs).clamp(0.0, 1.0);
+      }
+      final y1 = startFrac * h;
+      final y2 = endFrac * h;
+      canvas.drawRect(
+        Rect.fromLTWH(
+            segBandLeft, y1, segBandRight, (y2 - y1).clamp(2.0, double.infinity)),
+        segPaint,
+      );
+    }
+
+    // Hour grid lines + labels
     final gridPaint = Paint()
-      ..color = NvrColors.border
+      ..color = NvrColors.border.withValues(alpha: 0.6)
       ..strokeWidth = 0.5;
 
-    const labelStyle = TextStyle(
-      color: NvrColors.textMuted,
-      fontSize: 9,
-    );
-
-    for (int h = 0; h <= 24; h++) {
-      final frac = h / 24.0;
-      if (vertical) {
-        final y = frac * size.height;
-        canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-        if (h % 6 == 0) {
-          _drawText(canvas, '${h.toString().padLeft(2, '0')}:00',
-              Offset(2, y + 2), labelStyle);
-        }
-      } else {
-        final x = frac * size.width;
-        canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-        if (h % 6 == 0) {
-          _drawText(canvas, '${h.toString().padLeft(2, '0')}:00',
-              Offset(x + 2, 2), labelStyle);
-        }
+    for (int h2 = 0; h2 <= 24; h2++) {
+      final frac = h2 / 24.0;
+      final y = frac * h;
+      canvas.drawLine(Offset(0, y), Offset(w, y), gridPaint);
+      if (h2 % 3 == 0) {
+        _drawText(
+          canvas,
+          '${h2.toString().padLeft(2, '0')}:00',
+          Offset(segBandRight + 3, y + 2),
+          const TextStyle(color: NvrColors.textMuted, fontSize: 8),
+        );
       }
     }
 
-    // Draw motion event bars
-    final motionPaint = Paint()..color = NvrColors.warning.withValues(alpha: 0.7);
-    final dayStart = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-    );
-
+    // Motion event dots (right band)
+    final eventX = w * 0.7;
     for (final event in motionEvents) {
-      final startSec = event.startTime.difference(dayStart).inSeconds.toDouble();
-      final endSec = event.endTime != null
-          ? event.endTime!.difference(dayStart).inSeconds.toDouble()
-          : startSec + 30;
-
-      final startFrac = (startSec / totalSecs).clamp(0.0, 1.0);
-      final endFrac = (endSec / totalSecs).clamp(0.0, 1.0);
-
-      if (vertical) {
-        final y1 = startFrac * size.height;
-        final y2 = endFrac * size.height;
-        canvas.drawRect(
-          Rect.fromLTWH(4, y1, size.width - 8, (y2 - y1).clamp(2.0, double.infinity)),
-          motionPaint,
-        );
-      } else {
-        final x1 = startFrac * size.width;
-        final x2 = endFrac * size.width;
-        canvas.drawRect(
-          Rect.fromLTWH(x1, 4, (x2 - x1).clamp(2.0, double.infinity), size.height - 8),
-          motionPaint,
-        );
-      }
+      final frac = _frac(event.startTime);
+      final y = frac * h;
+      final color = _eventColor(event);
+      canvas.drawCircle(
+        Offset(eventX, y),
+        3.5,
+        Paint()..color = color,
+      );
     }
 
-    // Draw playback position marker
-    final posFrac = (position.inSeconds / totalSecs).clamp(0.0, 1.0);
-    final markerPaint = Paint()
+    // Playhead
+    final posFrac = _posFrac();
+    final py = posFrac * h;
+    final playheadPaint = Paint()
       ..color = NvrColors.accent
       ..strokeWidth = 2.0;
+    canvas.drawLine(Offset(0, py), Offset(w, py), playheadPaint);
 
-    if (vertical) {
-      final y = posFrac * size.height;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), markerPaint);
-      // Triangle pointing right
-      final path = Path()
-        ..moveTo(0, y - 5)
-        ..lineTo(8, y)
-        ..lineTo(0, y + 5)
-        ..close();
-      canvas.drawPath(path, Paint()..color = NvrColors.accent);
-    } else {
-      final x = posFrac * size.width;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), markerPaint);
-      // Triangle pointing down
-      final path = Path()
-        ..moveTo(x - 5, 0)
-        ..lineTo(x + 5, 0)
-        ..lineTo(x, 8)
-        ..close();
-      canvas.drawPath(path, Paint()..color = NvrColors.accent);
+    // Circular handle
+    final handleRadius = dragging ? 7.0 : 6.0;
+    canvas.drawCircle(
+      Offset(w / 2, py),
+      handleRadius,
+      Paint()..color = NvrColors.accent,
+    );
+    canvas.drawCircle(
+      Offset(w / 2, py),
+      handleRadius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Current time label
+    final timeStr = _formatDuration(position);
+    _drawText(
+      canvas,
+      timeStr,
+      Offset(2, (py - 18).clamp(0.0, h - 18)),
+      const TextStyle(
+        color: Colors.white,
+        fontSize: 9,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  // ── Horizontal (narrow layout) ─────────────────────────────────────────────
+
+  void _paintHorizontal(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Recording segments band (top 35% of height)
+    final segPaint = Paint()
+      ..color = NvrColors.accent.withValues(alpha: 0.4);
+    final segBandBottom = h * 0.40;
+    const segBandTop = 0.0;
+
+    final dayStart =
+        DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+
+    for (int i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      final startFrac = _frac(seg.startTime);
+      final double endFrac;
+      if (i + 1 < segments.length) {
+        endFrac = (_frac(segments[i + 1].startTime)).clamp(0.0, 1.0);
+      } else {
+        final endMs =
+            seg.startTime.difference(dayStart).inMilliseconds + 15 * 60 * 1000;
+        endFrac = (endMs / _totalMs).clamp(0.0, 1.0);
+      }
+      final x1 = startFrac * w;
+      final x2 = endFrac * w;
+      canvas.drawRect(
+        Rect.fromLTWH(
+            x1, segBandTop, (x2 - x1).clamp(2.0, double.infinity), segBandBottom),
+        segPaint,
+      );
     }
+
+    // Hour grid lines + labels
+    final gridPaint = Paint()
+      ..color = NvrColors.border.withValues(alpha: 0.6)
+      ..strokeWidth = 0.5;
+
+    for (int h2 = 0; h2 <= 24; h2++) {
+      final frac = h2 / 24.0;
+      final x = frac * w;
+      canvas.drawLine(Offset(x, 0), Offset(x, h), gridPaint);
+      if (h2 % 6 == 0) {
+        _drawText(
+          canvas,
+          '${h2.toString().padLeft(2, '0')}:00',
+          Offset(x + 2, segBandBottom + 2),
+          const TextStyle(color: NvrColors.textMuted, fontSize: 8),
+        );
+      }
+    }
+
+    // Motion event dots (lower band)
+    final eventY = h * 0.72;
+    for (final event in motionEvents) {
+      final frac = _frac(event.startTime);
+      final x = frac * w;
+      final color = _eventColor(event);
+      canvas.drawCircle(
+        Offset(x, eventY),
+        3.5,
+        Paint()..color = color,
+      );
+    }
+
+    // Playhead
+    final posFrac = _posFrac();
+    final px = posFrac * w;
+    final playheadPaint = Paint()
+      ..color = NvrColors.accent
+      ..strokeWidth = 2.0;
+    canvas.drawLine(Offset(px, 0), Offset(px, h), playheadPaint);
+
+    // Circular handle (at top)
+    final handleRadius = dragging ? 7.0 : 6.0;
+    canvas.drawCircle(
+      Offset(px, h / 2),
+      handleRadius,
+      Paint()..color = NvrColors.accent,
+    );
+    canvas.drawCircle(
+      Offset(px, h / 2),
+      handleRadius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Current time label above playhead
+    final timeStr = _formatDuration(position);
+    final labelX = (px + 4).clamp(0.0, w - 48);
+    _drawText(
+      canvas,
+      timeStr,
+      Offset(labelX, 2),
+      const TextStyle(
+        color: Colors.white,
+        fontSize: 9,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  Color _eventColor(MotionEvent event) {
+    final cls = event.objectClass?.toLowerCase() ?? '';
+    if (cls == 'person') return Colors.blue;
+    if (cls == 'car' || cls == 'vehicle' || cls == 'truck') {
+      return Colors.green;
+    }
+    if (event.eventType?.toLowerCase() == 'motion') return Colors.amber;
+    return Colors.red;
+  }
+
+  String _formatDuration(Duration d) {
+    final h = d.inHours.remainder(24).toString().padLeft(2, '0');
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 
   void _drawText(Canvas canvas, String text, Offset offset, TextStyle style) {
@@ -175,7 +396,9 @@ class _TimelinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_TimelinePainter old) {
     return old.position != position ||
+        old.segments.length != segments.length ||
         old.motionEvents.length != motionEvents.length ||
-        old.selectedDate != selectedDate;
+        old.selectedDate != selectedDate ||
+        old.dragging != dragging;
   }
 }

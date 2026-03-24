@@ -23,15 +23,15 @@ class SearchResult {
 
   factory SearchResult.fromJson(Map<String, dynamic> json) {
     return SearchResult(
-      detectionId: json['detection_id'] as String,
-      eventId: json['event_id'] as String,
-      cameraId: json['camera_id'] as String,
-      cameraName: json['camera_name'] as String,
-      className: json['class'] as String,
-      confidence: (json['confidence'] as num).toDouble(),
-      similarity: (json['similarity'] as num).toDouble(),
-      frameTime: json['frame_time'] as String,
-      thumbnailPath: json['thumbnail_path'] as String?,
+      detectionId: json['detection_id']?.toString() ?? '',
+      eventId: json['event_id']?.toString() ?? '',
+      cameraId: json['camera_id']?.toString() ?? '',
+      cameraName: json['camera_name']?.toString() ?? '',
+      className: json['class']?.toString() ?? '',
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
+      similarity: (json['similarity'] as num?)?.toDouble() ?? 0.0,
+      frameTime: json['frame_time']?.toString() ?? '',
+      thumbnailPath: json['thumbnail_path']?.toString(),
     );
   }
 

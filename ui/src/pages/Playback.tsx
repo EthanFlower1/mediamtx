@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import { MotionEvent, eventEmoji } from '../components/Timeline'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -50,9 +51,10 @@ interface CameraTileProps {
   speed: number
   onVideoRef: (cameraId: string, el: HTMLVideoElement | null) => void
   onRemove: () => void
+  onCanPlay: (cameraId: string) => void
 }
 
-function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove }: CameraTileProps) {
+function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove, onCanPlay }: CameraTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [error, setError] = useState(false)
   // Track the last seek time as a string to avoid re-rendering on Date object identity changes.
@@ -61,7 +63,7 @@ function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove
   const src = useMemo(() => {
     if (!camera.mediamtx_path || !playbackTime) return null
     const startISO = toLocalRFC3339(playbackTime)
-    return `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(camera.mediamtx_path)}&start=${encodeURIComponent(startISO)}&duration=86400`
+    return `${window.location.protocol}//${window.location.hostname}:9996/get?path=${encodeURIComponent(camera.mediamtx_path)}&start=${encodeURIComponent(startISO)}&duration=86400`
   }, [camera.mediamtx_path, playbackTime])
 
   // Only reload video when src actually changes (new seek, not play/pause).
@@ -139,6 +141,7 @@ function CameraTile({ camera, playbackTime, playing, speed, onVideoRef, onRemove
           className="w-full h-full object-contain"
           onError={() => setError(true)}
           onPlay={() => setError(false)}
+          onCanPlay={() => onCanPlay(camera.id)}
         />
       )}
     </div>
@@ -162,7 +165,7 @@ const COLORS = ['bg-blue-500/60', 'bg-emerald-500/60', 'bg-purple-500/60', 'bg-a
 
 function VerticalTimeline({ date, cameraRanges, events, playbackTime, onSeek, cameras, markerRef }: VerticalTimelineProps) {
   const barRef = useRef<HTMLDivElement>(null)
-  const TOTAL_HEIGHT = 960 // pixels for 24 hours
+  const TOTAL_HEIGHT = Math.min(960, typeof window !== 'undefined' ? window.innerHeight - 200 : 960) // pixels for 24 hours, responsive
   const dayStart = new Date(date + 'T00:00:00')
   const dayMs = 24 * 60 * 60 * 1000
 
@@ -451,6 +454,10 @@ export default function Playback() {
   const videoStartTimeRef = useRef<Date | null>(null)
   const timeUpdateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Multi-camera sync: track which cameras have reported canplay after a seek
+  const readyCamerasRef = useRef<Set<string>>(new Set())
+  const syncPendingRef = useRef(false)
+
   // Page title
   useEffect(() => {
     document.title = 'Playback \u2014 MediaMTX NVR'
@@ -495,7 +502,7 @@ export default function Playback() {
       const dayStart = new Date(date + 'T00:00:00')
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
 
-      fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${cam.mediamtx_path}`)
+      fetch(`${window.location.protocol}//${window.location.hostname}:9997/v3/recordings/get/${cam.mediamtx_path}`)
         .then(res => res.ok ? res.json() : null)
         .then((data: RecordingList | null) => {
           if (!data || !data.segments) {
@@ -587,7 +594,7 @@ export default function Playback() {
             if (timelineMarkerRef.current) {
               const dayStart = new Date(date + 'T00:00:00')
               const dayMs = 24 * 60 * 60 * 1000
-              const TOTAL_HEIGHT = 960
+              const TOTAL_HEIGHT = Math.min(960, typeof window !== 'undefined' ? window.innerHeight - 200 : 960)
               const px = ((wallTime.getTime() - dayStart.getTime()) / dayMs) * TOTAL_HEIGHT
               timelineMarkerRef.current.style.top = `${Math.max(0, Math.min(TOTAL_HEIGHT, px))}px`
               timelineMarkerRef.current.style.display = px >= 0 && px <= TOTAL_HEIGHT ? 'block' : 'none'
@@ -615,10 +622,26 @@ export default function Playback() {
   }, [])
 
   const handleSeek = useCallback((time: Date) => {
+    // Pause all videos immediately and begin sync wait
+    videoRefs.current.forEach(video => video.pause())
+    readyCamerasRef.current = new Set()
+    syncPendingRef.current = true
     setPlaybackTime(time)
     videoStartTimeRef.current = time
-    // Video elements will re-render with new src via CameraTile
-    setPlaying(true)
+    // CameraTile will reload src; playback resumes once all cameras report canplay
+    setPlaying(false)
+  }, [])
+
+  // Called by each CameraTile when its video is ready to play after a seek
+  const handleCanPlay = useCallback((cameraId: string) => {
+    if (!syncPendingRef.current) return
+    readyCamerasRef.current.add(cameraId)
+    // Resume playback only when all selected cameras are ready
+    if (readyCamerasRef.current.size >= videoRefs.current.size && videoRefs.current.size > 0) {
+      syncPendingRef.current = false
+      videoRefs.current.forEach(video => video.play().catch(() => {}))
+      setPlaying(true)
+    }
   }, [])
 
   const handleTogglePlay = useCallback(() => {
@@ -653,6 +676,27 @@ export default function Playback() {
     const newTime = new Date(playbackTime.getTime() + 30000)
     handleSeek(newTime)
   }, [playbackTime, handleSeek])
+
+  // Seek relative to current playback time (used by keyboard shortcuts)
+  const seekRelative = useCallback((seconds: number) => {
+    setPlaybackTime(prev => {
+      if (!prev) return prev
+      const newTime = new Date(prev.getTime() + seconds * 1000)
+      // Pause all videos and trigger re-sync
+      videoRefs.current.forEach(video => video.pause())
+      readyCamerasRef.current = new Set()
+      syncPendingRef.current = true
+      videoStartTimeRef.current = newTime
+      return newTime
+    })
+  }, [])
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    { key: ' ', handler: handleTogglePlay, description: 'Play/Pause' },
+    { key: 'ArrowLeft', handler: () => seekRelative(-10), description: 'Back 10s' },
+    { key: 'ArrowRight', handler: () => seekRelative(10), description: 'Forward 10s' },
+  ])
 
   const addCamera = useCallback((cam: Camera) => {
     setSelectedCameras(prev => {
@@ -764,6 +808,7 @@ export default function Playback() {
                   speed={speed}
                   onVideoRef={handleVideoRef}
                   onRemove={() => removeCamera(cam.id)}
+                  onCanPlay={handleCanPlay}
                 />
               ))}
             </div>

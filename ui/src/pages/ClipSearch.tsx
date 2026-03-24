@@ -574,9 +574,18 @@ export default function ClipSearch() {
       const res = await apiFetch(`/search?q=${encodeURIComponent(semanticQuery.trim())}&limit=20`)
       if (res.ok) {
         const data = await res.json()
-        const items: SearchResult[] = (data.results || data || []).map((r: SearchResult & { similarity?: number }) => ({
+        // Backend search returns detection-level fields (frame_time, class, detection_id).
+        // Map them to MotionEvent shape (started_at, object_class) that ResultCard expects.
+        const items: SearchResult[] = (data.results || data || []).map((r: Record<string, unknown>) => ({
           ...r,
-          camera_name: r.camera_name || cameraNameMap.get(r.camera_id) || 'Unknown',
+          started_at: r.frame_time as string,
+          ended_at: null,
+          event_type: 'ai_detection',
+          object_class: r.class as string,
+          camera_id: r.camera_id as string,
+          camera_name: (r.camera_name as string) || cameraNameMap.get(r.camera_id as string) || 'Unknown',
+          thumbnail_path: r.thumbnail_path as string,
+          confidence: r.confidence as number,
         }))
         setSemanticResults(items)
       } else {
@@ -668,7 +677,7 @@ export default function ClipSearch() {
     const startTime = new Date(eventStart.getTime() - preRoll)
     const durationSecs = (eventEnd.getTime() - eventStart.getTime() + preRoll + postRoll) / 1000
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+    const url = `${window.location.protocol}//${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
     setPlayingClip({
       url,
       title: `${result.camera_name} — ${eventStart.toLocaleTimeString()}`,
@@ -686,7 +695,7 @@ export default function ClipSearch() {
     const endTime = result.ended_at ? new Date(result.ended_at) : new Date(startTime.getTime() + 30000)
     const durationSecs = (endTime.getTime() - startTime.getTime()) / 1000
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+    const url = `${window.location.protocol}//${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
 
     try {
       const res = await fetch(url)
@@ -713,7 +722,7 @@ export default function ClipSearch() {
     const endTime = new Date(clip.end_time)
     const durationSecs = Math.max((endTime.getTime() - startTime.getTime()) / 1000, 10)
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+    const url = `${window.location.protocol}//${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
     setPlayingClip({
       url,
       title: `${cameraNameMap.get(clip.camera_id) ?? 'Unknown'} — ${startTime.toLocaleTimeString()}`,
@@ -731,7 +740,7 @@ export default function ClipSearch() {
     const endTime = new Date(clip.end_time)
     const durationSecs = (endTime.getTime() - startTime.getTime()) / 1000
     const startISO = toLocalRFC3339(startTime)
-    const url = `http://${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
+    const url = `${window.location.protocol}//${window.location.hostname}:9996/get?path=${encodeURIComponent(path)}&start=${encodeURIComponent(startISO)}&duration=${durationSecs}`
 
     try {
       const res = await fetch(url)

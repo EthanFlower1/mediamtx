@@ -105,7 +105,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
             // ── Analytics overlay ────────────────────────────────────────
             if (camera.aiEnabled)
-              AnalyticsOverlay(cameraName: camera.name),
+              AnalyticsOverlay(cameraName: camera.name, cameraId: camera.id),
 
             // ── AppBar overlay ───────────────────────────────────────────
             AnimatedOpacity(

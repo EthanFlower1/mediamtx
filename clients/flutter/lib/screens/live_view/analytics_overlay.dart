@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/detection_frame.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/detection_stream_provider.dart';
 import '../../theme/nvr_colors.dart';
 
@@ -26,25 +29,84 @@ String _labelForBox(DetectionBox box) {
 String _capitalise(String s) =>
     s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
-class AnalyticsOverlay extends ConsumerWidget {
-  final String cameraName;
+/// Parses a detection object from the REST `/cameras/:id/detections/latest`
+/// response, which uses `box_x`, `box_y`, `box_w`, `box_h` keys.
+DetectionBox _boxFromRestJson(Map<String, dynamic> json) {
+  return DetectionBox(
+    className: json['class'] as String? ?? '',
+    confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
+    trackId: json['track_id']?.toString(),
+    x: (json['box_x'] as num?)?.toDouble() ?? 0.0,
+    y: (json['box_y'] as num?)?.toDouble() ?? 0.0,
+    w: (json['box_w'] as num?)?.toDouble() ?? 0.0,
+    h: (json['box_h'] as num?)?.toDouble() ?? 0.0,
+  );
+}
 
-  const AnalyticsOverlay({super.key, required this.cameraName});
+class AnalyticsOverlay extends ConsumerStatefulWidget {
+  final String cameraName;
+  final String cameraId;
+
+  const AnalyticsOverlay({
+    super.key,
+    required this.cameraName,
+    required this.cameraId,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final frameAsync = ref.watch(detectionStreamProvider(cameraName));
+  ConsumerState<AnalyticsOverlay> createState() => _AnalyticsOverlayState();
+}
 
-    return frameAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (frame) {
-        if (frame.detections.isEmpty) return const SizedBox.shrink();
-        return CustomPaint(
-          painter: _DetectionPainter(frame.detections),
-          child: const SizedBox.expand(),
-        );
-      },
+class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
+  Timer? _pollTimer;
+  List<DetectionBox> _polledDetections = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _pollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _pollDetections());
+  }
+
+  Future<void> _pollDetections() async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    try {
+      final res = await api.get<dynamic>('/cameras/${widget.cameraId}/detections/latest');
+      final raw = res.data;
+      if (raw is List && mounted) {
+        final boxes = raw
+            .whereType<Map<String, dynamic>>()
+            .map(_boxFromRestJson)
+            .toList();
+        setState(() => _polledDetections = boxes);
+      }
+    } catch (_) {
+      // Silently ignore poll errors — overlay degrades gracefully.
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final frameAsync = ref.watch(detectionStreamProvider(widget.cameraName));
+
+    // Prefer live WebSocket data when available; fall back to REST poll.
+    final detections = frameAsync.maybeWhen(
+      data: (frame) => frame.detections.isNotEmpty ? frame.detections : _polledDetections,
+      orElse: () => _polledDetections,
+    );
+
+    if (detections.isEmpty) return const SizedBox.expand();
+
+    return SizedBox.expand(
+      child: CustomPaint(
+        painter: _DetectionPainter(detections),
+      ),
     );
   }
 }

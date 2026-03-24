@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/camera.dart';
 import '../../services/whep_service.dart';
 import '../../theme/nvr_colors.dart';
+import 'analytics_overlay.dart';
 
 class CameraTile extends StatefulWidget {
   final Camera camera;
@@ -76,6 +77,13 @@ class _CameraTileState extends State<CameraTile> {
           children: [
             // Video / state layer
             _buildVideoLayer(isOnline),
+
+            // AI analytics overlay
+            if (camera.aiEnabled && _connState == WhepConnectionState.connected)
+              AnalyticsOverlay(
+                cameraName: camera.name,
+                cameraId: camera.id,
+              ),
 
             // Camera name - bottom left
             Positioned(

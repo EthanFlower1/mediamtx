@@ -58,6 +58,9 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
   const [zones, setZones] = useState<Array<{id: number, name: string, polygon: [number, number][]}>>([])
   const animFrameRef = useRef<number>(0)
   const lastUpdateRef = useRef<number>(Date.now())
+  const drawTimeRef = useRef<number>(0)
+  const pollIntervalRef = useRef<number>(500)
+  const pollTimeoutRef = useRef<number>(0)
 
   // Poll the API every 500ms for new detections.
   useEffect(() => {
@@ -78,11 +81,17 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
       }
     }
 
+    const scheduleNext = () => {
+      pollTimeoutRef.current = window.setTimeout(async () => {
+        await poll()
+        if (!cancelled) scheduleNext()
+      }, pollIntervalRef.current)
+    }
     poll()
-    const interval = setInterval(poll, 500)
+    scheduleNext()
     return () => {
       cancelled = true
-      clearInterval(interval)
+      clearTimeout(pollTimeoutRef.current)
     }
   }, [enabled, cameraId])
 
@@ -121,6 +130,8 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const drawStart = performance.now()
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -183,6 +194,15 @@ export default function AnalyticsOverlay({ cameraId, videoElement, enabled }: Pr
     }
 
     ctx.globalAlpha = 1
+
+    drawTimeRef.current = performance.now() - drawStart
+
+    // Adapt poll interval based on draw performance.
+    if (drawTimeRef.current > 16) { // slower than 60fps
+      pollIntervalRef.current = Math.min(pollIntervalRef.current + 100, 1000)
+    } else if (drawTimeRef.current < 8 && pollIntervalRef.current > 500) {
+      pollIntervalRef.current = Math.max(pollIntervalRef.current - 50, 500)
+    }
   }, [detections, zones])
 
   // Render loop: sync size and draw every frame while enabled

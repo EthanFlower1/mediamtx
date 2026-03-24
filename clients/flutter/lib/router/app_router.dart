@@ -8,6 +8,8 @@ import '../screens/setup_screen.dart';
 import '../screens/home_placeholder.dart';
 import '../screens/live_view/live_view_screen.dart';
 import '../screens/live_view/fullscreen_view.dart';
+import '../screens/playback/playback_screen.dart';
+import '../screens/search/clip_search_screen.dart';
 import '../models/camera.dart';
 import '../widgets/adaptive_layout.dart';
 import '../providers/auth_provider.dart';
@@ -69,8 +71,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/playback', builder: (_, __) => const HomePlaceholder(title: 'Playback')),
-          GoRoute(path: '/search', builder: (_, __) => const HomePlaceholder(title: 'Search')),
+          GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
+          GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
           GoRoute(path: '/cameras', builder: (_, __) => const HomePlaceholder(title: 'Cameras')),
           GoRoute(path: '/settings', builder: (_, __) => const HomePlaceholder(title: 'Settings')),
         ],

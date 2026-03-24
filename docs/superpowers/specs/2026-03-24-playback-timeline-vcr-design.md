@@ -69,7 +69,7 @@ Manages the visible time window within 0–24h:
 
 3. **EventLayer** — Event duration bars (not just dots). Each event renders as a thin horizontal bar color-coded by class:
    - Person ("person") → Blue
-   - Vehicle ("car", "truck", "bus", "motorcycle") → Green
+   - Vehicle ("vehicle", "car", "truck", "bus", "motorcycle") → Green
    - Motion ("motion") → Amber
    - Other (any unrecognized `object_class`) → Red
 
@@ -177,18 +177,22 @@ Triggered by long-press on an event marker in the timeline.
 class RecordingSegment {
   final int id;
   final String cameraId;    // json: "camera_id"
-  final String startTime;   // json: "start_time" (ISO8601)
-  final String endTime;     // json: "end_time" (ISO8601)
+  final DateTime startTime; // parsed from json: "start_time"
+  final DateTime endTime;   // parsed from json: "end_time"
   final int durationMs;     // json: "duration_ms"
   final String? filePath;   // json: "file_path"
+  final int? fileSize;      // json: "file_size" (optional, for export/download)
+  final String? format;     // json: "format" (optional, "fmp4" or "mp4")
 
   factory RecordingSegment.fromJson(Map<String, dynamic> json) => RecordingSegment(
     id: json['id'],
     cameraId: json['camera_id'],
-    startTime: json['start_time'],
-    endTime: json['end_time'],
+    startTime: DateTime.parse(json['start_time']),
+    endTime: DateTime.parse(json['end_time']),
     durationMs: json['duration_ms'],
     filePath: json['file_path'],
+    fileSize: json['file_size'],
+    format: json['format'],
   );
 }
 ```
@@ -196,8 +200,8 @@ class RecordingSegment {
 Eliminates the guesswork of estimating duration from the next segment or hardcoding +15min.
 
 **Provider fixes (pre-existing bugs):**
-- `recordingSegmentsProvider` — timestamps must include timezone for RFC3339 compliance. Change `'${key.date}T00:00:00'` to `'${key.date}T00:00:00Z'` (and same for end time). Parse full response fields.
-- `motionEventsProvider` — backend expects a `date` query param (YYYY-MM-DD), not `start`/`end`. Change to send `queryParameters: {'date': key.date}` instead.
+- `recordingSegmentsProvider` — timestamps must include timezone for RFC3339 compliance. Change `'${key.date}T00:00:00'` to `'${key.date}T00:00:00Z'` (and same for end time). Parse full response fields. Note: `/recordings` returns a flat JSON array, not `{"segments": [...]}` — the existing `data is List` check handles this correctly.
+- `motionEventsProvider` — backend expects a `date` query param (YYYY-MM-DD), not `start`/`end`. Change to send `queryParameters: {'date': key.date}`. Remove the now-dead `start`/`end` variable construction.
 - Both passed into `PlaybackController` for skip-to-event and skip-to-gap logic
 
 **Playback URL:** The backend serves a continuous stream for the full requested duration. `player.seek()` works within the stream — no need to reconstruct the URL on every seek. The current `ValueKey` that includes `position.inSeconds` (causing player recreation on every seek) must be changed to exclude position.

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
@@ -18,19 +20,21 @@ class PlaybackController extends ChangeNotifier {
   List<RecordingSegment> _segments = [];
   List<MotionEvent> _events = [];
 
-  // The backend streams fMP4 from a start time — it's not seekable via HTTP
-  // range requests. So "seeking" means opening a new stream from the target
-  // time. _streamOrigin tracks what day-offset the current stream starts at,
-  // so we can translate the player's stream-relative position to day-absolute.
-  Duration _streamOrigin = Duration.zero;
+  // WebSocket session
+  WebSocketChannel? _ws;
+  int _seq = 0;
+  // ignore: unused_field
+  String? _sessionId;
+  bool _sessionCreated = false;
 
-  // Players keyed by camera ID
+  // Players — created when session returns stream URLs
   final Map<String, Player> _players = {};
   final Map<String, VideoController> _videoControllers = {};
-  StreamSubscription<Duration>? _positionSub;
+
+  // Camera paths for session creation
+  final Map<String, String> _cameraPaths = {};
 
   static const _maxPosition = Duration(hours: 24);
-  static const _positionThrottle = Duration(milliseconds: 66);
 
   PlaybackController({required this.playbackService});
 
@@ -58,14 +62,28 @@ class PlaybackController extends ChangeNotifier {
   void setSelectedDate(DateTime date) {
     _selectedDate = date;
     _position = Duration.zero;
-    _rebuildPlayers();
+    if (_sessionCreated) {
+      _sendCommand({'cmd': 'close'});
+      _sessionCreated = false;
+      _sessionId = null;
+      _disposeAllPlayers();
+      _createSession();
+    }
     notifyListeners();
   }
 
   void setSelectedCameraIds(List<String> ids) {
     if (_listEquals(ids, _selectedCameraIds)) return;
     _selectedCameraIds = ids;
-    _rebuildPlayers();
+
+    // If session exists, close and recreate with new cameras.
+    if (_sessionCreated) {
+      _sendCommand({'cmd': 'close'});
+      _sessionCreated = false;
+      _sessionId = null;
+      _disposeAllPlayers();
+      _createSession();
+    }
     notifyListeners();
   }
 
@@ -77,104 +95,126 @@ class PlaybackController extends ChangeNotifier {
     return true;
   }
 
-  // ── Player management ─────────────────────────────────────────────────
-
-  void _rebuildPlayers() {
-    final toRemove = _players.keys
-        .where((id) => !_selectedCameraIds.contains(id))
-        .toList();
-    for (final id in toRemove) {
-      _players[id]?.dispose();
-      _players.remove(id);
-      _videoControllers.remove(id);
-    }
-
-    for (final id in _selectedCameraIds) {
-      if (!_players.containsKey(id)) {
-        final player = Player();
-        _players[id] = player;
-        _videoControllers[id] = VideoController(player);
-      }
-    }
-
-    _positionSub?.cancel();
-    if (_players.isNotEmpty) {
-      DateTime? lastUpdate;
-      _positionSub = _players.values.first.stream.position.listen((streamPos) {
-        if (_isSeeking) return;
-
-        final now = DateTime.now();
-        if (lastUpdate != null &&
-            now.difference(lastUpdate!) < _positionThrottle) {
-          return;
-        }
-        lastUpdate = now;
-
-        // The player reports position relative to the start of the current
-        // stream. Translate to day-absolute by adding _streamOrigin.
-        final dayPos = _streamOrigin + streamPos;
-        _position = dayPos;
-
-        // Auto-pause at end of last recording segment
-        if (_isPlaying && _segments.isNotEmpty) {
-          final dayStart = DateTime(
-              _selectedDate.year, _selectedDate.month, _selectedDate.day);
-          final lastEnd = _segments.last.endTime.difference(dayStart);
-          if (dayPos >= lastEnd) {
-            pause();
-          }
-        }
-
-        notifyListeners();
-      });
-    }
-
-    _openAllPlayers();
-  }
-
-  void _openAllPlayers() {
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final streamStart = dayStart.add(_streamOrigin);
-    // Duration from stream start to end of day
-    final remainingSecs =
-        (_maxPosition - _streamOrigin).inSeconds.clamp(1, 86400);
-
-    for (final id in _selectedCameraIds) {
-      final player = _players[id];
-      if (player == null) continue;
-
-      final path = _cameraPaths[id];
-      if (path == null) continue;
-
-      final url = playbackService.playbackUrl(
-          path, streamStart, durationSecs: remainingSecs.toDouble());
-      player.open(Media(url), play: _isPlaying);
-      player.setRate(_speed);
-    }
-  }
-
-  final Map<String, String> _cameraPaths = {};
-
   void setCameraPaths(Map<String, String> paths) {
     _cameraPaths.addAll(paths);
+  }
+
+  // ── WebSocket management ──────────────────────────────────────────────
+
+  void _connectWs() {
+    _ws?.sink.close();
+    final url = playbackService.playbackWsUrl();
+    _ws = WebSocketChannel.connect(Uri.parse(url));
+    _ws!.stream.listen(
+      _handleWsMessage,
+      onError: (e) {
+        debugPrint('Playback WS error: $e');
+      },
+      onDone: () {
+        debugPrint('Playback WS closed');
+      },
+    );
+  }
+
+  void _sendCommand(Map<String, dynamic> cmd) {
+    cmd['seq'] = ++_seq;
+    _ws?.sink.add(jsonEncode(cmd));
+  }
+
+  void _handleWsMessage(dynamic message) {
+    final event = jsonDecode(message as String) as Map<String, dynamic>;
+    switch (event['event']) {
+      case 'created':
+        _sessionId = event['session_id'] as String;
+        _sessionCreated = true;
+        final streams = (event['streams'] as Map<String, dynamic>)
+            .map((k, v) => MapEntry(k, v as String));
+        _openStreams(streams);
+      case 'position':
+        final secs = (event['position'] as num).toDouble();
+        _position = Duration(milliseconds: (secs * 1000).round());
+        notifyListeners();
+      case 'state':
+        if (event['playing'] != null) _isPlaying = event['playing'] as bool;
+        if (event['speed'] != null) {
+          _speed = (event['speed'] as num).toDouble();
+        }
+        if (event['position'] != null) {
+          final secs = (event['position'] as num).toDouble();
+          _position = Duration(milliseconds: (secs * 1000).round());
+        }
+        _isSeeking = false;
+        notifyListeners();
+      case 'stream_restart':
+        final camId = event['camera_id'] as String;
+        final newUrl = event['new_url'] as String;
+        _reopenStream(camId, newUrl);
+      case 'segment_gap':
+        // Timeline already shows gaps — this is just informational
+        notifyListeners();
+      case 'end':
+        _isPlaying = false;
+        notifyListeners();
+      case 'error':
+        debugPrint('Playback error: ${event['message']}');
+    }
+  }
+
+  void _openStreams(Map<String, String> streams) {
+    final baseUrl = playbackService.streamBaseUrl();
+    for (final entry in streams.entries) {
+      final camId = entry.key;
+      final url = baseUrl + entry.value;
+
+      if (!_players.containsKey(camId)) {
+        final player = Player();
+        _players[camId] = player;
+        _videoControllers[camId] = VideoController(player);
+      }
+      _players[camId]!.open(Media(url), play: false);
+    }
+    notifyListeners();
+  }
+
+  void _reopenStream(String camId, String newUrl) {
+    final baseUrl = playbackService.streamBaseUrl();
+    _players[camId]?.dispose();
+    final player = Player();
+    _players[camId] = player;
+    _videoControllers[camId] = VideoController(player);
+    player.open(Media(baseUrl + newUrl), play: _isPlaying);
+    notifyListeners();
+  }
+
+  // ── Session lifecycle ─────────────────────────────────────────────────
+
+  void _createSession() {
+    if (_selectedCameraIds.isEmpty) return;
+
+    final dayStart = DateTime(
+        _selectedDate.year, _selectedDate.month, _selectedDate.day);
+    _sendCommand({
+      'cmd': 'create',
+      'camera_ids': _selectedCameraIds,
+      'start': PlaybackService.toLocalRfc3339(dayStart),
+    });
   }
 
   // ── Playback controls ─────────────────────────────────────────────────
 
   void play() {
     _isPlaying = true;
-    for (final p in _players.values) {
-      p.play();
+    if (!_sessionCreated && _ws == null) {
+      _connectWs();
+      _createSession();
     }
+    _sendCommand({'cmd': 'play'});
     notifyListeners();
   }
 
   void pause() {
     _isPlaying = false;
-    for (final p in _players.values) {
-      p.pause();
-    }
+    _sendCommand({'cmd': 'pause'});
     notifyListeners();
   }
 
@@ -188,62 +228,28 @@ class PlaybackController extends ChangeNotifier {
 
   void setSpeed(double speed) {
     _speed = speed;
-    for (final p in _players.values) {
-      p.setRate(speed);
-    }
+    _sendCommand({'cmd': 'speed', 'rate': speed});
     notifyListeners();
   }
 
   Future<void> seek(Duration target) async {
     final clamped = Duration(
-      milliseconds: target.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
+      milliseconds:
+          target.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
     );
-
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final snapped = snapToSegment(_segments, dayStart, clamped);
+    final secs = clamped.inMilliseconds / 1000.0;
 
     _isSeeking = true;
-    _position = snapped;
-    _streamOrigin = snapped;
+    _position = clamped;
     notifyListeners();
 
-    // Open new streams from the seek target — the backend serves fMP4 from
-    // a start time and does not support HTTP range seeking within a stream.
-    final streamStart = dayStart.add(snapped);
-    final remainingSecs =
-        (_maxPosition - snapped).inSeconds.clamp(1, 86400);
-
-    for (final id in _selectedCameraIds) {
-      final player = _players[id];
-      if (player == null) continue;
-
-      final path = _cameraPaths[id];
-      if (path == null) continue;
-
-      final url = playbackService.playbackUrl(
-          path, streamStart, durationSecs: remainingSecs.toDouble());
-      await player.open(Media(url), play: _isPlaying);
-      player.setRate(_speed);
-    }
-
-    _isSeeking = false;
-    notifyListeners();
+    _sendCommand({'cmd': 'seek', 'position': secs});
+    // _isSeeking will be cleared when we receive the 'state' event back
   }
 
   void stepFrame(int direction) {
     if (_isPlaying) pause();
-
-    if (direction > 0) {
-      _position += const Duration(milliseconds: 33);
-    } else {
-      _position = Duration(
-        milliseconds:
-            (_position.inMilliseconds - 3000).clamp(0, _maxPosition.inMilliseconds),
-      );
-    }
-    // Re-open stream from new position
-    seek(_position);
+    _sendCommand({'cmd': 'step', 'direction': direction});
   }
 
   void skipToNextEvent() {
@@ -356,14 +362,23 @@ class PlaybackController extends ChangeNotifier {
     return result;
   }
 
-  @override
-  void dispose() {
-    _positionSub?.cancel();
+  // ── Cleanup ───────────────────────────────────────────────────────────
+
+  void _disposeAllPlayers() {
     for (final p in _players.values) {
       p.dispose();
     }
     _players.clear();
     _videoControllers.clear();
+  }
+
+  @override
+  void dispose() {
+    if (_sessionCreated) {
+      _sendCommand({'cmd': 'close'});
+    }
+    _ws?.sink.close();
+    _disposeAllPlayers();
     super.dispose();
   }
 }

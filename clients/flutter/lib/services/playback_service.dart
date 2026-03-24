@@ -8,6 +8,16 @@ class PlaybackService {
     return '${uri.scheme}://${uri.host}:9996/get?path=${Uri.encodeComponent(path)}&start=${Uri.encodeComponent(startIso)}&duration=$durationSecs';
   }
 
+  String playbackWsUrl() {
+    final uri = Uri.parse(serverUrl);
+    return 'ws://${uri.host}:${uri.port}/api/nvr/playback/ws';
+  }
+
+  String streamBaseUrl() {
+    final uri = Uri.parse(serverUrl);
+    return '${uri.scheme}://${uri.host}:${uri.port}';
+  }
+
   static String toLocalRfc3339(DateTime d) {
     final offset = d.timeZoneOffset;
     final sign = offset.isNegative ? '-' : '+';

@@ -7,6 +7,7 @@ import '../screens/login_screen.dart';
 import '../screens/setup_screen.dart';
 import '../screens/home_placeholder.dart';
 import '../widgets/adaptive_layout.dart';
+import '../providers/auth_provider.dart';
 
 int _indexFromPath(String path) {
   const paths = ['/live', '/playback', '/search', '/cameras', '/settings'];
@@ -23,7 +24,19 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/live',
     redirect: (context, state) {
-      // Auth guard — wired in Task 7
+      final auth = ref.read(authProvider);
+      final path = state.uri.path;
+      final isAuthRoute = path == '/login' || path == '/server-setup' || path == '/setup';
+
+      if (auth.status == AuthStatus.serverNeeded && path != '/server-setup') {
+        return '/server-setup';
+      }
+      if (auth.status == AuthStatus.unauthenticated && !isAuthRoute) {
+        return '/login';
+      }
+      if (auth.status == AuthStatus.authenticated && isAuthRoute) {
+        return '/live';
+      }
       return null;
     },
     routes: [

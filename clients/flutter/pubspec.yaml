@@ -19,6 +19,9 @@ dependencies:
   freezed_annotation: ^2.4.0
   json_annotation: ^4.8.0
   flutter_webrtc: ^0.12.0
+  media_kit: ^1.1.0
+  media_kit_video: ^1.2.0
+  media_kit_libs_video: ^1.0.0
 
 dev_dependencies:
   flutter_test:

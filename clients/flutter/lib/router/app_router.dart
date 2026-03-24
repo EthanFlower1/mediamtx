@@ -10,6 +10,9 @@ import '../screens/live_view/live_view_screen.dart';
 import '../screens/live_view/fullscreen_view.dart';
 import '../screens/playback/playback_screen.dart';
 import '../screens/search/clip_search_screen.dart';
+import '../screens/cameras/camera_list_screen.dart';
+import '../screens/cameras/add_camera_screen.dart';
+import '../screens/cameras/camera_detail_screen.dart';
 import '../models/camera.dart';
 import '../widgets/adaptive_layout.dart';
 import '../providers/auth_provider.dart';
@@ -73,7 +76,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
           GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
-          GoRoute(path: '/cameras', builder: (_, __) => const HomePlaceholder(title: 'Cameras')),
+          GoRoute(
+            path: '/cameras',
+            builder: (_, __) => const CameraListScreen(),
+            routes: [
+              GoRoute(
+                path: 'add',
+                builder: (_, __) => const AddCameraScreen(),
+              ),
+              GoRoute(
+                path: ':id',
+                builder: (_, state) {
+                  final id = state.pathParameters['id']!;
+                  return CameraDetailScreen(cameraId: id);
+                },
+              ),
+            ],
+          ),
           GoRoute(path: '/settings', builder: (_, __) => const HomePlaceholder(title: 'Settings')),
         ],
       ),

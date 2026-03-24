@@ -5,14 +5,29 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 )
+
+// DetectionData holds per-detection bounding box data serialised inside a
+// detection_frame WebSocket event. Coordinates are normalised [0,1].
+type DetectionData struct {
+	Class      string  `json:"class"`
+	Confidence float32 `json:"confidence"`
+	TrackID    int     `json:"track_id"`
+	X          float32 `json:"x"`
+	Y          float32 `json:"y"`
+	W          float32 `json:"w"`
+	H          float32 `json:"h"`
+}
 
 // Event represents a system event that is broadcast to SSE clients.
 type Event struct {
-	Type    string `json:"type"`    // "motion", "camera_offline", "camera_online", "recording_started", "recording_stopped"
-	Camera  string `json:"camera"`  // camera name
-	Message string `json:"message"`
-	Time    string `json:"time"`
+	Type       string          `json:"type"`    // "motion", "camera_offline", "camera_online", "recording_started", "recording_stopped", "detection_frame"
+	Camera     string          `json:"camera"`  // camera name
+	Message    string          `json:"message"`
+	Time       string          `json:"time"`
+	Detections []DetectionData `json:"detections,omitempty"`
 }
 
 // EventBroadcaster fans out events to all connected SSE clients.
@@ -55,6 +70,7 @@ func (b *EventBroadcaster) Publish(event Event) {
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
+	log.Printf("events: broadcasting %s to %d clients: %s", event.Type, len(b.clients), event.Message)
 	for ch := range b.clients {
 		select {
 		case ch <- event:
@@ -64,12 +80,46 @@ func (b *EventBroadcaster) Publish(event Event) {
 	}
 }
 
+// PublishDetectionFrame broadcasts per-frame bounding box data to all connected
+// WebSocket clients so that Flutter analytics overlays can render live boxes.
+// It accepts []ai.DetectionFrameData (defined in the ai package) and converts
+// them to the JSON-serialisable DetectionData type.
+func (b *EventBroadcaster) PublishDetectionFrame(camera string, detections []ai.DetectionFrameData) {
+	dets := make([]DetectionData, len(detections))
+	for i, d := range detections {
+		dets[i] = DetectionData{
+			Class:      d.Class,
+			Confidence: d.Confidence,
+			TrackID:    d.TrackID,
+			X:          d.X,
+			Y:          d.Y,
+			W:          d.W,
+			H:          d.H,
+		}
+	}
+	b.Publish(Event{
+		Type:       "detection_frame",
+		Camera:     camera,
+		Detections: dets,
+		Time:       time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
 // PublishMotion publishes a motion-detected event for the given camera.
 func (b *EventBroadcaster) PublishMotion(cameraName string) {
 	b.Publish(Event{
 		Type:    "motion",
 		Camera:  cameraName,
 		Message: fmt.Sprintf("Motion detected on %s", cameraName),
+	})
+}
+
+// PublishAIDetection publishes an AI detection event with the specific object class.
+func (b *EventBroadcaster) PublishAIDetection(cameraName, className string, confidence float32) {
+	b.Publish(Event{
+		Type:    "ai_detection",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("%s detected on %s (%.0f%%)", className, cameraName, confidence*100),
 	})
 }
 

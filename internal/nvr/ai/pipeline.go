@@ -18,11 +18,23 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
-// EventPublisher is the interface for publishing motion events to notification
-// subscribers. The AIPipeline calls PublishMotion when a new detection event
-// starts for an important object class (person, vehicle, animal).
+// DetectionFrameData holds per-detection bounding box data for a single frame,
+// used by PublishDetectionFrame to broadcast live overlay data to WebSocket clients.
+type DetectionFrameData struct {
+	Class      string
+	Confidence float32
+	TrackID    int
+	X, Y, W, H float32
+}
+
+// EventPublisher is the interface for publishing detection events to notification
+// subscribers. The AIPipeline calls PublishAIDetection when it detects an
+// important object class (person, vehicle, animal). It also calls
+// PublishDetectionFrame every frame that contains detections so that Flutter
+// analytics overlays can render live bounding boxes.
 type EventPublisher interface {
-	PublishMotion(cameraName string)
+	PublishAIDetection(cameraName, className string, confidence float32)
+	PublishDetectionFrame(camera string, detections []DetectionFrameData)
 }
 
 // importantClasses are COCO classes that should trigger notifications.
@@ -51,8 +63,14 @@ type AIPipeline struct {
 	// is considered ended and a new one is started.
 	motionGap time.Duration
 
-	lastDetectionTime time.Time
-	currentEventID    int64
+	lastDetectionTime          time.Time
+	lastImportantDetectionTime time.Time
+	currentEventID             int64
+
+	// prevClassCounts tracks how many of each important class were in the
+	// previous frame. A notification fires when the count increases (new
+	// object arrived), not when the same objects persist.
+	prevClassCounts map[string]int
 }
 
 // NewAIPipeline creates a new AI processing pipeline for the given camera.
@@ -61,15 +79,16 @@ type AIPipeline struct {
 // notifications are not needed.
 func NewAIPipeline(cameraID, cameraName string, detector *Detector, embedder *Embedder, database *db.DB, eventPub EventPublisher) *AIPipeline {
 	return &AIPipeline{
-		cameraID:      cameraID,
-		cameraName:    cameraName,
-		detector:      detector,
-		embedder:      embedder,
-		db:            database,
-		eventPub:      eventPub,
-		stopCh:        make(chan struct{}),
-		confThreshold: 0.5,
-		motionGap:     30 * time.Second,
+		cameraID:        cameraID,
+		cameraName:      cameraName,
+		detector:        detector,
+		embedder:        embedder,
+		db:              database,
+		eventPub:        eventPub,
+		stopCh:          make(chan struct{}),
+		confThreshold:   0.5,
+		motionGap:       8 * time.Second,
+		prevClassCounts: make(map[string]int),
 	}
 }
 
@@ -93,18 +112,37 @@ func (p *AIPipeline) ProcessFrame(img image.Image, timestamp time.Time) error {
 		return fmt.Errorf("detection: %w", err)
 	}
 
-	if len(detections) == 0 {
-		// No detections — check if we should close the current motion event.
-		if p.currentEventID > 0 && !p.lastDetectionTime.IsZero() &&
-			time.Since(p.lastDetectionTime) > p.motionGap {
-			p.closeCurrentEvent(timestamp)
+	// Check if any important classes are present in this frame.
+	hasImportant := false
+	for _, det := range detections {
+		if importantClasses[det.ClassName] {
+			hasImportant = true
+			break
 		}
-		return nil
 	}
 
-	// Ensure we have an open motion event.
-	if err := p.ensureMotionEvent(detections, timestamp); err != nil {
-		return fmt.Errorf("motion event: %w", err)
+	if len(detections) == 0 || !hasImportant {
+		// No important detections — check if we should close the current motion event.
+		if p.currentEventID > 0 && !p.lastImportantDetectionTime.IsZero() &&
+			time.Since(p.lastImportantDetectionTime) > p.motionGap {
+			p.closeCurrentEvent(timestamp)
+		}
+		if len(detections) == 0 {
+			return nil
+		}
+		// Still store non-important detections if event is open, but don't
+		// create a new event for them.
+		if p.currentEventID == 0 {
+			return nil
+		}
+	}
+
+	// Ensure we have an open motion event (only if important detections present).
+	if hasImportant {
+		if err := p.ensureMotionEvent(detections, timestamp); err != nil {
+			return fmt.Errorf("motion event: %w", err)
+		}
+		p.lastImportantDetectionTime = timestamp
 	}
 
 	p.lastDetectionTime = timestamp
@@ -168,6 +206,23 @@ func (p *AIPipeline) ProcessFrame(img image.Image, timestamp time.Time) error {
 		if err := p.db.InsertDetection(detection); err != nil {
 			return fmt.Errorf("insert detection: %w", err)
 		}
+	}
+
+	// Broadcast per-frame bounding box data for live analytics overlays.
+	if p.eventPub != nil && len(detections) > 0 {
+		frameDets := make([]DetectionFrameData, 0, len(detections))
+		for _, det := range detections {
+			frameDets = append(frameDets, DetectionFrameData{
+				Class:      det.ClassName,
+				Confidence: det.Confidence,
+				TrackID:    0, // no tracker yet; use 0
+				X:          det.X,
+				Y:          det.Y,
+				W:          det.W,
+				H:          det.H,
+			})
+		}
+		p.eventPub.PublishDetectionFrame(p.cameraName, frameDets)
 	}
 
 	return nil
@@ -419,48 +474,92 @@ func digestMD5Hex(s string) string {
 	return fmt.Sprintf("%x", h)
 }
 
-// ensureMotionEvent ensures there is an open motion event for the current
-// detection batch. Creates a new one if needed.
-func (p *AIPipeline) ensureMotionEvent(detections []YOLODetection, timestamp time.Time) error {
-	// If we already have an event and it's not stale, keep using it.
-	if p.currentEventID > 0 && !p.lastDetectionTime.IsZero() &&
-		timestamp.Sub(p.lastDetectionTime) <= p.motionGap {
-		return nil
-	}
-
-	// Close any previous event.
-	if p.currentEventID > 0 {
-		p.closeCurrentEvent(timestamp)
-	}
-
-	// Find the highest-confidence detection for the event metadata.
+// bestImportantDetection picks the most important detection from a batch.
+// Important classes (person, vehicle, animal) are preferred over non-important
+// ones regardless of confidence. Among equally important detections, highest
+// confidence wins.
+func bestImportantDetection(detections []YOLODetection) YOLODetection {
 	best := detections[0]
+	bestImportant := importantClasses[best.ClassName]
 	for _, d := range detections[1:] {
-		if d.Confidence > best.Confidence {
+		dImportant := importantClasses[d.ClassName]
+		if dImportant && !bestImportant {
+			best = d
+			bestImportant = true
+		} else if dImportant == bestImportant && d.Confidence > best.Confidence {
 			best = d
 		}
 	}
+	return best
+}
 
-	event := &db.MotionEvent{
-		CameraID:    p.cameraID,
-		StartedAt:   timestamp.UTC().Format("2006-01-02T15:04:05.000Z"),
-		EventType:   "ai_detection",
-		ObjectClass: best.ClassName,
-		Confidence:  float64(best.Confidence),
+// ensureMotionEvent ensures there is an open motion event for the current
+// detection batch and sends notifications only when a class reappears after
+// being absent for the cooldown period.
+func (p *AIPipeline) ensureMotionEvent(detections []YOLODetection, timestamp time.Time) error {
+	best := bestImportantDetection(detections)
+
+	// If we already have an event and it's not stale, keep it open.
+	if p.currentEventID > 0 && !p.lastImportantDetectionTime.IsZero() &&
+		timestamp.Sub(p.lastImportantDetectionTime) <= p.motionGap {
+		// Event still active — just check for new arrivals below.
+	} else {
+		// Close any previous event and start a new one.
+		if p.currentEventID > 0 {
+			p.closeCurrentEvent(timestamp)
+		}
+
+		event := &db.MotionEvent{
+			CameraID:    p.cameraID,
+			StartedAt:   timestamp.UTC().Format("2006-01-02T15:04:05.000Z"),
+			EventType:   "ai_detection",
+			ObjectClass: best.ClassName,
+			Confidence:  float64(best.Confidence),
+		}
+		if err := p.db.InsertMotionEvent(event); err != nil {
+			return err
+		}
+		p.currentEventID = event.ID
 	}
 
-	if err := p.db.InsertMotionEvent(event); err != nil {
-		return err
+	// Count important classes in this frame.
+	curCounts := make(map[string]int)
+	bestByClass := make(map[string]YOLODetection)
+	for _, det := range detections {
+		if !importantClasses[det.ClassName] {
+			continue
+		}
+		curCounts[det.ClassName]++
+		if prev, ok := bestByClass[det.ClassName]; !ok || det.Confidence > prev.Confidence {
+			bestByClass[det.ClassName] = det
+		}
 	}
 
-	p.currentEventID = event.ID
-
-	// Publish a notification when a new event starts for an important object.
-	if p.eventPub != nil && importantClasses[best.ClassName] {
-		p.eventPub.PublishMotion(p.cameraName)
+	// Notify when the count of a class increases (new object arrived).
+	if p.eventPub != nil {
+		for cls, count := range curCounts {
+			prev := p.prevClassCounts[cls]
+			if count > prev {
+				det := bestByClass[cls]
+				log.Printf("AI [%s]: %s detected (%.0f%%), %d→%d, sending notification",
+					p.cameraName, cls, det.Confidence*100, prev, count)
+				p.eventPub.PublishAIDetection(p.cameraName, cls, det.Confidence)
+			}
+		}
 	}
 
+	p.prevClassCounts = curCounts
 	return nil
+}
+
+// HasActiveEvent returns true if the pipeline has an open motion event.
+func (p *AIPipeline) HasActiveEvent() bool {
+	return p.currentEventID > 0
+}
+
+// CameraName returns the display name of the camera.
+func (p *AIPipeline) CameraName() string {
+	return p.cameraName
 }
 
 // closeCurrentEvent ends the current motion event.

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/server_setup_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/setup_screen.dart';
-import '../screens/home_placeholder.dart';
 import '../screens/live_view/live_view_screen.dart';
 import '../screens/live_view/fullscreen_view.dart';
 import '../screens/playback/playback_screen.dart';
@@ -13,6 +12,7 @@ import '../screens/search/clip_search_screen.dart';
 import '../screens/cameras/camera_list_screen.dart';
 import '../screens/cameras/add_camera_screen.dart';
 import '../screens/cameras/camera_detail_screen.dart';
+import '../screens/settings/settings_screen.dart';
 import '../models/camera.dart';
 import '../widgets/adaptive_layout.dart';
 import '../providers/auth_provider.dart';
@@ -93,7 +93,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/settings', builder: (_, __) => const HomePlaceholder(title: 'Settings')),
+          GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
         ],
       ),
     ],

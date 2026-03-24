@@ -158,8 +158,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
           ),
         ),
         // Timeline
-        Expanded(
-          flex: 2,
+        SizedBox(
+          height: 120,
           child: ComposableTimeline(
             segments: allSegments,
             events: allEvents,

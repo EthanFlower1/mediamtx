@@ -194,8 +194,13 @@ class PlaybackController extends ChangeNotifier {
     final futures = _players.values.map((p) => p.seek(snapped));
     await Future.wait(futures);
 
+    // Keep _isSeeking true briefly so stale position stream updates
+    // (still reporting the old position) don't overwrite _position.
+    await Future.delayed(const Duration(milliseconds: 200));
+
     _isSeeking = false;
-    notifyListeners();
+    // Don't notify here — let the next position stream tick update naturally.
+    // _position is already set to the correct value.
   }
 
   void stepFrame(int direction) {

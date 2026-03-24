@@ -59,6 +59,7 @@ void main() {
 
       final event = MotionEvent.fromJson(json);
 
+      expect(event.id, '99');
       expect(event.cameraId, 'cam-1');
       expect(event.startTime, DateTime.utc(2026, 3, 24, 10, 5, 0));
       expect(event.endTime, DateTime.utc(2026, 3, 24, 10, 5, 30));

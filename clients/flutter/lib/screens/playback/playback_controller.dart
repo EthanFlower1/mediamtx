@@ -13,11 +13,16 @@ class PlaybackController extends ChangeNotifier {
   bool _isPlaying = false;
   double _speed = 1.0;
   bool _isSeeking = false;
-  Duration? _seekTarget; // reject stale stream positions far from this
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
   List<MotionEvent> _events = [];
+
+  // The backend streams fMP4 from a start time — it's not seekable via HTTP
+  // range requests. So "seeking" means opening a new stream from the target
+  // time. _streamOrigin tracks what day-offset the current stream starts at,
+  // so we can translate the player's stream-relative position to day-absolute.
+  Duration _streamOrigin = Duration.zero;
 
   // Players keyed by camera ID
   final Map<String, Player> _players = {};
@@ -95,20 +100,8 @@ class PlaybackController extends ChangeNotifier {
     _positionSub?.cancel();
     if (_players.isNotEmpty) {
       DateTime? lastUpdate;
-      _positionSub = _players.values.first.stream.position.listen((pos) {
+      _positionSub = _players.values.first.stream.position.listen((streamPos) {
         if (_isSeeking) return;
-
-        // After a seek, reject stream positions that haven't caught up yet.
-        // The player may report stale positions for several frames.
-        if (_seekTarget != null) {
-          final diff = (pos.inMilliseconds - _seekTarget!.inMilliseconds).abs();
-          if (diff > 5000) {
-            // Still reporting old position — ignore
-            return;
-          }
-          // Player has caught up to near the seek target
-          _seekTarget = null;
-        }
 
         final now = DateTime.now();
         if (lastUpdate != null &&
@@ -116,14 +109,18 @@ class PlaybackController extends ChangeNotifier {
           return;
         }
         lastUpdate = now;
-        _position = pos;
+
+        // The player reports position relative to the start of the current
+        // stream. Translate to day-absolute by adding _streamOrigin.
+        final dayPos = _streamOrigin + streamPos;
+        _position = dayPos;
 
         // Auto-pause at end of last recording segment
         if (_isPlaying && _segments.isNotEmpty) {
           final dayStart = DateTime(
               _selectedDate.year, _selectedDate.month, _selectedDate.day);
           final lastEnd = _segments.last.endTime.difference(dayStart);
-          if (pos >= lastEnd) {
+          if (dayPos >= lastEnd) {
             pause();
           }
         }
@@ -138,6 +135,10 @@ class PlaybackController extends ChangeNotifier {
   void _openAllPlayers() {
     final dayStart = DateTime(
         _selectedDate.year, _selectedDate.month, _selectedDate.day);
+    final streamStart = dayStart.add(_streamOrigin);
+    // Duration from stream start to end of day
+    final remainingSecs =
+        (_maxPosition - _streamOrigin).inSeconds.clamp(1, 86400);
 
     for (final id in _selectedCameraIds) {
       final player = _players[id];
@@ -146,7 +147,8 @@ class PlaybackController extends ChangeNotifier {
       final path = _cameraPaths[id];
       if (path == null) continue;
 
-      final url = playbackService.playbackUrl(path, dayStart);
+      final url = playbackService.playbackUrl(
+          path, streamStart, durationSecs: remainingSecs.toDouble());
       player.open(Media(url), play: _isPlaying);
       player.setRate(_speed);
     }
@@ -202,16 +204,30 @@ class PlaybackController extends ChangeNotifier {
     final snapped = snapToSegment(_segments, dayStart, clamped);
 
     _isSeeking = true;
-    _seekTarget = snapped;
     _position = snapped;
+    _streamOrigin = snapped;
     notifyListeners();
 
-    final futures = _players.values.map((p) => p.seek(snapped));
-    await Future.wait(futures);
+    // Open new streams from the seek target — the backend serves fMP4 from
+    // a start time and does not support HTTP range seeking within a stream.
+    final streamStart = dayStart.add(snapped);
+    final remainingSecs =
+        (_maxPosition - snapped).inSeconds.clamp(1, 86400);
+
+    for (final id in _selectedCameraIds) {
+      final player = _players[id];
+      if (player == null) continue;
+
+      final path = _cameraPaths[id];
+      if (path == null) continue;
+
+      final url = playbackService.playbackUrl(
+          path, streamStart, durationSecs: remainingSecs.toDouble());
+      await player.open(Media(url), play: _isPlaying);
+      player.setRate(_speed);
+    }
 
     _isSeeking = false;
-    // _seekTarget stays set — the position stream listener will reject
-    // stale positions until the player reports a position near the target.
     notifyListeners();
   }
 
@@ -219,21 +235,15 @@ class PlaybackController extends ChangeNotifier {
     if (_isPlaying) pause();
 
     if (direction > 0) {
-      for (final p in _players.values) {
-        p.seek(_position + const Duration(milliseconds: 33));
-      }
       _position += const Duration(milliseconds: 33);
     } else {
-      final newPos = Duration(
+      _position = Duration(
         milliseconds:
             (_position.inMilliseconds - 3000).clamp(0, _maxPosition.inMilliseconds),
       );
-      for (final p in _players.values) {
-        p.seek(newPos);
-      }
-      _position = newPos;
     }
-    notifyListeners();
+    // Re-open stream from new position
+    seek(_position);
   }
 
   void skipToNextEvent() {

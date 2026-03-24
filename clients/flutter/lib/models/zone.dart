@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class AlertRule {
   final String id;
   final String zoneId;
@@ -23,15 +25,15 @@ class AlertRule {
 
   factory AlertRule.fromJson(Map<String, dynamic> json) {
     return AlertRule(
-      id: json['id'] as String,
-      zoneId: json['zone_id'] as String,
-      className: json['class_name'] as String,
-      enabled: json['enabled'] as bool,
-      cooldownSeconds: json['cooldown_seconds'] as int,
-      loiterSeconds: json['loiter_seconds'] as int,
-      notifyOnEnter: json['notify_on_enter'] as bool,
-      notifyOnLeave: json['notify_on_leave'] as bool,
-      notifyOnLoiter: json['notify_on_loiter'] as bool,
+      id: json['id']?.toString() ?? '',
+      zoneId: json['zone_id']?.toString() ?? '',
+      className: json['class_name']?.toString() ?? '',
+      enabled: json['enabled'] as bool? ?? false,
+      cooldownSeconds: (json['cooldown_seconds'] as num?)?.toInt() ?? 0,
+      loiterSeconds: (json['loiter_seconds'] as num?)?.toInt() ?? 0,
+      notifyOnEnter: json['notify_on_enter'] as bool? ?? false,
+      notifyOnLeave: json['notify_on_leave'] as bool? ?? false,
+      notifyOnLoiter: json['notify_on_loiter'] as bool? ?? false,
     );
   }
 
@@ -68,10 +70,16 @@ class DetectionZone {
   });
 
   factory DetectionZone.fromJson(Map<String, dynamic> json) {
-    final rawPolygon = json['polygon'] as List<dynamic>;
-    final polygon = rawPolygon
-        .map((point) => (point as List<dynamic>).map((v) => (v as num).toDouble()).toList())
-        .toList();
+    final rawPoly = json['polygon'];
+    List<List<double>> poly = [];
+    if (rawPoly is String) {
+      try {
+        final parsed = jsonDecode(rawPoly) as List;
+        poly = parsed.map((p) => (p as List).map((v) => (v as num).toDouble()).toList()).toList();
+      } catch (_) {}
+    } else if (rawPoly is List) {
+      poly = rawPoly.map((p) => (p as List).map((v) => (v as num).toDouble()).toList()).toList();
+    }
 
     final rawRules = json['rules'] as List<dynamic>? ?? [];
     final rules = rawRules
@@ -79,11 +87,11 @@ class DetectionZone {
         .toList();
 
     return DetectionZone(
-      id: json['id'] as String,
-      cameraId: json['camera_id'] as String,
-      name: json['name'] as String,
-      polygon: polygon,
-      enabled: json['enabled'] as bool,
+      id: json['id']?.toString() ?? '',
+      cameraId: json['camera_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      polygon: poly,
+      enabled: json['enabled'] as bool? ?? false,
       rules: rules,
     );
   }

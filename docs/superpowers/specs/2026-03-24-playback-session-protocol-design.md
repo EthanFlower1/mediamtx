@@ -6,7 +6,7 @@ The current playback API is stateless — every seek opens a new HTTP request to
 
 ## Approach
 
-Add a WebSocket-controlled playback session to the NVR API layer. The client opens a WebSocket for commands (play, pause, seek, speed, step) and persistent HTTP chunked streams for media. The server owns an fMP4 muxer per camera that can splice fragments from new positions into the same stream without breaking the player's decoder. Built as a new NVR endpoint wrapping MediaMTX's existing `recordstore` and `segmentFMP4` packages — does not modify MediaMTX's built-in `/get` handler.
+Add a WebSocket-controlled playback session to the NVR API layer. The client opens a WebSocket for commands (play, pause, seek, speed, step) and persistent HTTP chunked streams for media. The server owns an fMP4 muxer per camera that can splice fragments from new positions into the same stream without breaking the player's decoder. Built as a new NVR endpoint that reimplements fMP4 segment reading (since MediaMTX's `segmentFMP4*` functions are unexported) using the public `recordstore` package for segment discovery. Does not modify MediaMTX's built-in `/get` handler.
 
 ---
 
@@ -16,29 +16,44 @@ Add a WebSocket-controlled playback session to the NVR API layer. The client ope
 
 `GET /api/nvr/playback/ws` — upgrades to WebSocket.
 
+### Camera ID to Path Resolution
+
+The `create` command uses NVR camera IDs (from the cameras DB table). The `SessionManager` resolves each camera ID to its `mediamtx_path` via the NVR database, then uses `recordstore.FindSegments()` with the path name to discover segment files on disk. The `SessionManager` receives a `*db.DB` reference and the `recordPath` pattern (from MediaMTX config) at initialization.
+
 ### Session Create Flow
 
 1. Client connects WebSocket
-2. Client sends: `{"cmd": "create", "camera_ids": ["cam1", "cam2"], "start": "2026-03-24T10:00:00Z"}`
-3. Server creates a `PlaybackSession` — allocates per-camera fMP4 muxers, opens segment files from disk
-4. Server responds: `{"event": "created", "session_id": "abc123", "streams": {"cam1": "/api/nvr/playback/stream/abc123/cam1", "cam2": "/api/nvr/playback/stream/abc123/cam2"}}`
+2. Client sends: `{"cmd": "create", "seq": 1, "camera_ids": ["cam1", "cam2"], "start": "2026-03-24T10:00:00Z"}`
+3. Server resolves camera IDs to MediaMTX paths via DB, creates a `PlaybackSession` — allocates per-camera fMP4 muxers, opens segment files from disk
+4. Server responds: `{"event": "created", "ack_seq": 1, "session_id": "abc123", "streams": {"cam1": "/api/nvr/playback/stream/abc123/cam1", "cam2": "/api/nvr/playback/stream/abc123/cam2"}}`
 5. Client opens each stream URL — server responds with `Transfer-Encoding: chunked`, writes fMP4 init segment immediately, then pauses (session starts paused)
-6. Client sends `{"cmd": "play"}` — server starts writing fMP4 fragments into the chunked streams
+6. Client sends `{"cmd": "play", "seq": 2}` — server starts writing fMP4 fragments into the chunked streams
+
+### Message Envelope
+
+All commands include a client-assigned `seq` number. All events that respond to a command include `ack_seq` to correlate. This enables the client to handle rapid scrubbing (multiple seeks in flight) by ignoring stale ack'd responses.
 
 ### Session Scope
 
 One session controls all cameras — single WebSocket controls multiple cameras, server keeps them in sync. Seek/play/pause applies to all cameras atomically.
 
+### Stream Authentication
+
+Session IDs are cryptographically random (UUID v4). The stream endpoint `/api/nvr/playback/stream/:session/:camera` authenticates by validating the session ID exists and is active — no JWT required. This allows `media_kit` to open stream URLs as bare HTTP GETs without custom auth headers. The session ID is unguessable and short-lived.
+
 ### Commands (client → server)
+
+All commands include `"seq": N` (client-assigned integer).
 
 | Command | Payload | Effect |
 |---------|---------|--------|
 | `create` | `camera_ids`, `start` | Create session |
+| `resume` | `session_id` | Reconnect to existing session after WebSocket drop |
 | `play` | — | Resume writing fragments |
 | `pause` | — | Stop writing fragments |
-| `seek` | `position` (RFC3339 or seconds-into-day) | Splice to new position |
+| `seek` | `position` (float, seconds since midnight on the session's selected date, in local time) | Splice to new position. Server coalesces rapid seeks — only the latest is processed. |
 | `speed` | `rate` (0.5, 1.0, 2.0, etc.) | Change fragment output rate |
-| `step` | `direction` (1 or -1) | Write single frame, stay paused |
+| `step` | `direction` (1 or -1) | Write single frame, stay paused. Forward = next frame. Backward = previous keyframe (GOP boundary, ~2-5s back). |
 | `add_camera` | `camera_id` | Add camera to session |
 | `remove_camera` | `camera_id` | Remove camera from session |
 | `close` | — | Tear down session |
@@ -51,17 +66,26 @@ One session controls all cameras — single WebSocket controls multiple cameras,
 | `position` | `time` (RFC3339) | Every ~500ms during playback |
 | `state` | `playing`, `speed`, `position` | After any state change |
 | `buffering` | `camera_id`, `buffering` (bool) | Stream buffer state |
-| `segment_gap` | `gap_start`, `next_segment` | Playback hit a recording gap |
+| `segment_gap` | `gap_start` (float secs), `next_start` (float secs) | Playback hit a recording gap, auto-skipping to next segment |
 | `stream_restart` | `camera_id`, `new_url` | Codec changed, client must reconnect this stream |
+| `stream_added` | `camera_id`, `url` | New camera's stream is ready (response to `add_camera`) |
+| `stream_removed` | `camera_id` | Camera removed, server closed its HTTP stream |
 | `end` | — | Reached end of recordings |
 | `error` | `message` | Something went wrong |
 
+Events that respond to a command include `"ack_seq": N` matching the command's `seq`.
+
 ### Session Cleanup
 
-- WebSocket disconnect → 30 second grace period (reconnect window) → dispose session
+- WebSocket disconnect → server auto-pauses playback, 30 second grace period → dispose session
+- Reconnect: client opens new WebSocket and sends `{"cmd": "resume", "session_id": "abc123"}` — server resumes the existing session, no need to re-create
 - Idle timeout (no commands for 10 minutes) → dispose
 - Explicit `close` command → immediate dispose
 - Dispose closes all muxers, flushes and closes HTTP streams
+
+### HTTP Stream Keep-Alive
+
+While paused, the server sends an empty HTTP chunk every 10 seconds to prevent `media_kit`/FFmpeg HTTP timeouts. The client should also handle player timeout errors gracefully and re-open the stream URL if needed (the session and its fMP4 state survive — a new HTTP connection gets a fresh init segment and continues from the current position).
 
 ---
 
@@ -133,7 +157,14 @@ Client WebSocket ──cmd──> ws.go ──> SessionManager ──> PlaybackS
 
 ### Segment Reading
 
-Imports `internal/recordstore` to find segment files on disk, and `internal/playback/segment_fmp4.go` to parse fMP4 headers and samples. Does NOT import the playback HTTP handler — only the low-level reading code.
+Uses `internal/recordstore` (public API) to discover segment files on disk via `FindSegments()`. The `SessionManager` is initialized with the `recordPath` pattern from MediaMTX config.
+
+MediaMTX's fMP4 parsing functions (`segmentFMP4ReadHeader`, `segmentFMP4MuxParts`, etc.) are unexported in `internal/playback/`. Rather than modifying MediaMTX's package, the NVR playback muxer implements its own fMP4 reader using the `github.com/abema/go-mp4` library (already a dependency of MediaMTX). This is straightforward — fMP4 parsing is well-defined by ISO 14496-12, and we only need to:
+- Read `moov` box for codec info and track definitions
+- Iterate `moof+mdat` pairs for samples
+- Extract keyframe flags, DTS values, and sample data
+
+This keeps the NVR layer fully independent of MediaMTX's internal package structure.
 
 ---
 
@@ -147,7 +178,7 @@ Built on top of the session protocol — these are how the muxer writes fragment
 - At 2x: writes fragments twice as fast (halved delay between writes)
 - At 0.5x: writes fragments at half rate (doubled delay)
 - No frame dropping below 4x — all frames sent, player decodes at arrival rate
-- Above 4x: server decimates to keyframes only (drops inter-frames), reducing bandwidth and decode load
+- Above 4x: server decimates to keyframes only (drops inter-frames), reducing bandwidth and decode load. The duration of each keyframe sample in the `moof` is recomputed to span the full GOP interval, keeping DTS continuity correct.
 
 ### Frame Step Forward
 
@@ -165,10 +196,17 @@ Built on top of the session protocol — these are how the muxer writes fragment
 ### Reverse Playback
 
 - Server reads GOPs in reverse order
-- For each GOP: reads forward within it (must decode in order), collects keyframe, writes it as a fragment
-- Timestamps are mapped to go backward in the stream so the player's position counter decrements
-- Limited to keyframe boundaries — not frame-accurate reverse, but smooth enough for review
+- For each GOP: extracts the keyframe, writes it as a fragment with **forward-marching DTS** (fMP4 requires non-decreasing decode timestamps — writing backward DTS would break the demuxer)
+- The video content shows reverse-ordered keyframes, but the container timestamps continue forward. The server's `position` event tells the client the real playback time, which decrements.
+- Effectively a "reverse keyframe slideshow" — not frame-accurate reverse, but smooth enough for review
 - Only supported at 1x reverse — no fast reverse (too CPU intensive for real-time)
+- Audio is dropped during reverse playback
+
+### Audio Handling During Trick Play
+
+- **1x forward:** audio and video both sent normally
+- **All other speeds (0.5x, 2x, 4x, 8x, reverse):** audio tracks are dropped, only video is sent. This is standard NVR behavior — rate-adjusted audio is distracting and adds complexity.
+- **Frame step (forward/backward):** audio dropped (single frame, no audio to play)
 
 ---
 

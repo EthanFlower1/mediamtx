@@ -10,6 +10,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-24-playback-session-protocol-design.md`
 
+### Critical Architecture Notes
+
+**`recordstore.FindSegments()` requires `*conf.Path`:** The first parameter is a full `*conf.Path` struct (from `internal/conf`), not a string. It reads `RecordPath` (pattern like `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`) and `RecordFormat` from it. The `SessionManager` must construct a `*conf.Path` with the correct `RecordPath` pattern. The NVR's `RecordingsPath` is just a directory — the full pattern must be passed from MediaMTX config via the `RouterConfig`.
+
+**fMP4 sample data reading:** The `ReadSegmentSamples` function must actually read sample bytes from `mdat`, not just parse metadata. Use the pattern from `internal/playback/segment_fmp4.go:474` — `moofOffset + uint64(trun.DataOffset)` gives the mdat data position, then read `SampleSize` bytes per sample.
+
+**Channel sends under lock:** `SpliceMuxer.WriteInit()` and `FlushFragment()` must NOT send on channels while holding the mutex — use a local buffer pattern (build bytes under lock, send after unlock) to avoid deadlocks.
+
+**Stream endpoint auth:** Register `/api/nvr/playback/stream/:session/:camera` outside the JWT middleware group. Session ID (UUID v4) acts as bearer token. The WebSocket endpoint stays in the protected group.
+
+**Audio during trick play:** At all non-1x speeds, reverse, and frame stepping — drop audio track samples, only emit video. This is standard NVR behavior.
+
 ---
 
 ## File Structure
@@ -24,7 +36,7 @@
 | `internal/nvr/playback/splice_muxer_test.go` | Unit tests for splice muxer |
 | `internal/nvr/playback/session.go` | `PlaybackSession` — owns per-camera muxers, handles commands, tracks position, manages playback goroutines |
 | `internal/nvr/playback/session_test.go` | Unit tests for session state machine |
-| `internal/nvr/playback/manager.go` | `SessionManager` — creates/resumes/disposes sessions, handles timeouts, resolves camera IDs to paths |
+| `internal/nvr/playback/manager.go` | `SessionManager` — creates/resumes/disposes sessions, handles timeouts, resolves camera IDs to paths. Constructs `*conf.Path` for `recordstore.FindSegments()` using the RecordPath pattern from MediaMTX config. |
 | `internal/nvr/playback/ws.go` | WebSocket handler — command parsing, JSON envelope with seq/ack_seq, event broadcasting |
 | `internal/nvr/playback/stream.go` | HTTP handler for `/api/nvr/playback/stream/:session/:camera` — chunked response writer reading from a channel, keep-alive during pause |
 | `internal/nvr/playback/protocol.go` | Shared types: Command, Event, SessionState enums, JSON message structs |
@@ -990,19 +1002,24 @@ func NewPlaybackSession(
 func (s *PlaybackSession) ID() string { return s.id }
 
 // AddCamera adds a camera to the session.
-func (s *PlaybackSession) AddCamera(cameraID, mediamtxPath string) error {
+func (s *PlaybackSession) AddCamera(cameraID, mediamtxPath, recordPathPattern string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Discover segments for this camera
+	// Construct a *conf.Path for recordstore.FindSegments().
+	// Only RecordPath and RecordFormat are needed.
+	pathConf := &conf.Path{
+		RecordPath:   recordPathPattern,
+		RecordFormat: conf.RecordFormatFMP4,
+	}
+
 	segments, err := recordstore.FindSegments(
-		s.recordPath, mediamtxPath, nil, nil,
+		pathConf, mediamtxPath, nil, nil,
 	)
 	if err != nil {
 		return err
 	}
 
-	// Read header from first segment for track info
 	if len(segments) == 0 {
 		return ErrNoSegments
 	}
@@ -1156,8 +1173,12 @@ func (s *PlaybackSession) readAndWriteNextFragment() {
 
 	for _, cm := range s.cameras {
 		// Find segment containing targetTime
+		pathConf := &conf.Path{
+			RecordPath:   s.recordPath,
+			RecordFormat: conf.RecordFormatFMP4,
+		}
 		segments, err := recordstore.FindSegments(
-			s.recordPath, cm.Path,
+			pathConf, cm.Path,
 			&targetTime, nil,
 		)
 		if err != nil || len(segments) == 0 {
@@ -1236,7 +1257,7 @@ type SessionManager struct {
 	mu sync.Mutex
 
 	db         *db.DB
-	recordPath string // MediaMTX recording path pattern
+	recordPath string // Full RecordPath pattern (e.g., "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f")
 
 	sessions map[string]*PlaybackSession
 
@@ -1246,6 +1267,7 @@ type SessionManager struct {
 }
 
 // NewSessionManager creates a manager.
+// recordPath is the full MediaMTX RecordPath pattern (NOT just the directory).
 func NewSessionManager(database *db.DB, recordPath string) *SessionManager {
 	m := &SessionManager{
 		db:          database,
@@ -1279,14 +1301,15 @@ func (m *SessionManager) CreateSession(
 		sessionID, dayStart, startPositionSecs, m.recordPath, onEvent,
 	)
 
-	// Resolve camera IDs to MediaMTX paths and add to session
+	// Resolve camera IDs to MediaMTX paths and add to session.
+	// Construct a *conf.Path for recordstore.FindSegments().
 	for _, camID := range cameraIDs {
 		cam, err := m.db.GetCamera(camID)
 		if err != nil {
 			session.Dispose()
 			return nil, fmt.Errorf("camera %s not found: %w", camID, err)
 		}
-		if err := session.AddCamera(camID, cam.MediaMTXPath); err != nil {
+		if err := session.AddCamera(camID, cam.MediaMTXPath, m.recordPath); err != nil {
 			// Non-fatal — camera may have no recordings yet
 			continue
 		}
@@ -1677,15 +1700,23 @@ git commit -m "feat(playback): add HTTP chunked stream handler with keep-alive"
 
 - [ ] **Step 1: Add SessionManager to NVR initialization**
 
-In `internal/nvr/nvr.go`, add a `playbackManager` field to the `NVR` struct and initialize it in `Initialize()`:
+In `internal/nvr/nvr.go`, add a `playbackManager` field and a `RecordPathPattern` config field:
 
 ```go
 // Add to NVR struct (after existing fields):
-playbackManager *playback.SessionManager
+playbackManager   *playback.SessionManager
+RecordPathPattern string // e.g. "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
 
 // Add to Initialize() after database initialization:
-n.playbackManager = playback.NewSessionManager(n.database, n.RecordingsPath)
+// RecordPathPattern comes from MediaMTX config (paths -> recordPath).
+// Default: "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
+if n.RecordPathPattern == "" {
+    n.RecordPathPattern = n.RecordingsPath + "/%path/%Y-%m-%d_%H-%M-%S-%f"
+}
+n.playbackManager = playback.NewSessionManager(n.database, n.RecordPathPattern)
 ```
+
+Note: The `RecordPathPattern` should ideally be read from mediamtx.yml's path config. If it's not directly available to the NVR subsystem, use the default pattern which matches the default MediaMTX config.
 
 - [ ] **Step 2: Pass manager to router config**
 
@@ -1701,17 +1732,22 @@ PlaybackManager: n.playbackManager,
 
 - [ ] **Step 3: Register playback endpoints in router**
 
-In `internal/nvr/api/router.go`, add within the protected routes section:
+In `internal/nvr/api/router.go`:
 
 ```go
-// Playback session endpoints
+// Stream endpoint — NO JWT auth, session ID is the bearer token.
+// Register OUTSIDE the protected group, on the base nvr group.
+if cfg.PlaybackManager != nil {
+    nvr.GET("/playback/stream/:session/:camera", playback.HandleStream(cfg.PlaybackManager))
+}
+
+// Inside the protected (JWT auth) group:
 if cfg.PlaybackManager != nil {
     api.GET("/playback/ws", playback.HandleWebSocket(cfg.PlaybackManager))
-    api.GET("/playback/stream/:session/:camera", playback.HandleStream(cfg.PlaybackManager))
 }
 ```
 
-Note: The stream endpoint should NOT require JWT auth — session ID acts as the bearer token (UUID v4, unguessable). But it should be registered outside the JWT middleware group, or the JWT middleware should be configured to skip it.
+The WebSocket endpoint requires JWT auth for the initial connection. The stream endpoint authenticates by validating the session ID (UUID v4, unguessable) — `media_kit` cannot send JWT headers on bare HTTP GETs.
 
 - [ ] **Step 4: Verify compilation**
 

@@ -363,8 +363,6 @@ Expected: FAIL — file doesn't exist yet.
 Create `lib/screens/playback/timeline/timeline_viewport.dart`:
 
 ```dart
-import 'dart:ui';
-
 class TimelineViewport {
   final Duration visibleStart;
   final Duration visibleEnd;
@@ -633,7 +631,7 @@ import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
 class PlaybackController extends ChangeNotifier {
-  final PlaybackService _playbackService;
+  final PlaybackService playbackService;
 
   // State
   Duration _position = Duration.zero;
@@ -653,8 +651,7 @@ class PlaybackController extends ChangeNotifier {
   static const _maxPosition = Duration(hours: 24);
   static const _positionThrottle = Duration(milliseconds: 66); // ~15fps
 
-  PlaybackController({required PlaybackService playbackService})
-      : _playbackService = playbackService;
+  PlaybackController({required this.playbackService});
 
   // Getters
   Duration get position => _position;
@@ -685,9 +682,19 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void setSelectedCameraIds(List<String> ids) {
+    // Avoid redundant rebuilds when called from build()
+    if (_listEquals(ids, _selectedCameraIds)) return;
     _selectedCameraIds = ids;
     _rebuildPlayers();
     notifyListeners();
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   // ── Player management ─────────────────────────────────────────────────
@@ -725,6 +732,17 @@ class PlaybackController extends ChangeNotifier {
         }
         lastUpdate = now;
         _position = pos;
+
+        // Auto-pause at end of last recording segment
+        if (_isPlaying && _segments.isNotEmpty) {
+          final dayStart = DateTime(
+              _selectedDate.year, _selectedDate.month, _selectedDate.day);
+          final lastEnd = _segments.last.endTime.difference(dayStart);
+          if (pos >= lastEnd) {
+            pause();
+          }
+        }
+
         notifyListeners();
       });
     }
@@ -744,7 +762,7 @@ class PlaybackController extends ChangeNotifier {
       final path = _cameraPaths[id];
       if (path == null) continue;
 
-      final url = _playbackService.playbackUrl(path, dayStart);
+      final url = playbackService.playbackUrl(path, dayStart);
       player.open(Media(url), play: _isPlaying);
       player.setRate(_speed);
     }
@@ -1242,81 +1260,32 @@ git commit -m "feat: add EventLayer for timeline event bars and dots"
 
 Create `lib/screens/playback/timeline/playhead_layer.dart`:
 
+PlayheadLayer is purely visual — no gesture handling. All gestures (including playhead dragging) are handled by InteractionLayer to avoid gesture conflicts.
+
 ```dart
 import 'package:flutter/material.dart';
 import '../../../theme/nvr_colors.dart';
 import 'timeline_viewport.dart';
 
-class PlayheadLayer extends StatefulWidget {
+/// Purely visual — paints the playhead line and handle.
+/// All gesture handling lives in InteractionLayer.
+class PlayheadLayer extends CustomPainter {
   final TimelineViewport viewport;
   final Duration position;
-  final ValueChanged<Duration> onSeek;
+  final bool isDragging;
+  final double? dragX; // override position when dragging
 
-  const PlayheadLayer({
-    super.key,
+  PlayheadLayer({
     required this.viewport,
     required this.position,
-    required this.onSeek,
+    this.isDragging = false,
+    this.dragX,
   });
 
   @override
-  State<PlayheadLayer> createState() => _PlayheadLayerState();
-}
-
-class _PlayheadLayerState extends State<PlayheadLayer> {
-  bool _dragging = false;
-  double? _dragX;
-
-  @override
-  Widget build(BuildContext context) {
-    final x = _dragX ?? widget.viewport.timeToPixel(widget.position);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragStart: (details) {
-        // Only start drag if near the playhead
-        final playheadX = widget.viewport.timeToPixel(widget.position);
-        if ((details.localPosition.dx - playheadX).abs() < 20) {
-          setState(() {
-            _dragging = true;
-            _dragX = details.localPosition.dx;
-          });
-        }
-      },
-      onHorizontalDragUpdate: (details) {
-        if (!_dragging) return;
-        setState(() {
-          _dragX = details.localPosition.dx.clamp(0, widget.viewport.widthPx);
-        });
-      },
-      onHorizontalDragEnd: (details) {
-        if (!_dragging) return;
-        final time = widget.viewport.pixelToTime(_dragX!);
-        setState(() {
-          _dragging = false;
-          _dragX = null;
-        });
-        widget.onSeek(time);
-      },
-      child: CustomPaint(
-        size: Size.infinite,
-        painter: _PlayheadPainter(
-          x: x,
-          isDragging: _dragging,
-        ),
-      ),
-    );
-  }
-}
-
-class _PlayheadPainter extends CustomPainter {
-  final double x;
-  final bool isDragging;
-
-  _PlayheadPainter({required this.x, required this.isDragging});
-
-  @override
   void paint(Canvas canvas, Size size) {
+    final x = dragX ?? viewport.timeToPixel(position);
+
     final paint = Paint()
       ..color = NvrColors.accent
       ..strokeWidth = 2;
@@ -1339,15 +1308,13 @@ class _PlayheadPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
-
-    // Time label above handle
-    final pos = Duration(milliseconds: 0); // painted by parent
-    // Time label is handled by the parent ComposableTimeline
   }
 
   @override
-  bool shouldRepaint(_PlayheadPainter old) =>
-      old.x != x || old.isDragging != isDragging;
+  bool shouldRepaint(PlayheadLayer old) =>
+      old.position != position ||
+      old.isDragging != isDragging ||
+      old.dragX != dragX;
 }
 ```
 
@@ -1355,7 +1322,7 @@ class _PlayheadPainter extends CustomPainter {
 
 ```bash
 git add lib/screens/playback/timeline/playhead_layer.dart
-git commit -m "feat: add PlayheadLayer with draggable playhead indicator"
+git commit -m "feat: add PlayheadLayer (visual-only) for playhead line and handle"
 ```
 
 ---
@@ -1369,44 +1336,62 @@ git commit -m "feat: add PlayheadLayer with draggable playhead indicator"
 
 Create `lib/screens/playback/timeline/interaction_layer.dart`:
 
+InteractionLayer is the ONLY gesture handler in the timeline stack. It handles tap-to-seek, playhead dragging, long-press for events, pinch-to-zoom, and pan. This avoids gesture conflicts between multiple GestureDetectors.
+
 ```dart
 import 'package:flutter/material.dart';
 import '../../../models/recording.dart';
 import 'timeline_viewport.dart';
 
-class InteractionLayer extends StatelessWidget {
+class InteractionLayer extends StatefulWidget {
   final TimelineViewport viewport;
+  final Duration position;
   final List<MotionEvent> events;
   final DateTime dayStart;
   final ValueChanged<Duration> onSeek;
   final void Function(MotionEvent event, Offset position) onEventLongPress;
   final ValueChanged<double> onZoom; // scale factor
   final ValueChanged<double> onPan; // delta pixels
+  // Playhead drag state callbacks
+  final ValueChanged<bool> onDragStateChanged;
+  final ValueChanged<double?> onDragXChanged;
 
   const InteractionLayer({
     super.key,
     required this.viewport,
+    required this.position,
     required this.events,
     required this.dayStart,
     required this.onSeek,
     required this.onEventLongPress,
     required this.onZoom,
     required this.onPan,
+    required this.onDragStateChanged,
+    required this.onDragXChanged,
   });
 
-  MotionEvent? _findNearestEvent(double px) {
-    final tapTime = viewport.pixelToTime(px);
-    MotionEvent? nearest;
-    int nearestDist = 999999999;
+  @override
+  State<InteractionLayer> createState() => _InteractionLayerState();
+}
 
-    for (final event in events) {
-      final eventDur = event.startTime.difference(dayStart);
-      final dist = (eventDur.inMilliseconds - tapTime.inMilliseconds).abs();
-      // Only match if within ~20px equivalent
-      final pxDist = (viewport.timeToPixel(eventDur) - px).abs();
-      if (pxDist < 20 && dist < nearestDist) {
+class _InteractionLayerState extends State<InteractionLayer> {
+  bool _draggingPlayhead = false;
+
+  bool _isNearPlayhead(double px) {
+    final playheadX = widget.viewport.timeToPixel(widget.position);
+    return (px - playheadX).abs() < 20;
+  }
+
+  MotionEvent? _findNearestEvent(double px) {
+    MotionEvent? nearest;
+    double nearestPxDist = 20; // max 20px match distance
+
+    for (final event in widget.events) {
+      final eventDur = event.startTime.difference(widget.dayStart);
+      final pxDist = (widget.viewport.timeToPixel(eventDur) - px).abs();
+      if (pxDist < nearestPxDist) {
         nearest = event;
-        nearestDist = dist;
+        nearestPxDist = pxDist;
       }
     }
     return nearest;
@@ -1415,25 +1400,48 @@ class InteractionLayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      behavior: HitTestBehavior.translucent,
+      behavior: HitTestBehavior.opaque,
       onTapUp: (details) {
-        final time = viewport.pixelToTime(details.localPosition.dx);
-        onSeek(time);
+        final time = widget.viewport.pixelToTime(details.localPosition.dx);
+        widget.onSeek(time);
       },
       onLongPressStart: (details) {
         final event = _findNearestEvent(details.localPosition.dx);
         if (event != null) {
-          onEventLongPress(event, details.globalPosition);
+          widget.onEventLongPress(event, details.globalPosition);
+        }
+      },
+      onHorizontalDragStart: (details) {
+        if (_isNearPlayhead(details.localPosition.dx)) {
+          _draggingPlayhead = true;
+          widget.onDragStateChanged(true);
+          widget.onDragXChanged(details.localPosition.dx);
+        }
+      },
+      onHorizontalDragUpdate: (details) {
+        if (_draggingPlayhead) {
+          final x = details.localPosition.dx.clamp(0, widget.viewport.widthPx);
+          widget.onDragXChanged(x);
+        } else {
+          // Not dragging playhead — pan the timeline
+          widget.onPan(details.delta.dx);
+        }
+      },
+      onHorizontalDragEnd: (details) {
+        if (_draggingPlayhead) {
+          _draggingPlayhead = false;
+          widget.onDragStateChanged(false);
+          widget.onDragXChanged(null);
+          // Final seek to drag position
+          final x = details.localPosition.dx.clamp(0, widget.viewport.widthPx);
+          final time = widget.viewport.pixelToTime(x);
+          widget.onSeek(time);
         }
       },
       onScaleStart: (_) {},
       onScaleUpdate: (details) {
         if (details.pointerCount >= 2) {
-          // Pinch to zoom
-          onZoom(details.scale);
-        } else if (details.pointerCount == 1) {
-          // Single finger pan
-          onPan(details.focalPointDelta.dx);
+          widget.onZoom(details.scale);
         }
       },
       child: const SizedBox.expand(),
@@ -1661,6 +1669,8 @@ class _ComposableTimelineState extends State<ComposableTimeline> {
   Duration _visibleStart = Duration.zero;
   Duration _visibleEnd = const Duration(hours: 24);
   double _lastScale = 1.0;
+  bool _draggingPlayhead = false;
+  double? _dragX;
 
   DateTime get _dayStart => DateTime(
       widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -1800,24 +1810,32 @@ class _ComposableTimelineState extends State<ComposableTimeline> {
                       Positioned.fill(
                         child: _ShimmerOverlay(),
                       ),
-                    // Playhead
+                    // Playhead (visual only — no gestures)
                     Positioned.fill(
-                      child: PlayheadLayer(
-                        viewport: vp,
-                        position: widget.position,
-                        onSeek: widget.onSeek,
+                      child: CustomPaint(
+                        painter: PlayheadLayer(
+                          viewport: vp,
+                          position: widget.position,
+                          isDragging: _draggingPlayhead,
+                          dragX: _dragX,
+                        ),
                       ),
                     ),
-                    // Interaction (tap, long-press, zoom, pan)
+                    // Interaction (ALL gestures: tap, drag, long-press, zoom, pan)
                     Positioned.fill(
                       child: InteractionLayer(
                         viewport: vp,
+                        position: widget.position,
                         events: widget.events,
                         dayStart: _dayStart,
                         onSeek: widget.onSeek,
                         onEventLongPress: _handleEventLongPress,
                         onZoom: _handleZoom,
                         onPan: _handlePan,
+                        onDragStateChanged: (dragging) =>
+                            setState(() => _draggingPlayhead = dragging),
+                        onDragXChanged: (x) =>
+                            setState(() => _dragX = x),
                       ),
                     ),
                     // Time label at playhead
@@ -2096,6 +2114,7 @@ class JogSlider extends StatefulWidget {
 class _JogSliderState extends State<JogSlider>
     with SingleTickerProviderStateMixin {
   double _value = 0.0;
+  double _valueAtRelease = 0.0;
   bool _isDragging = false;
   late final AnimationController _springController;
   Timer? _jogTimer;
@@ -2109,7 +2128,7 @@ class _JogSliderState extends State<JogSlider>
     );
     _springController.addListener(() {
       setState(() {
-        _value = _value * (1 - _springController.value);
+        _value = _valueAtRelease * (1 - _springController.value);
       });
     });
   }
@@ -2177,6 +2196,7 @@ class _JogSliderState extends State<JogSlider>
               },
               onChangeEnd: (_) {
                 _isDragging = false;
+                _valueAtRelease = _value;
                 _stopJog();
                 widget.onRelease();
                 _springController.forward(from: 0);
@@ -2547,7 +2567,9 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   }
 
   void _updateControllerServerUrl(String serverUrl) {
-    if (_controller._playbackService.serverUrl != serverUrl) {
+    if (_controller.playbackService.serverUrl != serverUrl) {
+      _controller.removeListener(_onControllerChanged);
+      _controller.dispose();
       _controller = PlaybackController(
         playbackService: PlaybackService(serverUrl: serverUrl),
       );
@@ -2614,19 +2636,31 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     final selected =
         cameras.where((c) => _selectedCameraIds.contains(c.id)).toList();
 
-    // Fetch recordings and events for first selected camera
-    final firstCamId = selected.isNotEmpty ? selected.first.id : '';
-    final key = (cameraId: firstCamId, date: _dateKey);
-    final segmentsAsync = ref.watch(recordingSegmentsProvider(key));
-    final eventsAsync = ref.watch(motionEventsProvider(key));
+    // Fetch and merge recordings/events for all selected cameras
+    final allSegments = <RecordingSegment>[];
+    final allEvents = <MotionEvent>[];
+    bool isLoading = false;
+
+    for (final cam in selected) {
+      final key = (cameraId: cam.id, date: _dateKey);
+      final segAsync = ref.watch(recordingSegmentsProvider(key));
+      final evtAsync = ref.watch(motionEventsProvider(key));
+
+      if (segAsync.isLoading || evtAsync.isLoading) isLoading = true;
+      allSegments.addAll(segAsync.valueOrNull ?? []);
+      allEvents.addAll(evtAsync.valueOrNull ?? []);
+    }
+
+    // Sort merged lists by time
+    allSegments.sort((a, b) => a.startTime.compareTo(b.startTime));
+    allEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
 
     // Pass data to controller
-    segmentsAsync.whenData((segs) => _controller.setSegments(segs));
-    eventsAsync.whenData((evts) => _controller.setEvents(evts));
+    _controller.setSegments(allSegments);
+    _controller.setEvents(allEvents);
 
-    final isLoading = segmentsAsync.isLoading || eventsAsync.isLoading;
-    final segments = segmentsAsync.valueOrNull ?? [];
-    final events = eventsAsync.valueOrNull ?? [];
+    final segments = allSegments;
+    final events = allEvents;
 
     return Column(
       children: [
@@ -2901,9 +2935,10 @@ Ensure all tests pass.
 - [ ] **Step 3: Fix any issues found**
 
 Address compile errors, import issues, type mismatches. Common things to watch for:
-- `_playbackService` is private in PlaybackController — the `_updateControllerServerUrl` method in PlaybackScreen accesses it. Make the field accessible or compare differently.
-- The shimmer widget uses `AnimatedBuilder` which should be `AnimatedBuilder` (verify the class name is correct).
-- `InteractionLayer`'s `onScaleUpdate` and `PlayheadLayer`'s drag detection may conflict — the InteractionLayer should not handle tap when playhead drag is active. Resolve by having InteractionLayer ignore taps within 20px of the playhead.
+- Verify `AnimatedBuilder` class name compiles (it's the correct Flutter widget name).
+- Verify all imports resolve correctly — especially the 3-level relative imports from `timeline/` subdirectory.
+- Check that `RecordingSegment` model import in `recordings_provider.dart` still resolves after changes.
+- Verify `import '../models/recording.dart'` is added to `playback_screen.dart` for the `RecordingSegment` type used in sorting.
 
 - [ ] **Step 4: Final commit**
 

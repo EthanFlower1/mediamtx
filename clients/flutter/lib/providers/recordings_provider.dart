@@ -9,9 +9,15 @@ final recordingSegmentsProvider =
   final api = ref.watch(apiClientProvider);
   if (api == null) return [];
 
-  // Build start/end from date (yyyy-MM-dd) with UTC suffix
-  final start = '${key.date}T00:00:00Z';
-  final end = '${key.date}T23:59:59Z';
+  // Build start/end in local timezone so the query matches the selected
+  // calendar day, not UTC day (which can be off by the timezone offset).
+  final offset = DateTime.now().timeZoneOffset;
+  final sign = offset.isNegative ? '-' : '+';
+  final h = offset.abs().inHours.toString().padLeft(2, '0');
+  final m = (offset.abs().inMinutes % 60).toString().padLeft(2, '0');
+  final tz = '$sign$h:$m';
+  final start = '${key.date}T00:00:00$tz';
+  final end = '${key.date}T23:59:59$tz';
 
   final res = await api.get<dynamic>('/recordings', queryParameters: {
     'camera_id': key.cameraId,

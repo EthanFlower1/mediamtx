@@ -58,6 +58,10 @@ class PlaybackController extends ChangeNotifier {
     _segments = s;
     if (changed) {
       _rebuildSegmentIndex();
+      // Auto-position cursor at first recording when segments first load
+      if (_position == Duration.zero && _segments.isNotEmpty) {
+        _position = _segments.first.startTime.difference(_dayStart);
+      }
     }
   }
 

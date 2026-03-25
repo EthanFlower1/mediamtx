@@ -45,7 +45,10 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	date, err := time.Parse("2006-01-02", dateStr)
+	// Parse date in the server's local timezone so the playlist covers the
+	// same calendar day the user selected (not UTC, which can be off by the
+	// timezone offset).
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return

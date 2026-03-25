@@ -1,20 +1,9 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
 import '../../models/bookmark.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
-
-/// Parsed from the HLS manifest's #EXT-X-PROGRAM-DATE-TIME tags.
-/// Maps a player offset to an absolute wall-clock time so we can
-/// display the correct time on the timeline.
-class _DateTimeEntry {
-  final Duration playerOffset;
-  final DateTime wallClock;
-  const _DateTimeEntry({required this.playerOffset, required this.wallClock});
-}
 
 class PlaybackController extends ChangeNotifier {
   final PlaybackService playbackService;
@@ -36,19 +25,14 @@ class PlaybackController extends ChangeNotifier {
   List<Bookmark> _bookmarks = [];
   String? _error;
 
-  // Players
-  final Map<String, Player> _players = {};
-  final Map<String, VideoController> _videoControllers = {};
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<bool>? _completedSub;
+  // Players — one per selected camera
+  final Map<String, VideoPlayerController> _players = {};
 
   // Camera ID → MediaMTX path
   final Map<String, String> _cameraPaths = {};
 
-  // Time map parsed from the HLS manifest. The server embeds
-  // #EXT-X-PROGRAM-DATE-TIME at each recording boundary, so we know
-  // the absolute wall-clock time for each section of the player timeline.
-  List<_DateTimeEntry> _timeMap = [];
+  // The recording segment currently loaded in the player.
+  RecordingSegment? _currentSegment;
 
   static const _maxPosition = Duration(hours: 24);
 
@@ -69,7 +53,7 @@ class PlaybackController extends ChangeNotifier {
   List<RecordingSegment> get segments => _segments;
   List<MotionEvent> get events => _events;
   List<Bookmark> get bookmarks => _bookmarks;
-  Map<String, VideoController> get videoControllers => _videoControllers;
+  Map<String, VideoPlayerController> get videoControllers => _players;
   String? get error => _error;
 
   // ── Data setters ────────────────────────────────────────────────────
@@ -107,7 +91,7 @@ class PlaybackController extends ChangeNotifier {
     _selectedDate = date;
     _position = Duration.zero;
     _disposeAllPlayers();
-    _timeMap = [];
+    _currentSegment = null;
     notifyListeners();
   }
 
@@ -115,86 +99,25 @@ class PlaybackController extends ChangeNotifier {
     if (_listEquals(ids, _selectedCameraIds)) return;
     _selectedCameraIds = ids;
     _disposeAllPlayers();
-    _timeMap = [];
+    _currentSegment = null;
     notifyListeners();
   }
 
-  // ── Manifest time map ─────────────────────────────────────────────
+  // ── Position mapping ──────────────────────────────────────────────
 
-  /// Parse an HLS manifest to extract a time map from
-  /// #EXT-X-PROGRAM-DATE-TIME tags and #EXTINF durations.
-  static List<_DateTimeEntry> _parseManifest(String manifest) {
-    final entries = <_DateTimeEntry>[];
-    final lines = manifest.split('\n');
-    Duration cumulative = Duration.zero;
-    DateTime? pendingDateTime;
-
-    for (final line in lines) {
-      if (line.startsWith('#EXT-X-PROGRAM-DATE-TIME:')) {
-        final dateStr =
-            line.substring('#EXT-X-PROGRAM-DATE-TIME:'.length).trim();
-        pendingDateTime = DateTime.tryParse(dateStr);
-        if (pendingDateTime != null) {
-          entries.add(_DateTimeEntry(
-            playerOffset: cumulative,
-            wallClock: pendingDateTime,
-          ));
-        }
-      } else if (line.startsWith('#EXTINF:')) {
-        final durStr = line.substring('#EXTINF:'.length).split(',').first;
-        final durSec = double.tryParse(durStr) ?? 0;
-        cumulative +=
-            Duration(microseconds: (durSec * 1000000).round());
-      }
-    }
-    return entries;
-  }
-
-  /// Convert player position → wall-clock Duration (since midnight).
+  /// Convert player position to wall-clock. Simple: the file starts
+  /// at _currentSegment.startTime, player position is offset from there.
   Duration _playerToWallClock(Duration playerPos) {
-    if (_timeMap.isEmpty) return _position;
-
-    _DateTimeEntry? active;
-    for (final entry in _timeMap) {
-      if (entry.playerOffset <= playerPos) {
-        active = entry;
-      } else {
-        break;
-      }
-    }
-    if (active == null) return _position;
-
-    final offset = playerPos - active.playerOffset;
-    return active.wallClock.add(offset).difference(_dayStart);
-  }
-
-  /// Convert wall-clock Duration (since midnight) → player position.
-  Duration _wallClockToPlayer(Duration wallClock) {
-    if (_timeMap.isEmpty) return Duration.zero;
-
-    final targetTime = _dayStart.add(wallClock);
-
-    // Find the time-map entry whose wall-clock range contains the target.
-    // Walk backwards through entries to find the last one at or before target.
-    _DateTimeEntry? active;
-    for (final entry in _timeMap) {
-      if (!entry.wallClock.isAfter(targetTime)) {
-        active = entry;
-      } else {
-        break;
-      }
-    }
-    if (active == null) return Duration.zero;
-
-    final offset = targetTime.difference(active.wallClock);
-    return active.playerOffset + offset;
+    if (_currentSegment == null) return _position;
+    final wc = _currentSegment!.startTime.add(playerPos);
+    return wc.difference(_dayStart);
   }
 
   // ── Playback controls ──────────────────────────────────────────────
 
   Future<void> play() async {
     if (_players.isEmpty) {
-      await _openPlayers();
+      await _openSegmentAt(_position);
     }
     _isPlaying = true;
     for (final p in _players.values) {
@@ -230,18 +153,35 @@ class PlaybackController extends ChangeNotifier {
     _position = snapped;
     notifyListeners();
 
+    final wasPlaying = _isPlaying;
+
     try {
-      if (_players.isEmpty) {
-        await _openPlayers();
-      }
+      final targetTime = _dayStart.add(snapped);
 
-      final playerPos = _wallClockToPlayer(snapped);
-      debugPrint(
-          'SEEK: wallClock=$snapped → playerPos=$playerPos, '
-          'timeMap=${_timeMap.length} entries');
+      // Find the recording segment containing the target time.
+      final targetSeg = _findSegmentForTime(targetTime);
 
-      for (final p in _players.values) {
-        await p.seek(playerPos);
+      if (targetSeg != null &&
+          _currentSegment != null &&
+          targetSeg.id == _currentSegment!.id &&
+          _players.isNotEmpty) {
+        // Same segment — seek within the local file (instant).
+        final offset = targetTime.difference(targetSeg.startTime);
+        debugPrint('SEEK: in-place, offset=$offset in segment ${targetSeg.id}');
+        for (final p in _players.values) {
+          await p.seekTo(offset);
+        }
+      } else if (targetSeg != null) {
+        // Different segment — open the new file.
+        await _openSegmentAt(snapped);
+        if (wasPlaying) {
+          _isPlaying = true;
+          for (final p in _players.values) {
+            p.play();
+          }
+        }
+      } else {
+        _error = 'No recording at this time';
       }
     } catch (e) {
       debugPrint('Playback seek error: $e');
@@ -256,7 +196,7 @@ class PlaybackController extends ChangeNotifier {
   void setSpeed(double s) {
     _speed = s;
     for (final p in _players.values) {
-      p.setRate(s);
+      p.setPlaybackSpeed(s);
     }
     notifyListeners();
   }
@@ -303,127 +243,189 @@ class PlaybackController extends ChangeNotifier {
   DateTime get _dayStart => DateTime(
       _selectedDate.year, _selectedDate.month, _selectedDate.day);
 
-  String get _dateKey =>
-      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+  /// Find the recording segment (for the primary camera) that contains [time].
+  RecordingSegment? _findSegmentForTime(DateTime time) {
+    final primaryCam =
+        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
+    if (primaryCam == null) return null;
 
-  /// Open players with the HLS VOD playlist for the selected date.
-  ///
-  /// The server generates a manifest with byte-range addressed fMP4
-  /// fragments and #EXT-X-PROGRAM-DATE-TIME tags for absolute time.
-  /// The player handles seeking, buffering, and gap navigation natively.
-  Future<void> _openPlayers() async {
+    for (final seg in _segments) {
+      if (seg.cameraId == primaryCam &&
+          !time.isBefore(seg.startTime) &&
+          !time.isAfter(seg.endTime)) {
+        return seg;
+      }
+    }
+    return null;
+  }
+
+  /// Find the next segment at or after [time].
+  RecordingSegment? _findNextSegmentForTime(DateTime time) {
+    final primaryCam =
+        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
+    if (primaryCam == null) return null;
+
+    for (final seg in _segments) {
+      if (seg.cameraId == primaryCam &&
+          (seg.contains(time) || seg.startTime.isAfter(time))) {
+        return seg;
+      }
+    }
+    return null;
+  }
+
+  /// Build the URL for serving a recording file directly.
+  /// The server's /vod/segments endpoint serves the raw file with
+  /// HTTP Range support, making it fully seekable.
+  String _segmentFileUrl(RecordingSegment seg, String? token) {
+    final serverUrl = playbackService.serverUrl;
+    final uri = Uri.parse(serverUrl);
+
+    // Strip the recordings prefix from the file path.
+    var rel = seg.filePath ?? '';
+    if (rel.startsWith('./recordings/')) {
+      rel = rel.substring('./recordings/'.length);
+    } else if (rel.startsWith('recordings/')) {
+      rel = rel.substring('recordings/'.length);
+    }
+
+    final params = <String, String>{};
+    if (token != null && token.isNotEmpty) {
+      params['jwt'] = token;
+    }
+
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.port,
+      path: '/api/nvr/vod/segments/$rel',
+      queryParameters: params.isNotEmpty ? params : null,
+    ).toString();
+  }
+
+  void _onPositionUpdate() {
+    if (_disposed || _isSeeking) return;
+    final primary = _players.values.firstOrNull;
+    if (primary == null) return;
+
+    final now = DateTime.now();
+    if (now.isBefore(_nextPositionUpdate)) return;
+    _nextPositionUpdate = now.add(const Duration(milliseconds: 250));
+
+    final playerPos = primary.value.position;
+    final wc = _playerToWallClock(playerPos);
+
+    if ((_position - wc).inSeconds > 2) return;
+
+    _position = wc;
+    notifyListeners();
+
+    // Auto-advance to next segment when current one ends.
+    if (_isPlaying &&
+        _currentSegment != null &&
+        primary.value.duration > Duration.zero &&
+        playerPos >= primary.value.duration - const Duration(milliseconds: 500)) {
+      _advanceToNextSegment();
+    }
+  }
+
+  Future<void> _advanceToNextSegment() async {
+    if (_currentSegment == null) return;
+    final nextSeg = _findNextSegmentForTime(
+        _currentSegment!.endTime.add(const Duration(milliseconds: 1)));
+
+    if (nextSeg != null) {
+      final wallClock = nextSeg.startTime.difference(_dayStart);
+      _isPlaying = true;
+      await _openSegmentAt(wallClock);
+      for (final p in _players.values) {
+        p.play();
+      }
+      notifyListeners();
+    } else if (_continuousMode) {
+      final nextDay = DateTime(
+          _selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
+      setSelectedDate(nextDay);
+    } else {
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+
+  /// Open the recording segment that contains [wallClock].
+  /// Serves the raw fMP4 file via HTTP with Range support — fully seekable.
+  Future<void> _openSegmentAt(Duration wallClock) async {
     _disposeAllPlayers();
 
     final token = await getAccessToken();
     _error = null;
 
-    final primaryCam =
-        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
+    final targetTime = _dayStart.add(wallClock);
 
-    // Fetch the manifest as text to build the time map, then open
-    // the same URL with the player.
-    if (primaryCam != null) {
-      final manifestUrl = playbackService.playlistUrl(
-        cameraId: primaryCam,
-        date: _dateKey,
-        token: token,
-      );
+    // Find the segment containing the target, or the next one.
+    var seg = _findSegmentForTime(targetTime);
+    DateTime seekTarget = targetTime;
 
-      try {
-        final dio = Dio();
-        final response = await dio.get<String>(manifestUrl);
-        dio.close();
-        if (response.statusCode == 200 && response.data != null) {
-          _timeMap = _parseManifest(response.data!);
-          debugPrint(
-              'HLS manifest: ${_timeMap.length} date-time entries, '
-              '${response.data!.split('\n').length} lines');
-        }
-      } catch (e) {
-        debugPrint('Manifest fetch error: $e');
+    if (seg == null) {
+      seg = _findNextSegmentForTime(targetTime);
+      if (seg == null) {
+        _error = 'No recordings at this time';
+        notifyListeners();
+        return;
       }
+      seekTarget = seg.startTime;
+      _position = seekTarget.difference(_dayStart);
     }
 
-    // Open each camera's HLS stream.
-    await Future.wait(_selectedCameraIds.map((camId) async {
-      final url = playbackService.playlistUrl(
-        cameraId: camId,
-        date: _dateKey,
-        token: token,
-      );
+    _currentSegment = seg;
 
-      debugPrint('Opening HLS: $url');
+    if (seg.filePath == null || seg.filePath!.isEmpty) {
+      _error = 'Recording has no file path';
+      notifyListeners();
+      return;
+    }
 
+    final url = _segmentFileUrl(seg, token);
+    final offset = seekTarget.difference(seg.startTime);
+
+    debugPrint(
+        'Opening file: segment ${seg.id}, '
+        'start=${seg.startTime}, url=$url, seekOffset=$offset');
+
+    // Open for each selected camera. For now, all cameras use the
+    // primary camera's segment (multi-camera would need per-camera segments).
+    for (final camId in _selectedCameraIds) {
       try {
-        final player = Player();
-        player.setRate(_speed);
-        _players[camId] = player;
-        _videoControllers[camId] = VideoController(player);
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+        );
 
-        player.stream.error.listen((error) {
-          if (_disposed) return;
-          _error = error;
-          debugPrint('Player error: $error');
-          notifyListeners();
-        });
+        await controller.initialize();
+        controller.setPlaybackSpeed(_speed);
+        controller.addListener(_onPositionUpdate);
 
-        await player.open(Media(url), play: true);
-
-        // Wait for the HLS playlist to load.
-        if (player.state.duration == Duration.zero) {
-          await player.stream.duration
-              .firstWhere((d) => d > Duration.zero)
-              .timeout(const Duration(seconds: 15),
-                  onTimeout: () => Duration.zero);
+        // Seek to the target offset within the file.
+        if (offset > Duration.zero) {
+          await controller.seekTo(offset);
         }
 
-        player.pause();
+        _players[camId] = controller;
 
         debugPrint(
             'Player ready: camera=$camId, '
-            'duration=${player.state.duration}');
+            'duration=${controller.value.duration}, '
+            'seeked to $offset');
       } catch (e) {
         debugPrint('Failed to open player for camera $camId: $e');
         _players.remove(camId)?.dispose();
-        _videoControllers.remove(camId);
       }
-    }));
+    }
 
     if (_players.isEmpty) {
       _error = 'Failed to open any camera for playback';
       notifyListeners();
       return;
     }
-
-    _positionSub?.cancel();
-    _completedSub?.cancel();
-    final primary = _players.values.first;
-
-    _positionSub = primary.stream.position.listen((playerPos) {
-      if (_disposed || _isSeeking) return;
-
-      final now = DateTime.now();
-      if (now.isBefore(_nextPositionUpdate)) return;
-      _nextPositionUpdate = now.add(const Duration(milliseconds: 250));
-
-      final wc = _playerToWallClock(playerPos);
-      if ((_position - wc).inSeconds > 2) return;
-
-      _position = wc;
-      notifyListeners();
-    });
-
-    _completedSub = primary.stream.completed.listen((completed) {
-      if (_disposed || !completed || _isSeeking) return;
-      if (_continuousMode) {
-        final nextDay = DateTime(
-            _selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
-        setSelectedDate(nextDay);
-      } else {
-        _isPlaying = false;
-        notifyListeners();
-      }
-    });
 
     notifyListeners();
   }
@@ -564,15 +566,11 @@ class PlaybackController extends ChangeNotifier {
   // ── Cleanup ─────────────────────────────────────────────────────────
 
   void _disposeAllPlayers() {
-    _positionSub?.cancel();
-    _positionSub = null;
-    _completedSub?.cancel();
-    _completedSub = null;
     for (final p in _players.values) {
+      p.removeListener(_onPositionUpdate);
       p.dispose();
     }
     _players.clear();
-    _videoControllers.clear();
   }
 
   @override
@@ -581,4 +579,9 @@ class PlaybackController extends ChangeNotifier {
     _disposeAllPlayers();
     super.dispose();
   }
+}
+
+extension on RecordingSegment {
+  bool contains(DateTime time) =>
+      !time.isBefore(startTime) && !time.isAfter(endTime);
 }

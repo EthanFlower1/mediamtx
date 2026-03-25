@@ -8,6 +8,7 @@
 
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <flutter_webrtc/flutter_web_r_t_c_plugin.h>
+#include <fvp/fvp_plugin_c_api.h>
 #include <media_kit_libs_windows_video/media_kit_libs_windows_video_plugin_c_api.h>
 #include <media_kit_video/media_kit_video_plugin_c_api.h>
 #include <volume_controller/volume_controller_plugin_c_api.h>
@@ -17,6 +18,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterSecureStorageWindowsPlugin"));
   FlutterWebRTCPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FlutterWebRTCPlugin"));
+  FvpPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("FvpPluginCApi"));
   MediaKitLibsWindowsVideoPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("MediaKitLibsWindowsVideoPluginCApi"));
   MediaKitVideoPluginCApiRegisterWithRegistrar(

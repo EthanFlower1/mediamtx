@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../theme/nvr_colors.dart';
 
 class CameraPlayer extends StatelessWidget {
-  final VideoController videoController;
+  final VideoPlayerController videoController;
   final String cameraName;
 
   const CameraPlayer({
@@ -20,7 +20,18 @@ class CameraPlayer extends StatelessWidget {
       children: [
         ColoredBox(
           color: Colors.black,
-          child: Video(controller: videoController),
+          child: videoController.value.isInitialized
+              ? FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: videoController.value.size.width,
+                    height: videoController.value.size.height,
+                    child: VideoPlayer(videoController),
+                  ),
+                )
+              : const Center(
+                  child: CircularProgressIndicator(color: NvrColors.accent),
+                ),
         ),
         Positioned(
           top: 8,

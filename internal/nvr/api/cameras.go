@@ -35,6 +35,7 @@ type CameraHandler struct {
 	Scheduler     *scheduler.Scheduler  // may be nil
 	Audit         *AuditLogger
 	EncryptionKey []byte                // AES-256 key for encrypting ONVIF credentials at rest
+	AIRestarter   AIPipelineRestarter   // may be nil
 }
 
 // encryptPassword encrypts a plaintext password for storage. If no encryption
@@ -295,34 +296,44 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		return
 	}
 
-	oldPath := existing.MediaMTXPath
-	newPath := "nvr/" + sanitizePath(req.Name)
-
+	// Only update fields that are actually provided (non-zero) to avoid
+	// wiping out fields the client didn't send.
 	existing.Name = req.Name
-	existing.ONVIFEndpoint = req.ONVIFEndpoint
-	existing.ONVIFUsername = req.ONVIFUsername
-	existing.ONVIFPassword = h.encryptPassword(req.ONVIFPassword)
-	existing.ONVIFProfileToken = req.ONVIFProfileToken
-	existing.RTSPURL = req.RTSPURL
+	if req.ONVIFEndpoint != "" || existing.ONVIFEndpoint != "" {
+		existing.ONVIFEndpoint = req.ONVIFEndpoint
+	}
+	if req.ONVIFUsername != "" {
+		existing.ONVIFUsername = req.ONVIFUsername
+	}
+	if req.ONVIFPassword != "" {
+		existing.ONVIFPassword = h.encryptPassword(req.ONVIFPassword)
+	}
+	if req.ONVIFProfileToken != "" {
+		existing.ONVIFProfileToken = req.ONVIFProfileToken
+	}
+	if req.RTSPURL != "" {
+		existing.RTSPURL = req.RTSPURL
+	}
 	existing.PTZCapable = req.PTZCapable
-	existing.MediaMTXPath = newPath
-	existing.Tags = req.Tags
+	if req.Tags != "" || existing.Tags != "" {
+		existing.Tags = req.Tags
+	}
+
+	// The mediamtx_path is immutable after creation — renaming a camera must
+	// not change the stream path, as that would break live connections and
+	// recording associations.
+	stablePath := existing.MediaMTXPath
 
 	if err := h.DB.UpdateCamera(existing); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to update camera", err)
 		return
 	}
 
-	// Remove old path if it changed.
-	if oldPath != newPath && oldPath != "" {
-		_ = h.YAMLWriter.RemovePath(oldPath)
-	}
-
-	// Write the updated path to YAML.
+	// Update the YAML source URL if the RTSP URL changed.
 	yamlConfig := map[string]interface{}{
 		"source": existing.RTSPURL,
 	}
-	if err := h.YAMLWriter.AddPath(newPath, yamlConfig); err != nil {
+	if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to write config", err)
 		return
 	}
@@ -1282,6 +1293,43 @@ func (h *CameraHandler) UpdateAIConfig(c *gin.Context) {
 	cam, err := h.DB.GetCamera(id)
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to retrieve camera after AI config update", err)
+		return
+	}
+
+	if h.AIRestarter != nil {
+		h.AIRestarter.RestartAIPipeline(id)
+	}
+
+	c.JSON(http.StatusOK, cam)
+}
+
+type audioTranscodeRequest struct {
+	AudioTranscode bool `json:"audio_transcode"`
+}
+
+// UpdateAudioTranscode handles PUT /cameras/:id/audio-transcode — toggles
+// the audio transcode (live re-encoding) flag for a camera.
+func (h *CameraHandler) UpdateAudioTranscode(c *gin.Context) {
+	id := c.Param("id")
+
+	var req audioTranscodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if err := h.DB.UpdateCameraAudioTranscode(id, req.AudioTranscode); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to update audio transcode setting", err)
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera after update", err)
 		return
 	}
 

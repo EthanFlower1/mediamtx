@@ -95,6 +95,7 @@ class WebSocketService {
     _subscription = null;
     _channel = null;
 
+    _reconnectTimer?.cancel();
     _reconnectTimer = Timer(Duration(seconds: _reconnectDelay), () {
       if (!_disposed) connect();
     });

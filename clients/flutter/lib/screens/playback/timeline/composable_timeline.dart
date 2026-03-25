@@ -38,9 +38,42 @@ class _ComposableTimelineState extends State<ComposableTimeline> {
   double _lastScale = 1.0;
   bool _draggingPlayhead = false;
   double? _dragX;
+  bool _didAutoZoom = false;
 
   DateTime get _dayStart => DateTime(
       widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+
+  @override
+  void didUpdateWidget(ComposableTimeline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset auto-zoom when the date changes.
+    if (widget.selectedDate != oldWidget.selectedDate) {
+      _didAutoZoom = false;
+    }
+    // Auto-zoom to first recording when segments first arrive.
+    if (!_didAutoZoom && widget.segments.isNotEmpty) {
+      _didAutoZoom = true;
+      final firstStart = widget.segments.first.startTime.difference(_dayStart);
+      final lastEnd = widget.segments.last.endTime.difference(_dayStart);
+      // Show from 5 minutes before first segment to 5 minutes after last,
+      // with a minimum window of 1 hour.
+      const pad = Duration(minutes: 5);
+      const minWindow = Duration(hours: 1);
+      var start = firstStart - pad;
+      var end = lastEnd + pad;
+      if (end - start < minWindow) {
+        final center = start + (end - start) ~/ 2;
+        start = center - minWindow ~/ 2;
+        end = center + minWindow ~/ 2;
+      }
+      if (start < Duration.zero) start = Duration.zero;
+      if (end > const Duration(hours: 24)) end = const Duration(hours: 24);
+      setState(() {
+        _visibleStart = start;
+        _visibleEnd = end;
+      });
+    }
+  }
 
   void _handleZoom(double scale) {
     setState(() {

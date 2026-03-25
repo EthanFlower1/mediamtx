@@ -211,4 +211,8 @@ CREATE INDEX idx_detections_event ON detections(motion_event_id);
 CREATE INDEX idx_detections_class ON detections(class);
 `,
 	},
+	{
+		version: 15,
+		sql:     `ALTER TABLE cameras ADD COLUMN audio_transcode INTEGER NOT NULL DEFAULT 0;`,
+	},
 }

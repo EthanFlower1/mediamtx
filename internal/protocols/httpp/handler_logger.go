@@ -1,8 +1,10 @@
 package httpp
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 
@@ -30,6 +32,10 @@ func (w *loggerWriter) Write(b []byte) (int, error) {
 func (w *loggerWriter) WriteHeader(statusCode int) {
 	w.status = statusCode
 	w.w.WriteHeader(statusCode)
+}
+
+func (w *loggerWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.w.(http.Hijacker).Hijack()
 }
 
 func (w *loggerWriter) dump() string {

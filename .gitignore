@@ -1,3 +1,4 @@
+# Build artifacts
 /tmp
 /binaries
 /coverage*.txt
@@ -5,8 +6,43 @@
 /internal/core/VERSION
 /internal/servers/hls/hls.min.js
 /internal/staticsources/rpicamera/mtxrpicam_*/
-/.worktrees
+mediamtx
+
+# NVR UI
 internal/nvr/ui/dist/*
 !internal/nvr/ui/dist/.gitkeep
 ui/node_modules/
+
+# NVR data (recordings, thumbnails, database, AI models)
 recordings/
+thumbnails/
+*.db
+models/*.bin
+models/*.onnx
+
+# Claude Code / Superpowers
+.claude/
+.superpowers/
+/.worktrees
+
+# Flutter
+clients/flutter/.dart_tool/
+clients/flutter/build/
+clients/flutter/.packages
+clients/flutter/.flutter-plugins
+clients/flutter/.flutter-plugins-dependencies
+
+# macOS / iOS build artifacts
+clients/flutter/macos/Pods/
+clients/flutter/ios/Pods/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+**/DerivedData/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

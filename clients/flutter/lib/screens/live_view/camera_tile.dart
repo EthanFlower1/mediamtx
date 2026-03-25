@@ -35,9 +35,26 @@ class _CameraTileState extends State<CameraTile> {
     _initConnection();
   }
 
+  @override
+  void didUpdateWidget(CameraTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldOnline = oldWidget.camera.status != 'disconnected';
+    final newOnline = widget.camera.status != 'disconnected';
+    final pathChanged =
+        oldWidget.camera.mediamtxPath != widget.camera.mediamtxPath;
+    final serverChanged = oldWidget.serverUrl != widget.serverUrl;
+
+    // Reconnect when camera comes online, path changes, or server changes.
+    if ((!oldOnline && newOnline) || pathChanged || serverChanged) {
+      _disposeConnection();
+      _connState = WhepConnectionState.connecting;
+      _initConnection();
+    }
+  }
+
   void _initConnection() {
     final camera = widget.camera;
-    final isOnline = camera.status == 'connected' || camera.status == 'online';
+    final isOnline = camera.status != 'disconnected';
     if (!isOnline || camera.mediamtxPath.isEmpty) return;
 
     _connection = WhepConnection(
@@ -56,17 +73,23 @@ class _CameraTileState extends State<CameraTile> {
     await _connection?.retry();
   }
 
+  void _disposeConnection() {
+    _stateSub?.cancel();
+    _stateSub = null;
+    _connection?.dispose();
+    _connection = null;
+  }
+
   @override
   void dispose() {
-    _stateSub?.cancel();
-    _connection?.dispose();
+    _disposeConnection();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final camera = widget.camera;
-    final isOnline = camera.status == 'connected' || camera.status == 'online';
+    final isOnline = camera.status != 'disconnected';
 
     return GestureDetector(
       onTap: widget.onTap,

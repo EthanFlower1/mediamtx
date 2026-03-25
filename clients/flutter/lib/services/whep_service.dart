@@ -113,8 +113,10 @@ class WhepConnection {
         throw Exception('Failed to get local description after ICE gathering');
       }
 
-      // POST to WHEP endpoint
-      final whepUrl = '$serverUrl:8889/$mediamtxPath/whep';
+      // POST to WHEP endpoint — parse server URL to replace the port
+      // since serverUrl already contains the NVR API port.
+      final serverUri = Uri.parse(serverUrl);
+      final whepUrl = '${serverUri.scheme}://${serverUri.host}:8889/$mediamtxPath/whep';
       final dio = Dio();
       final response = await dio.post<String>(
         whepUrl,

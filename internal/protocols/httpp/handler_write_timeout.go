@@ -1,6 +1,8 @@
 package httpp
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"time"
 )
@@ -23,6 +25,10 @@ func (w *writeTimeoutWriter) Write(p []byte) (int, error) {
 func (w *writeTimeoutWriter) WriteHeader(statusCode int) {
 	w.rc.SetWriteDeadline(time.Now().Add(w.timeout)) //nolint:errcheck
 	w.w.WriteHeader(statusCode)
+}
+
+func (w *writeTimeoutWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return w.w.(http.Hijacker).Hijack()
 }
 
 // apply write deadline before every Write() call.

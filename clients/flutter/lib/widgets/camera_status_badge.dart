@@ -6,11 +6,17 @@ class CameraStatusBadge extends StatelessWidget {
 
   const CameraStatusBadge({super.key, required this.status});
 
-  bool get _isOnline => status == 'connected' || status == 'online';
+  Color get _color {
+    if (status == 'online') return NvrColors.success;
+    if (status == 'unknown') return NvrColors.warning;
+    return NvrColors.danger;
+  }
 
-  Color get _color => _isOnline ? NvrColors.success : NvrColors.danger;
-
-  String get _label => _isOnline ? 'Online' : 'Offline';
+  String get _label {
+    if (status == 'online') return 'Online';
+    if (status == 'unknown') return 'Unknown';
+    return 'Offline';
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -29,6 +29,9 @@ void _navigateToIndex(BuildContext context, int index) {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
+  // Watch auth so the provider is recreated (and redirect re-evaluated)
+  // whenever auth state changes.
+  ref.watch(authProvider);
   return GoRouter(
     initialLocation: '/live',
     redirect: (context, state) {
@@ -67,8 +70,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'fullscreen',
-                builder: (_, state) {
-                  final camera = state.extra as Camera;
+                builder: (context, state) {
+                  final camera = state.extra as Camera?;
+                  if (camera == null) {
+                    return const Scaffold(
+                      body: Center(child: Text('Camera not found')),
+                    );
+                  }
                   return FullscreenView(camera: camera);
                 },
               ),

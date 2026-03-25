@@ -60,6 +60,7 @@ class AnalyticsOverlay extends ConsumerStatefulWidget {
 class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
   Timer? _pollTimer;
   List<DetectionBox> _polledDetections = [];
+  bool _isPolling = false;
 
   @override
   void initState() {
@@ -68,8 +69,10 @@ class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
   }
 
   Future<void> _pollDetections() async {
+    if (_isPolling) return; // skip if previous request still in-flight
     final api = ref.read(apiClientProvider);
     if (api == null) return;
+    _isPolling = true;
     try {
       final res = await api.get<dynamic>('/cameras/${widget.cameraId}/detections/latest');
       final raw = res.data;
@@ -82,6 +85,8 @@ class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
       }
     } catch (_) {
       // Silently ignore poll errors — overlay degrades gracefully.
+    } finally {
+      _isPolling = false;
     }
   }
 

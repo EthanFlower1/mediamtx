@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
@@ -8,6 +7,15 @@ import '../../models/bookmark.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
+/// Parsed from the HLS manifest's #EXT-X-PROGRAM-DATE-TIME tags.
+/// Maps a player offset to an absolute wall-clock time so we can
+/// display the correct time on the timeline.
+class _DateTimeEntry {
+  final Duration playerOffset;
+  final DateTime wallClock;
+  const _DateTimeEntry({required this.playerOffset, required this.wallClock});
+}
+
 class PlaybackController extends ChangeNotifier {
   final PlaybackService playbackService;
   final Future<String?> Function() getAccessToken;
@@ -15,7 +23,7 @@ class PlaybackController extends ChangeNotifier {
   bool _disposed = false;
 
   // State
-  Duration _position = Duration.zero; // wall-clock time since midnight
+  Duration _position = Duration.zero;
   bool _isPlaying = false;
   bool _continuousMode = true;
   double _speed = 1.0;
@@ -28,7 +36,7 @@ class PlaybackController extends ChangeNotifier {
   List<Bookmark> _bookmarks = [];
   String? _error;
 
-  // Players — one per selected camera
+  // Players
   final Map<String, Player> _players = {};
   final Map<String, VideoController> _videoControllers = {};
   StreamSubscription<Duration>? _positionSub;
@@ -37,20 +45,10 @@ class PlaybackController extends ChangeNotifier {
   // Camera ID → MediaMTX path
   final Map<String, String> _cameraPaths = {};
 
-  // Timespans from the MediaMTX /list endpoint (primary camera).
-  List<PlaybackTimespan> _timespans = [];
-
-  // The index into _timespans for the currently playing timespan.
-  int _currentTimespanIndex = -1;
-
-  // Downloaded MP4 files for local seekable playback.
-  // Key: camera ID, value: temp file path.
-  final Map<String, String> _downloadedFiles = {};
-
-  // The wall-clock start of the downloaded timespan (timespan.start).
-  // player position 0 = this time. Seeking within the timespan is just
-  // player.seek(targetTime - _timespanStart).
-  DateTime _timespanStart = DateTime(2000);
+  // Time map parsed from the HLS manifest. The server embeds
+  // #EXT-X-PROGRAM-DATE-TIME at each recording boundary, so we know
+  // the absolute wall-clock time for each section of the player timeline.
+  List<_DateTimeEntry> _timeMap = [];
 
   static const _maxPosition = Duration(hours: 24);
 
@@ -109,8 +107,7 @@ class PlaybackController extends ChangeNotifier {
     _selectedDate = date;
     _position = Duration.zero;
     _disposeAllPlayers();
-    _timespans = [];
-    _currentTimespanIndex = -1;
+    _timeMap = [];
     notifyListeners();
   }
 
@@ -118,62 +115,86 @@ class PlaybackController extends ChangeNotifier {
     if (_listEquals(ids, _selectedCameraIds)) return;
     _selectedCameraIds = ids;
     _disposeAllPlayers();
-    _timespans = [];
-    _currentTimespanIndex = -1;
+    _timeMap = [];
     notifyListeners();
   }
 
-  // ── Timespan helpers ──────────────────────────────────────────────
+  // ── Manifest time map ─────────────────────────────────────────────
 
-  /// Find the timespan index that contains [time], or -1 if in a gap.
-  int _findTimespanIndex(DateTime time) {
-    for (int i = 0; i < _timespans.length; i++) {
-      if (_timespans[i].contains(time)) return i;
-    }
-    return -1;
-  }
+  /// Parse an HLS manifest to extract a time map from
+  /// #EXT-X-PROGRAM-DATE-TIME tags and #EXTINF durations.
+  static List<_DateTimeEntry> _parseManifest(String manifest) {
+    final entries = <_DateTimeEntry>[];
+    final lines = manifest.split('\n');
+    Duration cumulative = Duration.zero;
+    DateTime? pendingDateTime;
 
-  /// Find the next timespan at or after [time], or -1 if none.
-  int _findNextTimespanIndex(DateTime time) {
-    for (int i = 0; i < _timespans.length; i++) {
-      if (_timespans[i].contains(time) || _timespans[i].start.isAfter(time)) {
-        return i;
+    for (final line in lines) {
+      if (line.startsWith('#EXT-X-PROGRAM-DATE-TIME:')) {
+        final dateStr =
+            line.substring('#EXT-X-PROGRAM-DATE-TIME:'.length).trim();
+        pendingDateTime = DateTime.tryParse(dateStr);
+        if (pendingDateTime != null) {
+          entries.add(_DateTimeEntry(
+            playerOffset: cumulative,
+            wallClock: pendingDateTime,
+          ));
+        }
+      } else if (line.startsWith('#EXTINF:')) {
+        final durStr = line.substring('#EXTINF:'.length).split(',').first;
+        final durSec = double.tryParse(durStr) ?? 0;
+        cumulative +=
+            Duration(microseconds: (durSec * 1000000).round());
       }
     }
-    return -1;
+    return entries;
   }
 
-  /// Fetch timespans from the /list endpoint for the primary camera.
-  Future<void> _loadTimespans() async {
-    final primaryCam =
-        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
-    final cameraPath = primaryCam != null ? _cameraPaths[primaryCam] : null;
-    if (cameraPath == null) return;
-
-    final dayStart = _dayStart;
-    final dayEnd = dayStart.add(const Duration(hours: 24));
-
-    _timespans = await playbackService.listTimespans(
-      cameraPath: cameraPath,
-      start: dayStart,
-      end: dayEnd,
-    );
-
-    debugPrint('Loaded ${_timespans.length} timespans from /list');
-  }
-
-  /// Convert player position to wall-clock time.
-  /// Player position 0 = _timespanStart (we download the full timespan).
+  /// Convert player position → wall-clock Duration (since midnight).
   Duration _playerToWallClock(Duration playerPos) {
-    final wallClock = _timespanStart.add(playerPos);
-    return wallClock.difference(_dayStart);
+    if (_timeMap.isEmpty) return _position;
+
+    _DateTimeEntry? active;
+    for (final entry in _timeMap) {
+      if (entry.playerOffset <= playerPos) {
+        active = entry;
+      } else {
+        break;
+      }
+    }
+    if (active == null) return _position;
+
+    final offset = playerPos - active.playerOffset;
+    return active.wallClock.add(offset).difference(_dayStart);
+  }
+
+  /// Convert wall-clock Duration (since midnight) → player position.
+  Duration _wallClockToPlayer(Duration wallClock) {
+    if (_timeMap.isEmpty) return Duration.zero;
+
+    final targetTime = _dayStart.add(wallClock);
+
+    // Find the time-map entry whose wall-clock range contains the target.
+    // Walk backwards through entries to find the last one at or before target.
+    _DateTimeEntry? active;
+    for (final entry in _timeMap) {
+      if (!entry.wallClock.isAfter(targetTime)) {
+        active = entry;
+      } else {
+        break;
+      }
+    }
+    if (active == null) return Duration.zero;
+
+    final offset = targetTime.difference(active.wallClock);
+    return active.playerOffset + offset;
   }
 
   // ── Playback controls ──────────────────────────────────────────────
 
   Future<void> play() async {
     if (_players.isEmpty) {
-      await _openPlayersAt(_position);
+      await _openPlayers();
     }
     _isPlaying = true;
     for (final p in _players.values) {
@@ -209,33 +230,18 @@ class PlaybackController extends ChangeNotifier {
     _position = snapped;
     notifyListeners();
 
-    final wasPlaying = _isPlaying;
-
     try {
-      final targetTime = _dayStart.add(snapped);
-      final tsIndex = _findTimespanIndex(targetTime);
+      if (_players.isEmpty) {
+        await _openPlayers();
+      }
 
-      // If the target is in the same timespan we already downloaded,
-      // seek within the local file — instant, no network.
-      if (tsIndex >= 0 &&
-          tsIndex == _currentTimespanIndex &&
-          _players.isNotEmpty) {
-        final offset = targetTime.difference(_timespanStart);
-        debugPrint('SEEK: in-place local, offset=$offset');
+      final playerPos = _wallClockToPlayer(snapped);
+      debugPrint(
+          'SEEK: wallClock=$snapped → playerPos=$playerPos, '
+          'timeMap=${_timeMap.length} entries');
 
-        for (final p in _players.values) {
-          await p.seek(offset);
-        }
-      } else {
-        // Different timespan — download and open.
-        await _openPlayersAt(snapped);
-
-        if (wasPlaying) {
-          _isPlaying = true;
-          for (final p in _players.values) {
-            p.play();
-          }
-        }
+      for (final p in _players.values) {
+        await p.seek(playerPos);
       }
     } catch (e) {
       debugPrint('Playback seek error: $e');
@@ -297,81 +303,58 @@ class PlaybackController extends ChangeNotifier {
   DateTime get _dayStart => DateTime(
       _selectedDate.year, _selectedDate.month, _selectedDate.day);
 
-  /// Open (or re-open) players starting at [wallClock] (since midnight).
+  String get _dateKey =>
+      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+
+  /// Open players with the HLS VOD playlist for the selected date.
   ///
-  /// Downloads the full timespan as an MP4 to a local temp file, then
-  /// opens it with the player. Local files are fully seekable — subsequent
-  /// seeks within the same timespan are instant with player.seek().
-  Future<void> _openPlayersAt(Duration wallClock) async {
+  /// The server generates a manifest with byte-range addressed fMP4
+  /// fragments and #EXT-X-PROGRAM-DATE-TIME tags for absolute time.
+  /// The player handles seeking, buffering, and gap navigation natively.
+  Future<void> _openPlayers() async {
     _disposeAllPlayers();
 
     final token = await getAccessToken();
     _error = null;
 
-    // Load timespans from /list if we haven't yet.
-    if (_timespans.isEmpty) {
-      await _loadTimespans();
-    }
+    final primaryCam =
+        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
 
-    final targetTime = _dayStart.add(wallClock);
-
-    // Find the timespan containing the target, or the next one after it.
-    var tsIndex = _findTimespanIndex(targetTime);
-    DateTime streamStart;
-
-    if (tsIndex >= 0) {
-      streamStart = targetTime;
-    } else {
-      tsIndex = _findNextTimespanIndex(targetTime);
-      if (tsIndex < 0) {
-        _error = 'No recordings at this time';
-        notifyListeners();
-        return;
-      }
-      streamStart = _timespans[tsIndex].start;
-      _position = streamStart.difference(_dayStart);
-    }
-
-    _currentTimespanIndex = tsIndex;
-
-    final ts = _timespans[tsIndex];
-    _timespanStart = ts.start;
-
-    // Download the FULL timespan (from its start, not the seek target)
-    // so that seeking backward within the timespan also works.
-    final durationSecs = ts.durationSecs.ceil();
-
-    debugPrint(
-        'Downloading: timespan $tsIndex/${_timespans.length}, '
-        'tsStart=${ts.start}, duration=${durationSecs}s');
-
-    final tempDir = Directory.systemTemp;
-
-    await Future.wait(_selectedCameraIds.map((camId) async {
-      // Use the pre-built URL from /list — guaranteed to match what
-      // MediaMTX will serve. Just append JWT if needed.
-      var url = ts.url;
-      if (token != null && token.isNotEmpty) {
-        final sep = url.contains('?') ? '&' : '?';
-        url = '$url${sep}jwt=$token';
-      }
-      // Add format=mp4 for a seekable container with moov index.
-      if (!url.contains('format=')) {
-        url = '$url&format=mp4';
-      }
-
-      final filePath =
-          '${tempDir.path}/playback_${camId}_$tsIndex.mp4';
-
-      debugPrint('Downloading: $url → $filePath');
+    // Fetch the manifest as text to build the time map, then open
+    // the same URL with the player.
+    if (primaryCam != null) {
+      final manifestUrl = playbackService.playlistUrl(
+        cameraId: primaryCam,
+        date: _dateKey,
+        token: token,
+      );
 
       try {
         final dio = Dio();
-        await dio.download(url, filePath);
+        final response = await dio.get<String>(manifestUrl);
         dio.close();
+        if (response.statusCode == 200 && response.data != null) {
+          _timeMap = _parseManifest(response.data!);
+          debugPrint(
+              'HLS manifest: ${_timeMap.length} date-time entries, '
+              '${response.data!.split('\n').length} lines');
+        }
+      } catch (e) {
+        debugPrint('Manifest fetch error: $e');
+      }
+    }
 
-        _downloadedFiles[camId] = filePath;
+    // Open each camera's HLS stream.
+    await Future.wait(_selectedCameraIds.map((camId) async {
+      final url = playbackService.playlistUrl(
+        cameraId: camId,
+        date: _dateKey,
+        token: token,
+      );
 
+      debugPrint('Opening HLS: $url');
+
+      try {
         final player = Player();
         player.setRate(_speed);
         _players[camId] = player;
@@ -380,30 +363,25 @@ class PlaybackController extends ChangeNotifier {
         player.stream.error.listen((error) {
           if (_disposed) return;
           _error = error;
-          debugPrint('Playback player error: $error');
+          debugPrint('Player error: $error');
           notifyListeners();
         });
 
-        // Open the local file — fully seekable.
-        await player.open(Media(filePath), play: false);
+        await player.open(Media(url), play: true);
 
+        // Wait for the HLS playlist to load.
         if (player.state.duration == Duration.zero) {
           await player.stream.duration
               .firstWhere((d) => d > Duration.zero)
-              .timeout(const Duration(seconds: 10),
+              .timeout(const Duration(seconds: 15),
                   onTimeout: () => Duration.zero);
         }
 
-        // Seek to the target offset within the timespan.
-        final initialOffset = streamStart.difference(ts.start);
-        if (initialOffset > Duration.zero) {
-          await player.seek(initialOffset);
-        }
+        player.pause();
 
         debugPrint(
             'Player ready: camera=$camId, '
-            'duration=${player.state.duration}, '
-            'seeked to $initialOffset');
+            'duration=${player.state.duration}');
       } catch (e) {
         debugPrint('Failed to open player for camera $camId: $e');
         _players.remove(camId)?.dispose();
@@ -429,7 +407,6 @@ class PlaybackController extends ChangeNotifier {
       _nextPositionUpdate = now.add(const Duration(milliseconds: 250));
 
       final wc = _playerToWallClock(playerPos);
-
       if ((_position - wc).inSeconds > 2) return;
 
       _position = wc;
@@ -438,15 +415,7 @@ class PlaybackController extends ChangeNotifier {
 
     _completedSub = primary.stream.completed.listen((completed) {
       if (_disposed || !completed || _isSeeking) return;
-
-      // Current timespan ended. If there's a next one, advance to it.
-      final nextIndex = _currentTimespanIndex + 1;
-      if (nextIndex < _timespans.length) {
-        final nextStart =
-            _timespans[nextIndex].start.difference(_dayStart);
-        _isPlaying = true;
-        seek(nextStart);
-      } else if (_continuousMode) {
+      if (_continuousMode) {
         final nextDay = DateTime(
             _selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
         setSelectedDate(nextDay);
@@ -604,14 +573,6 @@ class PlaybackController extends ChangeNotifier {
     }
     _players.clear();
     _videoControllers.clear();
-
-    // Clean up temp files.
-    for (final path in _downloadedFiles.values) {
-      try {
-        File(path).deleteSync();
-      } catch (_) {}
-    }
-    _downloadedFiles.clear();
   }
 
   @override

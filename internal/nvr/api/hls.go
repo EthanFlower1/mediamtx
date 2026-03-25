@@ -518,51 +518,90 @@ func ScanFragments(filePath string) (initSize int64, fragments []FragmentInfo, e
 	return initSize, fragments, nil
 }
 
-// readTimescale reads the timescale from the mvhd box inside moov.
+// readTimescale reads the video track's timescale from the mdhd box
+// inside moov → trak → mdia → mdhd. This is the timescale used for
+// fragment sample durations in trun/tfhd, NOT the movie timescale
+// from mvhd (which can differ).
 func readTimescale(f io.ReadSeeker, moovStart, moovSize int64) (uint32, error) {
-	pos := moovStart + 8 // skip moov container header to scan children
+	// Scan moov children for the first trak box.
+	pos := moovStart + 8
 	end := moovStart + moovSize
 	for pos < end {
 		if _, err := f.Seek(pos, io.SeekStart); err != nil {
 			return 0, err
 		}
 		boxSize, boxType, err := readBoxHeader(f)
-		if err != nil {
-			return 0, err
-		}
-		if boxType == "mvhd" {
-			// mvhd: version(1) + flags(3) + creation(4/8) + modification(4/8) + timescale(4)
-			var ver [1]byte
-			if _, err := io.ReadFull(f, ver[:]); err != nil {
-				return 0, err
-			}
-			// Skip flags (3 bytes)
-			if _, err := f.Seek(3, io.SeekCurrent); err != nil {
-				return 0, err
-			}
-			if ver[0] == 0 {
-				// Skip creation_time(4) + modification_time(4)
-				if _, err := f.Seek(8, io.SeekCurrent); err != nil {
-					return 0, err
-				}
-			} else {
-				// Skip creation_time(8) + modification_time(8)
-				if _, err := f.Seek(16, io.SeekCurrent); err != nil {
-					return 0, err
-				}
-			}
-			var ts [4]byte
-			if _, err := io.ReadFull(f, ts[:]); err != nil {
-				return 0, err
-			}
-			return binary.BigEndian.Uint32(ts[:]), nil
-		}
-		if boxSize == 0 {
+		if err != nil || boxSize == 0 {
 			break
+		}
+		if boxType == "trak" {
+			// Found a track — look for mdia → mdhd inside it.
+			ts, err := readMdhdTimescale(f, pos, boxSize)
+			if err == nil {
+				return ts, nil
+			}
+			// Not this track (might be audio), try next trak.
 		}
 		pos += boxSize
 	}
-	return 0, fmt.Errorf("mvhd not found in moov")
+	return 0, fmt.Errorf("mdhd not found in moov")
+}
+
+// readMdhdTimescale reads the timescale from the mdhd box inside
+// a trak box (trak → mdia → mdhd).
+func readMdhdTimescale(f io.ReadSeeker, trakStart, trakSize int64) (uint32, error) {
+	pos := trakStart + 8 // skip trak header
+	end := trakStart + trakSize
+	for pos < end {
+		if _, err := f.Seek(pos, io.SeekStart); err != nil {
+			return 0, err
+		}
+		boxSize, boxType, err := readBoxHeader(f)
+		if err != nil || boxSize == 0 {
+			break
+		}
+		if boxType == "mdia" {
+			// Scan mdia children for mdhd.
+			mPos := pos + 8
+			mEnd := pos + boxSize
+			for mPos < mEnd {
+				if _, err := f.Seek(mPos, io.SeekStart); err != nil {
+					return 0, err
+				}
+				mBoxSize, mBoxType, err := readBoxHeader(f)
+				if err != nil || mBoxSize == 0 {
+					break
+				}
+				if mBoxType == "mdhd" {
+					// mdhd: version(1) + flags(3) + creation + modification + timescale(4)
+					var ver [1]byte
+					if _, err := io.ReadFull(f, ver[:]); err != nil {
+						return 0, err
+					}
+					if _, err := f.Seek(3, io.SeekCurrent); err != nil {
+						return 0, err
+					}
+					if ver[0] == 0 {
+						if _, err := f.Seek(8, io.SeekCurrent); err != nil {
+							return 0, err
+						}
+					} else {
+						if _, err := f.Seek(16, io.SeekCurrent); err != nil {
+							return 0, err
+						}
+					}
+					var ts [4]byte
+					if _, err := io.ReadFull(f, ts[:]); err != nil {
+						return 0, err
+					}
+					return binary.BigEndian.Uint32(ts[:]), nil
+				}
+				mPos += mBoxSize
+			}
+		}
+		pos += boxSize
+	}
+	return 0, fmt.Errorf("mdhd not found in trak")
 }
 
 // readFragmentDuration reads the total sample duration from a moof box.

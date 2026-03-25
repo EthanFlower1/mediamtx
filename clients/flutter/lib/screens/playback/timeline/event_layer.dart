@@ -48,14 +48,13 @@ class EventLayer extends CustomPainter {
         if (x2 < -10) continue;
 
         final barPaint = Paint()..color = color.withValues(alpha: 0.6);
+        final left = x1.clamp(0.0, viewport.widthPx.toDouble());
+        final right = x2.clamp(0.0, viewport.widthPx.toDouble());
+        // Skip if bar would be invisible (both clamped to same edge).
+        if (right - left < 2) continue;
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTRB(
-              x1.clamp(0, viewport.widthPx).toDouble(),
-              y - 4,
-              x2.clamp(0, viewport.widthPx).clamp(x1 + 2, viewport.widthPx).toDouble(),
-              y + 4,
-            ),
+            Rect.fromLTRB(left, y - 4, right, y + 4),
             const Radius.circular(2),
           ),
           barPaint,

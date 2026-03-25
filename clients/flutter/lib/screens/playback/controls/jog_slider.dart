@@ -1,61 +1,30 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../theme/nvr_colors.dart';
 
+/// A jog slider that seeks on release. Dragging left/right accumulates a
+/// time delta (up to ±60 seconds). On release the slider springs back to
+/// center and fires onSeek with the absolute target position.
 class JogSlider extends StatefulWidget {
-  final ValueChanged<double> onSpeedChange;
-  final VoidCallback onRelease;
+  final ValueChanged<Duration> onSeek;
+  final Duration currentPosition;
 
   const JogSlider({
     super.key,
-    required this.onSpeedChange,
-    required this.onRelease,
+    required this.onSeek,
+    required this.currentPosition,
   });
 
   @override
   State<JogSlider> createState() => _JogSliderState();
 }
 
-class _JogSliderState extends State<JogSlider>
-    with SingleTickerProviderStateMixin {
+class _JogSliderState extends State<JogSlider> {
   double _value = 0.0;
-  double _valueAtRelease = 0.0;
-  late final AnimationController _springController;
-  Timer? _jogTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    _springController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _springController.addListener(() {
-      setState(() {
-        _value = _valueAtRelease * (1 - _springController.value);
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _jogTimer?.cancel();
-    _springController.dispose();
-    super.dispose();
-  }
-
-  void _startJog() {
-    _jogTimer?.cancel();
-    _jogTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_value.abs() > 0.05) {
-        widget.onSpeedChange(_value);
-      }
-    });
-  }
-
-  void _stopJog() {
-    _jogTimer?.cancel();
-    _jogTimer = null;
+  String get _label {
+    if (_value == 0) return '0s';
+    final secs = (_value * 60).round();
+    return '${secs > 0 ? '+' : ''}${secs}s';
   }
 
   @override
@@ -64,44 +33,34 @@ class _JogSliderState extends State<JogSlider>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          _value.abs() < 0.05
-              ? '0x'
-              : '${_value > 0 ? '+' : ''}${_value.toStringAsFixed(1)}x',
-          style: const TextStyle(
-            color: NvrColors.textSecondary,
+          _label,
+          style: TextStyle(
+            color: _value == 0 ? NvrColors.textMuted : NvrColors.accent,
             fontSize: 11,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 2),
-        SizedBox(
-          height: 32,
-          child: SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              activeTrackColor: NvrColors.accent,
-              inactiveTrackColor: NvrColors.bgTertiary,
-              thumbColor: NvrColors.accent,
-              overlayColor: NvrColors.accent.withValues(alpha: 0.2),
-            ),
-            child: Slider(
-              value: _value,
-              min: -2.0,
-              max: 2.0,
-              onChangeStart: (_) {
-                _springController.reset();
-                _startJog();
-              },
-              onChanged: (v) {
-                setState(() => _value = v);
-              },
-              onChangeEnd: (_) {
-                _valueAtRelease = _value;
-                _stopJog();
-                widget.onRelease();
-                _springController.forward(from: 0);
-              },
-            ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: NvrColors.accent,
+            inactiveTrackColor: NvrColors.bgTertiary,
+            thumbColor: NvrColors.accent,
+            overlayColor: NvrColors.accent.withValues(alpha: 0.12),
+            trackHeight: 3,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+          ),
+          child: Slider(
+            value: _value,
+            min: -1.0,
+            max: 1.0,
+            onChanged: (v) => setState(() => _value = v),
+            onChangeEnd: (v) {
+              if (v != 0) {
+                final delta = Duration(seconds: (v * 60).round());
+                widget.onSeek(widget.currentPosition + delta);
+              }
+              setState(() => _value = 0.0);
+            },
           ),
         ),
       ],

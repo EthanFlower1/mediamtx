@@ -192,12 +192,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
                 children: [
                   Expanded(
                     child: JogSlider(
-                      onSpeedChange: (speed) {
-                        final seekDelta = Duration(
-                            milliseconds: (speed * 200).round());
-                        controller.seek(controller.position + seekDelta);
-                      },
-                      onRelease: () {},
+                      currentPosition: controller.position,
+                      onSeek: (target) => controller.seek(target),
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -136,17 +136,33 @@ class PlaybackController extends ChangeNotifier {
     // Debounce: if another seek arrives within 150ms, cancel this one.
     _seekDebounce?.cancel();
     _seekDebounce = Timer(const Duration(milliseconds: 150), () async {
+      if (_disposed) return;
       final wasPlaying = _isPlaying;
       _disposeAllPlayers();
       await _openPlayers(snapped);
-      if (wasPlaying) {
+
+      // Briefly play then pause to force the player to decode past the
+      // keyframe pre-roll. The server starts from the nearest keyframe
+      // before the requested time, so position 0 in the player may
+      // correspond to a frame a few seconds before our target. Playing
+      // briefly lets mpv decode forward to the actual requested time.
+      for (final p in _players.values) {
+        p.play();
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (_disposed) return;
+
+      if (!wasPlaying) {
         for (final p in _players.values) {
-          p.play();
+          p.pause();
         }
+        _isPlaying = false;
+      } else {
         _isPlaying = true;
       }
+
       _isSeeking = false;
-      if (!_disposed) notifyListeners();
+      notifyListeners();
     });
   }
 

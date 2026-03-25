@@ -38,8 +38,10 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
       _controller?.removeListener(_onControllerChanged);
       _controller?.dispose();
       _lastServerUrl = serverUrl;
+      final authService = ref.read(authServiceProvider);
       _controller = PlaybackController(
         playbackService: PlaybackService(serverUrl: serverUrl),
+        getAccessToken: () => authService.getAccessToken(),
       );
       _controller!.addListener(_onControllerChanged);
     }

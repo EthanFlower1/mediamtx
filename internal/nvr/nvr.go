@@ -25,7 +25,6 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
-	"github.com/bluenviron/mediamtx/internal/nvr/playback"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -51,7 +50,6 @@ type NVR struct {
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
 	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
-	playbackManager *playback.SessionManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -99,16 +97,6 @@ func (n *NVR) Initialize() error {
 
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
-
-	// Initialize playback session manager.
-	recordPathPattern := n.RecordingsPath
-	if !strings.HasSuffix(recordPathPattern, "/") {
-		recordPathPattern += "/"
-	}
-	if !strings.Contains(recordPathPattern, "%path") {
-		recordPathPattern = recordPathPattern + "%path/%Y-%m-%d_%H-%M-%S-%f"
-	}
-	n.playbackManager = playback.NewSessionManager(n.database, recordPathPattern)
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.discovery = onvif.NewDiscovery()
@@ -508,7 +496,6 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		ConfigPath:      n.ConfigPath,
 		Embedder:        n.aiEmbedder,
 		AIRestarter:     n,
-		PlaybackManager: n.playbackManager,
 	})
 }
 

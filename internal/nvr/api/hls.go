@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -204,6 +206,65 @@ func (h *HLSHandler) InvalidateCache(cameraID, date string) {
 	if h.cache != nil {
 		delete(h.cache, cameraID+":"+date)
 	}
+}
+
+// ServeThumbnail extracts a single JPEG frame from the nearest keyframe to the
+// requested timestamp. Uses ffmpeg to decode the fragment.
+//
+// GET /vod/thumbnail?camera_id=X&time=RFC3339
+func (h *HLSHandler) ServeThumbnail(c *gin.Context) {
+	cameraID := c.Query("camera_id")
+	if cameraID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_id is required"})
+		return
+	}
+
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	timeStr := c.Query("time")
+	t, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid time, expected RFC3339"})
+		return
+	}
+
+	// Find the recording that contains this timestamp.
+	recs, err := h.DB.QueryRecordings(cameraID, t.Add(-1*time.Second), t.Add(1*time.Second))
+	if err != nil || len(recs) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no recording at this time"})
+		return
+	}
+
+	rec := recs[0]
+
+	// Use ffmpeg to extract a single frame.
+	startTime, _ := time.Parse("2006-01-02T15:04:05.000Z", rec.StartTime)
+	offset := t.Sub(startTime)
+
+	cmd := exec.CommandContext(c.Request.Context(),
+		"ffmpeg",
+		"-ss", fmt.Sprintf("%.3f", offset.Seconds()),
+		"-i", rec.FilePath,
+		"-frames:v", "1",
+		"-f", "mjpeg",
+		"-q:v", "5",
+		"pipe:1",
+	)
+
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to extract thumbnail", err)
+		return
+	}
+
+	c.Header("Content-Type", "image/jpeg")
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.Data(http.StatusOK, "image/jpeg", stdout.Bytes())
 }
 
 // ServeSegment serves raw recording files with HTTP Range support for

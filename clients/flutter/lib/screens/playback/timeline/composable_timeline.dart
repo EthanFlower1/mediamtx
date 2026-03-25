@@ -227,6 +227,17 @@ class _ComposableTimelineState extends State<ComposableTimeline> {
                           ),
                         ),
                       ),
+                    // Bookmarks
+                    if (!widget.isLoading && widget.bookmarks.isNotEmpty)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: BookmarkLayer(
+                            viewport: vp,
+                            bookmarks: widget.bookmarks,
+                            dayStart: _dayStart,
+                          ),
+                        ),
+                      ),
                     // Loading shimmer
                     if (widget.isLoading)
                       const Positioned.fill(

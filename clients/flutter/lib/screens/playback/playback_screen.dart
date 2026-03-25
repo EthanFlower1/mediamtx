@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/camera.dart';
 import '../../models/recording.dart';
+import '../../models/bookmark.dart';
+import '../../providers/bookmarks_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recordings_provider.dart';
@@ -145,6 +147,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     final allSegments = <RecordingSegment>[];
     final allEvents = <MotionEvent>[];
     final allIntensityBuckets = <IntensityBucket>[];
+    final allBookmarks = <Bookmark>[];
     const intensityBucketSeconds = 60;
     bool isLoading = false;
 
@@ -158,18 +161,22 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         bucketSeconds: intensityBucketSeconds,
       );
       final intensityAsync = ref.watch(intensityProvider(intensityKey));
+      final bookmarksAsync = ref.watch(bookmarksProvider(key));
 
       if (segAsync.isLoading || evtAsync.isLoading) isLoading = true;
       allSegments.addAll(segAsync.valueOrNull ?? []);
       allEvents.addAll(evtAsync.valueOrNull ?? []);
       allIntensityBuckets.addAll(intensityAsync.valueOrNull ?? []);
+      allBookmarks.addAll(bookmarksAsync.valueOrNull ?? []);
     }
 
     allSegments.sort((a, b) => a.startTime.compareTo(b.startTime));
     allEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
+    allBookmarks.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     controller.setSegments(allSegments);
     controller.setEvents(allEvents);
+    controller.setBookmarks(allBookmarks);
 
     return Column(
       children: [
@@ -203,6 +210,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
             events: allEvents,
             intensityBuckets: allIntensityBuckets,
             intensityBucketSeconds: intensityBucketSeconds,
+            bookmarks: allBookmarks,
             selectedDate: _selectedDate,
             position: controller.position,
             onSeek: (d) => controller.seek(d),

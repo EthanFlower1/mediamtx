@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import '../../models/bookmark.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
@@ -23,6 +24,7 @@ class PlaybackController extends ChangeNotifier {
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
   List<MotionEvent> _events = [];
+  List<Bookmark> _bookmarks = [];
   String? _error;
 
   // Players — one per selected camera
@@ -52,6 +54,7 @@ class PlaybackController extends ChangeNotifier {
   List<String> get selectedCameraIds => _selectedCameraIds;
   List<RecordingSegment> get segments => _segments;
   List<MotionEvent> get events => _events;
+  List<Bookmark> get bookmarks => _bookmarks;
   Map<String, VideoController> get videoControllers => _videoControllers;
   String? get error => _error;
 
@@ -70,6 +73,11 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void setEvents(List<MotionEvent> e) => _events = e;
+
+  void setBookmarks(List<Bookmark> b) {
+    _bookmarks = b;
+    notifyListeners();
+  }
 
   void setContinuousMode(bool enabled) {
     _continuousMode = enabled;
@@ -246,6 +254,16 @@ class PlaybackController extends ChangeNotifier {
 
   void skipToPreviousEvent() {
     final t = _findPrev(_events, _dayStart, _position, (e) => e.startTime);
+    if (t != null) seek(t);
+  }
+
+  void skipToNextBookmark() {
+    final t = _findNext(_bookmarks, _dayStart, _position, (b) => b.timestamp);
+    if (t != null) seek(t);
+  }
+
+  void skipToPreviousBookmark() {
+    final t = _findPrev(_bookmarks, _dayStart, _position, (b) => b.timestamp);
     if (t != null) seek(t);
   }
 

@@ -215,4 +215,23 @@ CREATE INDEX idx_detections_class ON detections(class);
 		version: 15,
 		sql:     `ALTER TABLE cameras ADD COLUMN audio_transcode INTEGER NOT NULL DEFAULT 0;`,
 	},
+	{
+		version: 16,
+		sql: `
+CREATE TABLE recording_fragments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recording_id INTEGER NOT NULL,
+    fragment_index INTEGER NOT NULL,
+    byte_offset INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    duration_ms REAL NOT NULL,
+    is_keyframe INTEGER NOT NULL DEFAULT 1,
+    timestamp_ms INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE,
+    UNIQUE(recording_id, fragment_index)
+);
+CREATE INDEX idx_fragments_recording ON recording_fragments(recording_id, fragment_index);
+ALTER TABLE recordings ADD COLUMN init_size INTEGER NOT NULL DEFAULT 0;
+`,
+	},
 }

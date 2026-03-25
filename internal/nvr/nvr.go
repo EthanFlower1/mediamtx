@@ -503,6 +503,44 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 	})
 }
 
+// buildDBFragments converts scanned fragment info into DB fragment records.
+func buildDBFragments(recordingID int64, fragments []api.FragmentInfo) []db.RecordingFragment {
+	dbFrags := make([]db.RecordingFragment, len(fragments))
+	var cumulativeMs float64
+	for i, f := range fragments {
+		dbFrags[i] = db.RecordingFragment{
+			RecordingID:   recordingID,
+			FragmentIndex: i,
+			ByteOffset:    f.Offset,
+			Size:          f.Size,
+			DurationMs:    f.DurationMs,
+			IsKeyframe:    true,
+			TimestampMs:   int64(cumulativeMs),
+		}
+		cumulativeMs += f.DurationMs
+	}
+	return dbFrags
+}
+
+// indexRecordingFragments scans an fMP4 file and stores fragment metadata in the DB.
+func (n *NVR) indexRecordingFragments(rec *db.Recording) {
+	initSize, fragments, err := api.ScanFragments(rec.FilePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to scan fragments for %s: %v\n", rec.FilePath, err)
+		return
+	}
+
+	if err := n.database.UpdateRecordingInitSize(rec.ID, initSize); err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to update init_size for recording %d: %v\n", rec.ID, err)
+	}
+
+	dbFrags := buildDBFragments(rec.ID, fragments)
+
+	if err := n.database.InsertFragments(rec.ID, dbFrags); err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert fragments for recording %d: %v\n", rec.ID, err)
+	}
+}
+
 // OnSegmentComplete is called when a recording segment finishes writing.
 // It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
 func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
@@ -553,14 +591,22 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	for attempt := 0; attempt < 3; attempt++ {
 		insertErr = n.database.InsertRecording(rec)
 		if insertErr == nil {
-			return
+			break
 		}
 		fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
 		if attempt < 2 {
 			time.Sleep(1 * time.Second)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+	if insertErr != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+		return
+	}
+
+	// Index fragments for fMP4 files.
+	if format == "fmp4" {
+		go n.indexRecordingFragments(rec)
+	}
 }
 
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.

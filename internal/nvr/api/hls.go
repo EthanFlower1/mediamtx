@@ -21,11 +21,11 @@ type HLSHandler struct {
 	RecordingsPath string // base path for recordings, e.g. "./recordings"
 }
 
-// fragmentInfo describes a single moof+mdat pair inside an fMP4 file.
-type fragmentInfo struct {
-	offset     int64
-	size       int64
-	durationMs float64 // actual duration in milliseconds, from trun/tfhd
+// FragmentInfo describes a single moof+mdat pair inside an fMP4 file.
+type FragmentInfo struct {
+	Offset     int64
+	Size       int64
+	DurationMs float64 // actual duration in milliseconds, from trun/tfhd
 }
 
 // ServePlaylist generates an HLS VOD playlist covering all recordings for a
@@ -86,7 +86,7 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 
 	first := true
 	for _, rec := range recordings {
-		initSize, fragments, scanErr := scanFragments(rec.FilePath)
+		initSize, fragments, scanErr := ScanFragments(rec.FilePath)
 		if scanErr != nil {
 			// Skip files we cannot parse; they may be truncated or corrupt.
 			continue
@@ -109,7 +109,7 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		// One entry per moof+mdat fragment.
 		for _, frag := range fragments {
 			b.WriteString(fmt.Sprintf("#EXTINF:1.0,\n"))
-			b.WriteString(fmt.Sprintf("#EXT-X-BYTERANGE:%d@%d\n", frag.size, frag.offset))
+			b.WriteString(fmt.Sprintf("#EXT-X-BYTERANGE:%d@%d\n", frag.Size, frag.Offset))
 			b.WriteString(segmentURL + "\n")
 		}
 	}
@@ -191,10 +191,10 @@ func segmentURLFromFilePath(filePath, recordingsBase, token string) string {
 	return url
 }
 
-// scanFragments reads an fMP4 file and returns the init segment size and a
+// ScanFragments reads an fMP4 file and returns the init segment size and a
 // list of fragment (moof+mdat) offsets, sizes, and real durations. It reads
 // box headers and trun/tfhd timing data to produce accurate fragment durations.
-func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, err error) {
+func ScanFragments(filePath string) (initSize int64, fragments []FragmentInfo, err error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return 0, nil, err
@@ -274,10 +274,10 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 			mdatSize = fileSize - (pos + moofSize)
 		}
 
-		fragments = append(fragments, fragmentInfo{
-			offset:     pos,
-			size:       moofSize + mdatSize,
-			durationMs: durationMs,
+		fragments = append(fragments, FragmentInfo{
+			Offset:     pos,
+			Size:       moofSize + mdatSize,
+			DurationMs: durationMs,
 		})
 
 		pos += moofSize + mdatSize

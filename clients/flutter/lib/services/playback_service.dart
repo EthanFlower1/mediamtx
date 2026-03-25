@@ -3,15 +3,24 @@ class PlaybackService {
   PlaybackService({required this.serverUrl});
 
   /// Builds the HLS playlist URL for a camera on a given date.
+  ///
+  /// When [startSeconds] is provided, the server generates a playlist
+  /// beginning at that offset (seconds since midnight), skipping earlier
+  /// fragments. This is used for seeking: the client re-opens the player
+  /// with a new URL so position 0 = the target time.
   String playlistUrl({
     required String cameraId,
     required String date,
     String? token,
+    double? startSeconds,
   }) {
     final uri = Uri.parse(serverUrl);
     final params = <String, String>{'date': date};
     if (token != null && token.isNotEmpty) {
       params['token'] = token;
+    }
+    if (startSeconds != null && startSeconds > 0) {
+      params['start'] = startSeconds.toStringAsFixed(1);
     }
     return Uri(
       scheme: uri.scheme,

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +46,12 @@ type FragmentInfo struct {
 // camera on a given date. The playlist uses byte-range addressing into the
 // original fMP4 files so no transcoding or remuxing is needed.
 //
-// GET /vod/:cameraId/playlist.m3u8?date=YYYY-MM-DD
+// When the optional `start` parameter is provided (seconds since midnight),
+// the playlist begins at that time, skipping earlier fragments. This allows
+// the client to seek by re-opening the playlist at a new start offset —
+// the player always starts from position 0 at the target time.
+//
+// GET /vod/:cameraId/playlist.m3u8?date=YYYY-MM-DD[&start=SECONDS]
 func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 	cameraID := c.Param("cameraId")
 	if cameraID == "" {
@@ -65,23 +71,36 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		return
 	}
 
-	cacheKey := cameraID + ":" + dateStr
-
-	h.mu.Lock()
-	if h.cache == nil {
-		h.cache = make(map[string]*playlistCacheEntry)
-	}
-	if entry, ok := h.cache[cacheKey]; ok {
-		isToday := dateStr == time.Now().Format("2006-01-02")
-		if !isToday || time.Since(entry.cachedAt) < playlistCacheTTL {
-			h.mu.Unlock()
-			c.Header("Content-Type", "application/vnd.apple.mpegurl")
-			c.Header("Cache-Control", "no-cache")
-			c.String(http.StatusOK, entry.playlist)
-			return
+	// Optional seek offset: seconds since midnight.
+	var seekTime time.Time
+	hasSeeked := false
+	if startStr := c.Query("start"); startStr != "" {
+		startSecs, err := strconv.ParseFloat(startStr, 64)
+		if err == nil && startSecs > 0 {
+			seekTime = date.Add(time.Duration(startSecs * float64(time.Second)))
+			hasSeeked = true
 		}
 	}
-	h.mu.Unlock()
+
+	// Only serve from cache for full-day playlists (no start offset).
+	cacheKey := cameraID + ":" + dateStr
+	if !hasSeeked {
+		h.mu.Lock()
+		if h.cache == nil {
+			h.cache = make(map[string]*playlistCacheEntry)
+		}
+		if entry, ok := h.cache[cacheKey]; ok {
+			isToday := dateStr == time.Now().Format("2006-01-02")
+			if !isToday || time.Since(entry.cachedAt) < playlistCacheTTL {
+				h.mu.Unlock()
+				c.Header("Content-Type", "application/vnd.apple.mpegurl")
+				c.Header("Cache-Control", "no-cache")
+				c.String(http.StatusOK, entry.playlist)
+				return
+			}
+		}
+		h.mu.Unlock()
+	}
 
 	start := date
 	end := date.Add(24 * time.Hour)
@@ -114,6 +133,22 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 	first := true
 
 	for _, rec := range recordings {
+		recStart, _ := time.Parse("2006-01-02T15:04:05.000Z", rec.StartTime)
+
+		// If seeking, skip recordings that end before the seek time.
+		if hasSeeked {
+			recEnd, parseErr := time.Parse("2006-01-02T15:04:05.000Z", rec.EndTime)
+			if parseErr == nil && !recEnd.After(seekTime) {
+				continue
+			}
+		}
+
+		segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
+		seekMs := int64(0)
+		if hasSeeked {
+			seekMs = seekTime.UnixMilli()
+		}
+
 		// Try DB-backed fragments first.
 		fragments, dbErr := h.DB.GetFragments(rec.ID)
 		if dbErr != nil || len(fragments) == 0 {
@@ -123,13 +158,33 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 				continue
 			}
 
-			segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
-			if !first {
-				entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
-			}
-			first = false
-			entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
+			cumMs := 0.0
+			emittedInit := false
 			for _, frag := range scannedFrags {
+				fragTime := recStart.Add(time.Duration(cumMs) * time.Millisecond)
+
+				if hasSeeked {
+					fragEnd := fragTime.Add(time.Duration(frag.DurationMs) * time.Millisecond)
+					if fragEnd.Before(seekTime) {
+						cumMs += frag.DurationMs
+						continue
+					}
+				}
+
+				if !emittedInit {
+					if !first {
+						entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
+					}
+					first = false
+					// Embed the absolute wall-clock time of this fragment.
+					entries = append(entries, playlistEntry{
+						fmt.Sprintf("#EXT-X-PROGRAM-DATE-TIME:%s\n", fragTime.UTC().Format("2006-01-02T15:04:05.000Z")),
+					})
+					entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
+					emittedInit = true
+				}
+
+				cumMs += frag.DurationMs
 				durSec := frag.DurationMs / 1000.0
 				if durSec > maxDuration {
 					maxDuration = durSec
@@ -144,19 +199,44 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		}
 
 		// DB-backed path: use pre-computed fragment metadata.
-		segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
-		if !first {
-			entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
-		}
-		first = false
-
 		initSize := rec.InitSize
 		if initSize == 0 {
 			initSize = 1024
 		}
-		entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
 
+		emittedInit := false
+		cumMs := 0.0
 		for _, frag := range fragments {
+			// Determine this fragment's absolute wall-clock time.
+			var fragTime time.Time
+			if frag.TimestampMs > 0 {
+				fragTime = time.UnixMilli(frag.TimestampMs)
+			} else {
+				fragTime = recStart.Add(time.Duration(cumMs) * time.Millisecond)
+			}
+
+			if hasSeeked {
+				fragEndMs := fragTime.UnixMilli() + int64(frag.DurationMs)
+				if fragEndMs < seekMs {
+					cumMs += frag.DurationMs
+					continue
+				}
+			}
+
+			if !emittedInit {
+				if !first {
+					entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
+				}
+				first = false
+				// Embed the absolute wall-clock time of this fragment.
+				entries = append(entries, playlistEntry{
+					fmt.Sprintf("#EXT-X-PROGRAM-DATE-TIME:%s\n", fragTime.UTC().Format("2006-01-02T15:04:05.000Z")),
+				})
+				entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
+				emittedInit = true
+			}
+
+			cumMs += frag.DurationMs
 			durSec := frag.DurationMs / 1000.0
 			if durSec > maxDuration {
 				maxDuration = durSec
@@ -187,12 +267,18 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 
 	playlist := b.String()
 
-	h.mu.Lock()
-	h.cache[cacheKey] = &playlistCacheEntry{
-		playlist: playlist,
-		cachedAt: time.Now(),
+	// Only cache full-day playlists.
+	if !hasSeeked {
+		h.mu.Lock()
+		if h.cache == nil {
+			h.cache = make(map[string]*playlistCacheEntry)
+		}
+		h.cache[cacheKey] = &playlistCacheEntry{
+			playlist: playlist,
+			cachedAt: time.Now(),
+		}
+		h.mu.Unlock()
 	}
-	h.mu.Unlock()
 
 	c.Header("Content-Type", "application/vnd.apple.mpegurl")
 	c.Header("Cache-Control", "no-cache")

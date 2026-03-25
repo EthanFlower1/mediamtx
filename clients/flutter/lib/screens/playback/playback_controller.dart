@@ -18,8 +18,7 @@ class PlaybackController extends ChangeNotifier {
   bool _continuousMode = true;
   double _speed = 1.0;
   bool _isSeeking = false;
-  Duration? _lastSeekTarget;
-  DateTime _seekDebounceUntil = DateTime(2000);
+  DateTime _nextPositionUpdate = DateTime(2000);
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
@@ -33,8 +32,18 @@ class PlaybackController extends ChangeNotifier {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<bool>? _completedSub;
 
-  // Camera ID → MediaMTX path (not used for HLS but kept for API compat)
+  // Camera ID → MediaMTX path
   final Map<String, String> _cameraPaths = {};
+
+  // The wall-clock DateTime where the current stream starts.
+  // Player position 0 = this time. For position display we add the
+  // player position, adjusted for recording gaps using _gapMap.
+  DateTime _streamStart = DateTime(2000);
+
+  // Gap map for the current stream: list of (playerOffset, wallClockTime)
+  // pairs marking where each recording section starts in the player
+  // timeline. Built from _segments when a stream is opened.
+  List<_GapEntry> _gapMap = [];
 
   static const _maxPosition = Duration(hours: 24);
 
@@ -61,14 +70,10 @@ class PlaybackController extends ChangeNotifier {
   // ── Data setters ────────────────────────────────────────────────────
 
   void setSegments(List<RecordingSegment> s) {
-    final changed = _segments.length != s.length;
+    final changed = !_segmentsEqual(_segments, s);
     _segments = s;
-    if (changed) {
-      _rebuildSegmentIndex();
-      // Auto-position cursor at first recording when segments first load
-      if (_position == Duration.zero && _segments.isNotEmpty) {
-        _position = _segments.first.startTime.difference(_dayStart);
-      }
+    if (changed && _position == Duration.zero && _segments.isNotEmpty) {
+      _position = _segments.first.startTime.difference(_dayStart);
     }
   }
 
@@ -97,7 +102,6 @@ class PlaybackController extends ChangeNotifier {
     _selectedDate = date;
     _position = Duration.zero;
     _disposeAllPlayers();
-    _segmentIndex.clear();
     notifyListeners();
   }
 
@@ -108,77 +112,90 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Segment index for wall-clock ↔ player position mapping ─────────
+  // ── Gap map: player position → wall-clock ─────────────────────────
 
-  // Each entry: (wallClockStart, wallClockEnd, cumulativePlayerOffset)
-  // wallClockStart/End are Durations since midnight.
-  // cumulativePlayerOffset is the player position at the start of this segment.
-  final List<_SegmentMapEntry> _segmentIndex = [];
+  /// Build a gap map for a stream starting at [startWallClock].
+  ///
+  /// The MediaMTX /get endpoint concatenates recordings without gaps,
+  /// so player position advances continuously. But wall-clock time jumps
+  /// across recording gaps. The gap map tracks where each section starts
+  /// in the player timeline so we can convert player position → wall-clock.
+  List<_GapEntry> _buildGapMap(
+      Duration startWallClock, String cameraId) {
+    // Get this camera's segments sorted by start time.
+    final camSegments = _segments
+        .where((s) => s.cameraId == cameraId)
+        .toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-  void _rebuildSegmentIndex() {
-    _segmentIndex.clear();
-    Duration cumulative = Duration.zero;
-    for (final seg in _segments) {
-      final wallStart = seg.startTime.difference(_dayStart);
-      final wallEnd = seg.endTime.difference(_dayStart);
-      final segDuration = wallEnd - wallStart;
-      _segmentIndex.add(_SegmentMapEntry(
-        wallStart: wallStart,
-        wallEnd: wallEnd,
-        playerOffset: cumulative,
+    if (camSegments.isEmpty) return [];
+
+    final dayStart = _dayStart;
+    final startTime = dayStart.add(startWallClock);
+    final entries = <_GapEntry>[];
+    Duration cumulativePlayer = Duration.zero;
+
+    for (final seg in camSegments) {
+      // Skip segments that end before our start time.
+      if (!seg.endTime.isAfter(startTime)) continue;
+
+      // Determine the wall-clock start of content in this segment.
+      DateTime sectionWallClock;
+      Duration sectionMediaDuration;
+
+      if (seg.startTime.isBefore(startTime)) {
+        // Stream starts mid-segment.
+        sectionWallClock = startTime;
+        final usedMs = startTime.difference(seg.startTime).inMilliseconds;
+        sectionMediaDuration =
+            Duration(milliseconds: seg.durationMs - usedMs);
+      } else {
+        sectionWallClock = seg.startTime;
+        sectionMediaDuration = Duration(milliseconds: seg.durationMs);
+      }
+
+      entries.add(_GapEntry(
+        playerOffset: cumulativePlayer,
+        wallClock: sectionWallClock,
       ));
-      cumulative += segDuration;
+
+      cumulativePlayer += sectionMediaDuration;
     }
+
+    return entries;
   }
 
-  /// Convert wall-clock duration (since midnight) to player position.
-  Duration _wallClockToPlayer(Duration wallClock) {
-    for (final entry in _segmentIndex) {
-      if (wallClock >= entry.wallStart && wallClock <= entry.wallEnd) {
-        return entry.playerOffset + (wallClock - entry.wallStart);
-      }
-    }
-    // Past all segments or in a gap — find the nearest segment
-    for (final entry in _segmentIndex) {
-      if (entry.wallStart > wallClock) {
-        return entry.playerOffset; // snap to start of next segment
-      }
-    }
-    // Past everything — return end
-    if (_segmentIndex.isNotEmpty) {
-      final last = _segmentIndex.last;
-      return last.playerOffset + (last.wallEnd - last.wallStart);
-    }
-    return Duration.zero;
-  }
-
-  /// Convert player position to wall-clock duration (since midnight).
+  /// Convert player position to wall-clock time using the gap map.
   Duration _playerToWallClock(Duration playerPos) {
-    for (final entry in _segmentIndex) {
-      final segDuration = entry.wallEnd - entry.wallStart;
-      if (playerPos < entry.playerOffset + segDuration) {
-        final offsetInSeg = playerPos - entry.playerOffset;
-        return entry.wallStart + offsetInSeg;
+    if (_gapMap.isEmpty) {
+      // No gap data — fall back to simple offset from stream start.
+      return _streamStart.difference(_dayStart) + playerPos;
+    }
+
+    // Find the last gap entry at or before playerPos.
+    _GapEntry? active;
+    for (final entry in _gapMap) {
+      if (entry.playerOffset <= playerPos) {
+        active = entry;
+      } else {
+        break;
       }
     }
-    // Past all segments
-    if (_segmentIndex.isNotEmpty) {
-      return _segmentIndex.last.wallEnd;
+
+    if (active == null) {
+      return _streamStart.difference(_dayStart) + playerPos;
     }
-    return Duration.zero;
+
+    final offsetInSection = playerPos - active.playerOffset;
+    final wallClock = active.wallClock.add(offsetInSection);
+    return wallClock.difference(_dayStart);
   }
 
   // ── Playback controls ──────────────────────────────────────────────
 
   Future<void> play() async {
     if (_players.isEmpty) {
-      await _openPlayers();
-      // If position is at 0 and we have segments, seek to first recording
-      if (_position == Duration.zero && _segments.isNotEmpty) {
-        final firstStart = _segments.first.startTime.difference(_dayStart);
-        _position = firstStart;
-        notifyListeners();
-      }
+      await _openPlayersAt(_position);
     }
     _isPlaying = true;
     for (final p in _players.values) {
@@ -205,31 +222,34 @@ class PlaybackController extends ChangeNotifier {
 
   Future<void> seek(Duration wallClockTarget) async {
     final clamped = Duration(
-      milliseconds: wallClockTarget.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
+      milliseconds:
+          wallClockTarget.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
     );
     final snapped = _snapToSegment(clamped);
 
     _isSeeking = true;
     _position = snapped;
-    _lastSeekTarget = snapped;
     notifyListeners();
 
-    try {
-      if (_players.isEmpty) {
-        await _openPlayers();
-      }
+    final wasPlaying = _isPlaying;
 
-      final playerPos = _wallClockToPlayer(snapped);
-      for (final p in _players.values) {
-        await p.seek(playerPos);
+    try {
+      await _openPlayersAt(snapped);
+
+      if (wasPlaying) {
+        _isPlaying = true;
+        for (final p in _players.values) {
+          p.play();
+        }
       }
     } catch (e) {
       debugPrint('Playback seek error: $e');
       _error = e.toString();
     } finally {
       _isSeeking = false;
-      _seekDebounceUntil = DateTime.now().add(const Duration(milliseconds: 150));
     }
+
+    notifyListeners();
   }
 
   void setSpeed(double s) {
@@ -248,12 +268,12 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void skipToNextEvent() {
-    final t = _findNext(_events, _dayStart, _position, (e) => e.startTime);
+    final t = findNextEvent(_events, _dayStart, _position);
     if (t != null) seek(t);
   }
 
   void skipToPreviousEvent() {
-    final t = _findPrev(_events, _dayStart, _position, (e) => e.startTime);
+    final t = findPreviousEvent(_events, _dayStart, _position);
     if (t != null) seek(t);
   }
 
@@ -268,26 +288,13 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void skipToNextGap() {
-    final posTime = _dayStart.add(_position);
-    for (int i = 0; i < _segments.length - 1; i++) {
-      final gapEnd = _segments[i + 1].startTime;
-      if (gapEnd.isAfter(posTime) && _segments[i].endTime != gapEnd) {
-        seek(gapEnd.difference(_dayStart));
-        return;
-      }
-    }
+    final t = findNextGapEnd(_segments, _dayStart, _position);
+    if (t != null) seek(t);
   }
 
   void skipToPreviousGap() {
-    final posTime = _dayStart.add(_position);
-    Duration? result;
-    for (int i = 0; i < _segments.length - 1; i++) {
-      final gapStart = _segments[i].endTime;
-      if (gapStart.isBefore(posTime) && gapStart != _segments[i + 1].startTime) {
-        result = gapStart.difference(_dayStart);
-      }
-    }
-    if (result != null) seek(result);
+    final t = findPreviousGapStart(_segments, _dayStart, _position);
+    if (t != null) seek(t);
   }
 
   // ── Player management ──────────────────────────────────────────────
@@ -295,19 +302,49 @@ class PlaybackController extends ChangeNotifier {
   DateTime get _dayStart => DateTime(
       _selectedDate.year, _selectedDate.month, _selectedDate.day);
 
-  String get _dateKey =>
-      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+  /// Open (or re-open) players using the MediaMTX /get endpoint starting
+  /// at [wallClock] (Duration since midnight).
+  ///
+  /// The /get endpoint handles time-based seeking, multi-recording
+  /// concatenation, and fMP4 muxing server-side. The client just opens
+  /// the URL and plays from position 0 = target time.
+  Future<void> _openPlayersAt(Duration wallClock) async {
+    _disposeAllPlayers();
 
-  Future<void> _openPlayers() async {
     final token = await getAccessToken();
     _error = null;
 
-    for (final camId in _selectedCameraIds) {
-      final url = playbackService.playlistUrl(
-        cameraId: camId,
-        date: _dateKey,
+    final startTime = _dayStart.add(wallClock);
+    _streamStart = startTime;
+
+    // Duration: from the target time to end of day.
+    final remainingSecs =
+        const Duration(hours: 24).inSeconds - wallClock.inSeconds;
+    final durationSecs = remainingSecs > 0 ? remainingSecs : 86400;
+
+    // Build gap map from the primary camera's segments.
+    final primaryCam =
+        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
+    if (primaryCam != null) {
+      _gapMap = _buildGapMap(wallClock, primaryCam);
+      debugPrint('Gap map: ${_gapMap.length} sections');
+    }
+
+    await Future.wait(_selectedCameraIds.map((camId) async {
+      final cameraPath = _cameraPaths[camId];
+      if (cameraPath == null) {
+        debugPrint('No MediaMTX path for camera $camId');
+        return;
+      }
+
+      final url = playbackService.clipUrl(
+        cameraPath: cameraPath,
+        start: startTime,
+        durationSecs: durationSecs,
         token: token,
       );
+
+      debugPrint('Opening player: camera=$camId, url=$url');
 
       try {
         final player = Player();
@@ -322,13 +359,27 @@ class PlaybackController extends ChangeNotifier {
           notifyListeners();
         });
 
-        await player.open(Media(url), play: false);
+        await player.open(Media(url), play: true);
+
+        // Wait for the stream to load.
+        if (player.state.duration == Duration.zero) {
+          await player.stream.duration
+              .firstWhere((d) => d > Duration.zero)
+              .timeout(const Duration(seconds: 10),
+                  onTimeout: () => Duration.zero);
+        }
+
+        // Pause — the caller decides whether to resume playing.
+        player.pause();
+
+        debugPrint(
+            'Player ready: camera=$camId, duration=${player.state.duration}');
       } catch (e) {
         debugPrint('Failed to open player for camera $camId: $e');
         _players.remove(camId)?.dispose();
         _videoControllers.remove(camId);
       }
-    }
+    }));
 
     if (_players.isEmpty) {
       _error = 'Failed to open any camera for playback';
@@ -342,24 +393,26 @@ class PlaybackController extends ChangeNotifier {
 
     _positionSub = primary.stream.position.listen((playerPos) {
       if (_disposed || _isSeeking) return;
-      if (DateTime.now().isBefore(_seekDebounceUntil)) return;
+
+      // Throttle to ~4 updates/sec.
+      final now = DateTime.now();
+      if (now.isBefore(_nextPositionUpdate)) return;
+      _nextPositionUpdate = now.add(const Duration(milliseconds: 250));
 
       final wallClock = _playerToWallClock(playerPos);
 
-      if (_lastSeekTarget == null &&
-          _position - wallClock > const Duration(seconds: 2)) {
-        return;
-      }
+      // Reject spurious backward jumps > 2s.
+      if ((_position - wallClock).inSeconds > 2) return;
 
-      _lastSeekTarget = null;
       _position = wallClock;
       notifyListeners();
     });
 
     _completedSub = primary.stream.completed.listen((completed) {
-      if (_disposed || !completed) return;
+      if (_disposed || !completed || _isSeeking) return;
       if (_continuousMode) {
-        final nextDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
+        final nextDay = DateTime(
+            _selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
         setSelectedDate(nextDay);
       } else {
         _isPlaying = false;
@@ -371,40 +424,99 @@ class PlaybackController extends ChangeNotifier {
   }
 
   Duration _snapToSegment(Duration position) {
-    if (_segments.isEmpty) return position;
-    final posTime = _dayStart.add(position);
+    return snapToSegment(_segments, _dayStart, position);
+  }
 
-    // Check if inside any segment (inclusive end boundary).
-    for (final seg in _segments) {
+  // ── Public static helpers (testable without a Player) ─────────────
+
+  static RecordingSegment? findContainingSegment(
+      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
+    final posTime = dayStart.add(position);
+    for (final seg in segments) {
+      if (!posTime.isBefore(seg.startTime) && !posTime.isAfter(seg.endTime)) {
+        return seg;
+      }
+    }
+    return null;
+  }
+
+  static Duration? findNextSegmentStart(
+      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
+    final posTime = dayStart.add(position);
+    for (final seg in segments) {
+      if (seg.startTime.isAfter(posTime)) {
+        return seg.startTime.difference(dayStart);
+      }
+    }
+    return null;
+  }
+
+  static Duration snapToSegment(
+      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
+    if (segments.isEmpty) return position;
+    final posTime = dayStart.add(position);
+
+    for (final seg in segments) {
       if (!posTime.isBefore(seg.startTime) && !posTime.isAfter(seg.endTime)) {
         return position;
       }
     }
 
-    // In a gap: snap to nearest segment boundary (prev end or next start).
     Duration? nearestBefore;
     Duration? nearestAfter;
-
-    for (final seg in _segments) {
+    for (final seg in segments) {
       if (!seg.endTime.isAfter(posTime)) {
-        nearestBefore = seg.endTime.difference(_dayStart);
+        nearestBefore = seg.endTime.difference(dayStart);
       }
       if (seg.startTime.isAfter(posTime) && nearestAfter == null) {
-        nearestAfter = seg.startTime.difference(_dayStart);
+        nearestAfter = seg.startTime.difference(dayStart);
       }
     }
-
-    // Prefer snapping forward to next segment start.
     if (nearestAfter != null) return nearestAfter;
-    // If past all segments, snap to last segment end.
     if (nearestBefore != null) return nearestBefore;
     return position;
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────
+  static Duration? findNextEvent(
+      List<MotionEvent> events, DateTime dayStart, Duration pos) {
+    return _findNext(events, dayStart, pos, (e) => e.startTime);
+  }
+
+  static Duration? findPreviousEvent(
+      List<MotionEvent> events, DateTime dayStart, Duration pos) {
+    return _findPrev(events, dayStart, pos, (e) => e.startTime);
+  }
+
+  static Duration? findNextGapEnd(
+      List<RecordingSegment> segments, DateTime dayStart, Duration pos) {
+    final posTime = dayStart.add(pos);
+    for (int i = 0; i < segments.length - 1; i++) {
+      final gapEnd = segments[i + 1].startTime;
+      if (gapEnd.isAfter(posTime) && segments[i].endTime != gapEnd) {
+        return gapEnd.difference(dayStart);
+      }
+    }
+    return null;
+  }
+
+  static Duration? findPreviousGapStart(
+      List<RecordingSegment> segments, DateTime dayStart, Duration pos) {
+    final posTime = dayStart.add(pos);
+    Duration? result;
+    for (int i = 0; i < segments.length - 1; i++) {
+      final gapStart = segments[i].endTime;
+      if (gapStart.isBefore(posTime) && gapStart != segments[i + 1].startTime) {
+        result = gapStart.difference(dayStart);
+      }
+    }
+    return result;
+  }
+
+  // ── Private helpers ───────────────────────────────────────────────
 
   static Duration? _findNext<T>(
-      List<T> items, DateTime dayStart, Duration pos, DateTime Function(T) getTime) {
+      List<T> items, DateTime dayStart, Duration pos,
+      DateTime Function(T) getTime) {
     final posTime = dayStart.add(pos);
     for (final item in items) {
       if (getTime(item).isAfter(posTime)) {
@@ -415,7 +527,8 @@ class PlaybackController extends ChangeNotifier {
   }
 
   static Duration? _findPrev<T>(
-      List<T> items, DateTime dayStart, Duration pos, DateTime Function(T) getTime) {
+      List<T> items, DateTime dayStart, Duration pos,
+      DateTime Function(T) getTime) {
     final posTime = dayStart.add(pos);
     Duration? result;
     for (final item in items) {
@@ -430,6 +543,15 @@ class PlaybackController extends ChangeNotifier {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  static bool _segmentsEqual(
+      List<RecordingSegment> a, List<RecordingSegment> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
     }
     return true;
   }
@@ -456,14 +578,10 @@ class PlaybackController extends ChangeNotifier {
   }
 }
 
-class _SegmentMapEntry {
-  final Duration wallStart;
-  final Duration wallEnd;
+/// Marks where a recording section starts in the player timeline.
+class _GapEntry {
   final Duration playerOffset;
+  final DateTime wallClock;
 
-  const _SegmentMapEntry({
-    required this.wallStart,
-    required this.wallEnd,
-    required this.playerOffset,
-  });
+  const _GapEntry({required this.playerOffset, required this.wallClock});
 }

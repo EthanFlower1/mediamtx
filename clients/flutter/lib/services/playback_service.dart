@@ -2,16 +2,31 @@ class PlaybackService {
   final String serverUrl;
   PlaybackService({required this.serverUrl});
 
-  /// Builds the VoD URL pointing to MediaMTX's built-in playback endpoint.
-  ///
-  /// MediaMTX serves recordings at port 9996:
-  ///   GET /get?path=CAMERA_PATH&start=RFC3339&duration=SECONDS
-  ///
-  /// The NVR JWT token (which includes "action": "playback") authenticates.
-  String vodUrl({
+  /// Builds the HLS playlist URL for a camera on a given date.
+  String playlistUrl({
+    required String cameraId,
+    required String date,
+    String? token,
+  }) {
+    final uri = Uri.parse(serverUrl);
+    final params = <String, String>{'date': date};
+    if (token != null && token.isNotEmpty) {
+      params['token'] = token;
+    }
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.port,
+      path: '/api/nvr/vod/$cameraId/playlist.m3u8',
+      queryParameters: params,
+    ).toString();
+  }
+
+  /// Builds a direct VoD URL for a short clip (uses MediaMTX /get endpoint).
+  String clipUrl({
     required String cameraPath,
     required DateTime start,
-    int durationSecs = 7200,
+    int durationSecs = 30,
     String? token,
   }) {
     final uri = Uri.parse(serverUrl);

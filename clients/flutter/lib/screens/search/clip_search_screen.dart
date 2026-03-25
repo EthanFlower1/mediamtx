@@ -50,7 +50,7 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
     // Center a 30-second clip around the detection frame time
     final frameTime = result.time;
     final clipStart = frameTime.subtract(const Duration(seconds: 15));
-    final url = svc.vodUrl(
+    final url = svc.clipUrl(
       cameraPath: camera.mediamtxPath,
       start: clipStart,
       durationSecs: 30,

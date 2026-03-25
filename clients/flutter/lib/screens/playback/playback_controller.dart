@@ -12,7 +12,7 @@ class PlaybackController extends ChangeNotifier {
   bool _disposed = false;
 
   // State
-  Duration _position = Duration.zero;
+  Duration _position = Duration.zero; // wall-clock time since midnight
   bool _isPlaying = false;
   double _speed = 1.0;
   bool _isSeeking = false;
@@ -28,14 +28,8 @@ class PlaybackController extends ChangeNotifier {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<bool>? _completedSub;
 
-  // The absolute time-since-midnight that corresponds to player position 0.
-  Duration _streamOrigin = Duration.zero;
-
-  // Camera ID → MediaMTX path
+  // Camera ID → MediaMTX path (not used for HLS but kept for API compat)
   final Map<String, String> _cameraPaths = {};
-
-  // Debounce timer for seek
-  Timer? _seekDebounce;
 
   static const _maxPosition = Duration(hours: 24);
 
@@ -59,7 +53,14 @@ class PlaybackController extends ChangeNotifier {
 
   // ── Data setters ────────────────────────────────────────────────────
 
-  void setSegments(List<RecordingSegment> s) => _segments = s;
+  void setSegments(List<RecordingSegment> s) {
+    final changed = _segments.length != s.length;
+    _segments = s;
+    if (changed) {
+      _rebuildSegmentIndex();
+    }
+  }
+
   void setEvents(List<MotionEvent> e) => _events = e;
 
   void setCameraPaths(Map<String, String> paths) {
@@ -74,8 +75,8 @@ class PlaybackController extends ChangeNotifier {
     }
     _selectedDate = date;
     _position = Duration.zero;
-    _streamOrigin = Duration.zero;
     _disposeAllPlayers();
+    _segmentIndex.clear();
     notifyListeners();
   }
 
@@ -86,18 +87,77 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Segment index for wall-clock ↔ player position mapping ─────────
+
+  // Each entry: (wallClockStart, wallClockEnd, cumulativePlayerOffset)
+  // wallClockStart/End are Durations since midnight.
+  // cumulativePlayerOffset is the player position at the start of this segment.
+  final List<_SegmentMapEntry> _segmentIndex = [];
+
+  void _rebuildSegmentIndex() {
+    _segmentIndex.clear();
+    Duration cumulative = Duration.zero;
+    for (final seg in _segments) {
+      final wallStart = seg.startTime.difference(_dayStart);
+      final wallEnd = seg.endTime.difference(_dayStart);
+      final segDuration = wallEnd - wallStart;
+      _segmentIndex.add(_SegmentMapEntry(
+        wallStart: wallStart,
+        wallEnd: wallEnd,
+        playerOffset: cumulative,
+      ));
+      cumulative += segDuration;
+    }
+  }
+
+  /// Convert wall-clock duration (since midnight) to player position.
+  Duration _wallClockToPlayer(Duration wallClock) {
+    for (final entry in _segmentIndex) {
+      if (wallClock >= entry.wallStart && wallClock < entry.wallEnd) {
+        return entry.playerOffset + (wallClock - entry.wallStart);
+      }
+    }
+    // Past all segments or in a gap — find the nearest segment
+    for (final entry in _segmentIndex) {
+      if (entry.wallStart > wallClock) {
+        return entry.playerOffset; // snap to start of next segment
+      }
+    }
+    // Past everything — return end
+    if (_segmentIndex.isNotEmpty) {
+      final last = _segmentIndex.last;
+      return last.playerOffset + (last.wallEnd - last.wallStart);
+    }
+    return Duration.zero;
+  }
+
+  /// Convert player position to wall-clock duration (since midnight).
+  Duration _playerToWallClock(Duration playerPos) {
+    for (final entry in _segmentIndex) {
+      final segDuration = entry.wallEnd - entry.wallStart;
+      if (playerPos < entry.playerOffset + segDuration) {
+        final offsetInSeg = playerPos - entry.playerOffset;
+        return entry.wallStart + offsetInSeg;
+      }
+    }
+    // Past all segments
+    if (_segmentIndex.isNotEmpty) {
+      return _segmentIndex.last.wallEnd;
+    }
+    return Duration.zero;
+  }
+
   // ── Playback controls ──────────────────────────────────────────────
 
   Future<void> play() async {
     if (_players.isEmpty) {
-      // First play — open streams. If at midnight, jump to first recording.
-      var startPos = _position;
-      if (startPos == Duration.zero && _segments.isNotEmpty) {
-        startPos = _segments.first.startTime.difference(_dayStart);
-        _position = startPos;
-        _streamOrigin = startPos;
+      await _openPlayers();
+      // If position is at 0 and we have segments, seek to first recording
+      if (_position == Duration.zero && _segments.isNotEmpty) {
+        final firstStart = _segments.first.startTime.difference(_dayStart);
+        _position = firstStart;
+        notifyListeners();
       }
-      await _openPlayers(startPos);
     }
     _isPlaying = true;
     for (final p in _players.values) {
@@ -122,48 +182,28 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
-  Future<void> seek(Duration target) async {
+  Future<void> seek(Duration wallClockTarget) async {
     final clamped = Duration(
-      milliseconds: target.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
+      milliseconds: wallClockTarget.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
     );
     final snapped = _snapToSegment(clamped);
 
     _isSeeking = true;
     _position = snapped;
-    _streamOrigin = snapped;
     notifyListeners();
 
-    // Debounce: if another seek arrives within 150ms, cancel this one.
-    _seekDebounce?.cancel();
-    _seekDebounce = Timer(const Duration(milliseconds: 150), () async {
-      if (_disposed) return;
-      final wasPlaying = _isPlaying;
-      _disposeAllPlayers();
-      await _openPlayers(snapped);
+    // Open players if not already open
+    if (_players.isEmpty) {
+      await _openPlayers();
+    }
 
-      // Briefly play then pause to force the player to decode past the
-      // keyframe pre-roll. The server starts from the nearest keyframe
-      // before the requested time, so position 0 in the player may
-      // correspond to a frame a few seconds before our target. Playing
-      // briefly lets mpv decode forward to the actual requested time.
-      for (final p in _players.values) {
-        p.play();
-      }
-      await Future.delayed(const Duration(milliseconds: 200));
-      if (_disposed) return;
+    // Convert wall-clock to player position and seek natively
+    final playerPos = _wallClockToPlayer(snapped);
+    for (final p in _players.values) {
+      await p.seek(playerPos);
+    }
 
-      if (!wasPlaying) {
-        for (final p in _players.values) {
-          p.pause();
-        }
-        _isPlaying = false;
-      } else {
-        _isPlaying = true;
-      }
-
-      _isSeeking = false;
-      notifyListeners();
-    });
+    _isSeeking = false;
   }
 
   void setSpeed(double s) {
@@ -219,19 +259,17 @@ class PlaybackController extends ChangeNotifier {
   DateTime get _dayStart => DateTime(
       _selectedDate.year, _selectedDate.month, _selectedDate.day);
 
-  Future<void> _openPlayers(Duration startPosition) async {
+  String get _dateKey =>
+      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+
+  Future<void> _openPlayers() async {
     final token = await getAccessToken();
-    final startTime = _dayStart.add(startPosition);
-    _streamOrigin = startPosition;
     _error = null;
 
     for (final camId in _selectedCameraIds) {
-      final camPath = _cameraPaths[camId];
-      if (camPath == null || camPath.isEmpty) continue;
-
-      final url = playbackService.vodUrl(
-        cameraPath: camPath,
-        start: startTime,
+      final url = playbackService.playlistUrl(
+        cameraId: camId,
+        date: _dateKey,
         token: token,
       );
 
@@ -257,9 +295,10 @@ class PlaybackController extends ChangeNotifier {
     if (_players.isNotEmpty) {
       final primary = _players.values.first;
 
-      _positionSub = primary.stream.position.listen((pos) {
+      _positionSub = primary.stream.position.listen((playerPos) {
         if (_disposed || _isSeeking) return;
-        _position = _streamOrigin + pos;
+        // Convert player position to wall-clock time for timeline display
+        _position = _playerToWallClock(playerPos);
         notifyListeners();
       });
 
@@ -339,8 +378,19 @@ class PlaybackController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _seekDebounce?.cancel();
     _disposeAllPlayers();
     super.dispose();
   }
+}
+
+class _SegmentMapEntry {
+  final Duration wallStart;
+  final Duration wallEnd;
+  final Duration playerOffset;
+
+  const _SegmentMapEntry({
+    required this.wallStart,
+    required this.wallEnd,
+    required this.playerOffset,
+  });
 }

@@ -40,6 +40,7 @@ type RouterConfig struct {
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
 	Embedder        *ai.Embedder // CLIP embedder for semantic search (may be nil)
 	AIRestarter     AIPipelineRestarter // restart AI pipeline on camera settings change (may be nil)
+	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -228,6 +229,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// HLS VoD playback.
+	if cfg.HLSHandler != nil {
+		protected.GET("/vod/:cameraId/playlist.m3u8", cfg.HLSHandler.ServePlaylist)
+		// Segment serving is public (token is in URL from playlist).
+		nvr.GET("/vod/segments/*filepath", cfg.HLSHandler.ServeSegment)
+	}
 
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)

@@ -496,6 +496,10 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		ConfigPath:      n.ConfigPath,
 		Embedder:        n.aiEmbedder,
 		AIRestarter:     n,
+		HLSHandler: &api.HLSHandler{
+			DB:             n.database,
+			RecordingsPath: recordingsPath,
+		},
 	})
 }
 

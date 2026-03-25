@@ -23,8 +23,9 @@ type HLSHandler struct {
 
 // fragmentInfo describes a single moof+mdat pair inside an fMP4 file.
 type fragmentInfo struct {
-	offset int64
-	size   int64
+	offset     int64
+	size       int64
+	durationMs float64 // actual duration in milliseconds, from trun/tfhd
 }
 
 // ServePlaylist generates an HLS VOD playlist covering all recordings for a
@@ -191,8 +192,8 @@ func segmentURLFromFilePath(filePath, recordingsBase, token string) string {
 }
 
 // scanFragments reads an fMP4 file and returns the init segment size and a
-// list of fragment (moof+mdat) offsets and sizes. It only reads box headers,
-// never the payload data, so it is efficient even for large files.
+// list of fragment (moof+mdat) offsets, sizes, and real durations. It reads
+// box headers and trun/tfhd timing data to produce accurate fragment durations.
 func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, err error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -206,7 +207,6 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 	}
 	fileSize := info.Size()
 
-	// Read ftyp box.
 	ftypSize, ftypType, err := readBoxHeader(f)
 	if err != nil {
 		return 0, nil, fmt.Errorf("reading ftyp header: %w", err)
@@ -215,12 +215,10 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 		return 0, nil, fmt.Errorf("expected ftyp box, got %q", ftypType)
 	}
 
-	// Seek past ftyp body.
 	if _, err := f.Seek(ftypSize, io.SeekStart); err != nil {
 		return 0, nil, err
 	}
 
-	// Read moov box.
 	moovSize, moovType, err := readBoxHeader(f)
 	if err != nil {
 		return 0, nil, fmt.Errorf("reading moov header: %w", err)
@@ -231,7 +229,12 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 
 	initSize = ftypSize + moovSize
 
-	// Scan moof+mdat pairs.
+	// Extract timescale from mvhd inside moov.
+	timescale, err := readTimescale(f, ftypSize, moovSize)
+	if err != nil {
+		timescale = 1000
+	}
+
 	pos := initSize
 	for pos < fileSize {
 		if _, err := f.Seek(pos, io.SeekStart); err != nil {
@@ -240,11 +243,9 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 
 		moofSize, moofType, err := readBoxHeader(f)
 		if err != nil {
-			// Reached a truncated box at end of file; stop gracefully.
 			break
 		}
 		if moofType != "moof" {
-			// Unexpected box type; skip it and try to continue.
 			if moofSize == 0 {
 				break
 			}
@@ -252,7 +253,11 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 			continue
 		}
 
-		// Read the mdat box header that follows moof.
+		durationMs, durErr := readFragmentDuration(f, pos, moofSize, timescale)
+		if durErr != nil {
+			durationMs = 1000.0
+		}
+
 		if _, err := f.Seek(pos+moofSize, io.SeekStart); err != nil {
 			break
 		}
@@ -261,25 +266,208 @@ func scanFragments(filePath string) (initSize int64, fragments []fragmentInfo, e
 			break
 		}
 		if mdatType != "mdat" {
-			// If the box after moof isn't mdat, something is off; skip the moof.
 			pos += moofSize
 			continue
 		}
 
-		// Handle mdat with size 0 (extends to end of file).
 		if mdatSize == 0 {
 			mdatSize = fileSize - (pos + moofSize)
 		}
 
 		fragments = append(fragments, fragmentInfo{
-			offset: pos,
-			size:   moofSize + mdatSize,
+			offset:     pos,
+			size:       moofSize + mdatSize,
+			durationMs: durationMs,
 		})
 
 		pos += moofSize + mdatSize
 	}
 
 	return initSize, fragments, nil
+}
+
+// readTimescale reads the timescale from the mvhd box inside moov.
+func readTimescale(f io.ReadSeeker, moovStart, moovSize int64) (uint32, error) {
+	pos := moovStart + 8 // skip moov container header to scan children
+	end := moovStart + moovSize
+	for pos < end {
+		if _, err := f.Seek(pos, io.SeekStart); err != nil {
+			return 0, err
+		}
+		boxSize, boxType, err := readBoxHeader(f)
+		if err != nil {
+			return 0, err
+		}
+		if boxType == "mvhd" {
+			// mvhd: version(1) + flags(3) + creation(4/8) + modification(4/8) + timescale(4)
+			var ver [1]byte
+			if _, err := io.ReadFull(f, ver[:]); err != nil {
+				return 0, err
+			}
+			// Skip flags (3 bytes)
+			if _, err := f.Seek(3, io.SeekCurrent); err != nil {
+				return 0, err
+			}
+			if ver[0] == 0 {
+				// Skip creation_time(4) + modification_time(4)
+				if _, err := f.Seek(8, io.SeekCurrent); err != nil {
+					return 0, err
+				}
+			} else {
+				// Skip creation_time(8) + modification_time(8)
+				if _, err := f.Seek(16, io.SeekCurrent); err != nil {
+					return 0, err
+				}
+			}
+			var ts [4]byte
+			if _, err := io.ReadFull(f, ts[:]); err != nil {
+				return 0, err
+			}
+			return binary.BigEndian.Uint32(ts[:]), nil
+		}
+		if boxSize == 0 {
+			break
+		}
+		pos += boxSize
+	}
+	return 0, fmt.Errorf("mvhd not found in moov")
+}
+
+// readFragmentDuration reads the total sample duration from a moof box.
+func readFragmentDuration(f io.ReadSeeker, moofStart, moofSize int64, timescale uint32) (float64, error) {
+	pos := moofStart + 8 // skip moof header
+	end := moofStart + moofSize
+
+	var defaultSampleDuration uint32
+	var totalDuration uint64
+
+	for pos < end {
+		if _, err := f.Seek(pos, io.SeekStart); err != nil {
+			return 0, err
+		}
+		boxSize, boxType, err := readBoxHeader(f)
+		if err != nil {
+			return 0, err
+		}
+
+		if boxType == "traf" {
+			// Parse traf children inline
+			trafEnd := pos + boxSize
+			childPos := pos + 8 // skip traf header
+			for childPos < trafEnd {
+				if _, err := f.Seek(childPos, io.SeekStart); err != nil {
+					return 0, err
+				}
+				childSize, childType, err := readBoxHeader(f)
+				if err != nil {
+					break
+				}
+
+				if childType == "tfhd" {
+					// version(1) + flags(3)
+					var vf [4]byte
+					if _, err := io.ReadFull(f, vf[:]); err != nil {
+						break
+					}
+					flags := uint32(vf[1])<<16 | uint32(vf[2])<<8 | uint32(vf[3])
+					// Skip track_id (4 bytes)
+					if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+						break
+					}
+					if flags&0x000001 != 0 { // base-data-offset-present
+						if _, err := f.Seek(8, io.SeekCurrent); err != nil {
+							break
+						}
+					}
+					if flags&0x000002 != 0 { // sample-description-index-present
+						if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+							break
+						}
+					}
+					if flags&0x000008 != 0 { // default-sample-duration-present
+						var dur [4]byte
+						if _, err := io.ReadFull(f, dur[:]); err != nil {
+							break
+						}
+						defaultSampleDuration = binary.BigEndian.Uint32(dur[:])
+					}
+				}
+
+				if childType == "trun" {
+					var vf [4]byte
+					if _, err := io.ReadFull(f, vf[:]); err != nil {
+						break
+					}
+					flags := uint32(vf[1])<<16 | uint32(vf[2])<<8 | uint32(vf[3])
+					var sc [4]byte
+					if _, err := io.ReadFull(f, sc[:]); err != nil {
+						break
+					}
+					sampleCount := binary.BigEndian.Uint32(sc[:])
+
+					if flags&0x000001 != 0 { // data-offset-present
+						if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+							break
+						}
+					}
+					if flags&0x000004 != 0 { // first-sample-flags-present
+						if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+							break
+						}
+					}
+
+					hasDuration := flags&0x000100 != 0
+					hasSize := flags&0x000200 != 0
+					hasFlags := flags&0x000400 != 0
+					hasCTO := flags&0x000800 != 0
+
+					for i := uint32(0); i < sampleCount; i++ {
+						if hasDuration {
+							var d [4]byte
+							if _, err := io.ReadFull(f, d[:]); err != nil {
+								break
+							}
+							totalDuration += uint64(binary.BigEndian.Uint32(d[:]))
+						} else {
+							totalDuration += uint64(defaultSampleDuration)
+						}
+						if hasSize {
+							if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+								break
+							}
+						}
+						if hasFlags {
+							if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+								break
+							}
+						}
+						if hasCTO {
+							if _, err := f.Seek(4, io.SeekCurrent); err != nil {
+								break
+							}
+						}
+					}
+				}
+
+				if childSize == 0 {
+					break
+				}
+				childPos += childSize
+			}
+		}
+
+		if boxSize == 0 {
+			break
+		}
+		pos += boxSize
+	}
+
+	if timescale == 0 {
+		return 0, fmt.Errorf("timescale is zero")
+	}
+
+	durationMs := float64(totalDuration) / float64(timescale) * 1000.0
+	return durationMs, nil
 }
 
 // readBoxHeader reads an fMP4/ISO BMFF box header from the current position

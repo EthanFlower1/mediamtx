@@ -1,14 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
 class PlaybackController extends ChangeNotifier {
   final PlaybackService playbackService;
+  final Future<String?> Function() getAccessToken;
+
+  bool _disposed = false;
 
   // State
   Duration _position = Duration.zero;
@@ -19,33 +20,32 @@ class PlaybackController extends ChangeNotifier {
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
   List<MotionEvent> _events = [];
+  String? _error;
 
-  // WebSocket session
-  WebSocketChannel? _ws;
-  int _seq = 0;
-  // ignore: unused_field
-  String? _sessionId;
-  bool _sessionCreated = false;
-
-  // Players — created when session returns stream URLs
+  // Players — one per selected camera
   final Map<String, Player> _players = {};
   final Map<String, VideoController> _videoControllers = {};
   StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<bool>? _completedSub;
 
-  // The server's stream starts at _streamOrigin (the seek target).
-  // The player reports position relative to stream start (0 = stream start).
-  // Display position = _streamOrigin + player position.
+  // The absolute time-since-midnight that corresponds to player position 0.
   Duration _streamOrigin = Duration.zero;
 
-  // Camera paths for session creation
+  // Camera ID → MediaMTX path
   final Map<String, String> _cameraPaths = {};
 
+  // Debounce timer for seek
+  Timer? _seekDebounce;
+
   static const _maxPosition = Duration(hours: 24);
-  static const _positionThrottle = Duration(milliseconds: 66);
 
-  PlaybackController({required this.playbackService});
+  PlaybackController({
+    required this.playbackService,
+    required this.getAccessToken,
+  });
 
-  // Getters
+  // ── Getters ─────────────────────────────────────────────────────────
+
   Duration get position => _position;
   bool get isPlaying => _isPlaying;
   double get speed => _speed;
@@ -55,200 +55,62 @@ class PlaybackController extends ChangeNotifier {
   List<RecordingSegment> get segments => _segments;
   List<MotionEvent> get events => _events;
   Map<String, VideoController> get videoControllers => _videoControllers;
+  String? get error => _error;
 
-  // ── Data setters ──────────────────────────────────────────────────────
+  // ── Data setters ────────────────────────────────────────────────────
 
-  void setSegments(List<RecordingSegment> segments) {
-    _segments = segments;
-  }
+  void setSegments(List<RecordingSegment> s) => _segments = s;
+  void setEvents(List<MotionEvent> e) => _events = e;
 
-  void setEvents(List<MotionEvent> events) {
-    _events = events;
+  void setCameraPaths(Map<String, String> paths) {
+    _cameraPaths..clear()..addAll(paths);
   }
 
   void setSelectedDate(DateTime date) {
+    if (_selectedDate.year == date.year &&
+        _selectedDate.month == date.month &&
+        _selectedDate.day == date.day) {
+      return;
+    }
     _selectedDate = date;
     _position = Duration.zero;
-    if (_sessionCreated) {
-      _sendCommand({'cmd': 'close'});
-      _sessionCreated = false;
-      _sessionId = null;
-      _disposeAllPlayers();
-      _createSession();
-    }
+    _streamOrigin = Duration.zero;
+    _disposeAllPlayers();
     notifyListeners();
   }
 
   void setSelectedCameraIds(List<String> ids) {
     if (_listEquals(ids, _selectedCameraIds)) return;
     _selectedCameraIds = ids;
-
-    // If session exists, close and recreate with new cameras.
-    if (_sessionCreated) {
-      _sendCommand({'cmd': 'close'});
-      _sessionCreated = false;
-      _sessionId = null;
-      _disposeAllPlayers();
-      _createSession();
-    }
+    _disposeAllPlayers();
     notifyListeners();
   }
 
-  static bool _listEquals(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
+  // ── Playback controls ──────────────────────────────────────────────
 
-  void setCameraPaths(Map<String, String> paths) {
-    _cameraPaths.addAll(paths);
-  }
-
-  // ── WebSocket management ──────────────────────────────────────────────
-
-  void _connectWs() {
-    _ws?.sink.close();
-    final url = playbackService.playbackWsUrl();
-    _ws = WebSocketChannel.connect(Uri.parse(url));
-    _ws!.stream.listen(
-      _handleWsMessage,
-      onError: (e) {
-        debugPrint('Playback WS error: $e');
-      },
-      onDone: () {
-        debugPrint('Playback WS closed');
-      },
-    );
-  }
-
-  void _sendCommand(Map<String, dynamic> cmd) {
-    cmd['seq'] = ++_seq;
-    _ws?.sink.add(jsonEncode(cmd));
-  }
-
-  void _handleWsMessage(dynamic message) {
-    final event = jsonDecode(message as String) as Map<String, dynamic>;
-    switch (event['event']) {
-      case 'created':
-        _sessionId = event['session_id'] as String;
-        _sessionCreated = true;
-        final streams = (event['streams'] as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, v as String));
-        _openStreams(streams);
-      case 'position':
-        // Server position tracks where the muxer is writing — use it to
-        // update _streamOrigin but NOT _position. The player's own position
-        // stream is more accurate for display (reflects decode/render time).
-        break;
-      case 'state':
-        if (event['playing'] != null) _isPlaying = event['playing'] as bool;
-        if (event['speed'] != null) {
-          _speed = (event['speed'] as num).toDouble();
-        }
-        if (event['position'] != null) {
-          final secs = (event['position'] as num).toDouble();
-          _streamOrigin = Duration(milliseconds: (secs * 1000).round());
-          // Only update display position on state events (seek/play/pause),
-          // not on continuous position ticks
-          _position = _streamOrigin;
-        }
-        _isSeeking = false;
-        notifyListeners();
-      case 'stream_restart':
-        final camId = event['camera_id'] as String;
-        final newUrl = event['new_url'] as String;
-        _reopenStream(camId, newUrl);
-      case 'segment_gap':
-        // Timeline already shows gaps — this is just informational
-        notifyListeners();
-      case 'end':
-        _isPlaying = false;
-        notifyListeners();
-      case 'error':
-        debugPrint('Playback error: ${event['message']}');
-    }
-  }
-
-  void _openStreams(Map<String, String> streams) {
-    final baseUrl = playbackService.streamBaseUrl();
-    for (final entry in streams.entries) {
-      final camId = entry.key;
-      final url = baseUrl + entry.value;
-
-      if (!_players.containsKey(camId)) {
-        final player = Player();
-        _players[camId] = player;
-        _videoControllers[camId] = VideoController(player);
+  Future<void> play() async {
+    if (_players.isEmpty) {
+      // First play — open streams. If at midnight, jump to first recording.
+      var startPos = _position;
+      if (startPos == Duration.zero && _segments.isNotEmpty) {
+        startPos = _segments.first.startTime.difference(_dayStart);
+        _position = startPos;
+        _streamOrigin = startPos;
       }
-      _players[camId]!.open(Media(url), play: false);
+      await _openPlayers(startPos);
     }
-
-    // Subscribe to the first player's position stream for accurate
-    // display timing. The player reports time relative to stream start;
-    // we add _streamOrigin to get day-absolute position.
-    _positionSub?.cancel();
-    if (_players.isNotEmpty) {
-      DateTime? lastUpdate;
-      _positionSub =
-          _players.values.first.stream.position.listen((streamPos) {
-        if (_isSeeking) return;
-
-        final now = DateTime.now();
-        if (lastUpdate != null &&
-            now.difference(lastUpdate!) < _positionThrottle) {
-          return;
-        }
-        lastUpdate = now;
-
-        _position = _streamOrigin + streamPos;
-        notifyListeners();
-      });
-    }
-
-    notifyListeners();
-  }
-
-  void _reopenStream(String camId, String newUrl) {
-    final baseUrl = playbackService.streamBaseUrl();
-    _players[camId]?.dispose();
-    final player = Player();
-    _players[camId] = player;
-    _videoControllers[camId] = VideoController(player);
-    player.open(Media(baseUrl + newUrl), play: _isPlaying);
-    notifyListeners();
-  }
-
-  // ── Session lifecycle ─────────────────────────────────────────────────
-
-  void _createSession() {
-    if (_selectedCameraIds.isEmpty) return;
-
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    _sendCommand({
-      'cmd': 'create',
-      'camera_ids': _selectedCameraIds,
-      'start': PlaybackService.toLocalRfc3339(dayStart),
-    });
-  }
-
-  // ── Playback controls ─────────────────────────────────────────────────
-
-  void play() {
     _isPlaying = true;
-    if (!_sessionCreated && _ws == null) {
-      _connectWs();
-      _createSession();
+    for (final p in _players.values) {
+      p.play();
     }
-    _sendCommand({'cmd': 'play'});
     notifyListeners();
   }
 
   void pause() {
     _isPlaying = false;
-    _sendCommand({'cmd': 'pause'});
+    for (final p in _players.values) {
+      p.pause();
+    }
     notifyListeners();
   }
 
@@ -260,146 +122,197 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
-  void setSpeed(double speed) {
-    _speed = speed;
-    _sendCommand({'cmd': 'speed', 'rate': speed});
-    notifyListeners();
-  }
-
   Future<void> seek(Duration target) async {
     final clamped = Duration(
-      milliseconds:
-          target.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
+      milliseconds: target.inMilliseconds.clamp(0, _maxPosition.inMilliseconds),
     );
-    final secs = clamped.inMilliseconds / 1000.0;
+    final snapped = _snapToSegment(clamped);
 
     _isSeeking = true;
-    _position = clamped;
-    _streamOrigin = clamped;
+    _position = snapped;
+    _streamOrigin = snapped;
     notifyListeners();
 
-    _sendCommand({'cmd': 'seek', 'position': secs});
-    // _isSeeking will be cleared when we receive the 'state' event back
+    // Debounce: if another seek arrives within 150ms, cancel this one.
+    _seekDebounce?.cancel();
+    _seekDebounce = Timer(const Duration(milliseconds: 150), () async {
+      final wasPlaying = _isPlaying;
+      _disposeAllPlayers();
+      await _openPlayers(snapped);
+      if (wasPlaying) {
+        for (final p in _players.values) {
+          p.play();
+        }
+        _isPlaying = true;
+      }
+      _isSeeking = false;
+      if (!_disposed) notifyListeners();
+    });
+  }
+
+  void setSpeed(double s) {
+    _speed = s;
+    for (final p in _players.values) {
+      p.setRate(s);
+    }
+    notifyListeners();
   }
 
   void stepFrame(int direction) {
+    const frameDur = Duration(milliseconds: 33);
+    final target = direction > 0 ? _position + frameDur : _position - frameDur;
     if (_isPlaying) pause();
-    _sendCommand({'cmd': 'step', 'direction': direction});
+    seek(target);
   }
 
   void skipToNextEvent() {
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final target = findNextEvent(_events, dayStart, _position);
-    if (target != null) seek(target);
+    final t = _findNext(_events, _dayStart, _position, (e) => e.startTime);
+    if (t != null) seek(t);
   }
 
   void skipToPreviousEvent() {
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final target = findPreviousEvent(_events, dayStart, _position);
-    if (target != null) seek(target);
+    final t = _findPrev(_events, _dayStart, _position, (e) => e.startTime);
+    if (t != null) seek(t);
   }
 
   void skipToNextGap() {
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final target = findNextGapEnd(_segments, dayStart, _position);
-    if (target != null) seek(target);
+    final posTime = _dayStart.add(_position);
+    for (int i = 0; i < _segments.length - 1; i++) {
+      final gapEnd = _segments[i + 1].startTime;
+      if (gapEnd.isAfter(posTime) && _segments[i].endTime != gapEnd) {
+        seek(gapEnd.difference(_dayStart));
+        return;
+      }
+    }
   }
 
   void skipToPreviousGap() {
-    final dayStart = DateTime(
-        _selectedDate.year, _selectedDate.month, _selectedDate.day);
-    final target = findPreviousGapStart(_segments, dayStart, _position);
-    if (target != null) seek(target);
+    final posTime = _dayStart.add(_position);
+    Duration? result;
+    for (int i = 0; i < _segments.length - 1; i++) {
+      final gapStart = _segments[i].endTime;
+      if (gapStart.isBefore(posTime) && gapStart != _segments[i + 1].startTime) {
+        result = gapStart.difference(_dayStart);
+      }
+    }
+    if (result != null) seek(result);
   }
 
-  // ── Static helpers (testable without media_kit) ───────────────────────
+  // ── Player management ──────────────────────────────────────────────
 
-  static RecordingSegment? findContainingSegment(
-      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
-    for (final seg in segments) {
+  DateTime get _dayStart => DateTime(
+      _selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+  Future<void> _openPlayers(Duration startPosition) async {
+    final token = await getAccessToken();
+    final startTime = _dayStart.add(startPosition);
+    _streamOrigin = startPosition;
+    _error = null;
+
+    for (final camId in _selectedCameraIds) {
+      final camPath = _cameraPaths[camId];
+      if (camPath == null || camPath.isEmpty) continue;
+
+      final url = playbackService.vodUrl(
+        cameraPath: camPath,
+        start: startTime,
+        token: token,
+      );
+
+      final player = Player();
+      player.setRate(_speed);
+      _players[camId] = player;
+      _videoControllers[camId] = VideoController(player);
+
+      // Listen for errors
+      player.stream.error.listen((error) {
+        if (_disposed) return;
+        _error = error;
+        debugPrint('Playback player error: $error');
+        notifyListeners();
+      });
+
+      await player.open(Media(url), play: false);
+    }
+
+    // Position tracking from first player
+    _positionSub?.cancel();
+    _completedSub?.cancel();
+    if (_players.isNotEmpty) {
+      final primary = _players.values.first;
+
+      _positionSub = primary.stream.position.listen((pos) {
+        if (_disposed || _isSeeking) return;
+        _position = _streamOrigin + pos;
+        notifyListeners();
+      });
+
+      _completedSub = primary.stream.completed.listen((completed) {
+        if (_disposed || !completed) return;
+        _isPlaying = false;
+        notifyListeners();
+      });
+    }
+
+    notifyListeners();
+  }
+
+  Duration _snapToSegment(Duration position) {
+    if (_segments.isEmpty) return position;
+    final posTime = _dayStart.add(position);
+    for (final seg in _segments) {
       if (!posTime.isBefore(seg.startTime) && posTime.isBefore(seg.endTime)) {
-        return seg;
+        return position; // inside a segment
       }
     }
-    return null;
-  }
-
-  static Duration? findNextSegmentStart(
-      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
-    for (final seg in segments) {
+    for (final seg in _segments) {
       if (seg.startTime.isAfter(posTime)) {
-        return seg.startTime.difference(dayStart);
+        return seg.startTime.difference(_dayStart);
+      }
+    }
+    return position;
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────
+
+  static Duration? _findNext<T>(
+      List<T> items, DateTime dayStart, Duration pos, DateTime Function(T) getTime) {
+    final posTime = dayStart.add(pos);
+    for (final item in items) {
+      if (getTime(item).isAfter(posTime)) {
+        return getTime(item).difference(dayStart);
       }
     }
     return null;
   }
 
-  static Duration snapToSegment(
-      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
-    if (segments.isEmpty) return position;
-    final containing = findContainingSegment(segments, dayStart, position);
-    if (containing != null) return position;
-    return findNextSegmentStart(segments, dayStart, position) ?? position;
-  }
-
-  static Duration? findNextEvent(
-      List<MotionEvent> events, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
-    for (final e in events) {
-      if (e.startTime.isAfter(posTime)) {
-        return e.startTime.difference(dayStart);
-      }
-    }
-    return null;
-  }
-
-  static Duration? findPreviousEvent(
-      List<MotionEvent> events, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
+  static Duration? _findPrev<T>(
+      List<T> items, DateTime dayStart, Duration pos, DateTime Function(T) getTime) {
+    final posTime = dayStart.add(pos);
     Duration? result;
-    for (final e in events) {
-      if (e.startTime.isBefore(posTime)) {
-        result = e.startTime.difference(dayStart);
+    for (final item in items) {
+      if (getTime(item).isBefore(posTime)) {
+        result = getTime(item).difference(dayStart);
       }
     }
     return result;
   }
 
-  static Duration? findNextGapEnd(
-      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
-    for (int i = 0; i < segments.length - 1; i++) {
-      final gapStart = segments[i].endTime;
-      final gapEnd = segments[i + 1].startTime;
-      if (gapEnd.isAfter(posTime) && gapStart != gapEnd) {
-        return gapEnd.difference(dayStart);
-      }
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
     }
-    return null;
+    return true;
   }
 
-  static Duration? findPreviousGapStart(
-      List<RecordingSegment> segments, DateTime dayStart, Duration position) {
-    final posTime = dayStart.add(position);
-    Duration? result;
-    for (int i = 0; i < segments.length - 1; i++) {
-      final gapStart = segments[i].endTime;
-      final gapEnd = segments[i + 1].startTime;
-      if (gapStart.isBefore(posTime) && gapStart != gapEnd) {
-        result = gapStart.difference(dayStart);
-      }
-    }
-    return result;
-  }
-
-  // ── Cleanup ───────────────────────────────────────────────────────────
+  // ── Cleanup ─────────────────────────────────────────────────────────
 
   void _disposeAllPlayers() {
+    _positionSub?.cancel();
+    _positionSub = null;
+    _completedSub?.cancel();
+    _completedSub = null;
     for (final p in _players.values) {
       p.dispose();
     }
@@ -409,11 +322,8 @@ class PlaybackController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _positionSub?.cancel();
-    if (_sessionCreated) {
-      _sendCommand({'cmd': 'close'});
-    }
-    _ws?.sink.close();
+    _disposed = true;
+    _seekDebounce?.cancel();
     _disposeAllPlayers();
     super.dispose();
   }

@@ -1,13 +1,90 @@
+import 'package:dio/dio.dart';
+
+/// A timespan returned by the MediaMTX /list endpoint.
+class PlaybackTimespan {
+  final DateTime start;
+  final double durationSecs;
+  final String url;
+
+  DateTime get end => start.add(Duration(
+      microseconds: (durationSecs * Duration.microsecondsPerSecond).round()));
+
+  const PlaybackTimespan({
+    required this.start,
+    required this.durationSecs,
+    required this.url,
+  });
+
+  factory PlaybackTimespan.fromJson(Map<String, dynamic> json) {
+    return PlaybackTimespan(
+      start: DateTime.parse(json['start'] as String),
+      durationSecs: (json['duration'] as num).toDouble(),
+      url: json['url'] as String,
+    );
+  }
+
+  /// Whether [time] falls within this timespan.
+  bool contains(DateTime time) =>
+      !time.isBefore(start) && time.isBefore(end);
+}
+
 class PlaybackService {
   final String serverUrl;
   PlaybackService({required this.serverUrl});
 
-  /// Builds the HLS playlist URL for a camera on a given date.
-  ///
-  /// When [startSeconds] is provided, the server generates a playlist
-  /// beginning at that offset (seconds since midnight), skipping earlier
-  /// fragments. This is used for seeking: the client re-opens the player
-  /// with a new URL so position 0 = the target time.
+  /// Fetch the list of recorded timespans from the MediaMTX /list endpoint.
+  /// Each timespan includes a pre-built /get URL.
+  Future<List<PlaybackTimespan>> listTimespans({
+    required String cameraPath,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final uri = Uri.parse(serverUrl);
+    final base = '${uri.scheme}://${uri.host}:9996/list';
+    final url = Uri.parse(base).replace(queryParameters: {
+      'path': cameraPath,
+      'start': _toRfc3339(start),
+      'end': _toRfc3339(end),
+    }).toString();
+
+    final dio = Dio();
+    try {
+      final response = await dio.get<List<dynamic>>(url);
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data!
+            .map((e) =>
+                PlaybackTimespan.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    } finally {
+      dio.close();
+    }
+  }
+
+  /// Builds a /get URL for playback starting at [start] for [durationSecs].
+  String getUrl({
+    required String cameraPath,
+    required DateTime start,
+    required int durationSecs,
+    String? token,
+  }) {
+    final uri = Uri.parse(serverUrl);
+    final base = '${uri.scheme}://${uri.host}:9996/get';
+    final params = <String, String>{
+      'path': cameraPath,
+      'start': _toRfc3339(start),
+      'duration': durationSecs.toString(),
+    };
+    if (token != null && token.isNotEmpty) {
+      params['jwt'] = token;
+    }
+    return Uri.parse(base).replace(queryParameters: params).toString();
+  }
+
+  /// Builds the HLS playlist URL (kept for backwards compatibility).
   String playlistUrl({
     required String cameraId,
     required String date,
@@ -31,25 +108,19 @@ class PlaybackService {
     ).toString();
   }
 
-  /// Builds a direct VoD URL for a short clip (uses MediaMTX /get endpoint).
+  /// Builds a direct VoD URL (legacy — prefer [getUrl]).
   String clipUrl({
     required String cameraPath,
     required DateTime start,
     int durationSecs = 30,
     String? token,
   }) {
-    final uri = Uri.parse(serverUrl);
-    final startStr = _toRfc3339(start);
-    final base = '${uri.scheme}://${uri.host}:9996/get';
-    final params = <String, String>{
-      'path': cameraPath,
-      'start': startStr,
-      'duration': durationSecs.toString(),
-    };
-    if (token != null && token.isNotEmpty) {
-      params['jwt'] = token;
-    }
-    return Uri.parse(base).replace(queryParameters: params).toString();
+    return getUrl(
+      cameraPath: cameraPath,
+      start: start,
+      durationSecs: durationSecs,
+      token: token,
+    );
   }
 
   static String _toRfc3339(DateTime d) {

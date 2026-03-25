@@ -14,6 +14,7 @@ class PlaybackController extends ChangeNotifier {
   // State
   Duration _position = Duration.zero; // wall-clock time since midnight
   bool _isPlaying = false;
+  bool _continuousMode = true;
   double _speed = 1.0;
   bool _isSeeking = false;
   Duration? _lastSeekTarget;
@@ -44,6 +45,7 @@ class PlaybackController extends ChangeNotifier {
 
   Duration get position => _position;
   bool get isPlaying => _isPlaying;
+  bool get continuousMode => _continuousMode;
   double get speed => _speed;
   bool get isSeeking => _isSeeking;
   DateTime get selectedDate => _selectedDate;
@@ -68,6 +70,11 @@ class PlaybackController extends ChangeNotifier {
   }
 
   void setEvents(List<MotionEvent> e) => _events = e;
+
+  void setContinuousMode(bool enabled) {
+    _continuousMode = enabled;
+    notifyListeners();
+  }
 
   void setCameraPaths(Map<String, String> paths) {
     _cameraPaths..clear()..addAll(paths);
@@ -333,8 +340,13 @@ class PlaybackController extends ChangeNotifier {
 
     _completedSub = primary.stream.completed.listen((completed) {
       if (_disposed || !completed) return;
-      _isPlaying = false;
-      notifyListeners();
+      if (_continuousMode) {
+        final nextDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day + 1);
+        setSelectedDate(nextDay);
+      } else {
+        _isPlaying = false;
+        notifyListeners();
+      }
     });
 
     notifyListeners();

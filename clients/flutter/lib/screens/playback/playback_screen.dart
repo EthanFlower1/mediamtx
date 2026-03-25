@@ -78,11 +78,33 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         title: const Text('Playback',
             style: TextStyle(color: NvrColors.textPrimary)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: NvrColors.textSecondary),
+            onPressed: () {
+              final prev = DateTime(
+                controller.selectedDate.year,
+                controller.selectedDate.month,
+                controller.selectedDate.day - 1,
+              );
+              controller.setSelectedDate(prev);
+            },
+          ),
           _DatePickerButton(
             date: _selectedDate,
             onChanged: (d) {
               setState(() => _selectedDate = d);
               controller.setSelectedDate(d);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: NvrColors.textSecondary),
+            onPressed: () {
+              final next = DateTime(
+                controller.selectedDate.year,
+                controller.selectedDate.month,
+                controller.selectedDate.day + 1,
+              );
+              controller.setSelectedDate(next);
             },
           ),
         ],

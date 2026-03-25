@@ -34,7 +34,8 @@ CREATE TABLE recording_fragments (
   duration_ms REAL NOT NULL,
   is_keyframe BOOLEAN NOT NULL,
   timestamp_ms INTEGER NOT NULL,
-  FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
+  FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE,
+  UNIQUE(recording_id, fragment_index)
 );
 CREATE INDEX idx_fragments_recording ON recording_fragments(recording_id, fragment_index);
 ```
@@ -119,6 +120,7 @@ New features added as CustomPainter layers on the existing ComposableTimeline ar
     FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
   );
   CREATE INDEX idx_bookmarks_camera_time ON bookmarks(camera_id, timestamp);
+  CREATE INDEX idx_bookmarks_timestamp ON bookmarks(timestamp);
   ```
 - Bookmark layer painter: triangular markers at bookmark positions
 - Tap to see label, long-press to edit/delete
@@ -132,9 +134,10 @@ New features added as CustomPainter layers on the existing ComposableTimeline ar
 
 **Thumbnail preview:**
 - Server endpoint: `GET /api/nvr/thumbnail?camera_id=X&time=RFC3339`
-- Extracts single frame from nearest keyframe using fragment index
+- Uses fragment index to find nearest keyframe, reads the fMP4 fragment via byte-range, decodes single frame using FFmpeg subprocess (`ffmpeg -ss 0 -i pipe:0 -frames:v 1 -f mjpeg pipe:1`)
 - Tooltip above timeline at hovered position (desktop) or long-press (mobile)
 - Client-side LRU cache (max ~50 per session)
+- Server-side LRU cache for recently generated thumbnails (max ~200, keyed by camera+timestamp)
 
 ### 5. Performance Targets
 
@@ -154,7 +157,7 @@ New features added as CustomPainter layers on the existing ComposableTimeline ar
 - Queries recordings with no fragments
 - Scans in reverse chronological order (newest first — recent playback benefits immediately)
 - Progress logged every 100 files
-- Idempotent — safe to restart if interrupted
+- Idempotent — UNIQUE constraint on `(recording_id, fragment_index)` prevents duplicate rows on restart; uses INSERT OR IGNORE
 
 **Playback during migration:** If fragments exist for a recording, use DB query path. If not, fall back to `scanFragments()`.
 

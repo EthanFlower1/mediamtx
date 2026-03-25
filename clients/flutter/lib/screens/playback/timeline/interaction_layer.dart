@@ -37,12 +37,12 @@ class _InteractionLayerState extends State<InteractionLayer> {
 
   bool _isNearPlayhead(double px) {
     final playheadX = widget.viewport.timeToPixel(widget.position);
-    return (px - playheadX).abs() < 20;
+    return (px - playheadX).abs() < 40;
   }
 
   MotionEvent? _findNearestEvent(double px) {
     MotionEvent? nearest;
-    double nearestPxDist = 20;
+    double nearestPxDist = 30;
 
     for (final event in widget.events) {
       final eventDur = event.startTime.difference(widget.dayStart);

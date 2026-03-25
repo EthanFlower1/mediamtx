@@ -77,6 +77,7 @@ class PlaybackService {
       'path': cameraPath,
       'start': _toRfc3339(start),
       'duration': durationSecs.toString(),
+      'format': 'mp4',
     };
     if (token != null && token.isNotEmpty) {
       params['jwt'] = token;

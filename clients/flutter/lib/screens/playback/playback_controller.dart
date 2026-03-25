@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -36,18 +38,19 @@ class PlaybackController extends ChangeNotifier {
   final Map<String, String> _cameraPaths = {};
 
   // Timespans from the MediaMTX /list endpoint (primary camera).
-  // This is the authoritative source for what recordings exist and
-  // where gaps are. Each timespan has a pre-built /get URL.
   List<PlaybackTimespan> _timespans = [];
 
   // The index into _timespans for the currently playing timespan.
-  // -1 means no stream is open.
   int _currentTimespanIndex = -1;
 
-  // The wall-clock DateTime where the current stream starts.
-  // For a /get URL starting mid-timespan, this is the requested start
-  // time, not the timespan's start.
-  DateTime _streamStart = DateTime(2000);
+  // Downloaded MP4 files for local seekable playback.
+  // Key: camera ID, value: temp file path.
+  final Map<String, String> _downloadedFiles = {};
+
+  // The wall-clock start of the downloaded timespan (timespan.start).
+  // player position 0 = this time. Seeking within the timespan is just
+  // player.seek(targetTime - _timespanStart).
+  DateTime _timespanStart = DateTime(2000);
 
   static const _maxPosition = Duration(hours: 24);
 
@@ -160,11 +163,9 @@ class PlaybackController extends ChangeNotifier {
   }
 
   /// Convert player position to wall-clock time.
-  /// Simple: player position 0 = _streamStart, linear from there.
-  /// The /get endpoint serves a single continuous timespan, so no gap
-  /// adjustment is needed within a single stream.
+  /// Player position 0 = _timespanStart (we download the full timespan).
   Duration _playerToWallClock(Duration playerPos) {
-    final wallClock = _streamStart.add(playerPos);
+    final wallClock = _timespanStart.add(playerPos);
     return wallClock.difference(_dayStart);
   }
 
@@ -212,20 +213,21 @@ class PlaybackController extends ChangeNotifier {
 
     try {
       final targetTime = _dayStart.add(snapped);
+      final tsIndex = _findTimespanIndex(targetTime);
 
-      // Check if the target is within the current timespan.
-      if (_currentTimespanIndex >= 0 &&
-          _currentTimespanIndex < _timespans.length &&
-          _timespans[_currentTimespanIndex].contains(targetTime) &&
+      // If the target is in the same timespan we already downloaded,
+      // seek within the local file — instant, no network.
+      if (tsIndex >= 0 &&
+          tsIndex == _currentTimespanIndex &&
           _players.isNotEmpty) {
-        // Same timespan — seek within the existing stream.
-        final offset = targetTime.difference(_streamStart);
-        debugPrint('SEEK: within timespan, offset=$offset');
+        final offset = targetTime.difference(_timespanStart);
+        debugPrint('SEEK: in-place local, offset=$offset');
+
         for (final p in _players.values) {
           await p.seek(offset);
         }
       } else {
-        // Different timespan (or no stream) — re-open.
+        // Different timespan — download and open.
         await _openPlayersAt(snapped);
 
         if (wasPlaying) {
@@ -297,8 +299,9 @@ class PlaybackController extends ChangeNotifier {
 
   /// Open (or re-open) players starting at [wallClock] (since midnight).
   ///
-  /// Fetches timespans from /list if not already loaded, finds the
-  /// timespan containing the target time, and opens the /get URL.
+  /// Downloads the full timespan as an MP4 to a local temp file, then
+  /// opens it with the player. Local files are fully seekable — subsequent
+  /// seeks within the same timespan are instant with player.seek().
   Future<void> _openPlayersAt(Duration wallClock) async {
     _disposeAllPlayers();
 
@@ -317,10 +320,8 @@ class PlaybackController extends ChangeNotifier {
     DateTime streamStart;
 
     if (tsIndex >= 0) {
-      // Target is inside a timespan — start from the exact target time.
       streamStart = targetTime;
     } else {
-      // Target is in a gap — snap to the next timespan's start.
       tsIndex = _findNextTimespanIndex(targetTime);
       if (tsIndex < 0) {
         _error = 'No recordings at this time';
@@ -332,32 +333,45 @@ class PlaybackController extends ChangeNotifier {
     }
 
     _currentTimespanIndex = tsIndex;
-    _streamStart = streamStart;
 
-    // Duration: from start to end of the timespan.
     final ts = _timespans[tsIndex];
-    final remainingInTimespan = ts.end.difference(streamStart);
-    final durationSecs = remainingInTimespan.inSeconds;
+    _timespanStart = ts.start;
+
+    // Download the FULL timespan (from its start, not the seek target)
+    // so that seeking backward within the timespan also works.
+    final durationSecs = ts.durationSecs.ceil();
 
     debugPrint(
-        'Opening: timespan $tsIndex/${_timespans.length}, '
-        'start=$streamStart, duration=${durationSecs}s');
+        'Downloading: timespan $tsIndex/${_timespans.length}, '
+        'tsStart=${ts.start}, duration=${durationSecs}s');
+
+    final tempDir = Directory.systemTemp;
 
     await Future.wait(_selectedCameraIds.map((camId) async {
-      final cameraPath = _cameraPaths[camId];
-      if (cameraPath == null) {
-        debugPrint('No MediaMTX path for camera $camId');
-        return;
+      // Use the pre-built URL from /list — guaranteed to match what
+      // MediaMTX will serve. Just append JWT if needed.
+      var url = ts.url;
+      if (token != null && token.isNotEmpty) {
+        final sep = url.contains('?') ? '&' : '?';
+        url = '$url${sep}jwt=$token';
+      }
+      // Add format=mp4 for a seekable container with moov index.
+      if (!url.contains('format=')) {
+        url = '$url&format=mp4';
       }
 
-      final url = playbackService.getUrl(
-        cameraPath: cameraPath,
-        start: streamStart,
-        durationSecs: durationSecs > 0 ? durationSecs : 1,
-        token: token,
-      );
+      final filePath =
+          '${tempDir.path}/playback_${camId}_$tsIndex.mp4';
+
+      debugPrint('Downloading: $url → $filePath');
 
       try {
+        final dio = Dio();
+        await dio.download(url, filePath);
+        dio.close();
+
+        _downloadedFiles[camId] = filePath;
+
         final player = Player();
         player.setRate(_speed);
         _players[camId] = player;
@@ -370,7 +384,8 @@ class PlaybackController extends ChangeNotifier {
           notifyListeners();
         });
 
-        await player.open(Media(url), play: true);
+        // Open the local file — fully seekable.
+        await player.open(Media(filePath), play: false);
 
         if (player.state.duration == Duration.zero) {
           await player.stream.duration
@@ -379,10 +394,16 @@ class PlaybackController extends ChangeNotifier {
                   onTimeout: () => Duration.zero);
         }
 
-        player.pause();
+        // Seek to the target offset within the timespan.
+        final initialOffset = streamStart.difference(ts.start);
+        if (initialOffset > Duration.zero) {
+          await player.seek(initialOffset);
+        }
 
         debugPrint(
-            'Player ready: camera=$camId, duration=${player.state.duration}');
+            'Player ready: camera=$camId, '
+            'duration=${player.state.duration}, '
+            'seeked to $initialOffset');
       } catch (e) {
         debugPrint('Failed to open player for camera $camId: $e');
         _players.remove(camId)?.dispose();
@@ -583,6 +604,14 @@ class PlaybackController extends ChangeNotifier {
     }
     _players.clear();
     _videoControllers.clear();
+
+    // Clean up temp files.
+    for (final path in _downloadedFiles.values) {
+      try {
+        File(path).deleteSync();
+      } catch (_) {}
+    }
+    _downloadedFiles.clear();
   }
 
   @override

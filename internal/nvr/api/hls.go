@@ -46,9 +46,6 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	// Parse date in the server's local timezone so the playlist covers the
-	// same calendar day the user selected (not UTC, which can be off by the
-	// timezone offset).
 	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
@@ -69,7 +66,6 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		return
 	}
 
-	// Extract JWT token from the request so we can pass it to segment URLs.
 	token := c.Query("token")
 	if token == "" {
 		if auth := c.GetHeader("Authorization"); strings.HasPrefix(auth, "Bearer ") {
@@ -77,43 +73,85 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		}
 	}
 
-	// Build the m3u8 playlist.
-	var b strings.Builder
-	b.WriteString("#EXTM3U\n")
-	b.WriteString("#EXT-X-VERSION:7\n")
-	b.WriteString("#EXT-X-TARGETDURATION:2\n")
-	b.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
-
+	// Two-pass: collect segment data first to compute maxDuration,
+	// then write complete playlist with correct TARGETDURATION header.
+	type playlistEntry struct {
+		line string
+	}
+	var entries []playlistEntry
+	var maxDuration float64
 	first := true
+
 	for _, rec := range recordings {
-		initSize, fragments, scanErr := ScanFragments(rec.FilePath)
-		if scanErr != nil {
-			// Skip files we cannot parse; they may be truncated or corrupt.
-			continue
-		}
-		if len(fragments) == 0 {
+		// Try DB-backed fragments first.
+		fragments, dbErr := h.DB.GetFragments(rec.ID)
+		if dbErr != nil || len(fragments) == 0 {
+			// Fallback: scan file directly (un-indexed recording).
+			initSize, scannedFrags, scanErr := ScanFragments(rec.FilePath)
+			if scanErr != nil || len(scannedFrags) == 0 {
+				continue
+			}
+
+			segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
+			if !first {
+				entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
+			}
+			first = false
+			entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
+			for _, frag := range scannedFrags {
+				durSec := frag.DurationMs / 1000.0
+				if durSec > maxDuration {
+					maxDuration = durSec
+				}
+				entries = append(entries,
+					playlistEntry{fmt.Sprintf("#EXTINF:%.6f,\n", durSec)},
+					playlistEntry{fmt.Sprintf("#EXT-X-BYTERANGE:%d@%d\n", frag.Size, frag.Offset)},
+					playlistEntry{segmentURL + "\n"},
+				)
+			}
 			continue
 		}
 
-		// Build the segment URL from the file path.
+		// DB-backed path: use pre-computed fragment metadata.
 		segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
-
 		if !first {
-			b.WriteString("#EXT-X-DISCONTINUITY\n")
+			entries = append(entries, playlistEntry{"#EXT-X-DISCONTINUITY\n"})
 		}
 		first = false
 
-		// EXT-X-MAP points at the init segment (ftyp + moov).
-		b.WriteString(fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize))
+		initSize := rec.InitSize
+		if initSize == 0 {
+			initSize = 1024
+		}
+		entries = append(entries, playlistEntry{fmt.Sprintf("#EXT-X-MAP:URI=\"%s\",BYTERANGE=\"%d@0\"\n", segmentURL, initSize)})
 
-		// One entry per moof+mdat fragment.
 		for _, frag := range fragments {
-			b.WriteString(fmt.Sprintf("#EXTINF:1.0,\n"))
-			b.WriteString(fmt.Sprintf("#EXT-X-BYTERANGE:%d@%d\n", frag.Size, frag.Offset))
-			b.WriteString(segmentURL + "\n")
+			durSec := frag.DurationMs / 1000.0
+			if durSec > maxDuration {
+				maxDuration = durSec
+			}
+			entries = append(entries,
+				playlistEntry{fmt.Sprintf("#EXTINF:%.6f,\n", durSec)},
+				playlistEntry{fmt.Sprintf("#EXT-X-BYTERANGE:%d@%d\n", frag.Size, frag.ByteOffset)},
+				playlistEntry{segmentURL + "\n"},
+			)
 		}
 	}
 
+	// Write complete playlist with correct header.
+	targetDur := int(maxDuration) + 1
+	if targetDur < 1 {
+		targetDur = 2
+	}
+
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n")
+	b.WriteString("#EXT-X-VERSION:7\n")
+	b.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", targetDur))
+	b.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
+	for _, e := range entries {
+		b.WriteString(e.line)
+	}
 	b.WriteString("#EXT-X-ENDLIST\n")
 
 	c.Header("Content-Type", "application/vnd.apple.mpegurl")

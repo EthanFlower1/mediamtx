@@ -497,7 +497,9 @@ func readFragmentDuration(f io.ReadSeeker, moofStart, moofSize int64, timescale 
 		}
 
 		if boxType == "traf" {
-			// Parse traf children inline
+			// Parse ONLY the first traf (video track). Multi-track moofs have
+			// interleaved video+audio trafs with different timescales; summing
+			// both produces incorrect durations.
 			trafEnd := pos + boxSize
 			childPos := pos + 8 // skip traf header
 			for childPos < trafEnd {
@@ -600,6 +602,8 @@ func readFragmentDuration(f io.ReadSeeker, moofStart, moofSize int64, timescale 
 				}
 				childPos += childSize
 			}
+			// Only use the first traf — break out of the moof child loop.
+			break
 		}
 
 		if boxSize == 0 {

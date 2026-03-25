@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/search_result.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/cameras_provider.dart';
 import '../../providers/search_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
@@ -34,24 +35,34 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
     _focusNode.unfocus();
   }
 
-  void _openClip(BuildContext context, SearchResult result) {
+  void _openClip(BuildContext context, SearchResult result) async {
     final auth = ref.read(authProvider);
     final serverUrl = auth.serverUrl ?? '';
     final svc = PlaybackService(serverUrl: serverUrl);
+    final authService = ref.read(authServiceProvider);
+    final token = await authService.getAccessToken();
+
+    // Look up camera's MediaMTX path
+    final cameras = ref.read(camerasProvider).valueOrNull ?? [];
+    final camera = cameras.where((c) => c.id == result.cameraId).firstOrNull;
+    if (camera == null) return;
 
     // Center a 30-second clip around the detection frame time
     final frameTime = result.time;
     final clipStart = frameTime.subtract(const Duration(seconds: 15));
-    final url = svc.playbackUrl(
-      result.cameraId,
-      clipStart,
+    final url = svc.vodUrl(
+      cameraPath: camera.mediamtxPath,
+      start: clipStart,
       durationSecs: 30,
+      token: token,
     );
 
     final title =
         '${result.cameraName} — ${result.className} @ ${_formatTime(frameTime)}';
 
-    ClipPlayerSheet.show(context, url: url, title: title);
+    if (context.mounted) {
+      ClipPlayerSheet.show(context, url: url, title: title);
+    }
   }
 
   void _saveClip(BuildContext context, SearchResult result) {

@@ -106,7 +106,7 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return
@@ -177,7 +177,7 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return

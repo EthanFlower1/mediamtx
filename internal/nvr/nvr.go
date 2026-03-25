@@ -161,6 +161,9 @@ func (n *NVR) Initialize() error {
 	// in the YAML but the DB doesn't know about it, update the DB.
 	n.syncAudioTranscodeState()
 
+	// Start background migration for recordings that predate fragment indexing.
+	n.startFragmentBackfill()
+
 	return nil
 }
 

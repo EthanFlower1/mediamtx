@@ -16,6 +16,8 @@ class PlaybackController extends ChangeNotifier {
   bool _isPlaying = false;
   double _speed = 1.0;
   bool _isSeeking = false;
+  Duration? _lastSeekTarget;
+  DateTime _seekDebounceUntil = DateTime(2000);
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
@@ -117,7 +119,7 @@ class PlaybackController extends ChangeNotifier {
   /// Convert wall-clock duration (since midnight) to player position.
   Duration _wallClockToPlayer(Duration wallClock) {
     for (final entry in _segmentIndex) {
-      if (wallClock >= entry.wallStart && wallClock < entry.wallEnd) {
+      if (wallClock >= entry.wallStart && wallClock <= entry.wallEnd) {
         return entry.playerOffset + (wallClock - entry.wallStart);
       }
     }
@@ -194,20 +196,25 @@ class PlaybackController extends ChangeNotifier {
 
     _isSeeking = true;
     _position = snapped;
+    _lastSeekTarget = snapped;
     notifyListeners();
 
-    // Open players if not already open
-    if (_players.isEmpty) {
-      await _openPlayers();
-    }
+    try {
+      if (_players.isEmpty) {
+        await _openPlayers();
+      }
 
-    // Convert wall-clock to player position and seek natively
-    final playerPos = _wallClockToPlayer(snapped);
-    for (final p in _players.values) {
-      await p.seek(playerPos);
+      final playerPos = _wallClockToPlayer(snapped);
+      for (final p in _players.values) {
+        await p.seek(playerPos);
+      }
+    } catch (e) {
+      debugPrint('Playback seek error: $e');
+      _error = e.toString();
+    } finally {
+      _isSeeking = false;
+      _seekDebounceUntil = DateTime.now().add(const Duration(milliseconds: 150));
     }
-
-    _isSeeking = false;
   }
 
   void setSpeed(double s) {
@@ -277,41 +284,58 @@ class PlaybackController extends ChangeNotifier {
         token: token,
       );
 
-      final player = Player();
-      player.setRate(_speed);
-      _players[camId] = player;
-      _videoControllers[camId] = VideoController(player);
+      try {
+        final player = Player();
+        player.setRate(_speed);
+        _players[camId] = player;
+        _videoControllers[camId] = VideoController(player);
 
-      // Listen for errors
-      player.stream.error.listen((error) {
-        if (_disposed) return;
-        _error = error;
-        debugPrint('Playback player error: $error');
-        notifyListeners();
-      });
+        player.stream.error.listen((error) {
+          if (_disposed) return;
+          _error = error;
+          debugPrint('Playback player error: $error');
+          notifyListeners();
+        });
 
-      await player.open(Media(url), play: false);
+        await player.open(Media(url), play: false);
+      } catch (e) {
+        debugPrint('Failed to open player for camera $camId: $e');
+        _players.remove(camId)?.dispose();
+        _videoControllers.remove(camId);
+      }
     }
 
-    // Position tracking from first player
+    if (_players.isEmpty) {
+      _error = 'Failed to open any camera for playback';
+      notifyListeners();
+      return;
+    }
+
     _positionSub?.cancel();
     _completedSub?.cancel();
-    if (_players.isNotEmpty) {
-      final primary = _players.values.first;
+    final primary = _players.values.first;
 
-      _positionSub = primary.stream.position.listen((playerPos) {
-        if (_disposed || _isSeeking) return;
-        // Convert player position to wall-clock time for timeline display
-        _position = _playerToWallClock(playerPos);
-        notifyListeners();
-      });
+    _positionSub = primary.stream.position.listen((playerPos) {
+      if (_disposed || _isSeeking) return;
+      if (DateTime.now().isBefore(_seekDebounceUntil)) return;
 
-      _completedSub = primary.stream.completed.listen((completed) {
-        if (_disposed || !completed) return;
-        _isPlaying = false;
-        notifyListeners();
-      });
-    }
+      final wallClock = _playerToWallClock(playerPos);
+
+      if (_lastSeekTarget == null &&
+          _position - wallClock > const Duration(seconds: 2)) {
+        return;
+      }
+
+      _lastSeekTarget = null;
+      _position = wallClock;
+      notifyListeners();
+    });
+
+    _completedSub = primary.stream.completed.listen((completed) {
+      if (_disposed || !completed) return;
+      _isPlaying = false;
+      notifyListeners();
+    });
 
     notifyListeners();
   }
@@ -319,16 +343,31 @@ class PlaybackController extends ChangeNotifier {
   Duration _snapToSegment(Duration position) {
     if (_segments.isEmpty) return position;
     final posTime = _dayStart.add(position);
+
+    // Check if inside any segment (inclusive end boundary).
     for (final seg in _segments) {
-      if (!posTime.isBefore(seg.startTime) && posTime.isBefore(seg.endTime)) {
-        return position; // inside a segment
+      if (!posTime.isBefore(seg.startTime) && !posTime.isAfter(seg.endTime)) {
+        return position;
       }
     }
+
+    // In a gap: snap to nearest segment boundary (prev end or next start).
+    Duration? nearestBefore;
+    Duration? nearestAfter;
+
     for (final seg in _segments) {
-      if (seg.startTime.isAfter(posTime)) {
-        return seg.startTime.difference(_dayStart);
+      if (!seg.endTime.isAfter(posTime)) {
+        nearestBefore = seg.endTime.difference(_dayStart);
+      }
+      if (seg.startTime.isAfter(posTime) && nearestAfter == null) {
+        nearestAfter = seg.startTime.difference(_dayStart);
       }
     }
+
+    // Prefer snapping forward to next segment start.
+    if (nearestAfter != null) return nearestAfter;
+    // If past all segments, snap to last segment end.
+    if (nearestBefore != null) return nearestBefore;
     return position;
   }
 

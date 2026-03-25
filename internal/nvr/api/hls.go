@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,10 +16,20 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
+type playlistCacheEntry struct {
+	playlist string
+	cachedAt time.Time
+}
+
+const playlistCacheTTL = 30 * time.Second
+
 // HLSHandler implements HTTP endpoints for HLS VOD playback of fMP4 recordings.
 type HLSHandler struct {
 	DB             *db.DB
 	RecordingsPath string // base path for recordings, e.g. "./recordings"
+
+	mu    sync.Mutex
+	cache map[string]*playlistCacheEntry // key: "cameraId:date"
 }
 
 // FragmentInfo describes a single moof+mdat pair inside an fMP4 file.
@@ -51,6 +62,24 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return
 	}
+
+	cacheKey := cameraID + ":" + dateStr
+
+	h.mu.Lock()
+	if h.cache == nil {
+		h.cache = make(map[string]*playlistCacheEntry)
+	}
+	if entry, ok := h.cache[cacheKey]; ok {
+		isToday := dateStr == time.Now().Format("2006-01-02")
+		if !isToday || time.Since(entry.cachedAt) < playlistCacheTTL {
+			h.mu.Unlock()
+			c.Header("Content-Type", "application/vnd.apple.mpegurl")
+			c.Header("Cache-Control", "no-cache")
+			c.String(http.StatusOK, entry.playlist)
+			return
+		}
+	}
+	h.mu.Unlock()
 
 	start := date
 	end := date.Add(24 * time.Hour)
@@ -154,9 +183,27 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 	}
 	b.WriteString("#EXT-X-ENDLIST\n")
 
+	playlist := b.String()
+
+	h.mu.Lock()
+	h.cache[cacheKey] = &playlistCacheEntry{
+		playlist: playlist,
+		cachedAt: time.Now(),
+	}
+	h.mu.Unlock()
+
 	c.Header("Content-Type", "application/vnd.apple.mpegurl")
 	c.Header("Cache-Control", "no-cache")
-	c.String(http.StatusOK, b.String())
+	c.String(http.StatusOK, playlist)
+}
+
+// InvalidateCache clears the playlist cache for a camera+date combo.
+func (h *HLSHandler) InvalidateCache(cameraID, date string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cache != nil {
+		delete(h.cache, cameraID+":"+date)
+	}
 }
 
 // ServeSegment serves raw recording files with HTTP Range support for

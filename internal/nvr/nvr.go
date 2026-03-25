@@ -50,6 +50,8 @@ type NVR struct {
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
 	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
+
+	hlsHandler *api.HLSHandler
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -482,6 +484,13 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 
 	credKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
+	if n.hlsHandler == nil {
+		n.hlsHandler = &api.HLSHandler{
+			DB:             n.database,
+			RecordingsPath: recordingsPath,
+		}
+	}
+
 	api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
@@ -499,10 +508,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		ConfigPath:      n.ConfigPath,
 		Embedder:        n.aiEmbedder,
 		AIRestarter:     n,
-		HLSHandler: &api.HLSHandler{
-			DB:             n.database,
-			RecordingsPath: recordingsPath,
-		},
+		HLSHandler:      n.hlsHandler,
 	})
 }
 
@@ -604,6 +610,11 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	if insertErr != nil {
 		fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
 		return
+	}
+
+	if n.hlsHandler != nil {
+		dateStr := start.Format("2006-01-02")
+		n.hlsHandler.InvalidateCache(cam.ID, dateStr)
 	}
 
 	// Index fragments for fMP4 files.

@@ -95,6 +95,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	bookmarkHandler := &BookmarkHandler{
+		DB: cfg.DB,
+	}
+
 	searchHandler := &SearchHandler{
 		DB:       cfg.DB,
 		Embedder: cfg.Embedder,
@@ -205,6 +209,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/saved-clips", savedClipHandler.List)
 	protected.POST("/saved-clips", savedClipHandler.Create)
 	protected.DELETE("/saved-clips/:id", savedClipHandler.Delete)
+
+	// Bookmarks.
+	protected.GET("/bookmarks", bookmarkHandler.List)
+	protected.POST("/bookmarks", bookmarkHandler.Create)
+	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
+	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

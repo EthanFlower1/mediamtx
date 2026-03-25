@@ -234,4 +234,20 @@ CREATE INDEX idx_fragments_recording ON recording_fragments(recording_id, fragme
 ALTER TABLE recordings ADD COLUMN init_size INTEGER NOT NULL DEFAULT 0;
 `,
 	},
+	{
+		version: 17,
+		sql: `
+CREATE TABLE bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_bookmarks_camera_time ON bookmarks(camera_id, timestamp);
+CREATE INDEX idx_bookmarks_timestamp ON bookmarks(timestamp);
+`,
+	},
 }

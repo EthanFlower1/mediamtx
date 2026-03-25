@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../../models/bookmark.dart';
 import '../../../models/recording.dart';
+import '../../../providers/timeline_intensity_provider.dart';
 import '../../../theme/nvr_colors.dart';
 import '../event_detail_popup.dart';
+import 'bookmark_layer.dart';
 import 'event_layer.dart';
 import 'grid_layer.dart';
+import 'intensity_layer.dart';
 import 'interaction_layer.dart';
 import 'mini_overview_bar.dart';
 import 'playhead_layer.dart';
@@ -13,6 +17,9 @@ import 'timeline_viewport.dart';
 class ComposableTimeline extends StatefulWidget {
   final List<RecordingSegment> segments;
   final List<MotionEvent> events;
+  final List<IntensityBucket> intensityBuckets;
+  final int intensityBucketSeconds;
+  final List<Bookmark> bookmarks;
   final DateTime selectedDate;
   final Duration position;
   final ValueChanged<Duration> onSeek;
@@ -25,6 +32,9 @@ class ComposableTimeline extends StatefulWidget {
     required this.selectedDate,
     required this.position,
     required this.onSeek,
+    this.intensityBuckets = const [],
+    this.intensityBucketSeconds = 60,
+    this.bookmarks = const [],
     this.isLoading = false,
   });
 
@@ -183,6 +193,18 @@ class _ComposableTimelineState extends State<ComposableTimeline> {
                         painter: GridLayer(viewport: vp),
                       ),
                     ),
+                    // Motion intensity heatmap (behind recordings)
+                    if (!widget.isLoading && widget.intensityBuckets.isNotEmpty)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: IntensityLayer(
+                            viewport: vp,
+                            buckets: widget.intensityBuckets,
+                            bucketSeconds: widget.intensityBucketSeconds,
+                            dayStart: _dayStart,
+                          ),
+                        ),
+                      ),
                     // Recording segments
                     if (!widget.isLoading)
                       Positioned.fill(

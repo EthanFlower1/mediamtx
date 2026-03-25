@@ -6,6 +6,7 @@ import '../../models/recording.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recordings_provider.dart';
+import '../../providers/timeline_intensity_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
 import 'camera_player.dart';
@@ -49,7 +50,11 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   }
 
   void _onControllerChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        _selectedDate = _controller!.selectedDate;
+      });
+    }
   }
 
   @override
@@ -117,16 +122,25 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     // Fetch and merge recordings/events for all selected cameras
     final allSegments = <RecordingSegment>[];
     final allEvents = <MotionEvent>[];
+    final allIntensityBuckets = <IntensityBucket>[];
+    const intensityBucketSeconds = 60;
     bool isLoading = false;
 
     for (final cam in selected) {
       final key = (cameraId: cam.id, date: _dateKey);
       final segAsync = ref.watch(recordingSegmentsProvider(key));
       final evtAsync = ref.watch(motionEventsProvider(key));
+      final intensityKey = (
+        cameraId: cam.id,
+        date: _dateKey,
+        bucketSeconds: intensityBucketSeconds,
+      );
+      final intensityAsync = ref.watch(intensityProvider(intensityKey));
 
       if (segAsync.isLoading || evtAsync.isLoading) isLoading = true;
       allSegments.addAll(segAsync.valueOrNull ?? []);
       allEvents.addAll(evtAsync.valueOrNull ?? []);
+      allIntensityBuckets.addAll(intensityAsync.valueOrNull ?? []);
     }
 
     allSegments.sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -165,6 +179,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
           child: ComposableTimeline(
             segments: allSegments,
             events: allEvents,
+            intensityBuckets: allIntensityBuckets,
+            intensityBucketSeconds: intensityBucketSeconds,
             selectedDate: _selectedDate,
             position: controller.position,
             onSeek: (d) => controller.seek(d),

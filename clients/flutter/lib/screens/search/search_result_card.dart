@@ -1,125 +1,130 @@
 import 'package:flutter/material.dart';
 import '../../models/search_result.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
 
 class SearchResultCard extends StatelessWidget {
   final SearchResult result;
   final String? thumbnailBaseUrl;
-  final VoidCallback? onPlay;
-  final VoidCallback? onSave;
+  final VoidCallback? onTap;
 
   const SearchResultCard({
     super.key,
     required this.result,
     this.thumbnailBaseUrl,
-    this.onPlay,
-    this.onSave,
+    this.onTap,
   });
 
-  String _formatTime(DateTime dt) {
+  String _formatTimestamp(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dtDay = DateTime(dt.year, dt.month, dt.day);
+
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     final s = dt.second.toString().padLeft(2, '0');
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $h:$m:$s';
+    final timeStr = '$h:$m:$s';
+
+    if (dtDay == today) return 'TODAY · $timeStr';
+    if (dtDay == yesterday) return 'YESTERDAY · $timeStr';
+
+    final mo = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '${dt.year}-$mo-$d · $timeStr';
   }
 
   @override
   Widget build(BuildContext context) {
     final confidencePct = (result.confidence * 100).round();
-    final similarityPct = (result.similarity * 100).round();
 
-    return Card(
-      color: NvrColors.bgSecondary,
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: NvrColors.border),
-      ),
-      child: InkWell(
-        onTap: onPlay,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Thumbnail or placeholder icon
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  width: 80,
-                  height: 56,
-                  child: _ThumbnailWidget(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: NvrColors.bgSecondary,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: NvrColors.border),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail — 16:9 aspect ratio
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _ThumbnailWidget(
                     thumbnailPath: result.thumbnailPath,
                     baseUrl: thumbnailBaseUrl,
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _ClassBadge(label: result.className),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Confidence: $confidencePct%',
-                          style: const TextStyle(
-                            color: NvrColors.textSecondary,
-                            fontSize: 11,
-                          ),
+                  // Confidence badge — top right
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: NvrColors.accent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      child: Text(
+                        '$confidencePct%',
+                        style: const TextStyle(
+                          fontFamily: 'JetBrainsMono',
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: NvrColors.bgPrimary,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Match: $similarityPct%',
-                          style: const TextStyle(
-                            color: NvrColors.accent,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      result.cameraName,
-                      style: const TextStyle(
-                        color: NvrColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatTime(result.time),
-                      style: const TextStyle(
-                        color: NvrColors.textMuted,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Actions
-              Column(
-                children: [
-                  IconButton(
-                    tooltip: 'Play clip',
-                    icon: const Icon(Icons.play_circle_outline,
-                        color: NvrColors.accent),
-                    onPressed: onPlay,
-                  ),
-                  IconButton(
-                    tooltip: 'Save clip',
-                    icon: const Icon(Icons.bookmark_border,
-                        color: NvrColors.textSecondary),
-                    onPressed: onSave,
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            // Details row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          result.cameraName,
+                          style: const TextStyle(
+                            fontFamily: 'IBMPlexSans',
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: NvrColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        result.className.toUpperCase(),
+                        style: NvrTypography.monoLabel.copyWith(
+                          color: NvrColors.accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatTimestamp(result.time),
+                    style: NvrTypography.monoLabel.copyWith(
+                      color: NvrColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -148,47 +153,9 @@ class _ThumbnailWidget extends StatelessWidget {
   Widget _placeholder() {
     return Container(
       color: NvrColors.bgTertiary,
-      child: const Icon(Icons.image_not_supported,
-          color: NvrColors.textMuted, size: 28),
-    );
-  }
-}
-
-class _ClassBadge extends StatelessWidget {
-  final String label;
-
-  const _ClassBadge({required this.label});
-
-  Color _color() {
-    switch (label.toLowerCase()) {
-      case 'person':
-        return NvrColors.accent;
-      case 'vehicle':
-      case 'car':
-        return NvrColors.success;
-      case 'animal':
-        return NvrColors.warning;
-      default:
-        return NvrColors.textMuted;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: _color().withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: _color().withValues(alpha: 0.5)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: _color(),
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-        ),
+      child: const Center(
+        child: Icon(Icons.videocam_off,
+            color: NvrColors.textMuted, size: 24),
       ),
     );
   }

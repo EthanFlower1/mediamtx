@@ -4,13 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/hud_button.dart';
 
 class AuditPanel extends ConsumerWidget {
   const AuditPanel({super.key});
 
   String _buildCsv(List<AuditEntry> entries) {
     final sb = StringBuffer();
-    sb.writeln('timestamp,username,action,resource_type,resource_id,ip_address,details');
+    sb.writeln(
+        'timestamp,username,action,resource_type,resource_id,ip_address,details');
     for (final e in entries) {
       sb.writeln([
         _csvEscape(e.createdAt),
@@ -37,70 +40,70 @@ class AuditPanel extends ConsumerWidget {
     final auditAsync = ref.watch(auditProvider);
 
     return auditAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(color: NvrColors.accent)),
       error: (e, _) => Center(
         child: Text(
           'Failed to load audit log: $e',
-          style: const TextStyle(color: NvrColors.danger),
+          style: NvrTypography.body.copyWith(color: NvrColors.danger),
         ),
       ),
       data: (entries) {
         return Column(
           children: [
-            // Export button bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // ── Header bar ──
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: NvrColors.border),
+                ),
+              ),
               child: Row(
                 children: [
                   Text(
-                    '${entries.length} entr${entries.length == 1 ? 'y' : 'ies'}',
-                    style: const TextStyle(
-                      color: NvrColors.textSecondary,
-                      fontSize: 13,
-                    ),
+                    '${entries.length} ENTR${entries.length == 1 ? 'Y' : 'IES'}',
+                    style: NvrTypography.monoSection,
                   ),
                   const Spacer(),
                   if (entries.isNotEmpty)
-                    OutlinedButton.icon(
+                    HudButton(
+                      label: 'EXPORT CSV',
+                      icon: Icons.download,
+                      style: HudButtonStyle.tactical,
                       onPressed: () async {
                         final csv = _buildCsv(entries);
                         await Clipboard.setData(ClipboardData(text: csv));
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Audit log CSV copied to clipboard'),
-                              backgroundColor: NvrColors.accent,
+                            SnackBar(
+                              content: Text(
+                                'Audit log CSV copied to clipboard',
+                                style: NvrTypography.monoData
+                                    .copyWith(color: NvrColors.accent),
+                              ),
+                              backgroundColor: NvrColors.bgSecondary,
                             ),
                           );
                         }
                       },
-                      icon: const Icon(Icons.download, size: 16),
-                      label: const Text('Export CSV'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: NvrColors.accent,
-                        side: const BorderSide(color: NvrColors.accent),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
                     ),
                 ],
               ),
             ),
-            const Divider(color: NvrColors.border, height: 1),
+            // ── Entry list ──
             if (entries.isEmpty)
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.history, color: NvrColors.textMuted, size: 48),
-                      SizedBox(height: 12),
-                      Text(
-                        'No audit entries',
-                        style: TextStyle(color: NvrColors.textMuted),
-                      ),
+                      const Icon(Icons.history,
+                          color: NvrColors.textMuted, size: 40),
+                      const SizedBox(height: 12),
+                      Text('NO AUDIT ENTRIES',
+                          style: NvrTypography.monoSection),
                     ],
                   ),
                 ),
@@ -108,12 +111,12 @@ class AuditPanel extends ConsumerWidget {
             else
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
                   itemCount: entries.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
-                    final e = entries[index];
-                    return _AuditEntryCard(entry: e);
+                    return _AuditEntryCard(entry: entries[index]);
                   },
                 ),
               ),
@@ -148,107 +151,97 @@ class _AuditEntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionColor = _actionColor(entry.action);
-    return Card(
-      color: NvrColors.bgSecondary,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: NvrColors.border),
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NvrColors.bgSecondary,
+        border: Border.all(color: NvrColors.border),
+        borderRadius: BorderRadius.circular(4),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Action badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: actionColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: actionColor.withValues(alpha: 0.3)),
-              ),
-              child: Text(
-                entry.action.toUpperCase(),
-                style: TextStyle(
-                  color: actionColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Action badge
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: actionColor.withOpacity(0.10),
+              border: Border.all(color: actionColor.withOpacity(0.27)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              entry.action.toUpperCase(),
+              style: NvrTypography.monoLabel.copyWith(
+                color: actionColor,
+                letterSpacing: 0.8,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.resourceType +
-                              (entry.resourceId != null ? ':${entry.resourceId}' : ''),
-                          style: const TextStyle(
-                            color: NvrColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        entry.username,
-                        style: const TextStyle(
-                          color: NvrColors.accent,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time, size: 12, color: NvrColors.textMuted),
-                      const SizedBox(width: 4),
-                      Text(
-                        entry.createdAt,
-                        style: const TextStyle(
-                          color: NvrColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                      if (entry.ipAddress != null) ...[
-                        const SizedBox(width: 10),
-                        const Icon(Icons.language, size: 12, color: NvrColors.textMuted),
-                        const SizedBox(width: 4),
-                        Text(
-                          entry.ipAddress!,
-                          style: const TextStyle(
-                            color: NvrColors.textMuted,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (entry.details != null && entry.details!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        entry.details!,
-                        style: const TextStyle(
-                          color: NvrColors.textSecondary,
-                          fontSize: 12,
+                        entry.resourceType +
+                            (entry.resourceId != null
+                                ? ':${entry.resourceId}'
+                                : ''),
+                        style: NvrTypography.monoData.copyWith(
+                          color: NvrColors.textPrimary,
                         ),
-                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                ],
-              ),
+                    Text(
+                      entry.username,
+                      style: NvrTypography.monoData.copyWith(
+                        color: NvrColors.accent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time,
+                        size: 11, color: NvrColors.textMuted),
+                    const SizedBox(width: 4),
+                    Text(
+                      entry.createdAt,
+                      style: NvrTypography.monoLabel,
+                    ),
+                    if (entry.ipAddress != null) ...[
+                      const SizedBox(width: 10),
+                      const Icon(Icons.language,
+                          size: 11, color: NvrColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        entry.ipAddress!,
+                        style: NvrTypography.monoLabel,
+                      ),
+                    ],
+                  ],
+                ),
+                if (entry.details != null && entry.details!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      entry.details!,
+                      style: NvrTypography.body,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

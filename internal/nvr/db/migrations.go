@@ -250,4 +250,26 @@ CREATE INDEX idx_bookmarks_camera_time ON bookmarks(camera_id, timestamp);
 CREATE INDEX idx_bookmarks_timestamp ON bookmarks(timestamp);
 `,
 	},
+	{
+		version: 18,
+		sql: `
+ALTER TABLE cameras ADD COLUMN storage_path TEXT NOT NULL DEFAULT '';
+CREATE TABLE pending_syncs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recording_id INTEGER NOT NULL,
+    camera_id TEXT NOT NULL,
+    local_path TEXT NOT NULL,
+    target_path TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    last_attempt_at TEXT,
+    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE,
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_pending_syncs_status ON pending_syncs(status);
+CREATE INDEX idx_pending_syncs_camera ON pending_syncs(camera_id);
+`,
+	},
 }

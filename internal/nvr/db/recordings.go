@@ -321,6 +321,23 @@ func (d *DB) GetTotalRecordingSize(cameraID string) (int64, error) {
 	return total, err
 }
 
+// UpdateRecordingFilePath updates the file_path column for a recording by ID.
+// Returns ErrNotFound if no matching record exists.
+func (d *DB) UpdateRecordingFilePath(id int64, filePath string) error {
+	res, err := d.Exec("UPDATE recordings SET file_path = ? WHERE id = ?", filePath, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DeleteRecordingByPath deletes a recording by its file path.
 func (d *DB) DeleteRecordingByPath(filePath string) error {
 	res, err := d.Exec("DELETE FROM recordings WHERE file_path = ?", filePath)

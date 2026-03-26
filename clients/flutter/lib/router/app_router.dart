@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../screens/server_setup_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
+import '../widgets/shell/navigation_shell.dart';
 import '../screens/login_screen.dart';
+import '../screens/server_setup_screen.dart';
 import '../screens/setup_screen.dart';
 import '../screens/live_view/live_view_screen.dart';
 import '../screens/live_view/fullscreen_view.dart';
@@ -14,40 +15,34 @@ import '../screens/cameras/add_camera_screen.dart';
 import '../screens/cameras/camera_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../models/camera.dart';
-import '../widgets/adaptive_layout.dart';
-import '../providers/auth_provider.dart';
 
 int _indexFromPath(String path) {
-  const paths = ['/live', '/playback', '/search', '/cameras', '/settings'];
-  final idx = paths.indexOf(path);
-  return idx >= 0 ? idx : 0;
+  if (path.startsWith('/live')) return 0;
+  if (path.startsWith('/playback')) return 1;
+  if (path.startsWith('/search')) return 2;
+  if (path.startsWith('/devices')) return 3;
+  if (path.startsWith('/settings')) return 4;
+  return 0;
 }
 
 void _navigateToIndex(BuildContext context, int index) {
-  const paths = ['/live', '/playback', '/search', '/cameras', '/settings'];
+  const paths = ['/live', '/playback', '/search', '/devices', '/settings'];
   context.go(paths[index]);
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
-  // Watch auth so the provider is recreated (and redirect re-evaluated)
-  // whenever auth state changes.
-  ref.watch(authProvider);
+  final authState = ref.watch(authProvider);
+
   return GoRouter(
     initialLocation: '/live',
     redirect: (context, state) {
-      final auth = ref.read(authProvider);
+      final status = authState.status;
       final path = state.uri.path;
       final isAuthRoute = path == '/login' || path == '/server-setup' || path == '/setup';
 
-      if (auth.status == AuthStatus.serverNeeded && path != '/server-setup') {
-        return '/server-setup';
-      }
-      if (auth.status == AuthStatus.unauthenticated && !isAuthRoute) {
-        return '/login';
-      }
-      if (auth.status == AuthStatus.authenticated && isAuthRoute) {
-        return '/live';
-      }
+      if (status == AuthStatus.serverNeeded && path != '/server-setup') return '/server-setup';
+      if (status == AuthStatus.unauthenticated && !isAuthRoute) return '/login';
+      if (status == AuthStatus.authenticated && isAuthRoute) return '/live';
       return null;
     },
     routes: [
@@ -57,50 +52,24 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) {
           final index = _indexFromPath(state.uri.path);
-          return AdaptiveLayout(
+          return NavigationShell(
             selectedIndex: index,
             onDestinationSelected: (i) => _navigateToIndex(context, i),
             child: child,
           );
         },
         routes: [
-          GoRoute(
-            path: '/live',
-            builder: (_, __) => const LiveViewScreen(),
-            routes: [
-              GoRoute(
-                path: 'fullscreen',
-                builder: (context, state) {
-                  final camera = state.extra as Camera?;
-                  if (camera == null) {
-                    return const Scaffold(
-                      body: Center(child: Text('Camera not found')),
-                    );
-                  }
-                  return FullscreenView(camera: camera);
-                },
-              ),
-            ],
-          ),
+          GoRoute(path: '/live', builder: (_, __) => const LiveViewScreen(), routes: [
+            GoRoute(path: 'fullscreen', builder: (_, state) =>
+              FullscreenView(camera: state.extra as Camera)),
+          ]),
           GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
           GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
-          GoRoute(
-            path: '/cameras',
-            builder: (_, __) => const CameraListScreen(),
-            routes: [
-              GoRoute(
-                path: 'add',
-                builder: (_, __) => const AddCameraScreen(),
-              ),
-              GoRoute(
-                path: ':id',
-                builder: (_, state) {
-                  final id = state.pathParameters['id']!;
-                  return CameraDetailScreen(cameraId: id);
-                },
-              ),
-            ],
-          ),
+          GoRoute(path: '/devices', builder: (_, __) => const CameraListScreen(), routes: [
+            GoRoute(path: 'add', builder: (_, __) => const AddCameraScreen()),
+            GoRoute(path: ':id', builder: (_, state) =>
+              CameraDetailScreen(cameraId: state.pathParameters['id']!)),
+          ]),
           GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
         ],
       ),

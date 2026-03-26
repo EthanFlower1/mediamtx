@@ -12,7 +12,6 @@ import '../../providers/timeline_intensity_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
 import 'camera_player.dart';
-import 'controls/jog_slider.dart';
 import 'controls/transport_controls.dart';
 import 'playback_controller.dart';
 import 'timeline/composable_timeline.dart';
@@ -196,7 +195,6 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         ),
         // Video grid
         Expanded(
-          flex: 3,
           child: _VideoGrid(
             cameras: selected,
             controller: controller,
@@ -204,7 +202,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         ),
         // Timeline
         SizedBox(
-          height: 120,
+          height: 80,
           child: ComposableTimeline(
             segments: allSegments,
             events: allEvents,
@@ -220,49 +218,39 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         // Controls
         Container(
           color: NvrColors.bgSecondary,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          child: Column(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+          child: Row(
             children: [
-              TransportControls(
-                isPlaying: controller.isPlaying,
-                onPlayPause: controller.togglePlayPause,
-                onStepForward: () => controller.stepFrame(1),
-                onStepBackward: () => controller.stepFrame(-1),
-                onNextEvent: controller.skipToNextEvent,
-                onPreviousEvent: controller.skipToPreviousEvent,
-                onNextGap: controller.skipToNextGap,
-                onPreviousGap: controller.skipToPreviousGap,
+              Expanded(
+                child: TransportControls(
+                  isPlaying: controller.isPlaying,
+                  onPlayPause: controller.togglePlayPause,
+                  onStepForward: () => controller.stepFrame(1),
+                  onStepBackward: () => controller.stepFrame(-1),
+                  onNextEvent: controller.skipToNextEvent,
+                  onPreviousEvent: controller.skipToPreviousEvent,
+                  onNextGap: controller.skipToNextGap,
+                  onPreviousGap: controller.skipToPreviousGap,
+                ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: JogSlider(
-                      currentPosition: controller.position,
-                      onSeek: (target) => controller.seek(target),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<double>(
-                    value: _playbackSpeed,
-                    dropdownColor: NvrColors.bgSecondary,
-                    style: const TextStyle(
-                        color: NvrColors.textPrimary, fontSize: 13),
-                    underline: const SizedBox.shrink(),
-                    items: _speeds
-                        .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text('${s}x'),
-                            ))
-                        .toList(),
-                    onChanged: (s) {
-                      if (s != null) {
-                        setState(() => _playbackSpeed = s);
-                        controller.setSpeed(s);
-                      }
-                    },
-                  ),
-                ],
+              DropdownButton<double>(
+                value: _playbackSpeed,
+                dropdownColor: NvrColors.bgSecondary,
+                style: const TextStyle(
+                    color: NvrColors.textPrimary, fontSize: 13),
+                underline: const SizedBox.shrink(),
+                items: _speeds
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text('${s}x'),
+                        ))
+                    .toList(),
+                onChanged: (s) {
+                  if (s != null) {
+                    setState(() => _playbackSpeed = s);
+                    controller.setSpeed(s);
+                  }
+                },
               ),
             ],
           ),
@@ -374,31 +362,35 @@ class _VideoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cols = cameras.length > 1 ? 2 : 1;
+    final rows = (cameras.length / cols).ceil();
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: cols,
-        childAspectRatio: 16 / 9,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-      ),
-      itemCount: cameras.length,
-      itemBuilder: (_, i) {
-        final cam = cameras[i];
-        final vc = controller.videoControllers[cam.id];
-        if (vc == null) {
-          return const ColoredBox(
-            color: Colors.black,
-            child: Center(
-              child: CircularProgressIndicator(color: NvrColors.accent),
-            ),
-          );
-        }
-        return CameraPlayer(
-          key: ValueKey('player-${cam.id}'),
-          videoController: vc,
-          cameraName: cam.name,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalGapH = (cols - 1) * 4.0;
+        final totalGapV = (rows - 1) * 4.0;
+        final cellWidth = (constraints.maxWidth - totalGapH) / cols;
+        final cellHeight = (constraints.maxHeight - totalGapV) / rows;
+        final h = (cellWidth / 16 * 9).clamp(0.0, cellHeight);
+        final w = h * 16 / 9;
+
+        return Center(
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final cam in cameras)
+                SizedBox(
+                  width: w,
+                  height: h,
+                  child: CameraPlayer(
+                    key: ValueKey('player-${cam.id}'),
+                    cameraId: cam.id,
+                    cameraName: cam.name,
+                    controller: controller,
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );

@@ -82,7 +82,7 @@ class CameraListScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: NvrColors.accent,
-        onPressed: () => context.push('/cameras/add'),
+        onPressed: () => context.push('/devices/add'),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: camerasAsync.when(
@@ -116,7 +116,7 @@ class CameraListScreen extends ConsumerWidget {
         ),
         data: (cameras) {
           if (cameras.isEmpty) {
-            return _EmptyState(onAdd: () => context.push('/cameras/add'));
+            return _EmptyState(onAdd: () => context.push('/devices/add'));
           }
           return RefreshIndicator(
             color: NvrColors.accent,
@@ -144,7 +144,7 @@ class CameraListScreen extends ConsumerWidget {
                   ),
                   child: _CameraListTile(
                     camera: camera,
-                    onTap: () => context.push('/cameras/${camera.id}'),
+                    onTap: () => context.push('/devices/${camera.id}'),
                   ),
                 );
               },

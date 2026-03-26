@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +9,12 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/whep_service.dart';
+import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/corner_brackets.dart';
+import '../../widgets/hud/hud_toggle.dart';
+import '../../widgets/hud/status_badge.dart';
 import 'analytics_overlay.dart';
 import 'ptz_controls.dart';
 
@@ -27,6 +33,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   StreamSubscription<WhepConnectionState>? _stateSub;
   bool _controlsVisible = true;
   Timer? _hideControlsTimer;
+  bool _aiEnabled = false;
 
   @override
   void initState() {
@@ -64,7 +71,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
   void _scheduleHideControls() {
     _hideControlsTimer?.cancel();
-    _hideControlsTimer = Timer(const Duration(seconds: 4), () {
+    _hideControlsTimer = Timer(NvrAnimations.overlayHideDelay, () {
       if (mounted) setState(() => _controlsVisible = false);
     });
   }
@@ -97,54 +104,161 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _toggleControls,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // ── Video layer ─────────────────────────────────────────────
-            _buildVideoLayer(),
+        child: CornerBrackets(
+          bracketSize: 24,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── Video layer ───────────────────────────────────────────────
+              _buildVideoLayer(),
 
-            // ── Analytics overlay ────────────────────────────────────────
-            if (camera.aiEnabled)
-              AnalyticsOverlay(cameraName: camera.name, cameraId: camera.id),
+              // ── Analytics overlay ─────────────────────────────────────────
+              if (camera.aiEnabled || _aiEnabled)
+                AnalyticsOverlay(
+                  cameraName: camera.name,
+                  cameraId: camera.id,
+                ),
 
-            // ── AppBar overlay ───────────────────────────────────────────
-            AnimatedOpacity(
-              opacity: _controlsVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: Column(
-                children: [
-                  AppBar(
-                    backgroundColor: Colors.black54,
-                    foregroundColor: NvrColors.textPrimary,
-                    title: Text(camera.name),
-                    actions: [
-                      IconButton(
-                        icon: const Icon(Icons.photo_camera),
-                        tooltip: 'Screenshot',
-                        onPressed: _takeScreenshot,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // ── PTZ controls overlay ─────────────────────────────────────
-            if (camera.ptzCapable && apiClient != null)
+              // ── Top HUD overlay ───────────────────────────────────────────
               AnimatedOpacity(
                 opacity: _controlsVisible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 250),
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 16, bottom: 48),
-                    child: PtzControls(
-                      apiClient: apiClient,
-                      cameraId: camera.id,
+                duration: NvrAnimations.overlayFadeDuration,
+                child: _buildTopOverlay(camera),
+              ),
+
+              // ── Bottom HUD overlay ────────────────────────────────────────
+              AnimatedOpacity(
+                opacity: _controlsVisible ? 1.0 : 0.0,
+                duration: NvrAnimations.overlayFadeDuration,
+                child: _buildBottomOverlay(context, camera),
+              ),
+
+              // ── PTZ controls overlay ──────────────────────────────────────
+              if (camera.ptzCapable && apiClient != null)
+                AnimatedOpacity(
+                  opacity: _controlsVisible ? 1.0 : 0.0,
+                  duration: NvrAnimations.overlayFadeDuration,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: PtzControls(
+                        apiClient: apiClient,
+                        cameraId: camera.id,
+                      ),
                     ),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopOverlay(Camera camera) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black, Colors.transparent],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Live status badge
+            StatusBadge.live(),
+            const SizedBox(width: 10),
+
+            // Camera name
+            Text(
+              camera.name,
+              style: const TextStyle(
+                fontFamily: 'IBMPlexSans',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: NvrColors.textPrimary,
               ),
+            ),
+            const SizedBox(width: 10),
+
+            // Camera ID
+            Text(
+              camera.id,
+              style: NvrTypography.monoControl,
+            ),
+
+            const Spacer(),
+
+            // REC indicator
+            StatusBadge.recording(),
+            const SizedBox(width: 10),
+
+            // Timestamp
+            _LiveTimestamp(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomOverlay(BuildContext context, Camera camera) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Colors.black, Colors.transparent],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Audio pill
+            _PillButton(
+              icon: Icons.volume_up,
+              label: 'Audio',
+              onTap: () {},
+            ),
+            const SizedBox(width: 8),
+
+            // AI toggle pill
+            _AiTogglePill(
+              enabled: _aiEnabled,
+              onChanged: (v) => setState(() => _aiEnabled = v),
+            ),
+            const SizedBox(width: 8),
+
+            // Snapshot pill
+            _PillButton(
+              icon: Icons.photo_camera,
+              label: 'Snapshot',
+              onTap: _takeScreenshot,
+            ),
+            const SizedBox(width: 8),
+
+            // Grid return pill
+            _PillButton(
+              icon: Icons.grid_view,
+              label: 'Grid',
+              onTap: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 8),
+
+            // Exit fullscreen pill
+            _PillButton(
+              icon: Icons.fullscreen_exit,
+              label: 'Exit',
+              onTap: () => Navigator.of(context).pop(),
+            ),
           ],
         ),
       ),
@@ -194,5 +308,127 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
       case WhepConnectionState.disposed:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// ── Supporting widgets ─────────────────────────────────────────────────────────
+
+class _PillButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _PillButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: NvrColors.bgSecondary.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: NvrColors.border,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: NvrColors.textPrimary),
+                const SizedBox(width: 6),
+                Text(label, style: NvrTypography.button.copyWith(fontSize: 11)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiTogglePill extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _AiTogglePill({required this.enabled, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: NvrColors.bgSecondary.withValues(alpha: 0.75),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: enabled ? NvrColors.accent.withValues(alpha: 0.4) : NvrColors.border,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'AI',
+                style: NvrTypography.monoSection.copyWith(fontSize: 10),
+              ),
+              const SizedBox(width: 8),
+              HudToggle(
+                value: enabled,
+                onChanged: onChanged,
+                showStateLabel: false,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveTimestamp extends StatefulWidget {
+  @override
+  State<_LiveTimestamp> createState() => _LiveTimestampState();
+}
+
+class _LiveTimestampState extends State<_LiveTimestamp> {
+  late Timer _timer;
+  late DateTime _now;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _now.hour.toString().padLeft(2, '0');
+    final m = _now.minute.toString().padLeft(2, '0');
+    final s = _now.second.toString().padLeft(2, '0');
+    return Text('$h:$m:$s', style: NvrTypography.monoTimestamp);
   }
 }

@@ -6,7 +6,6 @@ import '../../providers/cameras_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
-import '../../widgets/notification_bell.dart';
 import 'audit_panel.dart';
 import 'backup_panel.dart';
 import 'storage_panel.dart';
@@ -56,10 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         backgroundColor: NvrColors.bgSecondary,
         elevation: 0,
         title: Text('SETTINGS', style: NvrTypography.pageTitle),
-        actions: const [
-          NotificationBell(),
-          SizedBox(width: 8),
-        ],
+        actions: const [],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: NvrColors.border),

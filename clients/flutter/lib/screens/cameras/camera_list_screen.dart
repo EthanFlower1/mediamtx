@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/camera_thumbnail.dart';
 import '../../widgets/hud/corner_brackets.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/status_badge.dart';
@@ -68,6 +69,7 @@ class CameraListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final camerasAsync = ref.watch(camerasProvider);
+    final serverUrl = ref.watch(authProvider).serverUrl ?? '';
 
     return Scaffold(
       backgroundColor: NvrColors.bgPrimary,
@@ -168,6 +170,7 @@ class CameraListScreen extends ConsumerWidget {
                           ),
                           child: _DeviceCard(
                             camera: camera,
+                            serverUrl: serverUrl,
                             onTap: () => context.push('/devices/${camera.id}'),
                           ),
                         );
@@ -189,9 +192,10 @@ class CameraListScreen extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 class _DeviceCard extends StatelessWidget {
   final Camera camera;
+  final String serverUrl;
   final VoidCallback onTap;
 
-  const _DeviceCard({required this.camera, required this.onTap});
+  const _DeviceCard({required this.camera, required this.serverUrl, required this.onTap});
 
   StatusBadge _statusBadge(String status) {
     switch (status) {
@@ -230,18 +234,16 @@ class _DeviceCard extends StatelessWidget {
           padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              // ── Thumbnail placeholder ──────────────────────────────
+              // ── Thumbnail ─────────────────────────────────────────
               CornerBrackets(
                 bracketSize: 5,
                 padding: 3,
-                child: Container(
+                child: CameraThumbnail(
+                  serverUrl: serverUrl,
+                  cameraId: camera.id,
                   width: 80,
                   height: 48,
-                  decoration: BoxDecoration(
-                    color: NvrColors.bgTertiary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.videocam, color: NvrColors.textMuted, size: 20),
+                  borderRadius: 4,
                 ),
               ),
 

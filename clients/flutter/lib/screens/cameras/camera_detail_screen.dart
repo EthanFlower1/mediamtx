@@ -6,11 +6,11 @@ import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/analog_slider.dart';
-import '../../widgets/hud/corner_brackets.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/segmented_control.dart';
 import '../../widgets/hud/status_badge.dart';
+import '../live_view/camera_tile.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -276,6 +276,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   Widget _buildContent() {
     final camera = _camera!;
     final wide = MediaQuery.of(context).size.width > 800;
+    final serverUrl = ref.watch(authProvider).serverUrl ?? '';
 
     return Column(
       children: [
@@ -291,14 +292,14 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: _buildLeftColumn(camera)),
+                      Expanded(child: _buildLeftColumn(camera, serverUrl)),
                       const SizedBox(width: 16),
                       Expanded(child: _buildRightColumn(camera)),
                     ],
                   )
                 : Column(
                     children: [
-                      _buildLeftColumn(camera),
+                      _buildLeftColumn(camera, serverUrl),
                       const SizedBox(height: 16),
                       _buildRightColumn(camera),
                     ],
@@ -345,25 +346,17 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   }
 
   // ── Left/top column: preview + stats ────────────────────────────────────
-  Widget _buildLeftColumn(Camera camera) {
+  Widget _buildLeftColumn(Camera camera, String serverUrl) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Live preview placeholder
-        CornerBrackets(
-          bracketSize: 12,
-          padding: 6,
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(
-              decoration: BoxDecoration(
-                color: NvrColors.bgTertiary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Center(
-                child: Icon(Icons.videocam, color: NvrColors.textMuted, size: 40),
-              ),
-            ),
+        // Live preview
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: CameraTile(
+            camera: camera,
+            serverUrl: serverUrl,
+            onTap: () {},
           ),
         ),
 

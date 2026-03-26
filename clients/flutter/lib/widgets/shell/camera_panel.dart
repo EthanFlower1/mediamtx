@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/camera_panel_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/groups_provider.dart';
+import '../hud/camera_thumbnail.dart';
 import 'camera_panel_groups.dart';
 import 'camera_panel_tours.dart';
 
@@ -16,6 +18,7 @@ class CameraPanel extends ConsumerWidget {
     final panelState = ref.watch(cameraPanelProvider);
     final camerasAsync = ref.watch(camerasProvider);
     final groupsAsync = ref.watch(groupsProvider);
+    final serverUrl = ref.watch(authProvider).serverUrl ?? '';
 
     // Determine active group name for the filter badge
     final activeGroupName = panelState.activeGroupId == null
@@ -262,14 +265,12 @@ class CameraPanel extends ConsumerWidget {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              // Thumbnail placeholder
-                              Container(
+                              // Camera thumbnail
+                              CameraThumbnail(
+                                serverUrl: serverUrl,
+                                cameraId: cam.id,
                                 width: 44,
                                 height: 26,
-                                decoration: BoxDecoration(
-                                  color: NvrColors.border,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(

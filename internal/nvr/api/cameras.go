@@ -212,6 +212,19 @@ func (h *CameraHandler) Get(c *gin.Context) {
 		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
 		return
 	}
+
+	// Enrich with live status from MediaMTX (same as List).
+	statuses := h.getPathStatuses()
+	if statuses == nil {
+		cam.Status = "unknown"
+	} else if cam.MediaMTXPath != "" {
+		if s, ok := statuses[cam.MediaMTXPath]; ok {
+			cam.Status = s
+		} else {
+			cam.Status = "disconnected"
+		}
+	}
+
 	c.JSON(http.StatusOK, h.buildCameraResponse(cam))
 }
 

@@ -8,6 +8,7 @@ import '../../providers/groups_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/camera_panel_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../hud/camera_thumbnail.dart';
 import '../hud/hud_button.dart';
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ class CameraPanelGroups extends ConsumerWidget {
     final camerasAsync = ref.watch(camerasProvider);
     final panelState = ref.watch(cameraPanelProvider);
     final collapsed = ref.watch(_collapsedGroupsProvider);
+    final serverUrl = ref.watch(authProvider).serverUrl ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,6 +73,7 @@ class CameraPanelGroups extends ConsumerWidget {
                 return _GroupSection(
                   group: group,
                   cameras: groupCameras,
+                  serverUrl: serverUrl,
                   isCollapsed: isCollapsed,
                   isActive: isActive,
                   onToggleCollapse: () {
@@ -210,6 +213,7 @@ class _GroupSection extends StatelessWidget {
   const _GroupSection({
     required this.group,
     required this.cameras,
+    required this.serverUrl,
     required this.isCollapsed,
     required this.isActive,
     required this.onToggleCollapse,
@@ -221,6 +225,7 @@ class _GroupSection extends StatelessWidget {
 
   final CameraGroup group;
   final List<Camera> cameras;
+  final String serverUrl;
   final bool isCollapsed;
   final bool isActive;
   final VoidCallback onToggleCollapse;
@@ -300,7 +305,7 @@ class _GroupSection extends StatelessWidget {
               child: Text('No cameras', style: NvrTypography.body),
             )
           else
-            ...cameras.map((cam) => _GroupCameraItem(camera: cam)),
+            ...cameras.map((cam) => _GroupCameraItem(camera: cam, serverUrl: serverUrl)),
         ],
       ],
     );
@@ -346,8 +351,9 @@ class _GroupSection extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _GroupCameraItem extends StatelessWidget {
-  const _GroupCameraItem({required this.camera});
+  const _GroupCameraItem({required this.camera, required this.serverUrl});
   final Camera camera;
+  final String serverUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -427,14 +433,12 @@ class _GroupCameraItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Thumbnail placeholder
-              Container(
+              // Camera thumbnail
+              CameraThumbnail(
+                serverUrl: serverUrl,
+                cameraId: camera.id,
                 width: 44,
                 height: 26,
-                decoration: BoxDecoration(
-                  color: NvrColors.border,
-                  borderRadius: BorderRadius.circular(3),
-                ),
               ),
               const SizedBox(width: 8),
               Expanded(

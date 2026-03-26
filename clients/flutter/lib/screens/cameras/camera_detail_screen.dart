@@ -360,12 +360,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     );
 
     // Format uptime
-    final uptimeStr = systemAsync.whenOrNull(data: (info) {
-      final s = info.uptime;
-      if (s < 3600) return '${s ~/ 60}m';
-      if (s < 86400) return '${s ~/ 3600}h ${(s % 3600) ~/ 60}m';
-      return '${s ~/ 86400}d ${(s % 86400) ~/ 3600}h';
-    }) ?? '--';
+    final uptimeStr = systemAsync.whenOrNull(
+      data: (info) => info.uptimeFormatted,
+    ) ?? '--';
 
     // Find per-camera storage
     final storageStr = storageAsync.whenOrNull(data: (info) {

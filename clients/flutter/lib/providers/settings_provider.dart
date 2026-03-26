@@ -5,23 +5,64 @@ import 'auth_provider.dart';
 class SystemInfo {
   final String version;
   final String platform;
-  final int uptime;
+  final int uptimeSeconds;
   final bool clipSearchAvailable;
 
   const SystemInfo({
     required this.version,
     required this.platform,
-    required this.uptime,
+    required this.uptimeSeconds,
     required this.clipSearchAvailable,
   });
 
+  /// Format uptime as human-readable string (e.g., "14d 8h", "3h 20m", "45m").
+  String get uptimeFormatted {
+    final s = uptimeSeconds;
+    if (s <= 0) return '--';
+    if (s < 3600) return '${s ~/ 60}m';
+    if (s < 86400) return '${s ~/ 3600}h ${(s % 3600) ~/ 60}m';
+    return '${s ~/ 86400}d ${(s % 86400) ~/ 3600}h';
+  }
+
   factory SystemInfo.fromJson(Map<String, dynamic> json) {
+    // The API returns "uptime" as a Go duration string (e.g., "336h12m5s")
+    // and "uptime_seconds" as a number on the /system/metrics endpoint.
+    // The /system/info endpoint only sends "uptime" as a string.
+    // Parse the Go duration string to seconds.
+    int uptime = 0;
+    final raw = json['uptime'];
+    if (raw is int) {
+      uptime = raw;
+    } else if (raw is double) {
+      uptime = raw.round();
+    } else if (raw is String) {
+      uptime = _parseGoDuration(raw);
+    }
+    // Also check uptime_seconds (from /system/metrics)
+    final rawSec = json['uptime_seconds'];
+    if (rawSec is num && rawSec > 0) {
+      uptime = rawSec.round();
+    }
+
     return SystemInfo(
       version: json['version'] as String? ?? '',
       platform: json['platform'] as String? ?? '',
-      uptime: json['uptime'] as int? ?? 0,
+      uptimeSeconds: uptime,
       clipSearchAvailable: json['clip_search_available'] as bool? ?? false,
     );
+  }
+
+  /// Parse a Go duration string like "336h12m5.123s" to total seconds.
+  static int _parseGoDuration(String s) {
+    if (s.isEmpty) return 0;
+    int total = 0;
+    final hMatch = RegExp(r'(\d+)h').firstMatch(s);
+    final mMatch = RegExp(r'(\d+)m').firstMatch(s);
+    final sMatch = RegExp(r'([\d.]+)s').firstMatch(s);
+    if (hMatch != null) total += int.parse(hMatch.group(1)!) * 3600;
+    if (mMatch != null) total += int.parse(mMatch.group(1)!) * 60;
+    if (sMatch != null) total += double.parse(sMatch.group(1)!).round();
+    return total;
   }
 }
 

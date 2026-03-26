@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 
-/// Loads a camera snapshot thumbnail. Shows a placeholder on failure or while loading.
-class CameraThumbnail extends StatelessWidget {
+/// Loads a camera snapshot thumbnail with JWT auth.
+/// Shows a placeholder on failure or while loading.
+class CameraThumbnail extends ConsumerWidget {
   const CameraThumbnail({
     super.key,
     required this.serverUrl,
@@ -19,25 +22,34 @@ class CameraThumbnail extends StatelessWidget {
   final double borderRadius;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (serverUrl.isEmpty) return _placeholder();
 
-    final url =
-        '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&t=${DateTime.now().millisecondsSinceEpoch ~/ 30000}';
+    final authService = ref.watch(authServiceProvider);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: SizedBox(
         width: width,
         height: height,
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          headers: const {},
-          errorBuilder: (_, __, ___) => _placeholder(),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _placeholder();
+        child: FutureBuilder<String?>(
+          future: authService.getAccessToken(),
+          builder: (context, snapshot) {
+            final token = snapshot.data;
+            if (token == null) return _placeholder();
+
+            final url =
+                '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&token=$token&t=${DateTime.now().millisecondsSinceEpoch ~/ 30000}';
+
+            return Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _placeholder(),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return _placeholder();
+              },
+            );
           },
         ),
       ),

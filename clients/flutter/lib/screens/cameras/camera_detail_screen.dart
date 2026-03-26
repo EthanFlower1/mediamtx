@@ -5,6 +5,7 @@ import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import 'recording_rules_screen.dart';
+import 'tabs/storage_tab.dart';
 import 'zone_editor_screen.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
@@ -27,7 +28,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _fetchCamera();
   }
 
@@ -83,6 +84,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
                   Tab(text: 'AI'),
                   Tab(text: 'Zones'),
                   Tab(text: 'Advanced'),
+                  Tab(text: 'Storage'),
                 ],
               ),
       ),
@@ -106,6 +108,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
                     _AiTab(camera: _camera!, onRefresh: _fetchCamera),
                     ZoneEditorScreen(cameraId: widget.cameraId),
                     _AdvancedTab(camera: _camera!, onRefresh: _fetchCamera),
+                    StorageTab(camera: _camera!, onRefresh: _fetchCamera),
                   ],
                 ),
     );

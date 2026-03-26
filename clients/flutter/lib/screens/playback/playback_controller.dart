@@ -17,6 +17,8 @@ class PlaybackController extends ChangeNotifier {
   bool _continuousMode = true;
   double _speed = 1.0;
   bool _isSeeking = false;
+  final Set<String> _mutedCameras = {};
+  bool _isInGap = false;
   DateTime _nextPositionUpdate = DateTime(2000);
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
@@ -24,6 +26,10 @@ class PlaybackController extends ChangeNotifier {
   List<MotionEvent> _events = [];
   List<Bookmark> _bookmarks = [];
   String? _error;
+
+  // Gap timer — advances position when between recording segments
+  Timer? _gapTimer;
+  static const _gapTickInterval = Duration(milliseconds: 100);
 
   // Players — one per selected camera
   final Map<String, VideoPlayerController> _players = {};
@@ -48,6 +54,8 @@ class PlaybackController extends ChangeNotifier {
   bool get continuousMode => _continuousMode;
   double get speed => _speed;
   bool get isSeeking => _isSeeking;
+  Set<String> get mutedCameras => _mutedCameras;
+  bool get isInGap => _isInGap;
   DateTime get selectedDate => _selectedDate;
   List<String> get selectedCameraIds => _selectedCameraIds;
   List<RecordingSegment> get segments => _segments;
@@ -62,7 +70,10 @@ class PlaybackController extends ChangeNotifier {
     final changed = !_segmentsEqual(_segments, s);
     _segments = s;
     if (changed && _position == Duration.zero && _segments.isNotEmpty) {
-      _position = _segments.first.startTime.difference(_dayStart);
+      final first = _segments.first.startTime;
+      final last = _segments.last.endTime;
+      final mid = first.add(last.difference(first) ~/ 2);
+      _position = mid.difference(_dayStart);
     }
   }
 
@@ -105,12 +116,45 @@ class PlaybackController extends ChangeNotifier {
 
   // ── Position mapping ──────────────────────────────────────────────
 
-  /// Convert player position to wall-clock. Simple: the file starts
-  /// at _currentSegment.startTime, player position is offset from there.
+  /// Convert player position to wall-clock time.
+  ///
+  /// The DB's startTime is when the recording process started, but the
+  /// first video frame arrives slightly later. We compute the offset
+  /// from (wallClockSpan - mediaDuration) and shift the start forward
+  /// so player position 0 aligns with the actual first frame.
   Duration _playerToWallClock(Duration playerPos) {
     if (_currentSegment == null) return _position;
-    final wc = _currentSegment!.startTime.add(playerPos);
+
+    final primary = _players.values.firstOrNull;
+    final mediaDuration = primary?.value.duration ?? Duration.zero;
+    final wallClockDuration =
+        _currentSegment!.endTime.difference(_currentSegment!.startTime);
+
+    // The gap between recording start and first frame.
+    final startOffset = mediaDuration > Duration.zero
+        ? wallClockDuration - mediaDuration
+        : Duration.zero;
+
+    final wc = _currentSegment!.startTime
+        .add(startOffset)
+        .add(playerPos);
     return wc.difference(_dayStart);
+  }
+
+  /// Convert wall-clock time to player position (inverse of above).
+  Duration _wallClockToPlayerPos(DateTime targetTime, RecordingSegment seg) {
+    final primary = _players.values.firstOrNull;
+    final mediaDuration = primary?.value.duration ?? Duration.zero;
+    final wallClockDuration = seg.endTime.difference(seg.startTime);
+
+    final startOffset = mediaDuration > Duration.zero
+        ? wallClockDuration - mediaDuration
+        : Duration.zero;
+
+    // wallClock = startTime + startOffset + playerPos
+    // → playerPos = wallClock - startTime - startOffset
+    final playerPos = targetTime.difference(seg.startTime) - startOffset;
+    return playerPos < Duration.zero ? Duration.zero : playerPos;
   }
 
   // ── Playback controls ──────────────────────────────────────────────
@@ -128,6 +172,8 @@ class PlaybackController extends ChangeNotifier {
 
   void pause() {
     _isPlaying = false;
+    _stopGapTimer();
+    _isInGap = false;
     for (final p in _players.values) {
       p.pause();
     }
@@ -150,6 +196,8 @@ class PlaybackController extends ChangeNotifier {
     final snapped = _snapToSegment(clamped);
 
     _isSeeking = true;
+    _isInGap = false;
+    _stopGapTimer();
     _position = snapped;
     notifyListeners();
 
@@ -166,10 +214,10 @@ class PlaybackController extends ChangeNotifier {
           targetSeg.id == _currentSegment!.id &&
           _players.isNotEmpty) {
         // Same segment — seek within the local file (instant).
-        final offset = targetTime.difference(targetSeg.startTime);
-        debugPrint('SEEK: in-place, offset=$offset in segment ${targetSeg.id}');
+        final seekPos = _wallClockToPlayerPos(targetTime, targetSeg);
+        debugPrint('SEEK: in-place, target=$targetTime → mediaPos=$seekPos');
         for (final p in _players.values) {
-          await p.seekTo(offset);
+          await p.seekTo(seekPos);
         }
       } else if (targetSeg != null) {
         // Different segment — open the new file.
@@ -200,6 +248,21 @@ class PlaybackController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  void toggleMute(String cameraId) {
+    if (_mutedCameras.contains(cameraId)) {
+      _mutedCameras.remove(cameraId);
+    } else {
+      _mutedCameras.add(cameraId);
+    }
+    final player = _players[cameraId];
+    if (player != null) {
+      player.setVolume(_mutedCameras.contains(cameraId) ? 0.0 : 1.0);
+    }
+    notifyListeners();
+  }
+
+  bool isCameraMuted(String cameraId) => _mutedCameras.contains(cameraId);
 
   void stepFrame(int direction) {
     const frameDur = Duration(milliseconds: 33);
@@ -274,20 +337,12 @@ class PlaybackController extends ChangeNotifier {
     return null;
   }
 
-  /// Build the URL for serving a recording file directly.
-  /// The server's /vod/segments endpoint serves the raw file with
+  /// Build the URL for serving a recording file by its database ID.
+  /// The server's /vod/segments/:id endpoint serves the raw file with
   /// HTTP Range support, making it fully seekable.
   String _segmentFileUrl(RecordingSegment seg, String? token) {
     final serverUrl = playbackService.serverUrl;
     final uri = Uri.parse(serverUrl);
-
-    // Strip the recordings prefix from the file path.
-    var rel = seg.filePath ?? '';
-    if (rel.startsWith('./recordings/')) {
-      rel = rel.substring('./recordings/'.length);
-    } else if (rel.startsWith('recordings/')) {
-      rel = rel.substring('recordings/'.length);
-    }
 
     final params = <String, String>{};
     if (token != null && token.isNotEmpty) {
@@ -298,7 +353,7 @@ class PlaybackController extends ChangeNotifier {
       scheme: uri.scheme,
       host: uri.host,
       port: uri.port,
-      path: '/api/nvr/vod/segments/$rel',
+      path: '/api/nvr/vod/segments/${seg.id}',
       queryParameters: params.isNotEmpty ? params : null,
     ).toString();
   }
@@ -335,6 +390,21 @@ class PlaybackController extends ChangeNotifier {
         _currentSegment!.endTime.add(const Duration(milliseconds: 1)));
 
     if (nextSeg != null) {
+      // Check if there's a gap before the next segment
+      final gapDuration =
+          nextSeg.startTime.difference(_currentSegment!.endTime);
+      if (gapDuration > const Duration(seconds: 1)) {
+        // Enter gap mode — dispose players, advance position via timer
+        final gapStart = _currentSegment!.endTime.difference(_dayStart);
+        _disposeAllPlayers();
+        _currentSegment = null;
+        _isInGap = true;
+        _position = gapStart;
+        notifyListeners();
+        _startGapTimer(nextSeg);
+        return;
+      }
+
       final wallClock = nextSeg.startTime.difference(_dayStart);
       _isPlaying = true;
       await _openSegmentAt(wallClock);
@@ -352,10 +422,48 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
+  void _startGapTimer(RecordingSegment nextSegment) {
+    _stopGapTimer();
+    final targetPosition = nextSegment.startTime.difference(_dayStart);
+
+    _gapTimer = Timer.periodic(_gapTickInterval, (timer) {
+      if (_disposed || !_isPlaying) {
+        _stopGapTimer();
+        return;
+      }
+
+      final advance = Duration(
+        milliseconds: (_gapTickInterval.inMilliseconds * _speed).round(),
+      );
+      _position += advance;
+
+      if (_position >= targetPosition) {
+        _position = targetPosition;
+        _isInGap = false;
+        _stopGapTimer();
+        _openSegmentAt(_position).then((_) {
+          if (_isPlaying) {
+            for (final p in _players.values) {
+              p.play();
+            }
+          }
+          notifyListeners();
+        });
+      }
+      notifyListeners();
+    });
+  }
+
+  void _stopGapTimer() {
+    _gapTimer?.cancel();
+    _gapTimer = null;
+  }
+
   /// Open the recording segment that contains [wallClock].
   /// Serves the raw fMP4 file via HTTP with Range support — fully seekable.
   Future<void> _openSegmentAt(Duration wallClock) async {
     _disposeAllPlayers();
+    _stopGapTimer();
 
     final token = await getAccessToken();
     _error = null;
@@ -369,13 +477,23 @@ class PlaybackController extends ChangeNotifier {
     if (seg == null) {
       seg = _findNextSegmentForTime(targetTime);
       if (seg == null) {
+        _isInGap = false;
         _error = 'No recordings at this time';
         notifyListeners();
+        return;
+      }
+      // We're in a gap — if playing, advance through it with timer
+      if (_isPlaying && seg.startTime.difference(targetTime) > const Duration(seconds: 1)) {
+        _isInGap = true;
+        notifyListeners();
+        _startGapTimer(seg);
         return;
       }
       seekTarget = seg.startTime;
       _position = seekTarget.difference(_dayStart);
     }
+
+    _isInGap = false;
 
     _currentSegment = seg;
 
@@ -386,14 +504,13 @@ class PlaybackController extends ChangeNotifier {
     }
 
     final url = _segmentFileUrl(seg, token);
-    final offset = seekTarget.difference(seg.startTime);
+    final wallOffset = seekTarget.difference(seg.startTime);
 
     debugPrint(
         'Opening file: segment ${seg.id}, '
-        'start=${seg.startTime}, url=$url, seekOffset=$offset');
+        'start=${seg.startTime}, url=$url, wallOffset=$wallOffset');
 
-    // Open for each selected camera. For now, all cameras use the
-    // primary camera's segment (multi-camera would need per-camera segments).
+    // Open for each selected camera.
     for (final camId in _selectedCameraIds) {
       try {
         final controller = VideoPlayerController.networkUrl(
@@ -402,11 +519,19 @@ class PlaybackController extends ChangeNotifier {
 
         await controller.initialize();
         controller.setPlaybackSpeed(_speed);
+        controller.setVolume(_mutedCameras.contains(camId) ? 0.0 : 1.0);
         controller.addListener(_onPositionUpdate);
 
-        // Seek to the target offset within the file.
-        if (offset > Duration.zero) {
-          await controller.seekTo(offset);
+        // Seek to the target position within the file.
+        if (wallOffset > Duration.zero) {
+          final mediaDuration = controller.value.duration;
+          final wallClockDuration = seg.endTime.difference(seg.startTime);
+          final startOffset = mediaDuration > Duration.zero
+              ? wallClockDuration - mediaDuration
+              : Duration.zero;
+          var seekPos = wallOffset - startOffset;
+          if (seekPos < Duration.zero) seekPos = Duration.zero;
+          await controller.seekTo(seekPos);
         }
 
         _players[camId] = controller;
@@ -414,7 +539,7 @@ class PlaybackController extends ChangeNotifier {
         debugPrint(
             'Player ready: camera=$camId, '
             'duration=${controller.value.duration}, '
-            'seeked to $offset');
+            'seeked to $wallOffset');
       } catch (e) {
         debugPrint('Failed to open player for camera $camId: $e');
         _players.remove(camId)?.dispose();
@@ -576,6 +701,7 @@ class PlaybackController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _stopGapTimer();
     _disposeAllPlayers();
     super.dispose();
   }

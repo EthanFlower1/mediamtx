@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/nvr_colors.dart';
-import '../../theme/nvr_animations.dart';
 import '../../providers/camera_panel_provider.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';

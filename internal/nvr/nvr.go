@@ -627,6 +627,8 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		return
 	}
 
+	detectAndInsertPendingSync(n.database, rec, cam)
+
 	if n.hlsHandler != nil {
 		dateStr := start.Format("2006-01-02")
 		n.hlsHandler.InvalidateCache(cam.ID, dateStr)
@@ -641,6 +643,39 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.
 func (n *NVR) OnSegmentDelete(filePath string) {
 	n.database.DeleteRecordingByPath(filePath)
+}
+
+// detectAndInsertPendingSync checks if a recording landed in local fallback
+// storage instead of the camera's configured storage path, and if so inserts
+// a pending_syncs record.
+func detectAndInsertPendingSync(database *db.DB, rec *db.Recording, cam *db.Camera) {
+	if cam.StoragePath == "" {
+		return // No custom storage, nothing to sync.
+	}
+
+	// If the file is already under the camera's storage path, no sync needed.
+	if strings.HasPrefix(rec.FilePath, cam.StoragePath) {
+		return
+	}
+
+	// Build target path by replacing the local prefix with the NAS path.
+	// Local: ./recordings/nvr/<id>/main/2026-03/25/file.mp4
+	// Target: /mnt/nas1/recordings/nvr/<id>/main/2026-03/25/file.mp4
+	relPath := rec.FilePath
+	if idx := strings.Index(relPath, "nvr/"); idx >= 0 {
+		relPath = relPath[idx:]
+	}
+	targetPath := filepath.Join(cam.StoragePath, relPath)
+
+	ps := &db.PendingSync{
+		RecordingID: rec.ID,
+		CameraID:    cam.ID,
+		LocalPath:   rec.FilePath,
+		TargetPath:  targetPath,
+	}
+	if err := database.InsertPendingSync(ps); err != nil {
+		log.Printf("[NVR] [storage] failed to create pending sync for recording %d: %v", rec.ID, err)
+	}
 }
 
 // loadOrGenerateKeys derives an encryption key, then loads or generates

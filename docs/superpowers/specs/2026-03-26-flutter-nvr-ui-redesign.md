@@ -62,7 +62,7 @@ Full UI/UX redesign of the existing Flutter NVR client. Screen-by-screen rebuild
 - Button text: 12px, weight 600
 - Alert messages and notifications
 
-**Font Dependencies:** Add `google_fonts` package or bundle JetBrains Mono and IBM Plex Sans as assets. Neither is currently in `pubspec.yaml`.
+**Font Dependencies:** Bundle JetBrains Mono and IBM Plex Sans as asset files (not via `google_fonts` package). The NVR client may run on local networks without internet access, so fonts must be available offline.
 
 ### Accessibility
 
@@ -408,6 +408,8 @@ The playhead is a vertical line fixed at the horizontal center of the timeline. 
 - Backend: `tours` table (id, name, camera_ids JSON array preserving order, dwell_seconds, created_at). Active state is client-side only (not persisted to server).
 - Deletion: confirmation dialog.
 
+**Backend scope:** The Go backend endpoints and SQLite migrations for Camera Groups and Tours are prerequisites for these features. They are in scope for this redesign project but should be implemented before the Flutter screens that depend on them. The implementation plan should sequence backend work first.
+
 ### Drag-and-Drop Grid Assignment
 - Desktop/tablet: drag cameras from panel onto grid slots
 - Mobile: tap camera in bottom sheet to assign to current view, long-press for options
@@ -418,10 +420,20 @@ The playhead is a vertical line fixed at the horizontal center of the timeline. 
 
 The following layers remain unchanged:
 
-- **Models** (`models/`): Camera, RecordingSegment, MotionEvent, Bookmark, SavedClip, SearchResult, DetectionZone, AlertRule, NotificationEvent, DetectionFrame, User, RecordingRule
+- **Models** (`models/`): Camera, RecordingSegment, MotionEvent, Bookmark, SavedClip, SearchResult, DetectionZone, AlertRule, DetectionFrame, User, RecordingRule. **Exception:** `NotificationEvent` gets an `isRead` bool field added (default false) to support read/unread styling in the Alerts panel. `NotificationState` in `notificationsProvider` is updated to track per-event read state instead of just a global `unreadCount` integer.
 - **Providers** (`providers/`): authProvider, camerasProvider, recordingSegmentsProvider, motionEventsProvider, bookmarksProvider, searchProvider, notificationsProvider, detectionStreamProvider, timelineIntensityProvider, settingsProvider
 - **Services** (`services/`): ApiClient, AuthService, PlaybackService, WebSocketService, WhepService, CameraPrefs
-- **Router** (`router/`): GoRouter config with auth-based redirects (route structure may need additions for new screens but existing routes preserved)
+- **Router** (`router/`): GoRouter config with auth-based redirects. Route changes documented below.
+
+### Router Changes
+
+The existing router has 5 shell destinations: `/live`, `/playback`, `/search`, `/cameras`, `/settings`. The redesign modifies this:
+
+- `/cameras` is renamed to `/devices` for consistency with the new "Devices" screen label
+- `/devices/add` added for the Add Camera screen
+- Desktop icon rail: 4 nav items (Live, Playback, Search, Devices) + 2 utility items (Alerts, Settings). Alerts is a slide-out panel, not a route.
+- Mobile bottom nav: 4 items (Live, Playback, Search, Settings). Devices is accessed as a sub-section within Settings on mobile. The `_indexFromPath` mapping in `app_router.dart` must be updated for 4 destinations instead of 5.
+- Breakpoints: width >= 1024px uses icon rail with push-panel. Width 600-1024px (tablet portrait) uses icon rail with overlay-panel. Width < 600px uses bottom nav with bottom-sheet panel.
 
 ## New Provider/Model Requirements
 
@@ -434,7 +446,7 @@ The following layers remain unchanged:
 - `Tour` model (Freezed): id, name, cameraIds (ordered), dwellSeconds, isActive, createdAt
 - `toursProvider`: StateNotifierProvider managing active tour state
 - `activeTourProvider`: StreamProvider emitting current camera on schedule
-- Backend endpoints: `GET/POST/PUT/DELETE /tours`, `POST /tours/:id/start`, `POST /tours/:id/stop`
+- Backend endpoints: `GET/POST/PUT/DELETE /tours` (CRUD only — active state is client-side, no start/stop endpoints needed)
 
 ### For Drag-and-Drop Grid
 - `GridLayout` model: gridSize (NxN), slotAssignments (Map<int, String> mapping slot index to camera ID)

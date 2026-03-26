@@ -26,6 +26,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -52,6 +53,7 @@ type NVR struct {
 	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
 
 	hlsHandler *api.HLSHandler
+	storageMgr *storage.Manager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -109,6 +111,9 @@ func (n *NVR) Initialize() error {
 	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress)
 	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
+
+	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
+	n.storageMgr.Start()
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -295,6 +300,9 @@ func (n *NVR) Close() {
 
 	if n.wsServer != nil {
 		n.wsServer.Close()
+	}
+	if n.storageMgr != nil {
+		n.storageMgr.Stop()
 	}
 	if n.sched != nil {
 		n.sched.Stop()
@@ -509,6 +517,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Embedder:        n.aiEmbedder,
 		AIRestarter:     n,
 		HLSHandler:      n.hlsHandler,
+		StorageManager:  n.storageMgr,
 	})
 }
 

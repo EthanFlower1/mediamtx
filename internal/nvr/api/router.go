@@ -13,6 +13,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -41,6 +42,7 @@ type RouterConfig struct {
 	Embedder        *ai.Embedder // CLIP embedder for semantic search (may be nil)
 	AIRestarter     AIPipelineRestarter // restart AI pipeline on camera settings change (may be nil)
 	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
+	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.

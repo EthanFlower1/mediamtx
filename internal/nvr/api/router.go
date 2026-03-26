@@ -266,6 +266,22 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
 
+	// Camera Groups.
+	groupHandler := &GroupHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/camera-groups", groupHandler.List)
+	protected.POST("/camera-groups", groupHandler.Create)
+	protected.GET("/camera-groups/:id", groupHandler.Get)
+	protected.PUT("/camera-groups/:id", groupHandler.Update)
+	protected.DELETE("/camera-groups/:id", groupHandler.Delete)
+
+	// Tours.
+	tourHandler := &TourHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/tours", tourHandler.List)
+	protected.POST("/tours", tourHandler.Create)
+	protected.GET("/tours/:id", tourHandler.Get)
+	protected.PUT("/tours/:id", tourHandler.Update)
+	protected.DELETE("/tours/:id", tourHandler.Delete)
+
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")
 	if err == nil {

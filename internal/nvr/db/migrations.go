@@ -272,4 +272,38 @@ CREATE INDEX idx_pending_syncs_status ON pending_syncs(status);
 CREATE INDEX idx_pending_syncs_camera ON pending_syncs(camera_id);
 `,
 	},
+	{
+		version: 19,
+		sql: `
+        CREATE TABLE IF NOT EXISTS camera_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS camera_group_members (
+            group_id TEXT NOT NULL REFERENCES camera_groups(id) ON DELETE CASCADE,
+            camera_id TEXT NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (group_id, camera_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_group_members_group ON camera_group_members(group_id);
+        CREATE INDEX IF NOT EXISTS idx_group_members_camera ON camera_group_members(camera_id);
+    `,
+	},
+	{
+		version: 20,
+		sql: `
+        CREATE TABLE IF NOT EXISTS tours (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            camera_ids TEXT NOT NULL DEFAULT '[]',
+            dwell_seconds INTEGER NOT NULL DEFAULT 10,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `,
+	},
 }

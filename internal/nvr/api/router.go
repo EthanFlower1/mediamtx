@@ -251,6 +251,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		nvr.GET("/vod/segments/*filepath", cfg.HLSHandler.ServeSegment)
 	}
 
+	// Storage health and sync.
+	if cfg.StorageManager != nil {
+		storageHandler := &StorageHandler{DB: cfg.DB, Manager: cfg.StorageManager}
+		protected.GET("/storage/status", storageHandler.Status)
+		protected.GET("/storage/pending", storageHandler.Pending)
+		protected.POST("/storage/sync/:camera_id", storageHandler.TriggerSync)
+	}
+
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 

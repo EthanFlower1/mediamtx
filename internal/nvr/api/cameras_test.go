@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -147,4 +148,29 @@ func TestCreateCameraPathUsesID(t *testing.T) {
 
 	// Path should be nvr/<camera-id>/main, not nvr/<sanitized-name>
 	assert.Equal(t, "nvr/"+cam.ID+"/main", cam.MediaMTXPath)
+}
+
+func TestUpdateCameraStoragePath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	nasDir := t.TempDir()
+
+	cam := &db.Camera{Name: "Test", RTSPURL: "rtsp://x", MediaMTXPath: "nvr/test-id/main"}
+	require.NoError(t, h.DB.CreateCamera(cam))
+
+	body := fmt.Sprintf(`{"name":"Test","rtsp_url":"rtsp://x","storage_path":"%s"}`, nasDir)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("PUT", "/cameras/"+cam.ID, strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Params = gin.Params{{Key: "id", Value: cam.ID}}
+	h.Update(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	got, err := h.DB.GetCamera(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, nasDir, got.StoragePath)
 }

@@ -329,6 +329,21 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// Validate storage path if provided.
+	if req.StoragePath != "" {
+		if !filepath.IsAbs(req.StoragePath) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "storage_path must be an absolute path"})
+			return
+		}
+		req.StoragePath = filepath.Clean(req.StoragePath)
+		testFile := filepath.Join(req.StoragePath, ".nvr_write_test")
+		if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "storage_path is not writable: " + err.Error()})
+			return
+		}
+		os.Remove(testFile)
+	}
+
 	// Only update fields that are actually provided (non-zero) to avoid
 	// wiping out fields the client didn't send.
 	existing.Name = req.Name
@@ -352,6 +367,10 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		existing.Tags = req.Tags
 	}
 
+	// Detect storage path change before updating existing.StoragePath.
+	storagePathChanged := req.StoragePath != existing.StoragePath
+	existing.StoragePath = req.StoragePath
+
 	// The mediamtx_path is immutable after creation — renaming a camera must
 	// not change the stream path, as that would break live connections and
 	// recording associations.
@@ -362,9 +381,17 @@ func (h *CameraHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// Update the YAML source URL if the RTSP URL changed.
+	// Build YAML config update — always refresh source, and include recordPath
+	// if the storage path changed.
 	yamlConfig := map[string]interface{}{
 		"source": existing.RTSPURL,
+	}
+	if storagePathChanged {
+		storagePath := existing.StoragePath
+		if storagePath == "" {
+			storagePath = "./recordings"
+		}
+		yamlConfig["recordPath"] = storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
 	}
 	if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to write config", err)

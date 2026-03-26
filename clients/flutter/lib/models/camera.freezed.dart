@@ -51,6 +51,10 @@ mixin _$Camera {
   String? get createdAt => throw _privateConstructorUsedError;
   @JsonKey(name: 'updated_at')
   String? get updatedAt => throw _privateConstructorUsedError;
+  @JsonKey(name: 'storage_path')
+  String get storagePath => throw _privateConstructorUsedError;
+  @JsonKey(name: 'storage_status')
+  String get storageStatus => throw _privateConstructorUsedError;
 
   /// Serializes this Camera to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -83,7 +87,9 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'supports_analytics') bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+      @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'storage_path') String storagePath,
+      @JsonKey(name: 'storage_status') String storageStatus});
 }
 
 /// @nodoc
@@ -118,6 +124,8 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? storagePath = null,
+    Object? storageStatus = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -188,6 +196,14 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      storagePath: null == storagePath
+          ? _value.storagePath
+          : storagePath // ignore: cast_nullable_to_non_nullable
+              as String,
+      storageStatus: null == storageStatus
+          ? _value.storageStatus
+          : storageStatus // ignore: cast_nullable_to_non_nullable
+              as String,
     ) as $Val);
   }
 }
@@ -216,7 +232,9 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'supports_analytics') bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+      @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'storage_path') String storagePath,
+      @JsonKey(name: 'storage_status') String storageStatus});
 }
 
 /// @nodoc
@@ -249,6 +267,8 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? storagePath = null,
+    Object? storageStatus = null,
   }) {
     return _then(_$CameraImpl(
       id: null == id
@@ -319,6 +339,14 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      storagePath: null == storagePath
+          ? _value.storagePath
+          : storagePath // ignore: cast_nullable_to_non_nullable
+              as String,
+      storageStatus: null == storageStatus
+          ? _value.storageStatus
+          : storageStatus // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -343,7 +371,9 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'supports_analytics') this.supportsAnalytics = false,
       @JsonKey(name: 'supports_relay') this.supportsRelay = false,
       @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt});
+      @JsonKey(name: 'updated_at') this.updatedAt,
+      @JsonKey(name: 'storage_path') this.storagePath = '',
+      @JsonKey(name: 'storage_status') this.storageStatus = 'default'});
 
   factory _$CameraImpl.fromJson(Map<String, dynamic> json) =>
       _$$CameraImplFromJson(json);
@@ -397,10 +427,16 @@ class _$CameraImpl implements _Camera {
   @override
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
+  @override
+  @JsonKey(name: 'storage_path')
+  final String storagePath;
+  @override
+  @JsonKey(name: 'storage_status')
+  final String storageStatus;
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus)';
   }
 
   @override
@@ -437,30 +473,37 @@ class _$CameraImpl implements _Camera {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
-                other.updatedAt == updatedAt));
+                other.updatedAt == updatedAt) &&
+            (identical(other.storagePath, storagePath) ||
+                other.storagePath == storagePath) &&
+            (identical(other.storageStatus, storageStatus) ||
+                other.storageStatus == storageStatus));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      name,
-      rtspUrl,
-      onvifEndpoint,
-      mediamtxPath,
-      status,
-      ptzCapable,
-      aiEnabled,
-      subStreamUrl,
-      retentionDays,
-      motionTimeoutSeconds,
-      snapshotUri,
-      supportsEvents,
-      supportsAnalytics,
-      supportsRelay,
-      createdAt,
-      updatedAt);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        id,
+        name,
+        rtspUrl,
+        onvifEndpoint,
+        mediamtxPath,
+        status,
+        ptzCapable,
+        aiEnabled,
+        subStreamUrl,
+        retentionDays,
+        motionTimeoutSeconds,
+        snapshotUri,
+        supportsEvents,
+        supportsAnalytics,
+        supportsRelay,
+        createdAt,
+        updatedAt,
+        storagePath,
+        storageStatus
+      ]);
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.
@@ -496,7 +539,10 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'supports_analytics') final bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') final bool supportsRelay,
       @JsonKey(name: 'created_at') final String? createdAt,
-      @JsonKey(name: 'updated_at') final String? updatedAt}) = _$CameraImpl;
+      @JsonKey(name: 'updated_at') final String? updatedAt,
+      @JsonKey(name: 'storage_path') final String storagePath,
+      @JsonKey(name: 'storage_status')
+      final String storageStatus}) = _$CameraImpl;
 
   factory _Camera.fromJson(Map<String, dynamic> json) = _$CameraImpl.fromJson;
 
@@ -548,6 +594,12 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'updated_at')
   String? get updatedAt;
+  @override
+  @JsonKey(name: 'storage_path')
+  String get storagePath;
+  @override
+  @JsonKey(name: 'storage_status')
+  String get storageStatus;
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.

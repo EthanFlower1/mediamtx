@@ -103,6 +103,7 @@ func (n *NVR) Initialize() error {
 	_ = n.database.CloseOrphanedMotionEvents()
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
+	n.migrateMediaMTXPaths()
 	n.discovery = onvif.NewDiscovery()
 	n.events = api.NewEventBroadcaster()
 	n.callbackMgr = onvif.NewCallbackManager()
@@ -348,6 +349,53 @@ func (n *NVR) syncAudioTranscodeState() {
 				log.Printf("NVR: synced audio_transcode=true for %s", cam.Name)
 			}
 		}
+	}
+}
+
+// migrateMediaMTXPaths updates camera MediaMTX paths from the old naming
+// convention (nvr/<sanitized-name>) to the new convention (nvr/<camera-id>/main).
+// It also verifies that every camera's MediaMTX path exists in the YAML config.
+func (n *NVR) migrateMediaMTXPaths() {
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		log.Printf("[NVR] [migration] failed to list cameras: %v", err)
+		return
+	}
+
+	for _, cam := range cameras {
+		expectedPath := "nvr/" + cam.ID + "/main"
+		if cam.MediaMTXPath == expectedPath {
+			continue // Already migrated.
+		}
+
+		oldPath := cam.MediaMTXPath
+		cam.MediaMTXPath = expectedPath
+
+		if err := n.database.UpdateCamera(cam); err != nil {
+			log.Printf("[NVR] [migration] failed to update path for camera %s: %v", cam.ID, err)
+			continue
+		}
+
+		yamlConfig := map[string]interface{}{
+			"source": cam.RTSPURL,
+			"record": true,
+		}
+		storagePath := cam.StoragePath
+		if storagePath == "" {
+			storagePath = n.RecordingsPath
+		}
+		yamlConfig["recordPath"] = storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+
+		if err := n.yamlWriter.AddPath(expectedPath, yamlConfig); err != nil {
+			log.Printf("[NVR] [migration] failed to add new path for camera %s: %v", cam.ID, err)
+			continue
+		}
+
+		if oldPath != "" {
+			_ = n.yamlWriter.RemovePath(oldPath)
+		}
+
+		log.Printf("[NVR] [migration] migrated camera %s path: %s -> %s", cam.ID, oldPath, expectedPath)
 	}
 }
 

@@ -167,31 +167,35 @@ func checkPathHealth(path string) (bool, error) {
 }
 
 func (m *Manager) handleFailover(storagePath string, cameraIDs []string) {
-	for _, camID := range cameraIDs {
-		cam, err := m.db.GetCamera(camID)
-		if err != nil {
-			continue
+	if m.yamlWriter != nil {
+		for _, camID := range cameraIDs {
+			cam, err := m.db.GetCamera(camID)
+			if err != nil {
+				continue
+			}
+			fallbackPath := m.recordingsPath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+			if err := m.yamlWriter.SetPathValue(cam.MediaMTXPath, "recordPath", fallbackPath); err != nil {
+				log.Printf("[NVR] [storage] failed to failover camera %s: %v", camID, err)
+			}
 		}
-		fallbackPath := m.recordingsPath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
-		if err := m.yamlWriter.SetPathValue(cam.MediaMTXPath, "recordPath", fallbackPath); err != nil {
-			log.Printf("[NVR] [storage] failed to failover camera %s: %v", camID, err)
-		}
+		m.triggerConfigReload()
 	}
-	m.triggerConfigReload()
 }
 
 func (m *Manager) handleRecovery(storagePath string, cameraIDs []string) {
-	for _, camID := range cameraIDs {
-		cam, err := m.db.GetCamera(camID)
-		if err != nil {
-			continue
+	if m.yamlWriter != nil {
+		for _, camID := range cameraIDs {
+			cam, err := m.db.GetCamera(camID)
+			if err != nil {
+				continue
+			}
+			primaryPath := cam.StoragePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+			if err := m.yamlWriter.SetPathValue(cam.MediaMTXPath, "recordPath", primaryPath); err != nil {
+				log.Printf("[NVR] [storage] failed to recover camera %s: %v", camID, err)
+			}
 		}
-		primaryPath := cam.StoragePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
-		if err := m.yamlWriter.SetPathValue(cam.MediaMTXPath, "recordPath", primaryPath); err != nil {
-			log.Printf("[NVR] [storage] failed to recover camera %s: %v", camID, err)
-		}
+		m.triggerConfigReload()
 	}
-	m.triggerConfigReload()
 }
 
 func (m *Manager) triggerConfigReload() {

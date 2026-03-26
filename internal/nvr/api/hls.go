@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -143,7 +142,7 @@ func (h *HLSHandler) ServePlaylist(c *gin.Context) {
 			}
 		}
 
-		segmentURL := segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)
+		segmentURL := segmentURLFromRecordingID(rec.ID, token)
 		seekMs := int64(0)
 		if hasSeeked {
 			seekMs = seekTime.UnixMilli()
@@ -353,74 +352,41 @@ func (h *HLSHandler) ServeThumbnail(c *gin.Context) {
 	c.Data(http.StatusOK, "image/jpeg", stdout.Bytes())
 }
 
-// ServeSegment serves raw recording files with HTTP Range support for
-// byte-range requests. The path is validated to prevent directory traversal.
+// ServeSegment serves a recording file by its database ID.
+// Supports HTTP Range requests for byte-range access.
 //
-// GET /vod/segments/*filepath
+// GET /vod/segments/:id
 func (h *HLSHandler) ServeSegment(c *gin.Context) {
-	reqPath := c.Param("filepath")
-	if reqPath == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "filepath is required"})
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recording id is required"})
 		return
 	}
 
-	// Build full path and validate it doesn't escape the recordings directory.
-	fullPath := filepath.Join(h.RecordingsPath, reqPath)
-	absRecordings, err := filepath.Abs(h.RecordingsPath)
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		apiError(c, http.StatusInternalServerError, "failed to resolve recordings path", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid recording id"})
 		return
 	}
-	absPath, err := filepath.Abs(fullPath)
+
+	rec, err := h.DB.GetRecording(id)
 	if err != nil {
-		apiError(c, http.StatusInternalServerError, "failed to resolve file path", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "recording not found"})
 		return
 	}
 
-	if !strings.HasPrefix(absPath, absRecordings+string(filepath.Separator)) && absPath != absRecordings {
-		c.JSON(http.StatusForbidden, gin.H{"error": "path traversal not allowed"})
+	if _, err := os.Stat(rec.FilePath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "segment file not found"})
 		return
 	}
 
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "segment not found"})
-		return
-	}
-
-	http.ServeFile(c.Writer, c.Request, absPath)
+	http.ServeFile(c.Writer, c.Request, rec.FilePath)
 }
 
-// segmentURLFromFilePath converts a recording file path into a segment URL.
-// It strips the recordings base prefix and builds:
-//
-//	/api/nvr/vod/segments/RELATIVE_PATH?jwt=TOKEN
-func segmentURLFromFilePath(filePath, recordingsBase, token string) string {
-	// The FilePath in the DB is stored as e.g. "./recordings/nvr/ad410/file.mp4".
-	// Strip the leading "./recordings/" (or the recordingsBase) to get the
-	// relative path for the URL.
-	rel := filePath
-
-	// Try stripping "./recordings/" prefix first (common storage pattern).
-	if strings.HasPrefix(rel, "./recordings/") {
-		rel = strings.TrimPrefix(rel, "./recordings/")
-	} else if strings.HasPrefix(rel, "recordings/") {
-		rel = strings.TrimPrefix(rel, "recordings/")
-	} else {
-		// Fall back: strip the configured base path.
-		absBase, err1 := filepath.Abs(recordingsBase)
-		absFile, err2 := filepath.Abs(filePath)
-		if err1 == nil && err2 == nil {
-			if r, err := filepath.Rel(absBase, absFile); err == nil {
-				rel = r
-			}
-		}
-	}
-
-	url := "/api/nvr/vod/segments/" + rel
-	if token != "" {
-		url += "?jwt=" + token
-	}
-	return url
+// segmentURLFromRecordingID builds a segment URL using the recording's database ID.
+// The file path comes from the database (not the client), eliminating directory traversal risk.
+func segmentURLFromRecordingID(recordingID int64, token string) string {
+	return fmt.Sprintf("/api/nvr/vod/segments/%d?jwt=%s", recordingID, token)
 }
 
 // ScanFragments reads an fMP4 file and returns the init segment size and a

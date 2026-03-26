@@ -248,7 +248,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		protected.GET("/vod/:cameraId/playlist.m3u8", cfg.HLSHandler.ServePlaylist)
 		protected.GET("/vod/thumbnail", cfg.HLSHandler.ServeThumbnail)
 		// Segment serving is public (token is in URL from playlist).
-		nvr.GET("/vod/segments/*filepath", cfg.HLSHandler.ServeSegment)
+		nvr.GET("/vod/segments/:id", cfg.HLSHandler.ServeSegment)
 	}
 
 	// Storage health and sync.

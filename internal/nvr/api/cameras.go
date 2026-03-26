@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	nvrCrypto "github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -84,6 +87,7 @@ type cameraRequest struct {
 	RTSPURL           string `json:"rtsp_url"`
 	PTZCapable        bool   `json:"ptz_capable"`
 	Tags              string `json:"tags"`
+	StoragePath       string `json:"storage_path"`
 }
 
 var nonAlphanumericDash = regexp.MustCompile(`[^a-z0-9-]`)
@@ -199,9 +203,35 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		return
 	}
 
-	pathName := "nvr/" + sanitizePath(req.Name)
+	// Validate storage path if provided.
+	if req.StoragePath != "" {
+		if !filepath.IsAbs(req.StoragePath) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "storage_path must be an absolute path"})
+			return
+		}
+		// Verify the path is writable by attempting to create a temp file.
+		testFile := filepath.Join(req.StoragePath, ".nvr_write_check")
+		if f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY, 0o600); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "storage_path is not writable: " + err.Error()})
+			return
+		} else {
+			f.Close()
+			os.Remove(testFile)
+		}
+	}
+
+	// Generate camera ID early so it can be used in path naming.
+	camID := uuid.New().String()
+	pathName := "nvr/" + camID + "/main"
+
+	storagePath := req.StoragePath
+	if storagePath == "" {
+		storagePath = "./recordings"
+	}
+	recordPath := storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
 
 	cam := &db.Camera{
+		ID:                camID,
 		Name:              req.Name,
 		ONVIFEndpoint:     req.ONVIFEndpoint,
 		ONVIFUsername:      req.ONVIFUsername,
@@ -211,6 +241,7 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		PTZCapable:        req.PTZCapable,
 		MediaMTXPath:      pathName,
 		Tags:              req.Tags,
+		StoragePath:       req.StoragePath,
 	}
 
 	if err := h.DB.CreateCamera(cam); err != nil {
@@ -220,7 +251,9 @@ func (h *CameraHandler) Create(c *gin.Context) {
 
 	// Write the path to YAML config.
 	yamlConfig := map[string]interface{}{
-		"source": cam.RTSPURL,
+		"source":     cam.RTSPURL,
+		"record":     true,
+		"recordPath": recordPath,
 	}
 	if err := h.YAMLWriter.AddPath(pathName, yamlConfig); err != nil {
 		// Rollback: delete the camera from DB.

@@ -553,19 +553,34 @@ func (n *NVR) indexRecordingFragments(rec *db.Recording) {
 // OnSegmentComplete is called when a recording segment finishes writing.
 // It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
 func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
-	// Find camera by checking if any camera's mediamtx_path is in the file path.
-	cameras, err := n.database.ListCameras()
-	if err != nil {
-		return
-	}
-
 	var cam *db.Camera
-	for _, c := range cameras {
-		if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
-			cam = c
-			break
+
+	// Try to extract camera ID from new path convention: .../nvr/<camera-id>/main/...
+	if idx := strings.Index(filePath, "nvr/"); idx >= 0 {
+		rest := filePath[idx+4:] // after "nvr/"
+		parts := strings.SplitN(rest, "/", 2)
+		if len(parts) >= 1 {
+			candidate := parts[0]
+			if c, err := n.database.GetCamera(candidate); err == nil {
+				cam = c
+			}
 		}
 	}
+
+	// Fallback: legacy substring match for pre-migration recordings.
+	if cam == nil {
+		cameras, err := n.database.ListCameras()
+		if err != nil {
+			return
+		}
+		for _, c := range cameras {
+			if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
+				cam = c
+				break
+			}
+		}
+	}
+
 	if cam == nil {
 		return
 	}

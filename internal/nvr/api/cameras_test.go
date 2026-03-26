@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -93,8 +96,10 @@ func TestCameraCreate(t *testing.T) {
 	if cam.Name != "Front Door" {
 		t.Fatalf("expected name %q, got %q", "Front Door", cam.Name)
 	}
-	if cam.MediaMTXPath != "nvr/front-door" {
-		t.Fatalf("expected path %q, got %q", "nvr/front-door", cam.MediaMTXPath)
+	// Path should now be nvr/<camera-id>/main (ID-based naming convention).
+	expectedPath := "nvr/" + cam.ID + "/main"
+	if cam.MediaMTXPath != expectedPath {
+		t.Fatalf("expected path %q, got %q", expectedPath, cam.MediaMTXPath)
 	}
 	if cam.ID == "" {
 		t.Fatal("expected non-empty ID")
@@ -121,4 +126,25 @@ func TestSanitizePath(t *testing.T) {
 			t.Errorf("sanitizePath(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
+}
+
+func TestCreateCameraPathUsesID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	body := `{"name":"Backyard","rtsp_url":"rtsp://example.com/stream"}`
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/cameras", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.Create(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	var cam db.Camera
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &cam))
+
+	// Path should be nvr/<camera-id>/main, not nvr/<sanitized-name>
+	assert.Equal(t, "nvr/"+cam.ID+"/main", cam.MediaMTXPath)
 }

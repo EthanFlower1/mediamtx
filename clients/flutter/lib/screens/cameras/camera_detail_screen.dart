@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/recordings_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/analog_slider.dart';
@@ -347,6 +349,41 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
 
   // ── Left/top column: preview + stats ────────────────────────────────────
   Widget _buildLeftColumn(Camera camera, String serverUrl) {
+    // Fetch live data for stat tiles
+    final systemAsync = ref.watch(systemInfoProvider);
+    final storageAsync = ref.watch(storageInfoProvider);
+    final today = DateTime.now();
+    final dateStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final eventsAsync = ref.watch(
+      motionEventsProvider((cameraId: camera.id, date: dateStr)),
+    );
+
+    // Format uptime
+    final uptimeStr = systemAsync.whenOrNull(data: (info) {
+      final s = info.uptime;
+      if (s < 3600) return '${s ~/ 60}m';
+      if (s < 86400) return '${s ~/ 3600}h ${(s % 3600) ~/ 60}m';
+      return '${s ~/ 86400}d ${(s % 86400) ~/ 3600}h';
+    }) ?? '--';
+
+    // Find per-camera storage
+    final storageStr = storageAsync.whenOrNull(data: (info) {
+      final cam = info.perCamera
+          .where((c) => c.cameraId == camera.id)
+          .firstOrNull;
+      if (cam == null) return '0 GB';
+      final gb = cam.totalBytes / (1024 * 1024 * 1024);
+      if (gb >= 1) return '${gb.toStringAsFixed(1)} GB';
+      final mb = cam.totalBytes / (1024 * 1024);
+      return '${mb.toStringAsFixed(0)} MB';
+    }) ?? '-- GB';
+
+    // Count today's events
+    final eventsStr = eventsAsync.whenOrNull(
+      data: (events) => '${events.length}',
+    ) ?? '0';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -371,13 +408,13 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           mainAxisSpacing: 8,
           childAspectRatio: 2.2,
           children: [
-            _StatTile(label: 'UPTIME', value: '--:--', valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(label: 'UPTIME', value: uptimeStr, valueStyle: NvrTypography.monoDataLarge),
             _StatTile(
               label: 'STORAGE',
-              value: '-- GB',
+              value: storageStr,
               valueStyle: NvrTypography.monoDataLarge.copyWith(color: NvrColors.accent),
             ),
-            _StatTile(label: 'EVENTS TODAY', value: '0', valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(label: 'EVENTS TODAY', value: eventsStr, valueStyle: NvrTypography.monoDataLarge),
             _StatTile(
               label: 'RETENTION',
               value: '${_retentionDays.round()}d',

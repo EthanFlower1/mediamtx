@@ -6,6 +6,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/camera.dart';
 import '../../services/whep_service.dart';
 import '../../theme/nvr_colors.dart';
+import '../../widgets/hud/corner_brackets.dart';
+import '../../widgets/hud/status_badge.dart';
 import 'analytics_overlay.dart';
 
 class CameraTile extends StatefulWidget {
@@ -29,10 +31,17 @@ class _CameraTileState extends State<CameraTile> {
   WhepConnectionState _connState = WhepConnectionState.connecting;
   StreamSubscription<WhepConnectionState>? _stateSub;
 
+  // Drives the HH:MM:SS timestamp in the bottom-right overlay.
+  late Timer _clockTimer;
+  DateTime _now = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     _initConnection();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
   }
 
   @override
@@ -82,97 +91,99 @@ class _CameraTileState extends State<CameraTile> {
 
   @override
   void dispose() {
+    _clockTimer.cancel();
     _disposeConnection();
     super.dispose();
+  }
+
+  static String _hhmmss(DateTime dt) {
+    String p(int v) => v.toString().padLeft(2, '0');
+    return '${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
   @override
   Widget build(BuildContext context) {
     final camera = widget.camera;
     final isOnline = camera.status != 'disconnected';
+    final timestampStr = _hhmmss(_now);
 
     return GestureDetector(
       onTap: widget.onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Video / state layer
-            _buildVideoLayer(isOnline),
+      child: Container(
+        decoration: BoxDecoration(
+          color: NvrColors.bgSecondary,
+          border: Border.all(color: NvrColors.border, width: 1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Video / state layer fills the container.
+              _buildVideoLayer(isOnline),
 
-            // AI analytics overlay
-            if (camera.aiEnabled && _connState == WhepConnectionState.connected)
-              AnalyticsOverlay(
-                cameraName: camera.name,
-                cameraId: camera.id,
+              // Corner-brackets HUD overlay.
+              CornerBrackets(child: const SizedBox.expand()),
+
+              // AI analytics overlay (preserved, rebuilt in next task).
+              if (camera.aiEnabled &&
+                  _connState == WhepConnectionState.connected)
+                AnalyticsOverlay(
+                  cameraName: camera.name,
+                  cameraId: camera.id,
+                ),
+
+              // Top-left: LIVE / OFFLINE status badge.
+              Positioned(
+                top: 8,
+                left: 8,
+                child: isOnline
+                    ? StatusBadge.live()
+                    : StatusBadge.offline(),
               ),
 
-            // Camera name - bottom left
-            Positioned(
-              left: 8,
-              bottom: 8,
-              right: 40,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(4),
+              // Top-right: REC badge when AI is enabled.
+              if (camera.aiEnabled)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: StatusBadge.recording(),
                 ),
+
+              // Bottom-left: camera name.
+              Positioned(
+                left: 8,
+                bottom: 8,
+                right: 80,
                 child: Text(
                   camera.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: NvrColors.textPrimary,
-                    fontSize: 11,
+                    fontFamily: 'IBMPlexSans',
+                    fontSize: 10,
                     fontWeight: FontWeight.w500,
+                    color: NvrColors.textPrimary,
                   ),
                 ),
               ),
-            ),
 
-            // OFFLINE badge - top right
-            if (!isOnline)
+              // Bottom-right: HH:MM:SS timestamp.
               Positioned(
-                top: 8,
                 right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: NvrColors.danger,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'OFFLINE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+                bottom: 8,
+                child: Text(
+                  timestampStr,
+                  style: const TextStyle(
+                    fontFamily: 'JetBrainsMono',
+                    fontSize: 8,
+                    color: NvrColors.textMuted,
                   ),
                 ),
               ),
-
-            // AI icon - top left
-            if (camera.aiEnabled)
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: NvrColors.accent.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome,
-                    color: Colors.white,
-                    size: 14,
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -182,8 +193,29 @@ class _CameraTileState extends State<CameraTile> {
     if (!isOnline) {
       return Container(
         color: NvrColors.bgSecondary,
-        child: const Center(
-          child: Icon(Icons.videocam_off, color: NvrColors.textMuted, size: 36),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.videocam_off,
+                color: NvrColors.textMuted,
+                size: 32,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.camera.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'IBMPlexSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: NvrColors.textMuted,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -192,7 +224,7 @@ class _CameraTileState extends State<CameraTile> {
       return Container(
         color: NvrColors.bgSecondary,
         child: const Center(
-          child: Icon(Icons.videocam_off, color: NvrColors.textMuted, size: 36),
+          child: Icon(Icons.videocam_off, color: NvrColors.textMuted, size: 32),
         ),
       );
     }
@@ -234,16 +266,24 @@ class _CameraTileState extends State<CameraTile> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, color: NvrColors.danger, size: 28),
+                const Icon(
+                  Icons.error_outline,
+                  color: NvrColors.danger,
+                  size: 28,
+                ),
                 const SizedBox(height: 8),
                 const Text(
                   'Connection failed',
-                  style: TextStyle(color: NvrColors.textSecondary, fontSize: 11),
+                  style: TextStyle(
+                    color: NvrColors.textSecondary,
+                    fontSize: 11,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),

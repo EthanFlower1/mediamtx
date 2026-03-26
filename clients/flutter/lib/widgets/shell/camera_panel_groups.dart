@@ -354,68 +354,116 @@ class _GroupCameraItem extends StatelessWidget {
     final isOnline = camera.status == 'online';
     return Padding(
       padding: const EdgeInsets.only(left: 26, right: 10, bottom: 3),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          color: NvrColors.bgTertiary,
-          border: Border.all(color: NvrColors.border),
-        ),
-        child: Row(
-          children: [
-            // Status dot
-            Container(
-              width: 6,
-              height: 6,
+      child: LongPressDraggable<String>(
+        data: camera.id,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Opacity(
+            opacity: 0.85,
+            child: Container(
+              width: 160,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isOnline ? NvrColors.success : NvrColors.danger,
-                boxShadow: isOnline
-                    ? [
-                        BoxShadow(
-                            color: NvrColors.success.withOpacity(0.5),
-                            blurRadius: 4)
-                      ]
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Thumbnail placeholder
-            Container(
-              width: 44,
-              height: 26,
-              decoration: BoxDecoration(
-                color: NvrColors.border,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    camera.name,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: NvrColors.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    camera.id.substring(0, 8).toUpperCase(),
-                    style: const TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 8,
-                      color: NvrColors.textMuted,
-                    ),
-                  ),
+                color: NvrColors.bgSecondary,
+                border: Border.all(color: NvrColors.accent),
+                borderRadius: BorderRadius.circular(6),
+                boxShadow: [
+                  BoxShadow(color: NvrColors.accent.withOpacity(0.2), blurRadius: 12),
                 ],
               ),
+              child: Text(
+                camera.name,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: NvrColors.textPrimary,
+                  decoration: TextDecoration.none,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            const Icon(Icons.drag_handle, size: 14, color: NvrColors.border),
-          ],
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: NvrColors.bgTertiary,
+              border: Border.all(color: NvrColors.border),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 6 + 8 + 44 + 8),
+                Expanded(child: Text(camera.name, style: const TextStyle(fontSize: 11, color: NvrColors.textMuted))),
+              ],
+            ),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            color: NvrColors.bgTertiary,
+            border: Border.all(color: NvrColors.border),
+          ),
+          child: Row(
+            children: [
+              // Status dot
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isOnline ? NvrColors.success : NvrColors.danger,
+                  boxShadow: isOnline
+                      ? [
+                          BoxShadow(
+                              color: NvrColors.success.withOpacity(0.5),
+                              blurRadius: 4)
+                        ]
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Thumbnail placeholder
+              Container(
+                width: 44,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: NvrColors.border,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      camera.name,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: NvrColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      camera.id.substring(0, 8).toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 8,
+                        color: NvrColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.drag_handle, size: 14, color: NvrColors.border),
+            ],
+          ),
         ),
       ),
     );

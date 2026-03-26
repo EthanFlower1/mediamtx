@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -209,8 +210,195 @@ func (m *Manager) triggerConfigReload() {
 	resp.Body.Close()
 }
 
+const syncInterval = 60 * time.Second
+
 func (m *Manager) syncLoop() {
 	defer m.wg.Done()
-	// Implemented in Task 6
-	<-m.stopCh
+	ticker := time.NewTicker(syncInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			m.runSyncPass()
+		case <-m.stopCh:
+			return
+		}
+	}
+}
+
+// runSyncPass lists all pending syncs, processes each one, then sweeps orphan files.
+func (m *Manager) runSyncPass() {
+	syncs, err := m.db.ListPendingSyncs("pending")
+	if err != nil {
+		log.Printf("[NVR] [storage] failed to list pending syncs: %v", err)
+		return
+	}
+	for _, ps := range syncs {
+		m.processSync(ps)
+	}
+	m.sweepOrphans()
+}
+
+// processSync attempts to copy a file from local fallback storage to its target
+// path, then updates the DB and removes the local copy on success.
+// On failure it records the error and resets status to "pending" so it will
+// be retried on the next pass.
+func (m *Manager) processSync(ps *db.PendingSync) {
+	// Mark as in-progress (no attempt increment yet).
+	if err := m.db.SetPendingSyncStatus(ps.ID, "syncing"); err != nil {
+		log.Printf("[NVR] [storage] failed to set sync status for %d: %v", ps.ID, err)
+		return
+	}
+
+	if err := copyFile(ps.LocalPath, ps.TargetPath); err != nil {
+		errMsg := fmt.Sprintf("copy failed: %v", err)
+		log.Printf("[NVR] [storage] sync %d failed: %s", ps.ID, errMsg)
+		if dbErr := m.db.RecordPendingSyncFailure(ps.ID, "pending", errMsg); dbErr != nil {
+			log.Printf("[NVR] [storage] failed to record sync failure for %d: %v", ps.ID, dbErr)
+		}
+		m.checkMaxRetries(ps)
+		return
+	}
+
+	// Verify the copied file has the expected size.
+	info, err := os.Stat(ps.TargetPath)
+	if err != nil {
+		errMsg := fmt.Sprintf("stat target failed after copy: %v", err)
+		log.Printf("[NVR] [storage] sync %d failed: %s", ps.ID, errMsg)
+		if dbErr := m.db.RecordPendingSyncFailure(ps.ID, "pending", errMsg); dbErr != nil {
+			log.Printf("[NVR] [storage] failed to record sync failure for %d: %v", ps.ID, dbErr)
+		}
+		m.checkMaxRetries(ps)
+		return
+	}
+	srcInfo, err := os.Stat(ps.LocalPath)
+	if err == nil && info.Size() != srcInfo.Size() {
+		errMsg := fmt.Sprintf("size mismatch after copy: got %d, want %d", info.Size(), srcInfo.Size())
+		log.Printf("[NVR] [storage] sync %d failed: %s", ps.ID, errMsg)
+		_ = os.Remove(ps.TargetPath)
+		if dbErr := m.db.RecordPendingSyncFailure(ps.ID, "pending", errMsg); dbErr != nil {
+			log.Printf("[NVR] [storage] failed to record sync failure for %d: %v", ps.ID, dbErr)
+		}
+		m.checkMaxRetries(ps)
+		return
+	}
+
+	// Update the recording's file_path to the target location.
+	if err := m.db.UpdateRecordingFilePath(ps.RecordingID, ps.TargetPath); err != nil {
+		errMsg := fmt.Sprintf("update recording path failed: %v", err)
+		log.Printf("[NVR] [storage] sync %d failed: %s", ps.ID, errMsg)
+		_ = os.Remove(ps.TargetPath)
+		if dbErr := m.db.RecordPendingSyncFailure(ps.ID, "pending", errMsg); dbErr != nil {
+			log.Printf("[NVR] [storage] failed to record sync failure for %d: %v", ps.ID, dbErr)
+		}
+		m.checkMaxRetries(ps)
+		return
+	}
+
+	// Remove the local fallback copy.
+	if err := os.Remove(ps.LocalPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("[NVR] [storage] warning: could not remove local file %s: %v", ps.LocalPath, err)
+	}
+
+	// Delete the pending sync record — work is done.
+	if err := m.db.DeletePendingSync(ps.ID); err != nil {
+		log.Printf("[NVR] [storage] failed to delete pending sync %d: %v", ps.ID, err)
+	}
+
+	log.Printf("[NVR] [storage] synced recording %d to %s", ps.RecordingID, ps.TargetPath)
+}
+
+// checkMaxRetries re-reads the sync record and marks it as "failed" if the
+// attempt count has reached the configured maximum.
+func (m *Manager) checkMaxRetries(ps *db.PendingSync) {
+	current, err := m.db.GetPendingSync(ps.ID)
+	if err != nil {
+		return
+	}
+	if current.Attempts >= m.maxRetries {
+		log.Printf("[NVR] [storage] pending sync %d exceeded max retries (%d), marking failed", ps.ID, m.maxRetries)
+		if dbErr := m.db.SetPendingSyncStatus(ps.ID, "failed"); dbErr != nil {
+			log.Printf("[NVR] [storage] failed to mark sync %d as failed: %v", ps.ID, dbErr)
+		}
+	}
+}
+
+// sweepOrphans walks the local fallback recording directories for cameras that
+// have a custom StoragePath configured, and removes any files on disk that are
+// no longer referenced by any recording or pending sync record.
+func (m *Manager) sweepOrphans() {
+	cameras, err := m.db.ListCameras()
+	if err != nil {
+		log.Printf("[NVR] [storage] sweepOrphans: failed to list cameras: %v", err)
+		return
+	}
+	for _, cam := range cameras {
+		if cam.StoragePath == "" {
+			continue
+		}
+		fallbackDir := filepath.Join(m.recordingsPath, cam.MediaMTXPath)
+		_ = filepath.Walk(fallbackDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info == nil || info.IsDir() {
+				return nil
+			}
+			if !m.db.FileIsReferenced(path) {
+				log.Printf("[NVR] [storage] sweepOrphans: removing unreferenced file %s", path)
+				if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
+					log.Printf("[NVR] [storage] sweepOrphans: failed to remove %s: %v", path, removeErr)
+				}
+			}
+			return nil
+		})
+	}
+}
+
+// TriggerSyncForCamera manually triggers a sync pass for all pending syncs
+// belonging to a specific camera.
+func (m *Manager) TriggerSyncForCamera(cameraID string) {
+	syncs, err := m.db.ListPendingSyncsByCamera(cameraID)
+	if err != nil {
+		log.Printf("[NVR] [storage] TriggerSyncForCamera %s: failed to list pending syncs: %v", cameraID, err)
+		return
+	}
+	for _, ps := range syncs {
+		m.processSync(ps)
+	}
+}
+
+// copyFile copies the file at src to dst, creating dst's parent directories as
+// needed. The destination file is written atomically via a temporary file so
+// that a partial copy is never visible at the final path.
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("create target directory: %w", err)
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer in.Close()
+
+	// Write to a temp file in the same directory so the rename is atomic.
+	tmpDst := dst + ".tmp"
+	out, err := os.Create(tmpDst)
+	if err != nil {
+		return fmt.Errorf("create temp dest: %w", err)
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		os.Remove(tmpDst)
+		return fmt.Errorf("copy data: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmpDst)
+		return fmt.Errorf("close dest: %w", err)
+	}
+
+	if err := os.Rename(tmpDst, dst); err != nil {
+		os.Remove(tmpDst)
+		return fmt.Errorf("rename to final path: %w", err)
+	}
+	return nil
 }

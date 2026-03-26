@@ -4,7 +4,9 @@ import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../providers/camera_panel_provider.dart';
 import '../../providers/cameras_provider.dart';
-import '../hud/status_badge.dart';
+import '../../providers/groups_provider.dart';
+import 'camera_panel_groups.dart';
+import 'camera_panel_tours.dart';
 
 class CameraPanel extends ConsumerWidget {
   const CameraPanel({super.key});
@@ -13,13 +15,22 @@ class CameraPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final panelState = ref.watch(cameraPanelProvider);
     final camerasAsync = ref.watch(camerasProvider);
+    final groupsAsync = ref.watch(groupsProvider);
+
+    // Determine active group name for the filter badge
+    final activeGroupName = panelState.activeGroupId == null
+        ? null
+        : groupsAsync.valueOrNull
+            ?.where((g) => g.id == panelState.activeGroupId)
+            .map((g) => g.name)
+            .firstOrNull;
 
     return Container(
       width: 230,
       color: const Color(0xFF0e0e0e),
       child: Column(
         children: [
-          // Header
+          // ── Header ──────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             decoration: const BoxDecoration(
@@ -31,22 +42,28 @@ class CameraPanel extends ConsumerWidget {
                 const Spacer(),
                 GestureDetector(
                   onTap: () => ref.read(cameraPanelProvider.notifier).close(),
-                  child: const Icon(Icons.close, size: 16, color: NvrColors.textMuted),
+                  child: const Icon(Icons.close,
+                      size: 16, color: NvrColors.textMuted),
                 ),
               ],
             ),
           ),
-          // Search
+
+          // ── Search bar ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.all(10),
             child: TextField(
-              onChanged: (q) => ref.read(cameraPanelProvider.notifier).setSearch(q),
-              style: const TextStyle(fontSize: 12, color: NvrColors.textPrimary),
+              onChanged: (q) =>
+                  ref.read(cameraPanelProvider.notifier).setSearch(q),
+              style: const TextStyle(
+                  fontSize: 12, color: NvrColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Search cameras...',
-                prefixIcon: const Icon(Icons.search, size: 16, color: NvrColors.textMuted),
+                prefixIcon: const Icon(Icons.search,
+                    size: 16, color: NvrColors.textMuted),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 filled: true,
                 fillColor: NvrColors.bgTertiary,
                 border: OutlineInputBorder(
@@ -56,16 +73,80 @@ class CameraPanel extends ConsumerWidget {
               ),
             ),
           ),
-          // Camera list
+
+          // ── Active group filter badge ────────────────────────────────────
+          if (activeGroupName != null)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: NvrColors.accent.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                          color: NvrColors.accent.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.folder_outlined,
+                            size: 11, color: NvrColors.accent),
+                        const SizedBox(width: 4),
+                        Text(
+                          activeGroupName.toUpperCase(),
+                          style: NvrTypography.monoLabel
+                              .copyWith(color: NvrColors.accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => ref
+                        .read(cameraPanelProvider.notifier)
+                        .setGroupFilter(panelState.activeGroupId),
+                    child: const Icon(Icons.close,
+                        size: 13, color: NvrColors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Groups section ──────────────────────────────────────────────
+          const CameraPanelGroups(),
+
+          // ── Camera list ─────────────────────────────────────────────────
           Expanded(
             child: camerasAsync.when(
               data: (cameras) {
-                final filtered = panelState.searchQuery.isEmpty
+                // Apply search filter
+                var filtered = panelState.searchQuery.isEmpty
                     ? cameras
-                    : cameras.where((c) => c.name.toLowerCase().contains(panelState.searchQuery.toLowerCase())).toList();
+                    : cameras
+                        .where((c) => c.name
+                            .toLowerCase()
+                            .contains(panelState.searchQuery.toLowerCase()))
+                        .toList();
+
+                // Apply group filter
+                if (panelState.activeGroupId != null) {
+                  final group = groupsAsync.valueOrNull?.where(
+                      (g) => g.id == panelState.activeGroupId).firstOrNull;
+                  if (group != null) {
+                    filtered = filtered
+                        .where((c) => group.cameraIds.contains(c.id))
+                        .toList();
+                  }
+                }
 
                 if (filtered.isEmpty) {
-                  return Center(child: Text('No cameras found', style: NvrTypography.body));
+                  return Center(
+                      child: Text('No cameras found',
+                          style: NvrTypography.body));
                 }
 
                 return ListView.builder(
@@ -77,7 +158,8 @@ class CameraPanel extends ConsumerWidget {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 3),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(6),
                           color: NvrColors.bgTertiary,
@@ -86,19 +168,29 @@ class CameraPanel extends ConsumerWidget {
                         child: Row(
                           children: [
                             Container(
-                              width: 6, height: 6,
+                              width: 6,
+                              height: 6,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isOnline ? NvrColors.success : NvrColors.danger,
-                                boxShadow: isOnline ? [
-                                  BoxShadow(color: NvrColors.success.withOpacity(0.5), blurRadius: 4),
-                                ] : null,
+                                color: isOnline
+                                    ? NvrColors.success
+                                    : NvrColors.danger,
+                                boxShadow: isOnline
+                                    ? [
+                                        BoxShadow(
+                                          color: NvrColors.success
+                                              .withOpacity(0.5),
+                                          blurRadius: 4,
+                                        )
+                                      ]
+                                    : null,
                               ),
                             ),
                             const SizedBox(width: 8),
                             // Thumbnail placeholder
                             Container(
-                              width: 44, height: 26,
+                              width: 44,
+                              height: 26,
                               decoration: BoxDecoration(
                                 color: NvrColors.border,
                                 borderRadius: BorderRadius.circular(3),
@@ -107,20 +199,31 @@ class CameraPanel extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
-                                  Text(cam.name, style: const TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.w500,
-                                    color: NvrColors.textPrimary,
-                                  ), overflow: TextOverflow.ellipsis),
-                                  Text(cam.id.substring(0, 8).toUpperCase(), style: TextStyle(
-                                    fontFamily: 'JetBrainsMono', fontSize: 8,
-                                    color: NvrColors.textMuted,
-                                  )),
+                                  Text(
+                                    cam.name,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: NvrColors.textPrimary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    cam.id.substring(0, 8).toUpperCase(),
+                                    style: const TextStyle(
+                                      fontFamily: 'JetBrainsMono',
+                                      fontSize: 8,
+                                      color: NvrColors.textMuted,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.drag_handle, size: 14, color: NvrColors.border),
+                            const Icon(Icons.drag_handle,
+                                size: 14, color: NvrColors.border),
                           ],
                         ),
                       ),
@@ -128,10 +231,17 @@ class CameraPanel extends ConsumerWidget {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator(color: NvrColors.accent)),
-              error: (e, _) => Center(child: Text('Error loading cameras', style: NvrTypography.alert)),
+              loading: () => const Center(
+                  child: CircularProgressIndicator(
+                      color: NvrColors.accent)),
+              error: (e, _) => Center(
+                  child: Text('Error loading cameras',
+                      style: NvrTypography.alert)),
             ),
           ),
+
+          // ── Tours section ────────────────────────────────────────────────
+          const CameraPanelTours(),
         ],
       ),
     );

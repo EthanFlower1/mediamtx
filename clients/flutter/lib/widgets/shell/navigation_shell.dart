@@ -6,6 +6,7 @@ import '../alerts_panel.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
 import 'camera_panel.dart';
+import 'tour_active_pill.dart';
 
 class NavigationShell extends ConsumerWidget {
   const NavigationShell({
@@ -34,7 +35,12 @@ class NavigationShell extends ConsumerWidget {
       // Mobile: 0=Live, 1=Playback, 2=Search, 3=Settings(index 4 in router)
       final mobileIndex = selectedIndex == 4 ? 3 : selectedIndex.clamp(0, 2);
       return Scaffold(
-        body: child,
+        body: Stack(
+          children: [
+            child,
+            const TourActivePill(),
+          ],
+        ),
         bottomNavigationBar: MobileBottomNav(
           selectedIndex: mobileIndex,
           onDestinationSelected: (i) {
@@ -88,6 +94,8 @@ class NavigationShell extends ConsumerWidget {
                   ),
                 // Alerts panel overlay (desktop)
                 const AlertsPanelOverlay(),
+                // Tour active pill (all screens)
+                const TourActivePill(),
               ],
             ),
           ),

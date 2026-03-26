@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/camera.dart';
 import '../../services/whep_service.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/corner_brackets.dart';
 import '../../widgets/hud/status_badge.dart';
 import 'analytics_overlay.dart';
@@ -101,12 +102,8 @@ class _CameraTileState extends State<CameraTile> {
     return '${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTile(bool isOnline, String timestampStr) {
     final camera = widget.camera;
-    final isOnline = camera.status != 'disconnected';
-    final timestampStr = _hhmmss(_now);
-
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
@@ -186,6 +183,45 @@ class _CameraTileState extends State<CameraTile> {
           ),
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final camera = widget.camera;
+    final isOnline = camera.status != 'disconnected';
+    final timestampStr = _hhmmss(_now);
+
+    return LongPressDraggable<String>(
+      data: camera.id,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Opacity(
+          opacity: 0.8,
+          child: SizedBox(
+            width: 160,
+            height: 90,
+            child: Container(
+              decoration: BoxDecoration(
+                color: NvrColors.bgSecondary,
+                border: Border.all(color: NvrColors.accent),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Text(camera.name, style: NvrTypography.cameraName),
+              ),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Container(
+        decoration: BoxDecoration(
+          color: NvrColors.bgPrimary,
+          border: Border.all(color: NvrColors.border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+      child: _buildTile(isOnline, timestampStr),
     );
   }
 

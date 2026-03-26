@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
+import '../../providers/grid_layout_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/segmented_control.dart';
@@ -18,8 +19,6 @@ class LiveViewScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
-  int _gridSize = 2;
-
   static const _gridOptions = <int, String>{
     1: '1×1',
     2: '2×2',
@@ -34,6 +33,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   @override
   Widget build(BuildContext context) {
     final camerasAsync = ref.watch(camerasProvider);
+    final gridLayout = ref.watch(gridLayoutProvider);
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
 
@@ -77,11 +77,12 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
                 const Spacer(),
 
-                // Grid size control
+                // Grid size control — wired to gridLayoutProvider
                 HudSegmentedControl<int>(
                   segments: _gridOptions,
-                  selected: _gridSize,
-                  onChanged: (value) => setState(() => _gridSize = value),
+                  selected: gridLayout.gridSize,
+                  onChanged: (value) =>
+                      ref.read(gridLayoutProvider.notifier).setGridSize(value),
                 ),
               ],
             ),
@@ -122,59 +123,112 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 ),
               ),
               data: (cameras) {
-                final totalSlots = _gridSize * _gridSize;
                 return GridView.builder(
                   padding: const EdgeInsets.all(10),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _gridSize,
+                    crossAxisCount: gridLayout.gridSize,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                     childAspectRatio: 16 / 9,
                   ),
-                  itemCount: totalSlots,
+                  itemCount: gridLayout.totalSlots,
                   itemBuilder: (context, index) {
-                    if (index < cameras.length) {
-                      final camera = cameras[index];
-                      return CameraTile(
-                        camera: camera,
-                        serverUrl: serverUrl,
-                        onTap: () => _openFullscreen(camera),
-                      );
+                    final cameraId = gridLayout.slots[index];
+
+                    if (cameraId != null) {
+                      // Find the Camera object for this slot's ID.
+                      final camera = cameras.where((c) => c.id == cameraId).firstOrNull;
+
+                      if (camera != null) {
+                        // Occupied slot — wrap in DragTarget to allow swapping.
+                        return DragTarget<String>(
+                          onWillAcceptWithDetails: (details) =>
+                              details.data != cameraId,
+                          onAcceptWithDetails: (details) {
+                            // Find the source slot index for the dragged camera.
+                            final sourceIndex = gridLayout.slots.entries
+                                .where((e) => e.value == details.data)
+                                .map((e) => e.key)
+                                .firstOrNull;
+
+                            if (sourceIndex != null) {
+                              ref
+                                  .read(gridLayoutProvider.notifier)
+                                  .swapSlots(sourceIndex, index);
+                            } else {
+                              // Camera came from the panel (no existing slot).
+                              ref
+                                  .read(gridLayoutProvider.notifier)
+                                  .assignCamera(index, details.data);
+                            }
+                          },
+                          builder: (context, candidateData, rejectedData) {
+                            final isHovering = candidateData.isNotEmpty;
+                            return AnimatedOpacity(
+                              opacity: isHovering ? 0.7 : 1.0,
+                              duration: const Duration(milliseconds: 150),
+                              child: CameraTile(
+                                camera: camera,
+                                serverUrl: serverUrl,
+                                onTap: () => _openFullscreen(camera),
+                              ),
+                            );
+                          },
+                        );
+                      }
                     }
-                    // Empty slot placeholder
-                    return _EmptySlot();
+
+                    // Empty slot — DragTarget for assignment.
+                    return DragTarget<String>(
+                      onWillAcceptWithDetails: (details) => true,
+                      onAcceptWithDetails: (details) {
+                        ref
+                            .read(gridLayoutProvider.notifier)
+                            .assignCamera(index, details.data);
+                      },
+                      builder: (context, candidateData, rejectedData) {
+                        final isHovering = candidateData.isNotEmpty;
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: NvrColors.bgPrimary,
+                            border: Border.all(
+                              color: isHovering
+                                  ? NvrColors.accent
+                                  : NvrColors.border,
+                              width: isHovering ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add,
+                                color: isHovering
+                                    ? NvrColors.accent
+                                    : NvrColors.border,
+                                size: 24,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'DROP HERE',
+                                style: NvrTypography.monoLabel.copyWith(
+                                  color: isHovering
+                                      ? NvrColors.accent
+                                      : NvrColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
                   },
                 );
               },
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EmptySlot extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: NvrColors.bgPrimary,
-        border: Border.all(color: NvrColors.border, width: 2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.add, color: NvrColors.border, size: 20),
-            SizedBox(height: 6),
-            Text(
-              'DROP HERE',
-              style: NvrTypography.monoLabel,
-            ),
-          ],
-        ),
       ),
     );
   }

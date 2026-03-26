@@ -66,6 +66,15 @@ class FixedPlayheadTimeline extends StatefulWidget {
   /// Called when the user releases the playhead after dragging.
   final VoidCallback onDragEnd;
 
+  /// Optional external zoom level. When provided, the internal zoom bar is
+  /// hidden and the timeline uses this zoom preset instead.
+  final TimelineZoom? zoomLevel;
+
+  /// Called when the zoom level changes (via pinch, scroll-wheel, or internal
+  /// zoom bar). Only fires when [zoomLevel] is provided so the parent can
+  /// keep its state in sync.
+  final ValueChanged<TimelineZoom>? onZoomChanged;
+
   const FixedPlayheadTimeline({
     super.key,
     required this.currentPosition,
@@ -80,6 +89,8 @@ class FixedPlayheadTimeline extends StatefulWidget {
     required this.onPositionChanged,
     required this.onDragStart,
     required this.onDragEnd,
+    this.zoomLevel,
+    this.onZoomChanged,
   });
 
   @override
@@ -91,7 +102,7 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   /// The scroll offset in pixels. Maps to time via _pixelsPerSecond.
   double _scrollOffset = 0;
 
-  /// Current zoom level.
+  /// Current zoom level. Seeded from widget.zoomLevel when provided.
   TimelineZoom _zoomLevel = TimelineZoom.thirtyMinutes;
 
   /// Pixels per second at the current zoom level. Calculated from widget width.
@@ -129,6 +140,9 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   @override
   void initState() {
     super.initState();
+    if (widget.zoomLevel != null) {
+      _zoomLevel = widget.zoomLevel!;
+    }
     // Initialize scroll offset from the current position.
     _scrollOffset = widget.currentPosition.inMilliseconds / 1000.0 *
         _pixelsPerSecond;
@@ -147,6 +161,22 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
       if ((newOffset - _scrollOffset).abs() > _pixelsPerSecond * 0.5) {
         _scrollOffset = newOffset;
       }
+    }
+
+    // Sync zoom level from external controller.
+    if (widget.zoomLevel != null && widget.zoomLevel != _zoomLevel) {
+      final centerTimeBefore = _centerTime;
+      _zoomLevel = widget.zoomLevel!;
+      // Recompute pps using a deferred callback (needs layout width).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final box = context.findRenderObject() as RenderBox?;
+        final width = box?.size.width ?? 400;
+        _pixelsPerSecond = width / _zoomLevel.visibleDuration.inSeconds;
+        _scrollOffset = centerTimeBefore.inMilliseconds / 1000.0 *
+            _pixelsPerSecond;
+        setState(() {});
+      });
     }
 
     // Handle play state changes.
@@ -267,14 +297,19 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
     final maxPps = widgetWidth / 60.0;
     final newPps = (_ppsAtScaleStart * scale).clamp(minPps, maxPps);
 
+    final oldZoom = _zoomLevel;
+    final newZoom = _closestZoomPreset(widgetWidth);
     setState(() {
       _pixelsPerSecond = newPps;
       // Restore scroll offset to keep center time fixed.
       _scrollOffset =
           centerTimeBeforeZoom.inMilliseconds / 1000.0 * _pixelsPerSecond;
       // Update zoom level to closest preset.
-      _zoomLevel = _closestZoomPreset(widgetWidth);
+      _zoomLevel = newZoom;
     });
+    if (newZoom != oldZoom) {
+      widget.onZoomChanged?.call(newZoom);
+    }
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
@@ -336,12 +371,17 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
       final maxPps = widgetWidth / 60.0;
       final newPps = (_pixelsPerSecond * zoomFactor).clamp(minPps, maxPps);
 
+      final oldZoom = _zoomLevel;
+      final newZoom = _closestZoomPreset(widgetWidth);
       setState(() {
         _pixelsPerSecond = newPps;
         _scrollOffset =
             centerTimeBeforeZoom.inMilliseconds / 1000.0 * _pixelsPerSecond;
-        _zoomLevel = _closestZoomPreset(widgetWidth);
+        _zoomLevel = newZoom;
       });
+      if (newZoom != oldZoom) {
+        widget.onZoomChanged?.call(newZoom);
+      }
     }
   }
 
@@ -365,6 +405,7 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
 
   void _setZoomPreset(TimelineZoom zoom, double widgetWidth) {
     final centerTimeBeforeZoom = _centerTime;
+    final oldZoom = _zoomLevel;
 
     setState(() {
       _zoomLevel = zoom;
@@ -372,6 +413,9 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
       _scrollOffset =
           centerTimeBeforeZoom.inMilliseconds / 1000.0 * _pixelsPerSecond;
     });
+    if (zoom != oldZoom) {
+      widget.onZoomChanged?.call(zoom);
+    }
   }
 
   // ─── Format ──────────────────────────────────────────────────────────
@@ -463,16 +507,17 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
             },
           ),
         ),
-        // Zoom preset buttons
-        _ZoomBar(
-          currentZoom: _zoomLevel,
-          onZoomSelected: (zoom) {
-            // We need the width; use a post-frame callback context.
-            final box = context.findRenderObject() as RenderBox?;
-            final width = box?.size.width ?? 400;
-            _setZoomPreset(zoom, width);
-          },
-        ),
+        // Zoom preset buttons — hidden when zoom is externally controlled.
+        if (widget.zoomLevel == null)
+          _ZoomBar(
+            currentZoom: _zoomLevel,
+            onZoomSelected: (zoom) {
+              // We need the width; use a post-frame callback context.
+              final box = context.findRenderObject() as RenderBox?;
+              final width = box?.size.width ?? 400;
+              _setZoomPreset(zoom, width);
+            },
+          ),
       ],
     );
   }

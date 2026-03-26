@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/corner_brackets.dart';
 import 'playback_controller.dart';
 
 class CameraPlayer extends StatefulWidget {
@@ -21,122 +23,178 @@ class CameraPlayer extends StatefulWidget {
 }
 
 class _CameraPlayerState extends State<CameraPlayer> {
-  bool _showAnalyticsOverlay = false;
-
   PlaybackController get _ctrl => widget.controller;
   String get _camId => widget.cameraId;
+
+  String _formatTimestamp(Duration d) {
+    final h = d.inHours.remainder(24).toString().padLeft(2, '0');
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
 
   @override
   Widget build(BuildContext context) {
     final vc = _ctrl.videoControllers[_camId];
     final isInGap = _ctrl.isInGap;
-    final isMuted = _ctrl.isCameraMuted(_camId);
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ColoredBox(
-          color: Colors.black,
-          child: _buildVideoContent(vc, isInGap),
-        ),
-        // "No video" overlay when in gap
-        if (isInGap)
-          Container(
-            color: Colors.black87,
-            child: const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.videocam_off, color: NvrColors.textMuted, size: 40),
-                  SizedBox(height: 8),
-                  Text(
-                    'No video available',
-                    style: TextStyle(
-                      color: NvrColors.textMuted,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+    return Container(
+      decoration: BoxDecoration(
+        color: NvrColors.bgSecondary,
+        border: Border.all(color: NvrColors.border),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: CornerBrackets(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Video content
+            ColoredBox(
+              color: Colors.black,
+              child: _buildVideoContent(vc, isInGap),
+            ),
+
+            // "No video" overlay when in gap
+            if (isInGap)
+              Container(
+                color: Colors.black87,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.videocam_off,
+                          color: NvrColors.textMuted, size: 36),
+                      SizedBox(height: 8),
+                      Text(
+                        'No video available',
+                        style: TextStyle(
+                          color: NvrColors.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        // Analytics overlay indicator
-        if (_showAnalyticsOverlay && !isInGap)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: NvrColors.accent.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.analytics, color: Colors.white, size: 12),
-                  SizedBox(width: 4),
-                  Text(
-                    'AI',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+
+            // Top-left: camera name
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  widget.cameraName,
+                  style: const TextStyle(
+                    fontFamily: 'IBMPlexSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: NvrColors.textPrimary,
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        // Camera name badge
-        Positioned(
-          top: 8,
-          left: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              widget.cameraName,
-              style: const TextStyle(
-                color: NvrColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+
+            // Top-right: playback timestamp
+            if (!isInGap)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    _formatTimestamp(_ctrl.position),
+                    style: NvrTypography.monoTimestamp.copyWith(fontSize: 11),
+                  ),
+                ),
               ),
-            ),
+
+            // Bottom-left: detection event info pill
+            if (!isInGap) _buildEventPill(),
+
+            // Bottom-right: per-camera controls
+            if (!isInGap)
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _TileButton(
+                      icon: _ctrl.isCameraMuted(_camId)
+                          ? Icons.volume_off
+                          : Icons.volume_up,
+                      tooltip: _ctrl.isCameraMuted(_camId)
+                          ? 'Unmute'
+                          : 'Mute',
+                      onPressed: () => _ctrl.toggleMute(_camId),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build a detection event info pill at bottom-left if there's an active
+  /// event at the current position.
+  Widget _buildEventPill() {
+    // Find an active event for this camera at the current position.
+    final now = DateTime(
+      _ctrl.selectedDate.year,
+      _ctrl.selectedDate.month,
+      _ctrl.selectedDate.day,
+    ).add(_ctrl.position);
+
+    String? eventLabel;
+    for (final evt in _ctrl.events) {
+      final evtEnd = evt.endTime ?? evt.startTime.add(const Duration(seconds: 5));
+      if (evt.cameraId == _camId &&
+          !now.isBefore(evt.startTime) &&
+          !now.isAfter(evtEnd)) {
+        eventLabel = evt.eventType ?? 'Motion Detected';
+        break;
+      }
+    }
+
+    if (eventLabel == null) return const SizedBox.shrink();
+
+    return Positioned(
+      bottom: 10,
+      left: 10,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: NvrColors.accent.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: NvrColors.accent.withValues(alpha: 0.2),
           ),
         ),
-        // Per-camera controls (bottom-right)
-        if (!isInGap)
-          Positioned(
-            bottom: 6,
-            right: 6,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _TileButton(
-                  icon: isMuted ? Icons.volume_off : Icons.volume_up,
-                  tooltip: isMuted ? 'Unmute' : 'Mute',
-                  onPressed: () => _ctrl.toggleMute(_camId),
-                ),
-                const SizedBox(width: 4),
-                _TileButton(
-                  icon: Icons.analytics,
-                  tooltip: _showAnalyticsOverlay
-                      ? 'Hide AI overlay'
-                      : 'Show AI overlay',
-                  active: _showAnalyticsOverlay,
-                  onPressed: () => setState(() {
-                    _showAnalyticsOverlay = !_showAnalyticsOverlay;
-                  }),
-                ),
-              ],
-            ),
+        child: Text(
+          eventLabel,
+          style: const TextStyle(
+            fontFamily: 'JetBrainsMono',
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: NvrColors.accent,
           ),
-      ],
+        ),
+      ),
     );
   }
 
@@ -157,6 +215,8 @@ class _CameraPlayerState extends State<CameraPlayer> {
     );
   }
 }
+
+// ── Tile Button ──────────────────────────────────────────────────────────────
 
 class _TileButton extends StatelessWidget {
   final IconData icon;

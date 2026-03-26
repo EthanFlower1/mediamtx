@@ -4,9 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
-import 'recording_rules_screen.dart';
-import 'tabs/storage_tab.dart';
-import 'zone_editor_screen.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/analog_slider.dart';
+import '../../widgets/hud/corner_brackets.dart';
+import '../../widgets/hud/hud_button.dart';
+import '../../widgets/hud/hud_toggle.dart';
+import '../../widgets/hud/segmented_control.dart';
+import '../../widgets/hud/status_badge.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -17,24 +21,65 @@ class CameraDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<CameraDetailScreen> createState() => _CameraDetailScreenState();
 }
 
-class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
+class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   Camera? _camera;
   bool _loading = true;
   String? _error;
+  bool _showAdvanced = false;
+
+  // ── Recording controls ──────────────────────────────────────────────────
+  bool _recordingEnabled = true;
+  int _recordingMode = 0; // 0=Continuous, 1=Events, 2=Schedule
+
+  // ── AI controls ─────────────────────────────────────────────────────────
+  bool _aiEnabled = false;
+  double _confidence = 0.5;
+
+  // ── Retention ───────────────────────────────────────────────────────────
+  double _retentionDays = 30;
+
+  // ── Advanced / ONVIF ────────────────────────────────────────────────────
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _rtspCtrl;
+  late final TextEditingController _onvifCtrl;
+  late final TextEditingController _userCtrl;
+  late final TextEditingController _passCtrl;
+  late final TextEditingController _subStreamCtrl;
+  late final TextEditingController _snapshotCtrl;
+
+  // ── Imaging sliders ──────────────────────────────────────────────────────
+  double _brightness = 0.5;
+  double _contrast = 0.5;
+  double _saturation = 0.5;
+
+  bool _savingGeneral = false;
+  bool _savingAi = false;
+  bool _savingAdvanced = false;
+  bool _loadingProfiles = false;
+  List<Map<String, dynamic>> _profiles = [];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _nameCtrl = TextEditingController();
+    _rtspCtrl = TextEditingController();
+    _onvifCtrl = TextEditingController();
+    _userCtrl = TextEditingController();
+    _passCtrl = TextEditingController();
+    _subStreamCtrl = TextEditingController();
+    _snapshotCtrl = TextEditingController();
     _fetchCamera();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _nameCtrl.dispose();
+    _rtspCtrl.dispose();
+    _onvifCtrl.dispose();
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    _subStreamCtrl.dispose();
+    _snapshotCtrl.dispose();
     super.dispose();
   }
 
@@ -47,9 +92,18 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
     if (api == null) return;
     try {
       final res = await api.get<dynamic>('/cameras/${widget.cameraId}');
+      final camera = Camera.fromJson(res.data as Map<String, dynamic>);
       setState(() {
-        _camera = Camera.fromJson(res.data as Map<String, dynamic>);
+        _camera = camera;
         _loading = false;
+        // Populate controllers & local state from camera data
+        _nameCtrl.text = camera.name;
+        _rtspCtrl.text = camera.rtspUrl;
+        _onvifCtrl.text = camera.onvifEndpoint;
+        _subStreamCtrl.text = camera.subStreamUrl;
+        _snapshotCtrl.text = camera.snapshotUri;
+        _aiEnabled = camera.aiEnabled;
+        _retentionDays = camera.retentionDays.toDouble().clamp(7, 90);
       });
     } catch (e) {
       setState(() {
@@ -59,112 +113,18 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
-      appBar: AppBar(
-        backgroundColor: NvrColors.bgSecondary,
-        iconTheme: const IconThemeData(color: NvrColors.textPrimary),
-        title: Text(
-          _camera?.name ?? 'Camera',
-          style: const TextStyle(color: NvrColors.textPrimary),
-        ),
-        bottom: _loading || _error != null
-            ? null
-            : TabBar(
-                controller: _tabController,
-                indicatorColor: NvrColors.accent,
-                labelColor: NvrColors.accent,
-                unselectedLabelColor: NvrColors.textMuted,
-                isScrollable: true,
-                tabs: const [
-                  Tab(text: 'General'),
-                  Tab(text: 'Recording'),
-                  Tab(text: 'AI'),
-                  Tab(text: 'Zones'),
-                  Tab(text: 'Advanced'),
-                  Tab(text: 'Storage'),
-                ],
-              ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: NvrColors.accent))
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!, style: const TextStyle(color: NvrColors.danger)),
-                      TextButton(onPressed: _fetchCamera, child: const Text('Retry')),
-                    ],
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _GeneralTab(camera: _camera!, onRefresh: _fetchCamera),
-                    RecordingRulesScreen(cameraId: widget.cameraId),
-                    _AiTab(camera: _camera!, onRefresh: _fetchCamera),
-                    ZoneEditorScreen(cameraId: widget.cameraId),
-                    _AdvancedTab(camera: _camera!, onRefresh: _fetchCamera),
-                    StorageTab(camera: _camera!, onRefresh: _fetchCamera),
-                  ],
-                ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// General tab
-// ---------------------------------------------------------------------------
-class _GeneralTab extends ConsumerStatefulWidget {
-  final Camera camera;
-  final VoidCallback onRefresh;
-
-  const _GeneralTab({required this.camera, required this.onRefresh});
-
-  @override
-  ConsumerState<_GeneralTab> createState() => _GeneralTabState();
-}
-
-class _GeneralTabState extends ConsumerState<_GeneralTab> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _rtspCtrl;
-  late final TextEditingController _onvifCtrl;
-  bool _saving = false;
-  List<Map<String, dynamic>> _profiles = [];
-  bool _loadingProfiles = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameCtrl = TextEditingController(text: widget.camera.name);
-    _rtspCtrl = TextEditingController(text: widget.camera.rtspUrl);
-    _onvifCtrl = TextEditingController(text: widget.camera.onvifEndpoint);
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _rtspCtrl.dispose();
-    _onvifCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  // ── Save: general (name / rtsp / onvif) ──────────────────────────────────
+  Future<void> _saveGeneral() async {
     final api = ref.read(apiClientProvider);
     if (api == null) return;
-    setState(() => _saving = true);
+    setState(() => _savingGeneral = true);
     try {
-      await api.put('/cameras/${widget.camera.id}', data: {
+      await api.put('/cameras/${widget.cameraId}', data: {
         'name': _nameCtrl.text.trim(),
         'rtsp_url': _rtspCtrl.text.trim(),
         'onvif_endpoint': _onvifCtrl.text.trim(),
       });
-      widget.onRefresh();
+      _fetchCamera();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
@@ -177,10 +137,65 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _savingGeneral = false);
     }
   }
 
+  // ── Save: AI settings ────────────────────────────────────────────────────
+  Future<void> _saveAi() async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    if (mounted) setState(() => _savingAi = true);
+    try {
+      await api.put('/cameras/${widget.cameraId}/ai', data: {
+        'ai_enabled': _aiEnabled,
+        'sub_stream_url': _subStreamCtrl.text.trim(),
+        'confidence': _confidence,
+      });
+      _fetchCamera();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: NvrColors.success, content: Text('AI settings saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAi = false);
+    }
+  }
+
+  // ── Save: advanced / retention ───────────────────────────────────────────
+  Future<void> _saveAdvanced() async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    setState(() => _savingAdvanced = true);
+    try {
+      await api.put('/cameras/${widget.cameraId}', data: {
+        'retention_days': _retentionDays.round(),
+      });
+      _fetchCamera();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingAdvanced = false);
+    }
+  }
+
+  // ── ONVIF probe ──────────────────────────────────────────────────────────
   Future<void> _fetchProfiles() async {
     final endpoint = _onvifCtrl.text.trim();
     if (endpoint.isEmpty) return;
@@ -193,8 +208,8 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
     try {
       final res = await api.post<dynamic>('/cameras/probe', data: {
         'endpoint': endpoint,
-        'username': widget.camera.name, // placeholder; real creds not stored client-side
-        'password': '',
+        'username': _userCtrl.text.trim(),
+        'password': _passCtrl.text,
       });
       final data = res.data;
       if (data is Map<String, dynamic>) {
@@ -219,174 +234,522 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
     }
   }
 
+  StatusBadge _statusBadge(String status) {
+    switch (status) {
+      case 'online':
+      case 'connected':
+        return StatusBadge.online();
+      case 'degraded':
+        return StatusBadge.degraded();
+      default:
+        return StatusBadge.offline();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasOnvif = _onvifCtrl.text.trim().isNotEmpty ||
-        widget.camera.onvifEndpoint.isNotEmpty;
+    return Scaffold(
+      backgroundColor: NvrColors.bgPrimary,
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: NvrColors.accent))
+            : _error != null
+                ? _buildError()
+                : _buildContent(),
+      ),
+    );
+  }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _NvrField(controller: _nameCtrl, label: 'Name', validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Required';
-              return null;
-            }),
-            const SizedBox(height: 16),
-            _NvrField(
-              controller: _rtspCtrl,
-              label: 'RTSP URL',
-              keyboardType: TextInputType.url,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                if (!v.trim().startsWith('rtsp://')) return 'Must start with rtsp://';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _NvrField(
-              controller: _onvifCtrl,
-              label: 'ONVIF Endpoint (optional)',
-              hint: 'http://192.168.1.100/onvif/device_service',
-              keyboardType: TextInputType.url,
-            ),
+  Widget _buildError() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_error!, style: const TextStyle(color: NvrColors.danger)),
+          const SizedBox(height: 12),
+          HudButton(label: 'RETRY', onPressed: _fetchCamera),
+        ],
+      ),
+    );
+  }
 
-            // ── ONVIF Profiles ──────────────────────────────────────────
-            if (hasOnvif) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: NvrColors.accent,
-                  side: const BorderSide(color: NvrColors.accent),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                onPressed: _loadingProfiles ? null : _fetchProfiles,
-                icon: _loadingProfiles
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: NvrColors.accent,
-                        ),
-                      )
-                    : const Icon(Icons.search, size: 18),
-                label: const Text('Fetch Profiles'),
-              ),
-              if (_profiles.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Available Profiles',
-                  style: TextStyle(
-                    color: NvrColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+  Widget _buildContent() {
+    final camera = _camera!;
+    final wide = MediaQuery.of(context).size.width > 800;
+
+    return Column(
+      children: [
+        // ── Header ────────────────────────────────────────────────────
+        _buildHeader(camera),
+        const Divider(color: NvrColors.border, height: 1),
+
+        // ── Scrollable body ───────────────────────────────────────────
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: wide
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildLeftColumn(camera)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildRightColumn(camera)),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      _buildLeftColumn(camera),
+                      const SizedBox(height: 16),
+                      _buildRightColumn(camera),
+                    ],
                   ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Header row ───────────────────────────────────────────────────────────
+  Widget _buildHeader(Camera camera) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: NvrColors.textPrimary, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: Text(
+              camera.name,
+              style: NvrTypography.pageTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _statusBadge(camera.status),
+          const Spacer(),
+          IconButton(
+            icon: Icon(
+              Icons.settings,
+              color: _showAdvanced ? NvrColors.accent : NvrColors.textMuted,
+              size: 20,
+            ),
+            tooltip: _showAdvanced ? 'Hide advanced' : 'Show advanced',
+            onPressed: () => setState(() => _showAdvanced = !_showAdvanced),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Left/top column: preview + stats ────────────────────────────────────
+  Widget _buildLeftColumn(Camera camera) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Live preview placeholder
+        CornerBrackets(
+          bracketSize: 12,
+          padding: 6,
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              decoration: BoxDecoration(
+                color: NvrColors.bgTertiary,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Center(
+                child: Icon(Icons.videocam, color: NvrColors.textMuted, size: 40),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Quick stat tiles 2x2
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 2.2,
+          children: [
+            _StatTile(label: 'UPTIME', value: '--:--', valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(
+              label: 'STORAGE',
+              value: '-- GB',
+              valueStyle: NvrTypography.monoDataLarge.copyWith(color: NvrColors.accent),
+            ),
+            _StatTile(label: 'EVENTS TODAY', value: '0', valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(
+              label: 'RETENTION',
+              value: '${_retentionDays.round()}d',
+              valueStyle: NvrTypography.monoDataLarge,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ── Right/bottom column: controls + info ─────────────────────────────────
+  Widget _buildRightColumn(Camera camera) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Recording section
+        _SectionCard(
+          header: 'RECORDING',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  HudToggle(
+                    value: _recordingEnabled,
+                    onChanged: (v) => setState(() => _recordingEnabled = v),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Enable recording', style: NvrTypography.body),
+                ],
+              ),
+              const SizedBox(height: 12),
+              HudSegmentedControl<int>(
+                segments: const {0: 'CONTINUOUS', 1: 'EVENTS', 2: 'SCHEDULE'},
+                selected: _recordingMode,
+                onChanged: (v) => setState(() => _recordingMode = v),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // AI Detection section
+        _SectionCard(
+          header: 'AI DETECTION',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  HudToggle(
+                    value: _aiEnabled,
+                    onChanged: _savingAi
+                        ? (_) {}
+                        : (v) {
+                            setState(() => _aiEnabled = v);
+                            _saveAi();
+                          },
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('Enable AI detection', style: NvrTypography.body),
+                ],
+              ),
+              if (_aiEnabled) ...[
+                const SizedBox(height: 12),
+                AnalogSlider(
+                  label: 'CONFIDENCE',
+                  value: _confidence,
+                  min: 0.2,
+                  max: 0.9,
+                  onChanged: (v) => setState(() => _confidence = v),
+                  valueFormatter: (v) => '${(v * 100).round()}%',
                 ),
-                const SizedBox(height: 8),
-                ..._profiles.map((profile) {
-                  final name = profile['name'] as String? ?? 'Profile';
-                  final resolution = profile['resolution'] as String? ?? '';
-                  final codec = profile['codec'] as String? ?? '';
-                  final rtspUrl = profile['rtsp_url'] as String? ?? '';
-                  return Card(
-                    color: NvrColors.bgSecondary,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: NvrColors.border),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              color: NvrColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Retention section
+        _SectionCard(
+          header: 'RETENTION',
+          child: AnalogSlider(
+            label: 'RETENTION',
+            value: _retentionDays,
+            min: 7,
+            max: 90,
+            onChanged: (v) => setState(() => _retentionDays = v),
+            valueFormatter: (v) => '${v.round()} DAYS',
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Connection info section
+        _SectionCard(
+          header: 'CONNECTION',
+          child: Column(
+            children: [
+              _KvRow(label: 'Protocol', value: camera.rtspUrl.startsWith('rtsp') ? 'RTSP' : 'HTTP'),
+              const SizedBox(height: 6),
+              _KvRow(label: 'ONVIF', value: camera.onvifEndpoint.isEmpty ? 'Not configured' : 'Configured'),
+              const SizedBox(height: 6),
+              _KvRow(label: 'AI Stream', value: camera.subStreamUrl.isEmpty ? 'None' : 'Configured'),
+            ],
+          ),
+        ),
+
+        // ── Advanced sections (behind gear icon) ────────────────────
+        if (_showAdvanced) ...[
+          const SizedBox(height: 16),
+          _buildAdvancedSections(camera),
+        ],
+
+        const SizedBox(height: 24),
+
+        // Save button
+        HudButton(
+          label: _savingGeneral || _savingAdvanced ? 'SAVING...' : 'SAVE CHANGES',
+          onPressed: (_savingGeneral || _savingAdvanced)
+              ? null
+              : () async {
+                  await _saveGeneral();
+                  if (_showAdvanced) await _saveAdvanced();
+                },
+        ),
+
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  // ── Advanced expandable sections ─────────────────────────────────────────
+  Widget _buildAdvancedSections(Camera camera) {
+    return Column(
+      children: [
+        // ONVIF Configuration
+        _ExpandableSection(
+          title: 'ONVIF CONFIGURATION',
+          children: [
+            _NvrField(controller: _onvifCtrl, label: 'ONVIF ENDPOINT'),
+            const SizedBox(height: 10),
+            _NvrField(controller: _userCtrl, label: 'USERNAME'),
+            const SizedBox(height: 10),
+            _NvrField(controller: _passCtrl, label: 'PASSWORD', obscure: true),
+            const SizedBox(height: 10),
+            HudButton(
+              label: _loadingProfiles ? 'PROBING...' : 'PROBE DEVICE',
+              style: HudButtonStyle.secondary,
+              icon: Icons.search,
+              onPressed: _loadingProfiles ? null : _fetchProfiles,
+            ),
+            if (_profiles.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const Text('AVAILABLE PROFILES', style: NvrTypography.monoSection),
+              const SizedBox(height: 8),
+              ..._profiles.map((profile) {
+                final name = profile['name'] as String? ?? 'Profile';
+                final resolution = profile['resolution'] as String? ?? '';
+                final codec = profile['codec'] as String? ?? '';
+                final rtspUrl = profile['rtsp_url'] as String? ?? '';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: NvrColors.bgTertiary,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: NvrColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: NvrTypography.cameraName),
+                      if (resolution.isNotEmpty || codec.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            [if (resolution.isNotEmpty) resolution, if (codec.isNotEmpty) codec].join(' · '),
+                            style: NvrTypography.monoLabel,
                           ),
-                          if (resolution.isNotEmpty || codec.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                [if (resolution.isNotEmpty) resolution, if (codec.isNotEmpty) codec]
-                                    .join(' · '),
-                                style: const TextStyle(
-                                  color: NvrColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          if (rtspUrl.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
+                        ),
+                      if (rtspUrl.isNotEmpty)
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
                                 rtspUrl,
-                                style: const TextStyle(
-                                  color: NvrColors.textMuted,
-                                  fontSize: 11,
-                                ),
+                                style: NvrTypography.monoLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          if (rtspUrl.isNotEmpty)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: NvrColors.accent,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                onPressed: () {
-                                  _rtspCtrl.text = rtspUrl;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: NvrColors.success,
-                                      content: Text('Using profile: $name'),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Use This Profile'),
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: NvrColors.accent,
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
+                              onPressed: () {
+                                _rtspCtrl.text = rtspUrl;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: NvrColors.success,
+                                    content: Text('Using profile: $name'),
+                                  ),
+                                );
+                              },
+                              child: const Text('USE', style: TextStyle(fontSize: 10)),
                             ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              ],
+                          ],
+                        ),
+                    ],
+                  ),
+                );
+              }),
             ],
+          ],
+        ),
 
-            const SizedBox(height: 24),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NvrColors.accent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Save'),
+        const SizedBox(height: 8),
+
+        // Stream Settings
+        _ExpandableSection(
+          title: 'STREAM SETTINGS',
+          children: [
+            _NvrField(controller: _nameCtrl, label: 'CAMERA NAME'),
+            const SizedBox(height: 10),
+            _NvrField(controller: _rtspCtrl, label: 'RTSP URL'),
+            const SizedBox(height: 10),
+            _NvrField(controller: _subStreamCtrl, label: 'SUB-STREAM URL'),
+            const SizedBox(height: 10),
+            _NvrField(controller: _snapshotCtrl, label: 'SNAPSHOT URI'),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        // Imaging
+        _ExpandableSection(
+          title: 'IMAGING',
+          children: [
+            AnalogSlider(
+              label: 'BRIGHTNESS',
+              value: _brightness,
+              min: 0.0,
+              max: 1.0,
+              onChanged: (v) => setState(() => _brightness = v),
+              valueFormatter: (v) => '${(v * 100).round()}%',
+            ),
+            const SizedBox(height: 12),
+            AnalogSlider(
+              label: 'CONTRAST',
+              value: _contrast,
+              min: 0.0,
+              max: 1.0,
+              onChanged: (v) => setState(() => _contrast = v),
+              valueFormatter: (v) => '${(v * 100).round()}%',
+            ),
+            const SizedBox(height: 12),
+            AnalogSlider(
+              label: 'SATURATION',
+              value: _saturation,
+              min: 0.0,
+              max: 1.0,
+              onChanged: (v) => setState(() => _saturation = v),
+              valueFormatter: (v) => '${(v * 100).round()}%',
             ),
           ],
+        ),
+
+        const SizedBox(height: 8),
+
+        // Stubs
+        _ExpandableSection(
+          title: 'DETECTION ZONES',
+          children: [
+            const Text('Detection zone editor coming soon.', style: NvrTypography.body),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        _ExpandableSection(
+          title: 'RECORDING RULES',
+          children: [
+            const Text('Recording rules coming soon.', style: NvrTypography.body),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        _ExpandableSection(
+          title: 'AUDIO',
+          children: [
+            const Text('Audio settings coming soon.', style: NvrTypography.body),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section card with monoSection header
+// ---------------------------------------------------------------------------
+class _SectionCard extends StatelessWidget {
+  final String header;
+  final Widget child;
+
+  const _SectionCard({required this.header, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NvrColors.bgSecondary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: NvrColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(header, style: NvrTypography.monoSection),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Expandable advanced section
+// ---------------------------------------------------------------------------
+class _ExpandableSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _ExpandableSection({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: NvrColors.bgSecondary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: NvrColors.border),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: NvrColors.accent.withOpacity(0.05),
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          title: Text(title, style: NvrTypography.monoSection),
+          iconColor: NvrColors.textMuted,
+          collapsedIconColor: NvrColors.textMuted,
+          children: children,
         ),
       ),
     );
@@ -394,142 +757,35 @@ class _GeneralTabState extends ConsumerState<_GeneralTab> {
 }
 
 // ---------------------------------------------------------------------------
-// AI tab
+// Quick stat tile
 // ---------------------------------------------------------------------------
-class _AiTab extends ConsumerStatefulWidget {
-  final Camera camera;
-  final VoidCallback onRefresh;
+class _StatTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final TextStyle valueStyle;
 
-  const _AiTab({required this.camera, required this.onRefresh});
-
-  @override
-  ConsumerState<_AiTab> createState() => _AiTabState();
-}
-
-class _AiTabState extends ConsumerState<_AiTab> {
-  late bool _aiEnabled;
-  late final TextEditingController _subStreamCtrl;
-  late double _confidence;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _aiEnabled = widget.camera.aiEnabled;
-    _subStreamCtrl = TextEditingController(text: widget.camera.subStreamUrl);
-    _confidence = 50.0; // default — server should return this field eventually
-  }
-
-  @override
-  void dispose() {
-    _subStreamCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-    setState(() => _saving = true);
-    try {
-      await api.put('/cameras/${widget.camera.id}/ai', data: {
-        'ai_enabled': _aiEnabled,
-        'sub_stream_url': _subStreamCtrl.text.trim(),
-        'confidence': _confidence / 100.0,
-      });
-      widget.onRefresh();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('AI settings saved')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+  const _StatTile({
+    required this.label,
+    required this.value,
+    required this.valueStyle,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: NvrColors.bgSecondary,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: NvrColors.border),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Enable AI detection',
-                  style: TextStyle(color: NvrColors.textPrimary, fontSize: 15),
-                ),
-              ),
-              Switch(
-                value: _aiEnabled,
-                onChanged: (v) => setState(() => _aiEnabled = v),
-                activeThumbColor: NvrColors.accent,
-              ),
-            ],
-          ),
-          const Divider(color: NvrColors.border),
-          const SizedBox(height: 8),
-          _NvrField(
-            controller: _subStreamCtrl,
-            label: 'Sub-stream URL (for AI)',
-            hint: 'rtsp://... (lower resolution stream)',
-            keyboardType: TextInputType.url,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const SizedBox(
-                width: 130,
-                child: Text(
-                  'Confidence threshold',
-                  style: TextStyle(color: NvrColors.textSecondary, fontSize: 13),
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: _confidence,
-                  min: 20,
-                  max: 90,
-                  divisions: 14,
-                  activeColor: NvrColors.accent,
-                  inactiveColor: NvrColors.bgTertiary,
-                  onChanged: (v) => setState(() => _confidence = v),
-                ),
-              ),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  '${_confidence.round()}%',
-                  style: const TextStyle(color: NvrColors.textPrimary, fontSize: 12),
-                  textAlign: TextAlign.right,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: NvrColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Save AI Settings'),
-          ),
+          Text(label, style: NvrTypography.monoLabel),
+          const SizedBox(height: 4),
+          Text(value, style: valueStyle),
         ],
       ),
     );
@@ -537,136 +793,28 @@ class _AiTabState extends ConsumerState<_AiTab> {
 }
 
 // ---------------------------------------------------------------------------
-// Advanced tab
+// Key-value row
 // ---------------------------------------------------------------------------
-class _AdvancedTab extends ConsumerStatefulWidget {
-  final Camera camera;
-  final VoidCallback onRefresh;
+class _KvRow extends StatelessWidget {
+  final String label;
+  final String value;
 
-  const _AdvancedTab({required this.camera, required this.onRefresh});
-
-  @override
-  ConsumerState<_AdvancedTab> createState() => _AdvancedTabState();
-}
-
-class _AdvancedTabState extends ConsumerState<_AdvancedTab> {
-  late double _motionTimeout;
-  late final TextEditingController _retentionCtrl;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _motionTimeout = widget.camera.motionTimeoutSeconds.toDouble();
-    _retentionCtrl =
-        TextEditingController(text: widget.camera.retentionDays.toString());
-  }
-
-  @override
-  void dispose() {
-    _retentionCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-    final retention = int.tryParse(_retentionCtrl.text.trim()) ?? 30;
-    setState(() => _saving = true);
-    try {
-      await api.put('/cameras/${widget.camera.id}', data: {
-        'motion_timeout_seconds': _motionTimeout.round(),
-        'retention_days': retention,
-      });
-      widget.onRefresh();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
+  const _KvRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const SizedBox(
-                width: 130,
-                child: Text(
-                  'Motion timeout',
-                  style: TextStyle(color: NvrColors.textSecondary, fontSize: 13),
-                ),
-              ),
-              Expanded(
-                child: Slider(
-                  value: _motionTimeout,
-                  min: 1,
-                  max: 60,
-                  divisions: 59,
-                  activeColor: NvrColors.accent,
-                  inactiveColor: NvrColors.bgTertiary,
-                  onChanged: (v) => setState(() => _motionTimeout = v),
-                ),
-              ),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  '${_motionTimeout.round()}s',
-                  style: const TextStyle(color: NvrColors.textPrimary, fontSize: 12),
-                  textAlign: TextAlign.right,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _NvrField(
-            controller: _retentionCtrl,
-            label: 'Retention (days)',
-            keyboardType: TextInputType.number,
-            validator: (v) {
-              final n = int.tryParse(v ?? '');
-              if (n == null || n < 1) return 'Enter a valid number of days';
-              return null;
-            },
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: NvrColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('Save'),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: NvrTypography.body),
+        Text(value, style: NvrTypography.monoData),
+      ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Shared form field widget
+// NVR text field
 // ---------------------------------------------------------------------------
 class _NvrField extends StatelessWidget {
   final TextEditingController controller;
@@ -674,6 +822,7 @@ class _NvrField extends StatelessWidget {
   final String? hint;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
+  final bool obscure;
 
   const _NvrField({
     required this.controller,
@@ -681,6 +830,7 @@ class _NvrField extends StatelessWidget {
     this.hint,
     this.keyboardType,
     this.validator,
+    this.obscure = false,
   });
 
   @override
@@ -688,29 +838,31 @@ class _NvrField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      style: const TextStyle(color: NvrColors.textPrimary),
+      obscureText: obscure,
+      style: const TextStyle(color: NvrColors.textPrimary, fontFamily: 'JetBrainsMono', fontSize: 12),
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        labelStyle: const TextStyle(color: NvrColors.textMuted),
+        labelStyle: NvrTypography.monoLabel,
         hintStyle: const TextStyle(color: NvrColors.textMuted),
         filled: true,
         fillColor: NvrColors.bgInput,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.accent),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.danger),
         ),
       ),

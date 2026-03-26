@@ -143,7 +143,6 @@ Create `internal/nvr/db/groups.go`:
 package db
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -162,7 +161,7 @@ func (d *DB) CreateGroup(name string, cameraIDs []string) (*CameraGroup, error) 
 	id := uuid.New().String()
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	tx, err := d.db.Begin()
+	tx, err := d.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
@@ -197,7 +196,7 @@ func (d *DB) CreateGroup(name string, cameraIDs []string) (*CameraGroup, error) 
 }
 
 func (d *DB) ListGroups() ([]CameraGroup, error) {
-	rows, err := d.db.Query("SELECT id, name, created_at, updated_at FROM camera_groups ORDER BY name")
+	rows, err := d.Query("SELECT id, name, created_at, updated_at FROM camera_groups ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +209,7 @@ func (d *DB) ListGroups() ([]CameraGroup, error) {
 			return nil, err
 		}
 		// Fetch member camera IDs
-		memberRows, err := d.db.Query(
+		memberRows, err := d.Query(
 			"SELECT camera_id FROM camera_group_members WHERE group_id = ? ORDER BY sort_order",
 			g.ID,
 		)
@@ -236,14 +235,14 @@ func (d *DB) ListGroups() ([]CameraGroup, error) {
 
 func (d *DB) GetGroup(id string) (*CameraGroup, error) {
 	var g CameraGroup
-	err := d.db.QueryRow(
+	err := d.QueryRow(
 		"SELECT id, name, created_at, updated_at FROM camera_groups WHERE id = ?", id,
 	).Scan(&g.ID, &g.Name, &g.CreatedAt, &g.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := d.db.Query(
+	rows, err := d.Query(
 		"SELECT camera_id FROM camera_group_members WHERE group_id = ? ORDER BY sort_order", id,
 	)
 	if err != nil {
@@ -266,7 +265,7 @@ func (d *DB) GetGroup(id string) (*CameraGroup, error) {
 func (d *DB) UpdateGroup(id, name string, cameraIDs []string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
-	tx, err := d.db.Begin()
+	tx, err := d.Begin()
 	if err != nil {
 		return err
 	}
@@ -296,7 +295,7 @@ func (d *DB) UpdateGroup(id, name string, cameraIDs []string) error {
 }
 
 func (d *DB) DeleteGroup(id string) error {
-	_, err := d.db.Exec("DELETE FROM camera_groups WHERE id = ?", id)
+	_, err := d.Exec("DELETE FROM camera_groups WHERE id = ?", id)
 	return err
 }
 ```
@@ -358,7 +357,7 @@ func (d *DB) CreateTour(name string, cameraIDs []string, dwellSeconds int) (*Tou
 		return nil, fmt.Errorf("marshal camera_ids: %w", err)
 	}
 
-	_, err = d.db.Exec(
+	_, err = d.Exec(
 		"INSERT INTO tours (id, name, camera_ids, dwell_seconds, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
 		id, name, string(cameraJSON), dwellSeconds, now, now,
 	)
@@ -373,7 +372,7 @@ func (d *DB) CreateTour(name string, cameraIDs []string, dwellSeconds int) (*Tou
 }
 
 func (d *DB) ListTours() ([]Tour, error) {
-	rows, err := d.db.Query("SELECT id, name, camera_ids, dwell_seconds, created_at, updated_at FROM tours ORDER BY name")
+	rows, err := d.Query("SELECT id, name, camera_ids, dwell_seconds, created_at, updated_at FROM tours ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +396,7 @@ func (d *DB) ListTours() ([]Tour, error) {
 func (d *DB) GetTour(id string) (*Tour, error) {
 	var t Tour
 	var cameraJSON string
-	err := d.db.QueryRow(
+	err := d.QueryRow(
 		"SELECT id, name, camera_ids, dwell_seconds, created_at, updated_at FROM tours WHERE id = ?", id,
 	).Scan(&t.ID, &t.Name, &cameraJSON, &t.DwellSeconds, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
@@ -415,7 +414,7 @@ func (d *DB) UpdateTour(id, name string, cameraIDs []string, dwellSeconds int) e
 	if err != nil {
 		return err
 	}
-	_, err = d.db.Exec(
+	_, err = d.Exec(
 		"UPDATE tours SET name = ?, camera_ids = ?, dwell_seconds = ?, updated_at = ? WHERE id = ?",
 		name, string(cameraJSON), dwellSeconds, now, id,
 	)
@@ -423,7 +422,7 @@ func (d *DB) UpdateTour(id, name string, cameraIDs []string, dwellSeconds int) e
 }
 
 func (d *DB) DeleteTour(id string) error {
-	_, err := d.db.Exec("DELETE FROM tours WHERE id = ?", id)
+	_, err := d.Exec("DELETE FROM tours WHERE id = ?", id)
 	return err
 }
 ```
@@ -501,7 +500,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "create", "camera_group", group.ID, map[string]any{"name": req.Name})
+	h.Audit.logAction(c, "create", "camera_group", group.ID, "Created group "+req.Name)
 	c.JSON(http.StatusCreated, group)
 }
 
@@ -527,7 +526,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "update", "camera_group", id, map[string]any{"name": req.Name})
+	h.Audit.logAction(c, "update", "camera_group", id, "Updated group "+req.Name)
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
@@ -538,7 +537,7 @@ func (h *GroupHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "delete", "camera_group", id, nil)
+	h.Audit.logAction(c, "delete", "camera_group", id, "Deleted group")
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 ```
@@ -625,7 +624,7 @@ func (h *TourHandler) Create(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "create", "tour", tour.ID, map[string]any{"name": req.Name})
+	h.Audit.logAction(c, "create", "tour", tour.ID, "Created tour "+req.Name)
 	c.JSON(http.StatusCreated, tour)
 }
 
@@ -654,7 +653,7 @@ func (h *TourHandler) Update(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "update", "tour", id, map[string]any{"name": req.Name})
+	h.Audit.logAction(c, "update", "tour", id, "Updated tour "+req.Name)
 	c.JSON(http.StatusOK, gin.H{"status": "updated"})
 }
 
@@ -665,7 +664,7 @@ func (h *TourHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	h.Audit.Log(c, "delete", "tour", id, nil)
+	h.Audit.logAction(c, "delete", "tour", id, "Deleted tour")
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
 }
 ```

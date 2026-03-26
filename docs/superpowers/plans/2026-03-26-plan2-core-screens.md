@@ -545,13 +545,24 @@ git commit -m "feat(ui): rebuild Settings with sidebar nav and HUD panels"
 
 - [ ] **Step 1: Add isRead field to NotificationEvent**
 
-In `clients/flutter/lib/models/notification_event.dart`, add:
+In `clients/flutter/lib/models/notification_event.dart` (this is a plain Dart class, NOT Freezed), add:
 
 ```dart
 final bool isRead;
 ```
 
-Add `this.isRead = false` to the constructor. Update `fromJson` to read `isRead` with a default of `false`.
+Add `this.isRead = false` to the constructor. Update `fromJson` to read `isRead` with a default of `false`. Also add a `copyWith` method since the class is immutable and we need to toggle read state:
+
+```dart
+NotificationEvent copyWith({bool? isRead}) {
+  return NotificationEvent(
+    type: type, camera: camera, message: message, time: time,
+    zone: zone, className: className, action: action,
+    trackId: trackId, confidence: confidence,
+    isRead: isRead ?? this.isRead,
+  );
+}
+```
 
 - [ ] **Step 2: Update NotificationsNotifier for per-event read state**
 
@@ -644,9 +655,9 @@ git commit -m "chore(ui): remove replaced widgets, fix imports, clean up"
 
 ### Task 15: Run code generation
 
-- [ ] **Step 1: Regenerate Freezed code**
+- [ ] **Step 1: Run build_runner for any Freezed models touched**
 
-If `NotificationEvent` model was changed (isRead field), regenerate:
+Note: `NotificationEvent` is NOT a Freezed model (plain Dart class), so it does not need code generation. Only run this if other Freezed models were modified during this plan.
 
 ```bash
 cd clients/flutter && dart run build_runner build --delete-conflicting-outputs
@@ -656,7 +667,7 @@ cd clients/flutter && dart run build_runner build --delete-conflicting-outputs
 
 Check output for errors. Fix any issues.
 
-- [ ] **Step 3: Commit generated files**
+- [ ] **Step 3: Commit if any generated files changed**
 
 ```bash
 git add clients/flutter/lib/models/*.freezed.dart clients/flutter/lib/models/*.g.dart

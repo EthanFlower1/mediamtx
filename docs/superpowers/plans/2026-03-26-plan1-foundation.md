@@ -28,13 +28,11 @@
 | `clients/flutter/lib/widgets/hud/status_badge.dart` | Status badge with glow dot and mono label |
 | `clients/flutter/lib/widgets/hud/hud_button.dart` | Button variants (primary, secondary, danger, tactical) |
 | `clients/flutter/lib/widgets/hud/corner_brackets.dart` | Corner bracket overlay for camera tiles |
-| `clients/flutter/lib/widgets/hud/camera_tile.dart` | Camera feed tile with brackets, status, and name overlays |
 | `clients/flutter/lib/widgets/shell/icon_rail.dart` | Desktop icon rail navigation (60px) |
 | `clients/flutter/lib/widgets/shell/camera_panel.dart` | Slide-out camera list panel (230px) |
 | `clients/flutter/lib/widgets/shell/navigation_shell.dart` | Adaptive layout: icon rail + panel (desktop) or bottom nav (mobile) |
 | `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart` | Mobile bottom navigation bar (4 items) |
 | `clients/flutter/lib/providers/camera_panel_provider.dart` | Camera panel state (open/closed, search, group filter) |
-| `clients/flutter/lib/providers/grid_layout_provider.dart` | Grid slot assignments (persisted per user) |
 
 ### Modified Files
 | File | Changes |

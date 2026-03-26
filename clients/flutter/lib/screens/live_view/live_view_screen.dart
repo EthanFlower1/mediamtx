@@ -6,127 +6,176 @@ import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../theme/nvr_colors.dart';
-import '../../widgets/notification_bell.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/segmented_control.dart';
 import 'camera_tile.dart';
 
-class LiveViewScreen extends ConsumerWidget {
+class LiveViewScreen extends ConsumerStatefulWidget {
   const LiveViewScreen({super.key});
 
-  int _columnCount(double width) {
-    if (width >= 1200) return 4;
-    if (width >= 900) return 3;
-    if (width >= 600) return 2;
-    return 1;
+  @override
+  ConsumerState<LiveViewScreen> createState() => _LiveViewScreenState();
+}
+
+class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
+  int _gridSize = 2;
+
+  static const _gridOptions = <int, String>{
+    1: '1×1',
+    2: '2×2',
+    3: '3×3',
+    4: '4×4',
+  };
+
+  void _openFullscreen(Camera camera) {
+    context.push('/live/fullscreen', extra: camera);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final camerasAsync = ref.watch(camerasProvider);
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Live View'),
-        backgroundColor: NvrColors.bgSecondary,
-        foregroundColor: NvrColors.textPrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh cameras',
-            onPressed: () => ref.invalidate(camerasProvider),
-          ),
-          const NotificationBell(),
-          const SizedBox(width: 8),
-        ],
-      ),
       backgroundColor: NvrColors.bgPrimary,
-      body: camerasAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: NvrColors.accent),
-        ),
-        error: (err, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: NvrColors.danger, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load cameras',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(color: NvrColors.textPrimary),
+      body: Column(
+        children: [
+          // ── Top bar ───────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: NvrColors.bgPrimary,
+              border: Border(
+                bottom: BorderSide(color: NvrColors.border, width: 1),
               ),
-              const SizedBox(height: 8),
-              Text(
-                err.toString(),
-                style: const TextStyle(color: NvrColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(camerasProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-        data: (cameras) {
-          if (cameras.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.videocam_off,
-                      color: NvrColors.textMuted, size: 64),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No cameras configured',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: NvrColors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Add cameras in the Cameras section',
-                    style: TextStyle(color: NvrColors.textMuted),
-                  ),
-                ],
-              ),
-            );
-          }
+            ),
+            child: Row(
+              children: [
+                // Page title
+                const Text('Live View', style: NvrTypography.pageTitle),
+                const SizedBox(width: 12),
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final cols = _columnCount(constraints.maxWidth);
-              return GridView.builder(
-                padding: const EdgeInsets.all(12),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 16 / 9,
+                // Group badge pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: NvrColors.accentWith(0.07),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: const Text(
+                    'ALL CAMERAS',
+                    style: TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 1.5,
+                      color: NvrColors.accent,
+                    ),
+                  ),
                 ),
-                itemCount: cameras.length,
-                itemBuilder: (context, index) {
-                  final camera = cameras[index];
-                  return CameraTile(
-                    camera: camera,
-                    serverUrl: serverUrl,
-                    onTap: () => _openFullscreen(context, camera),
-                  );
-                },
-              );
-            },
-          );
-        },
+
+                const Spacer(),
+
+                // Grid size control
+                HudSegmentedControl<int>(
+                  segments: _gridOptions,
+                  selected: _gridSize,
+                  onChanged: (value) => setState(() => _gridSize = value),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Body ─────────────────────────────────────────────────────────
+          Expanded(
+            child: camerasAsync.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: NvrColors.accent),
+              ),
+              error: (err, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: NvrColors.danger, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load cameras',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: NvrColors.textPrimary),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      err.toString(),
+                      style: const TextStyle(color: NvrColors.textSecondary),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.invalidate(camerasProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+              data: (cameras) {
+                final totalSlots = _gridSize * _gridSize;
+                return GridView.builder(
+                  padding: const EdgeInsets.all(10),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: _gridSize,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: 16 / 9,
+                  ),
+                  itemCount: totalSlots,
+                  itemBuilder: (context, index) {
+                    if (index < cameras.length) {
+                      final camera = cameras[index];
+                      return CameraTile(
+                        camera: camera,
+                        serverUrl: serverUrl,
+                        onTap: () => _openFullscreen(camera),
+                      );
+                    }
+                    // Empty slot placeholder
+                    return _EmptySlot();
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  void _openFullscreen(BuildContext context, Camera camera) {
-    context.push('/live/fullscreen', extra: camera);
+class _EmptySlot extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: NvrColors.bgPrimary,
+        border: Border.all(color: NvrColors.border, width: 2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add, color: NvrColors.border, size: 20),
+            SizedBox(height: 6),
+            Text(
+              'DROP HERE',
+              style: NvrTypography.monoLabel,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

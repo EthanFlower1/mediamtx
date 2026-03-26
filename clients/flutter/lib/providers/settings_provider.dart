@@ -168,7 +168,7 @@ class AuditEntry {
 
 final systemInfoProvider = FutureProvider<SystemInfo>((ref) async {
   final api = ref.watch(apiClientProvider);
-  if (api == null) return const SystemInfo(version: '', platform: '', uptime: 0, clipSearchAvailable: false);
+  if (api == null) return const SystemInfo(version: '', platform: '', uptimeSeconds: 0, clipSearchAvailable: false);
   final res = await api.get('/system/info');
   return SystemInfo.fromJson(res.data as Map<String, dynamic>);
 });

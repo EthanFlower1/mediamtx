@@ -64,6 +64,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Audit:         audit,
 		EncryptionKey: cfg.EncryptionKey,
 		AIRestarter:   cfg.AIRestarter,
+		StorageMgr:    cfg.StorageManager,
 	}
 
 	recordingHandler := &RecordingHandler{

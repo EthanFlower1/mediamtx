@@ -20,6 +20,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -39,6 +40,21 @@ type CameraHandler struct {
 	Audit         *AuditLogger
 	EncryptionKey []byte                // AES-256 key for encrypting ONVIF credentials at rest
 	AIRestarter   AIPipelineRestarter   // may be nil
+	StorageMgr    *storage.Manager      // may be nil
+}
+
+// cameraResponse wraps db.Camera and adds a storage_status field.
+type cameraResponse struct {
+	db.Camera
+	StorageStatus string `json:"storage_status"`
+}
+
+func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
+	status := "default"
+	if h.StorageMgr != nil {
+		status = h.StorageMgr.StorageStatus(cam)
+	}
+	return cameraResponse{Camera: *cam, StorageStatus: status}
 }
 
 // encryptPassword encrypts a plaintext password for storage. If no encryption
@@ -134,7 +150,11 @@ func (h *CameraHandler) List(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, cameras)
+	responses := make([]cameraResponse, 0, len(cameras))
+	for _, cam := range cameras {
+		responses = append(responses, h.buildCameraResponse(cam))
+	}
+	c.JSON(http.StatusOK, responses)
 }
 
 // getPathStatuses fetches all paths from MediaMTX in one call and returns a
@@ -192,7 +212,7 @@ func (h *CameraHandler) Get(c *gin.Context) {
 		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
 		return
 	}
-	c.JSON(http.StatusOK, cam)
+	c.JSON(http.StatusOK, h.buildCameraResponse(cam))
 }
 
 // Create creates a new camera in the database and writes its path to the YAML config.

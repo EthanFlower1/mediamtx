@@ -158,11 +158,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id", cameraHandler.Update)
 	protected.DELETE("/cameras/:id", cameraHandler.Delete)
 
-	// Camera discovery.
+	// Camera discovery and refresh.
 	protected.POST("/cameras/discover", cameraHandler.Discover)
 	protected.GET("/cameras/discover/status", cameraHandler.DiscoverStatus)
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
 	protected.POST("/cameras/probe", cameraHandler.Probe)
+	protected.POST("/cameras/:id/refresh", cameraHandler.RefreshCapabilities)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)

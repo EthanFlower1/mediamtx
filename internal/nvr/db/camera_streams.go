@@ -151,6 +151,12 @@ func (d *DB) UpdateCameraStream(s *CameraStream) error {
 	return nil
 }
 
+// DeleteStreamsByCamera deletes all streams for a camera.
+func (d *DB) DeleteStreamsByCamera(cameraID string) error {
+	_, err := d.Exec("DELETE FROM camera_streams WHERE camera_id = ?", cameraID)
+	return err
+}
+
 // DeleteCameraStream deletes a stream by its ID. Returns ErrNotFound if no
 // record exists.
 func (d *DB) DeleteCameraStream(id string) error {

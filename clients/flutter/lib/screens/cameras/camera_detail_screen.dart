@@ -61,6 +61,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   bool _savingGeneral = false;
   bool _savingAi = false;
   bool _savingAdvanced = false;
+  bool _refreshing = false;
   bool _loadingProfiles = false;
   List<Map<String, dynamic>> _profiles = [];
 
@@ -254,6 +255,29 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     }
   }
 
+  Future<void> _refreshCapabilities() async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    setState(() => _refreshing = true);
+    try {
+      await api.post<dynamic>('/cameras/${widget.cameraId}/refresh');
+      await _fetchCamera();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: NvrColors.success, content: Text('Capabilities refreshed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Refresh failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   StatusBadge _statusBadge(String status) {
     switch (status) {
       case 'online':
@@ -351,6 +375,20 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           const SizedBox(width: 8),
           _statusBadge(camera.status),
           const Spacer(),
+          _refreshing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: NvrColors.accent,
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.refresh, color: NvrColors.textMuted, size: 20),
+                  tooltip: 'Refresh capabilities',
+                  onPressed: _refreshCapabilities,
+                ),
           IconButton(
             icon: Icon(
               Icons.settings,

@@ -639,6 +639,86 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 	})
 }
 
+// RefreshCapabilities re-probes an existing camera's ONVIF endpoint, updates
+// capability flags, and recreates camera_streams from the discovered profiles.
+func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		if err == db.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "fetch camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	password := h.decryptPassword(cam.ONVIFPassword)
+	result, err := onvif.ProbeDeviceFull(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
+	if err != nil {
+		nvrLogError("cameras", fmt.Sprintf("refresh probe failed for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF probe failed: " + err.Error()})
+		return
+	}
+
+	// Update capability flags.
+	cam.SupportsPTZ = result.Capabilities.PTZ
+	cam.SupportsImaging = result.Capabilities.Imaging
+	cam.SupportsEvents = result.Capabilities.Events
+	cam.SupportsRelay = result.Capabilities.DeviceIO
+	cam.SupportsAudioBackchannel = result.Capabilities.AudioBackchannel
+	cam.SupportsMedia2 = result.Capabilities.Media2
+	cam.SupportsAnalytics = result.Capabilities.Analytics
+	cam.SupportsEdgeRecording = result.Capabilities.Recording && result.Capabilities.Replay
+	if result.SnapshotURI != "" {
+		cam.SnapshotURI = result.SnapshotURI
+	}
+	if err := h.DB.UpdateCamera(cam); err != nil {
+		apiError(c, http.StatusInternalServerError, "update capabilities", err)
+		return
+	}
+
+	// Recreate streams from probed profiles.
+	if err := h.DB.DeleteStreamsByCamera(cam.ID); err != nil {
+		apiError(c, http.StatusInternalServerError, "delete old streams", err)
+		return
+	}
+	for i, p := range result.Profiles {
+		roles := ""
+		switch {
+		case len(result.Profiles) == 1:
+			roles = "live_view,recording,ai_detection,mobile"
+		case i == 0:
+			roles = "live_view"
+		case i == len(result.Profiles)-1:
+			roles = "recording,ai_detection,mobile"
+		}
+		stream := &db.CameraStream{
+			CameraID:     cam.ID,
+			Name:         p.Name,
+			RTSPURL:      p.StreamURI,
+			ProfileToken: p.Token,
+			VideoCodec:   p.VideoCodec,
+			Width:        p.Width,
+			Height:       p.Height,
+			Roles:        roles,
+		}
+		if err := h.DB.CreateCameraStream(stream); err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to create stream for camera %s: %v", cam.ID, err))
+		}
+	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles", cam.Name, len(result.Profiles)))
+
+	c.JSON(http.StatusOK, h.buildCameraWithStreams(cam))
+}
+
 // retentionRequest is the JSON body for updating a camera's retention policy.
 type retentionRequest struct {
 	RetentionDays int `json:"retention_days"`

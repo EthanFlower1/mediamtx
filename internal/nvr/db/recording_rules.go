@@ -12,6 +12,7 @@ import (
 type RecordingRule struct {
 	ID               string `json:"id"`
 	CameraID         string `json:"camera_id"`
+	StreamID         string `json:"stream_id"`
 	Name             string `json:"name"`
 	Mode             string `json:"mode"`
 	Days             string `json:"days"`
@@ -35,10 +36,10 @@ func (d *DB) CreateRecordingRule(rule *RecordingRule) error {
 	rule.UpdatedAt = now
 
 	_, err := d.Exec(`
-		INSERT INTO recording_rules (id, camera_id, name, mode, days, start_time,
+		INSERT INTO recording_rules (id, camera_id, stream_id, name, mode, days, start_time,
 			end_time, post_event_seconds, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		rule.ID, rule.CameraID, rule.Name, rule.Mode, rule.Days, rule.StartTime,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		rule.ID, rule.CameraID, rule.StreamID, rule.Name, rule.Mode, rule.Days, rule.StartTime,
 		rule.EndTime, rule.PostEventSeconds, rule.Enabled, rule.CreatedAt, rule.UpdatedAt,
 	)
 	return err
@@ -48,12 +49,13 @@ func (d *DB) CreateRecordingRule(rule *RecordingRule) error {
 func (d *DB) GetRecordingRule(id string) (*RecordingRule, error) {
 	rule := &RecordingRule{}
 	err := d.QueryRow(`
-		SELECT id, camera_id, name, mode, days, start_time, end_time,
+		SELECT id, camera_id, stream_id, name, mode, days, start_time, end_time,
 			post_event_seconds, enabled, created_at, updated_at
 		FROM recording_rules WHERE id = ?`, id,
 	).Scan(
-		&rule.ID, &rule.CameraID, &rule.Name, &rule.Mode, &rule.Days, &rule.StartTime,
-		&rule.EndTime, &rule.PostEventSeconds, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt,
+		&rule.ID, &rule.CameraID, &rule.StreamID, &rule.Name, &rule.Mode, &rule.Days,
+		&rule.StartTime, &rule.EndTime, &rule.PostEventSeconds, &rule.Enabled,
+		&rule.CreatedAt, &rule.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -67,7 +69,7 @@ func (d *DB) GetRecordingRule(id string) (*RecordingRule, error) {
 // ListRecordingRules returns all recording rules for a given camera, ordered by created_at.
 func (d *DB) ListRecordingRules(cameraID string) ([]*RecordingRule, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, name, mode, days, start_time, end_time,
+		SELECT id, camera_id, stream_id, name, mode, days, start_time, end_time,
 			post_event_seconds, enabled, created_at, updated_at
 		FROM recording_rules WHERE camera_id = ? ORDER BY created_at`, cameraID)
 	if err != nil {
@@ -79,8 +81,9 @@ func (d *DB) ListRecordingRules(cameraID string) ([]*RecordingRule, error) {
 	for rows.Next() {
 		rule := &RecordingRule{}
 		if err := rows.Scan(
-			&rule.ID, &rule.CameraID, &rule.Name, &rule.Mode, &rule.Days, &rule.StartTime,
-			&rule.EndTime, &rule.PostEventSeconds, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt,
+			&rule.ID, &rule.CameraID, &rule.StreamID, &rule.Name, &rule.Mode, &rule.Days,
+			&rule.StartTime, &rule.EndTime, &rule.PostEventSeconds, &rule.Enabled,
+			&rule.CreatedAt, &rule.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -92,7 +95,7 @@ func (d *DB) ListRecordingRules(cameraID string) ([]*RecordingRule, error) {
 // ListAllEnabledRecordingRules returns all enabled recording rules across all cameras.
 func (d *DB) ListAllEnabledRecordingRules() ([]*RecordingRule, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, name, mode, days, start_time, end_time,
+		SELECT id, camera_id, stream_id, name, mode, days, start_time, end_time,
 			post_event_seconds, enabled, created_at, updated_at
 		FROM recording_rules WHERE enabled = 1 ORDER BY created_at`)
 	if err != nil {
@@ -104,8 +107,9 @@ func (d *DB) ListAllEnabledRecordingRules() ([]*RecordingRule, error) {
 	for rows.Next() {
 		rule := &RecordingRule{}
 		if err := rows.Scan(
-			&rule.ID, &rule.CameraID, &rule.Name, &rule.Mode, &rule.Days, &rule.StartTime,
-			&rule.EndTime, &rule.PostEventSeconds, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt,
+			&rule.ID, &rule.CameraID, &rule.StreamID, &rule.Name, &rule.Mode, &rule.Days,
+			&rule.StartTime, &rule.EndTime, &rule.PostEventSeconds, &rule.Enabled,
+			&rule.CreatedAt, &rule.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -119,11 +123,11 @@ func (d *DB) UpdateRecordingRule(rule *RecordingRule) error {
 	rule.UpdatedAt = time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 
 	res, err := d.Exec(`
-		UPDATE recording_rules SET camera_id = ?, name = ?, mode = ?, days = ?,
+		UPDATE recording_rules SET camera_id = ?, stream_id = ?, name = ?, mode = ?, days = ?,
 			start_time = ?, end_time = ?, post_event_seconds = ?, enabled = ?,
 			updated_at = ?
 		WHERE id = ?`,
-		rule.CameraID, rule.Name, rule.Mode, rule.Days, rule.StartTime,
+		rule.CameraID, rule.StreamID, rule.Name, rule.Mode, rule.Days, rule.StartTime,
 		rule.EndTime, rule.PostEventSeconds, rule.Enabled, rule.UpdatedAt, rule.ID,
 	)
 	if err != nil {

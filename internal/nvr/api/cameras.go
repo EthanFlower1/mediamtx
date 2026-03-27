@@ -49,12 +49,31 @@ type cameraResponse struct {
 	StorageStatus string `json:"storage_status"`
 }
 
+// cameraWithStreams extends cameraResponse to include stream records.
+type cameraWithStreams struct {
+	cameraResponse
+	Streams []*db.CameraStream `json:"streams"`
+}
+
 func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 	status := "default"
 	if h.StorageMgr != nil {
 		status = h.StorageMgr.StorageStatus(cam)
 	}
 	return cameraResponse{Camera: *cam, StorageStatus: status}
+}
+
+func (h *CameraHandler) buildCameraWithStreams(cam *db.Camera) cameraWithStreams {
+	resp := h.buildCameraResponse(cam)
+	streams, err := h.DB.ListCameraStreams(cam.ID)
+	if err != nil {
+		nvrLogWarn("cameras", "failed to list streams for camera "+cam.ID+": "+err.Error())
+		streams = []*db.CameraStream{}
+	}
+	if streams == nil {
+		streams = []*db.CameraStream{}
+	}
+	return cameraWithStreams{cameraResponse: resp, Streams: streams}
 }
 
 // encryptPassword encrypts a plaintext password for storage. If no encryption
@@ -104,6 +123,14 @@ type cameraRequest struct {
 	PTZCapable        bool   `json:"ptz_capable"`
 	Tags              string `json:"tags"`
 	StoragePath       string `json:"storage_path"`
+	Profiles          []struct {
+		Name         string `json:"name"`
+		RTSPURL      string `json:"rtsp_url"`
+		ProfileToken string `json:"profile_token"`
+		VideoCodec   string `json:"video_codec"`
+		Width        int    `json:"width"`
+		Height       int    `json:"height"`
+	} `json:"profiles"`
 }
 
 var nonAlphanumericDash = regexp.MustCompile(`[^a-z0-9-]`)
@@ -150,9 +177,9 @@ func (h *CameraHandler) List(c *gin.Context) {
 		}
 	}
 
-	responses := make([]cameraResponse, 0, len(cameras))
+	responses := make([]cameraWithStreams, 0, len(cameras))
 	for _, cam := range cameras {
-		responses = append(responses, h.buildCameraResponse(cam))
+		responses = append(responses, h.buildCameraWithStreams(cam))
 	}
 	c.JSON(http.StatusOK, responses)
 }
@@ -225,7 +252,7 @@ func (h *CameraHandler) Get(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, h.buildCameraResponse(cam))
+	c.JSON(http.StatusOK, h.buildCameraWithStreams(cam))
 }
 
 // Create creates a new camera in the database and writes its path to the YAML config.
@@ -280,6 +307,36 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	if err := h.DB.CreateCamera(cam); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to create camera", err)
 		return
+	}
+
+	// Auto-create stream records from the provided profiles.
+	if len(req.Profiles) > 0 {
+		for i, p := range req.Profiles {
+			var roles string
+			switch {
+			case len(req.Profiles) == 1:
+				roles = "live_view,recording,ai_detection,mobile"
+			case i == 0:
+				roles = "live_view"
+			case i == len(req.Profiles)-1:
+				roles = "recording,ai_detection,mobile"
+			default:
+				roles = ""
+			}
+			stream := &db.CameraStream{
+				CameraID:     cam.ID,
+				Name:         p.Name,
+				RTSPURL:      p.RTSPURL,
+				ProfileToken: p.ProfileToken,
+				VideoCodec:   p.VideoCodec,
+				Width:        p.Width,
+				Height:       p.Height,
+				Roles:        roles,
+			}
+			if err := h.DB.CreateCameraStream(stream); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to create stream for camera %s: %v", cam.ID, err))
+			}
+		}
 	}
 
 	// Write the path to YAML config.
@@ -339,7 +396,7 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		h.Audit.logAction(c, "create", "camera", cam.ID, fmt.Sprintf("Created camera %q", cam.Name))
 	}
 
-	c.JSON(http.StatusCreated, cam)
+	c.JSON(http.StatusCreated, h.buildCameraWithStreams(cam))
 }
 
 // Update updates an existing camera in the database and YAML config.

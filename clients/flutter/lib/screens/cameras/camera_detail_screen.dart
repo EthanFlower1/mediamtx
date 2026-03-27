@@ -34,6 +34,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   bool _recordingEnabled = true;
   int _recordingMode = 0; // 0=Continuous, 1=Events, 2=Schedule
 
+  // ── Recording stream ────────────────────────────────────────────────────
+  String _recordingStreamId = '';
+
   // ── AI controls ─────────────────────────────────────────────────────────
   bool _aiEnabled = false;
   double _confidence = 0.5;
@@ -109,6 +112,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _onvifCtrl.text = camera.onvifEndpoint;
         _subStreamCtrl.text = camera.subStreamUrl;
         _snapshotCtrl.text = camera.snapshotUri;
+        _recordingStreamId = camera.recordingStreamId;
         _aiEnabled = camera.aiEnabled;
         _confidence = camera.aiConfidence.clamp(0.2, 0.9);
         _aiStreamId = camera.aiStreamId;
@@ -213,6 +217,29 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       }
     } finally {
       if (mounted) setState(() => _savingAdvanced = false);
+    }
+  }
+
+  // ── Save: recording stream ──────────────────────────────────────────────
+  Future<void> _saveRecordingStream(String streamId) async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    try {
+      await api.put('/cameras/${widget.cameraId}/recording-stream', data: {
+        'stream_id': streamId,
+      });
+      setState(() => _recordingStreamId = streamId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: NvrColors.success, content: Text('Recording stream updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -506,6 +533,44 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 selected: _recordingMode,
                 onChanged: (v) => setState(() => _recordingMode = v),
               ),
+              if (_streams.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _recordingStreamId,
+                  dropdownColor: NvrColors.bgTertiary,
+                  style: NvrTypography.monoData,
+                  decoration: InputDecoration(
+                    labelText: 'RECORDING STREAM',
+                    labelStyle: NvrTypography.monoLabel,
+                    filled: true,
+                    fillColor: NvrColors.bgTertiary,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.accent),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Default (same as live view)', style: NvrTypography.monoData),
+                    ),
+                    ..._streams.map((s) => DropdownMenuItem(
+                      value: s.id,
+                      child: Text(s.displayLabel, style: NvrTypography.monoData),
+                    )),
+                  ],
+                  onChanged: (v) => _saveRecordingStream(v ?? ''),
+                ),
+              ],
             ],
           ),
         ),

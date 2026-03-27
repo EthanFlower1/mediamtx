@@ -188,6 +188,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
+	protected.PUT("/cameras/:id/recording-stream", cameraHandler.UpdateRecordingStream)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
 
 	// Real-time detections for live overlay.

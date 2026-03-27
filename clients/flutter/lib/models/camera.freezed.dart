@@ -57,6 +57,8 @@ mixin _$Camera {
   String? get createdAt => throw _privateConstructorUsedError;
   @JsonKey(name: 'updated_at')
   String? get updatedAt => throw _privateConstructorUsedError;
+  @JsonKey(name: 'recording_stream_id')
+  String get recordingStreamId => throw _privateConstructorUsedError;
   @JsonKey(name: 'storage_path')
   String get storagePath => throw _privateConstructorUsedError;
   @JsonKey(name: 'storage_status')
@@ -97,6 +99,7 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
       @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'recording_stream_id') String recordingStreamId,
       @JsonKey(name: 'storage_path') String storagePath,
       @JsonKey(name: 'storage_status') String storageStatus});
 }
@@ -136,6 +139,7 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? recordingStreamId = null,
     Object? storagePath = null,
     Object? storageStatus = null,
   }) {
@@ -220,6 +224,10 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      recordingStreamId: null == recordingStreamId
+          ? _value.recordingStreamId
+          : recordingStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
       storagePath: null == storagePath
           ? _value.storagePath
           : storagePath // ignore: cast_nullable_to_non_nullable
@@ -260,6 +268,7 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
       @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'recording_stream_id') String recordingStreamId,
       @JsonKey(name: 'storage_path') String storagePath,
       @JsonKey(name: 'storage_status') String storageStatus});
 }
@@ -297,6 +306,7 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? recordingStreamId = null,
     Object? storagePath = null,
     Object? storageStatus = null,
   }) {
@@ -381,6 +391,10 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      recordingStreamId: null == recordingStreamId
+          ? _value.recordingStreamId
+          : recordingStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
       storagePath: null == storagePath
           ? _value.storagePath
           : storagePath // ignore: cast_nullable_to_non_nullable
@@ -417,6 +431,7 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'supports_relay') this.supportsRelay = false,
       @JsonKey(name: 'created_at') this.createdAt,
       @JsonKey(name: 'updated_at') this.updatedAt,
+      @JsonKey(name: 'recording_stream_id') this.recordingStreamId = '',
       @JsonKey(name: 'storage_path') this.storagePath = '',
       @JsonKey(name: 'storage_status') this.storageStatus = 'default'});
 
@@ -482,6 +497,9 @@ class _$CameraImpl implements _Camera {
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
   @override
+  @JsonKey(name: 'recording_stream_id')
+  final String recordingStreamId;
+  @override
   @JsonKey(name: 'storage_path')
   final String storagePath;
   @override
@@ -490,7 +508,7 @@ class _$CameraImpl implements _Camera {
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, recordingStreamId: $recordingStreamId, storagePath: $storagePath, storageStatus: $storageStatus)';
   }
 
   @override
@@ -534,6 +552,8 @@ class _$CameraImpl implements _Camera {
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
+            (identical(other.recordingStreamId, recordingStreamId) ||
+                other.recordingStreamId == recordingStreamId) &&
             (identical(other.storagePath, storagePath) ||
                 other.storagePath == storagePath) &&
             (identical(other.storageStatus, storageStatus) ||
@@ -564,6 +584,7 @@ class _$CameraImpl implements _Camera {
         supportsRelay,
         createdAt,
         updatedAt,
+        recordingStreamId,
         storagePath,
         storageStatus
       ]);
@@ -606,6 +627,7 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'supports_relay') final bool supportsRelay,
       @JsonKey(name: 'created_at') final String? createdAt,
       @JsonKey(name: 'updated_at') final String? updatedAt,
+      @JsonKey(name: 'recording_stream_id') final String recordingStreamId,
       @JsonKey(name: 'storage_path') final String storagePath,
       @JsonKey(name: 'storage_status')
       final String storageStatus}) = _$CameraImpl;
@@ -669,6 +691,9 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'updated_at')
   String? get updatedAt;
+  @override
+  @JsonKey(name: 'recording_stream_id')
+  String get recordingStreamId;
   @override
   @JsonKey(name: 'storage_path')
   String get storagePath;

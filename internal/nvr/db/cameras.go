@@ -41,6 +41,7 @@ type Camera struct {
 	AITrackTimeout           int     `json:"ai_track_timeout"`
 	AIConfidence             float64 `json:"ai_confidence"`
 	AudioTranscode           bool    `json:"audio_transcode"`
+	RecordingStreamID        string  `json:"recording_stream_id,omitempty"`
 	StoragePath              string `json:"storage_path"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
@@ -93,7 +94,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -104,7 +105,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
-		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence,
+		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -126,7 +127,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -137,7 +138,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
-		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence,
+		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -158,7 +159,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -177,7 +178,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 			&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
-			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence,
+			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 		); err != nil {
 			return nil, err
 		}
@@ -286,6 +287,22 @@ func (d *DB) UpdateCameraAIConfig(id string, aiEnabled bool, streamID string, co
 		WHERE id = ?`,
 		aiEnabled, streamID, confidence, trackTimeout,
 		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateCameraRecordingStream updates the recording_stream_id for a camera.
+func (d *DB) UpdateCameraRecordingStream(id, streamID string) error {
+	res, err := d.Exec(`
+		UPDATE cameras SET recording_stream_id = ?, updated_at = ?
+		WHERE id = ?`,
+		streamID, time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), id)
 	if err != nil {
 		return err
 	}

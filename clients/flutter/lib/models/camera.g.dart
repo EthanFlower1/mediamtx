@@ -28,6 +28,7 @@ _$CameraImpl _$$CameraImplFromJson(Map<String, dynamic> json) => _$CameraImpl(
       supportsRelay: json['supports_relay'] as bool? ?? false,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
+      recordingStreamId: json['recording_stream_id'] as String? ?? '',
       storagePath: json['storage_path'] as String? ?? '',
       storageStatus: json['storage_status'] as String? ?? 'default',
     );
@@ -54,6 +55,7 @@ Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
       'supports_relay': instance.supportsRelay,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
+      'recording_stream_id': instance.recordingStreamId,
       'storage_path': instance.storagePath,
       'storage_status': instance.storageStatus,
     };

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/camera.dart';
+import '../../models/camera_stream.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recordings_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -36,6 +37,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   // ── AI controls ─────────────────────────────────────────────────────────
   bool _aiEnabled = false;
   double _confidence = 0.5;
+  String _aiStreamId = '';
+  double _trackTimeout = 5;
+  List<CameraStream> _streams = [];
 
   // ── Retention ───────────────────────────────────────────────────────────
   double _retentionDays = 30;
@@ -105,8 +109,21 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _subStreamCtrl.text = camera.subStreamUrl;
         _snapshotCtrl.text = camera.snapshotUri;
         _aiEnabled = camera.aiEnabled;
+        _confidence = camera.aiConfidence.clamp(0.2, 0.9);
+        _aiStreamId = camera.aiStreamId;
+        _trackTimeout = camera.aiTrackTimeout.toDouble().clamp(1, 30);
         _retentionDays = camera.retentionDays.toDouble().clamp(7, 90);
       });
+      // Fetch streams for the AI stream selector.
+      try {
+        final streamsRes = await api.get<dynamic>('/cameras/${widget.cameraId}/streams');
+        final streamsList = (streamsRes.data as List)
+            .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
+            .toList();
+        if (mounted) setState(() => _streams = streamsList);
+      } catch (_) {
+        // Streams may not exist yet — dropdown will show only "Default".
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -151,8 +168,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     try {
       await api.put('/cameras/${widget.cameraId}/ai', data: {
         'ai_enabled': _aiEnabled,
-        'sub_stream_url': _subStreamCtrl.text.trim(),
+        'stream_id': _aiStreamId,
         'confidence': _confidence,
+        'track_timeout': _trackTimeout.round(),
       });
       _fetchCamera();
       if (mounted) {
@@ -466,12 +484,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 children: [
                   HudToggle(
                     value: _aiEnabled,
-                    onChanged: _savingAi
-                        ? (_) {}
-                        : (v) {
-                            setState(() => _aiEnabled = v);
-                            _saveAi();
-                          },
+                    onChanged: (v) => setState(() => _aiEnabled = v),
                   ),
                   const SizedBox(width: 12),
                   const Text('Enable AI detection', style: NvrTypography.body),
@@ -486,6 +499,60 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                   max: 0.9,
                   onChanged: (v) => setState(() => _confidence = v),
                   valueFormatter: (v) => '${(v * 100).round()}%',
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: _aiStreamId,
+                  dropdownColor: NvrColors.bgTertiary,
+                  style: NvrTypography.monoData,
+                  decoration: InputDecoration(
+                    labelText: 'DETECTION STREAM',
+                    labelStyle: NvrTypography.monoLabel,
+                    filled: true,
+                    fillColor: NvrColors.bgTertiary,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(4),
+                      borderSide: const BorderSide(color: NvrColors.accent),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Default', style: NvrTypography.monoData),
+                    ),
+                    ..._streams.map((s) => DropdownMenuItem(
+                      value: s.id,
+                      child: Text(s.displayLabel, style: NvrTypography.monoData),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _aiStreamId = v ?? ''),
+                ),
+                const SizedBox(height: 12),
+                AnalogSlider(
+                  label: 'TRACK TIMEOUT',
+                  value: _trackTimeout,
+                  min: 1,
+                  max: 30,
+                  onChanged: (v) => setState(() => _trackTimeout = v),
+                  valueFormatter: (v) => '${v.round()}s',
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: HudButton(
+                    style: HudButtonStyle.tactical,
+                    onPressed: _savingAi ? null : _saveAi,
+                    label: _savingAi ? 'SAVING...' : 'SAVE AI SETTINGS',
+                  ),
                 ),
               ],
             ],

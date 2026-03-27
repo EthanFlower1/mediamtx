@@ -31,11 +31,13 @@ type MediaProfile struct {
 
 // DiscoveredDevice represents an ONVIF device found during a WS-Discovery scan.
 type DiscoveredDevice struct {
-	XAddr        string         `json:"xaddr"`
-	Manufacturer string         `json:"manufacturer"`
-	Model        string         `json:"model"`
-	Firmware     string         `json:"firmware"`
-	Profiles     []MediaProfile `json:"profiles,omitempty"`
+	XAddr            string         `json:"xaddr"`
+	Manufacturer     string         `json:"manufacturer"`
+	Model            string         `json:"model"`
+	Firmware         string         `json:"firmware"`
+	AuthRequired     bool           `json:"auth_required"`
+	ExistingCameraID string         `json:"existing_camera_id,omitempty"`
+	Profiles         []MediaProfile `json:"profiles,omitempty"`
 }
 
 // ScanStatus represents the current state of a discovery scan.
@@ -188,6 +190,7 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 		Xaddr: xaddr,
 	})
 	if err != nil {
+		dev.AuthRequired = true
 		return
 	}
 
@@ -210,6 +213,7 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 	// Fetch media profiles.
 	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, onvifDev, onvifmedia.GetProfiles{})
 	if err != nil {
+		dev.AuthRequired = true
 		return
 	}
 

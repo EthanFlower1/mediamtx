@@ -1442,8 +1442,11 @@ func (h *CameraHandler) EdgeImport(c *gin.Context) {
 
 // aiConfigRequest is the JSON body for updating AI configuration on a camera.
 type aiConfigRequest struct {
-	AIEnabled    bool   `json:"ai_enabled"`
-	SubStreamURL string `json:"sub_stream_url"`
+	AIEnabled    bool    `json:"ai_enabled"`
+	SubStreamURL string  `json:"sub_stream_url"`
+	StreamID     string  `json:"stream_id"`
+	Confidence   float64 `json:"confidence"`
+	TrackTimeout int     `json:"track_timeout"`
 }
 
 // UpdateAIConfig handles PUT /cameras/:id/ai — updates AI-specific configuration
@@ -1457,7 +1460,7 @@ func (h *CameraHandler) UpdateAIConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.DB.UpdateCameraAIConfig(id, req.AIEnabled, req.SubStreamURL); err != nil {
+	if err := h.DB.UpdateCameraAIConfig(id, req.AIEnabled, req.StreamID, req.Confidence, req.TrackTimeout); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
 			return

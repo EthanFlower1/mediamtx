@@ -349,4 +349,13 @@ FROM cameras
 WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 `,
 	},
+	// Migration 22: Add AI pipeline stream selection and track timeout.
+	{
+		version: 22,
+		sql: `
+        ALTER TABLE cameras ADD COLUMN ai_stream_id TEXT DEFAULT '';
+        ALTER TABLE cameras ADD COLUMN ai_track_timeout INTEGER DEFAULT 5;
+        ALTER TABLE cameras ADD COLUMN ai_confidence REAL DEFAULT 0.5;
+    `,
+	},
 }

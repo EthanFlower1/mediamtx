@@ -9,6 +9,8 @@ import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/segmented_control.dart';
+import 'camera_detail_sheet.dart';
+import 'discovery_card.dart';
 
 class AddCameraScreen extends ConsumerStatefulWidget {
   const AddCameraScreen({super.key});
@@ -166,37 +168,6 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
     }
   }
 
-  Future<void> _addDiscovered(Map<String, dynamic> cam) async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-
-    try {
-      await api.post('/cameras', data: {
-        'name': cam['name'] ?? cam['ip'] ?? 'Camera',
-        'rtsp_url': cam['rtsp_url'] ?? '',
-        'onvif_endpoint': cam['onvif_endpoint'] ?? '',
-      });
-      ref.invalidate(camerasProvider);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.success,
-            content: Text('Camera added successfully'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: NvrColors.danger,
-            content: Text('Failed to add camera: $e'),
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -226,7 +197,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
                     child: CircularProgressIndicator(
                       strokeWidth: 3,
                       color: NvrColors.accent,
-                      backgroundColor: NvrColors.accent.withOpacity(0.12),
+                      backgroundColor: NvrColors.accent.withValues(alpha: 0.12),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -266,6 +237,16 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
 
           const SizedBox(height: 16),
 
+          // ── Results count header ─────────────────────────────────
+          if (_results.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '${_results.length} DEVICE${_results.length == 1 ? '' : 'S'} FOUND',
+                style: NvrTypography.monoLabel,
+              ),
+            ),
+
           // ── Results ──────────────────────────────────────────────
           Expanded(
             child: _results.isEmpty
@@ -282,42 +263,10 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
                     itemCount: _results.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
-                      final cam = _results[index];
-                      final name = cam['name'] as String? ?? cam['ip'] as String? ?? 'Unknown';
-                      final ip = cam['ip'] as String? ?? '';
-                      final model = cam['model'] as String? ?? '';
-
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: NvrColors.bgSecondary,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: NvrColors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.videocam, color: NvrColors.accent, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(name, style: NvrTypography.cameraName),
-                                  if (ip.isNotEmpty)
-                                    Text(
-                                      model.isNotEmpty ? '$ip · $model' : ip,
-                                      style: NvrTypography.monoLabel,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            HudButton(
-                              label: 'ADD',
-                              style: HudButtonStyle.tactical,
-                              onPressed: () => _addDiscovered(cam),
-                            ),
-                          ],
-                        ),
+                      final device = _results[index];
+                      return DiscoveryCard(
+                        device: device,
+                        onTap: () => CameraDetailSheet.show(context, device),
                       );
                     },
                   ),

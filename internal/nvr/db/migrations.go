@@ -306,4 +306,47 @@ CREATE INDEX idx_pending_syncs_camera ON pending_syncs(camera_id);
         );
     `,
 	},
+	{
+		version: 21,
+		sql: `
+CREATE TABLE camera_streams (
+    id TEXT PRIMARY KEY,
+    camera_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    rtsp_url TEXT NOT NULL,
+    profile_token TEXT NOT NULL DEFAULT '',
+    video_codec TEXT NOT NULL DEFAULT '',
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    roles TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_camera_streams_camera ON camera_streams(camera_id);
+
+ALTER TABLE recording_rules ADD COLUMN stream_id TEXT NOT NULL DEFAULT '';
+
+INSERT INTO camera_streams (id, camera_id, name, rtsp_url, profile_token, roles)
+SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+    id,
+    'Main Stream',
+    rtsp_url,
+    COALESCE(onvif_profile_token, ''),
+    CASE WHEN sub_stream_url IS NOT NULL AND sub_stream_url != '' THEN 'live_view' ELSE 'live_view,recording,ai_detection,mobile' END
+FROM cameras
+WHERE rtsp_url IS NOT NULL AND rtsp_url != '';
+
+INSERT INTO camera_streams (id, camera_id, name, rtsp_url, profile_token, roles)
+SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+    id,
+    'Sub Stream',
+    sub_stream_url,
+    '',
+    'recording,ai_detection,mobile'
+FROM cameras
+WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
+`,
+	},
 }

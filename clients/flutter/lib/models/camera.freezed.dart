@@ -33,6 +33,12 @@ mixin _$Camera {
   bool get ptzCapable => throw _privateConstructorUsedError;
   @JsonKey(name: 'ai_enabled')
   bool get aiEnabled => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_stream_id')
+  String get aiStreamId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_confidence')
+  double get aiConfidence => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_track_timeout')
+  int get aiTrackTimeout => throw _privateConstructorUsedError;
   @JsonKey(name: 'sub_stream_url')
   String get subStreamUrl => throw _privateConstructorUsedError;
   @JsonKey(name: 'retention_days')
@@ -79,6 +85,9 @@ abstract class $CameraCopyWith<$Res> {
       String status,
       @JsonKey(name: 'ptz_capable') bool ptzCapable,
       @JsonKey(name: 'ai_enabled') bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') String aiStreamId,
+      @JsonKey(name: 'ai_confidence') double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
@@ -115,6 +124,9 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? status = null,
     Object? ptzCapable = null,
     Object? aiEnabled = null,
+    Object? aiStreamId = null,
+    Object? aiConfidence = null,
+    Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
     Object? motionTimeoutSeconds = null,
@@ -160,6 +172,18 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.aiEnabled
           : aiEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      aiStreamId: null == aiStreamId
+          ? _value.aiStreamId
+          : aiStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
+      aiConfidence: null == aiConfidence
+          ? _value.aiConfidence
+          : aiConfidence // ignore: cast_nullable_to_non_nullable
+              as double,
+      aiTrackTimeout: null == aiTrackTimeout
+          ? _value.aiTrackTimeout
+          : aiTrackTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
       subStreamUrl: null == subStreamUrl
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
@@ -224,6 +248,9 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       String status,
       @JsonKey(name: 'ptz_capable') bool ptzCapable,
       @JsonKey(name: 'ai_enabled') bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') String aiStreamId,
+      @JsonKey(name: 'ai_confidence') double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
@@ -258,6 +285,9 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? status = null,
     Object? ptzCapable = null,
     Object? aiEnabled = null,
+    Object? aiStreamId = null,
+    Object? aiConfidence = null,
+    Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
     Object? motionTimeoutSeconds = null,
@@ -303,6 +333,18 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.aiEnabled
           : aiEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      aiStreamId: null == aiStreamId
+          ? _value.aiStreamId
+          : aiStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
+      aiConfidence: null == aiConfidence
+          ? _value.aiConfidence
+          : aiConfidence // ignore: cast_nullable_to_non_nullable
+              as double,
+      aiTrackTimeout: null == aiTrackTimeout
+          ? _value.aiTrackTimeout
+          : aiTrackTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
       subStreamUrl: null == subStreamUrl
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
@@ -363,6 +405,9 @@ class _$CameraImpl implements _Camera {
       this.status = 'disconnected',
       @JsonKey(name: 'ptz_capable') this.ptzCapable = false,
       @JsonKey(name: 'ai_enabled') this.aiEnabled = false,
+      @JsonKey(name: 'ai_stream_id') this.aiStreamId = '',
+      @JsonKey(name: 'ai_confidence') this.aiConfidence = 0.5,
+      @JsonKey(name: 'ai_track_timeout') this.aiTrackTimeout = 5,
       @JsonKey(name: 'sub_stream_url') this.subStreamUrl = '',
       @JsonKey(name: 'retention_days') this.retentionDays = 30,
       @JsonKey(name: 'motion_timeout_seconds') this.motionTimeoutSeconds = 8,
@@ -401,6 +446,15 @@ class _$CameraImpl implements _Camera {
   @JsonKey(name: 'ai_enabled')
   final bool aiEnabled;
   @override
+  @JsonKey(name: 'ai_stream_id')
+  final String aiStreamId;
+  @override
+  @JsonKey(name: 'ai_confidence')
+  final double aiConfidence;
+  @override
+  @JsonKey(name: 'ai_track_timeout')
+  final int aiTrackTimeout;
+  @override
   @JsonKey(name: 'sub_stream_url')
   final String subStreamUrl;
   @override
@@ -436,7 +490,7 @@ class _$CameraImpl implements _Camera {
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus)';
   }
 
   @override
@@ -456,6 +510,12 @@ class _$CameraImpl implements _Camera {
                 other.ptzCapable == ptzCapable) &&
             (identical(other.aiEnabled, aiEnabled) ||
                 other.aiEnabled == aiEnabled) &&
+            (identical(other.aiStreamId, aiStreamId) ||
+                other.aiStreamId == aiStreamId) &&
+            (identical(other.aiConfidence, aiConfidence) ||
+                other.aiConfidence == aiConfidence) &&
+            (identical(other.aiTrackTimeout, aiTrackTimeout) ||
+                other.aiTrackTimeout == aiTrackTimeout) &&
             (identical(other.subStreamUrl, subStreamUrl) ||
                 other.subStreamUrl == subStreamUrl) &&
             (identical(other.retentionDays, retentionDays) ||
@@ -492,6 +552,9 @@ class _$CameraImpl implements _Camera {
         status,
         ptzCapable,
         aiEnabled,
+        aiStreamId,
+        aiConfidence,
+        aiTrackTimeout,
         subStreamUrl,
         retentionDays,
         motionTimeoutSeconds,
@@ -531,6 +594,9 @@ abstract class _Camera implements Camera {
       final String status,
       @JsonKey(name: 'ptz_capable') final bool ptzCapable,
       @JsonKey(name: 'ai_enabled') final bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') final String aiStreamId,
+      @JsonKey(name: 'ai_confidence') final double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') final int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') final String subStreamUrl,
       @JsonKey(name: 'retention_days') final int retentionDays,
       @JsonKey(name: 'motion_timeout_seconds') final int motionTimeoutSeconds,
@@ -567,6 +633,15 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'ai_enabled')
   bool get aiEnabled;
+  @override
+  @JsonKey(name: 'ai_stream_id')
+  String get aiStreamId;
+  @override
+  @JsonKey(name: 'ai_confidence')
+  double get aiConfidence;
+  @override
+  @JsonKey(name: 'ai_track_timeout')
+  int get aiTrackTimeout;
   @override
   @JsonKey(name: 'sub_stream_url')
   String get subStreamUrl;

@@ -515,7 +515,8 @@ func (h *CameraHandler) DiscoverStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-// DiscoverResults returns the devices found by the most recent scan.
+// DiscoverResults returns the devices found by the most recent scan,
+// annotated with ExistingCameraID for devices already added as cameras.
 func (h *CameraHandler) DiscoverResults(c *gin.Context) {
 	if h.Discovery == nil {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "ONVIF discovery not available"})
@@ -523,6 +524,22 @@ func (h *CameraHandler) DiscoverResults(c *gin.Context) {
 	}
 
 	results := h.Discovery.GetResults()
+
+	cameras, err := h.DB.ListCameras()
+	if err == nil {
+		endpointToID := make(map[string]string)
+		for _, cam := range cameras {
+			if cam.ONVIFEndpoint != "" {
+				endpointToID[cam.ONVIFEndpoint] = cam.ID
+			}
+		}
+		for i := range results {
+			if id, ok := endpointToID[results[i].XAddr]; ok {
+				results[i].ExistingCameraID = id
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, results)
 }
 

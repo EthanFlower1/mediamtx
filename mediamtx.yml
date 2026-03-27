@@ -804,6 +804,7 @@ paths:
   # Settings under path "all_others" are applied to all paths that
   # do not match another entry.
   all_others:
-  nvr/ad410:
-    record: true
+  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
+    record: false
+    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
     source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif

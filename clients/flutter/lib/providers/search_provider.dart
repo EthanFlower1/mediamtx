@@ -62,10 +62,13 @@ class SearchNotifier extends StateNotifier<SearchState> {
         return;
       }
 
-      final res = await api.get<dynamic>('/search', queryParameters: {
-        'q': query.trim(),
-        'limit': 20,
-      });
+      final res = await api.get<dynamic>('/search',
+        queryParameters: {
+          'q': query.trim(),
+          'limit': 20,
+        },
+        receiveTimeout: const Duration(seconds: 60),
+      );
 
       final data = res.data;
       List<dynamic> items = [];

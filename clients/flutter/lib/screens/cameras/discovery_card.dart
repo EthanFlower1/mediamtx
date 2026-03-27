@@ -113,7 +113,7 @@ class DiscoveryCard extends StatelessWidget {
         color: NvrColors.bgSecondary,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          onTap: alreadyAdded ? null : onTap,
+          onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

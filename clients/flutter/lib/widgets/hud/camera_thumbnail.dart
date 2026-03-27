@@ -38,8 +38,9 @@ class CameraThumbnail extends ConsumerWidget {
             final token = snapshot.data;
             if (token == null) return _placeholder();
 
+            final now = DateTime.now().toUtc().toIso8601String();
             final url =
-                '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&token=$token&t=${DateTime.now().millisecondsSinceEpoch ~/ 30000}';
+                '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&time=$now&token=$token';
 
             return Image.network(
               url,

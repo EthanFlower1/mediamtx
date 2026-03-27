@@ -220,7 +220,9 @@ func saveSnapshot(r io.Reader, outputDir, cameraID string) (string, error) {
 		return "", fmt.Errorf("write thumbnail: %w", copyErr)
 	}
 
-	return outputPath, nil
+	// Return a web-friendly path (e.g. "/thumbnails/event_*.jpg") so clients
+	// can use it directly as a URL path without extra manipulation.
+	return "/thumbnails/" + filename, nil
 }
 
 // buildDigestAuth constructs an HTTP Digest Authorization header value from the

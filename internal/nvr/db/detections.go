@@ -144,7 +144,7 @@ func (d *DB) ListDetectionsWithEvents(cameraID string, start, end time.Time) ([]
 		args = append(args, cameraID)
 	}
 
-	query += ` ORDER BY d.frame_time DESC`
+	query += ` ORDER BY d.frame_time DESC LIMIT 500`
 
 	rows, err := d.Query(query, args...)
 	if err != nil {

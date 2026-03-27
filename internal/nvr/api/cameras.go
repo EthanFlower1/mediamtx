@@ -130,6 +130,7 @@ type cameraRequest struct {
 		VideoCodec   string `json:"video_codec"`
 		Width        int    `json:"width"`
 		Height       int    `json:"height"`
+		Roles        string `json:"roles"`
 	} `json:"profiles"`
 }
 
@@ -312,16 +313,17 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	// Auto-create stream records from the provided profiles.
 	if len(req.Profiles) > 0 {
 		for i, p := range req.Profiles {
-			var roles string
-			switch {
-			case len(req.Profiles) == 1:
-				roles = "live_view,recording,ai_detection,mobile"
-			case i == 0:
-				roles = "live_view"
-			case i == len(req.Profiles)-1:
-				roles = "recording,ai_detection,mobile"
-			default:
-				roles = ""
+			// Use client-provided roles if set, otherwise auto-assign defaults.
+			roles := p.Roles
+			if roles == "" {
+				switch {
+				case len(req.Profiles) == 1:
+					roles = "live_view,recording,ai_detection,mobile"
+				case i == 0:
+					roles = "live_view"
+				case i == len(req.Profiles)-1:
+					roles = "recording,ai_detection,mobile"
+				}
 			}
 			stream := &db.CameraStream{
 				CameraID:     cam.ID,
@@ -337,6 +339,13 @@ func (h *CameraHandler) Create(c *gin.Context) {
 				nvrLogWarn("cameras", fmt.Sprintf("failed to create stream for camera %s: %v", cam.ID, err))
 			}
 		}
+	}
+
+	// Validate RTSP URL before writing to YAML.
+	if cam.RTSPURL == "" || !strings.HasPrefix(cam.RTSPURL, "rtsp://") {
+		_ = h.DB.DeleteCamera(cam.ID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rtsp_url must start with rtsp://"})
+		return
 	}
 
 	// Write the path to YAML config.

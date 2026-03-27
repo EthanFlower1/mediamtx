@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/search_result.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 
-class SearchResultCard extends StatelessWidget {
+class SearchResultCard extends ConsumerWidget {
   final SearchResult result;
   final String? thumbnailBaseUrl;
   final VoidCallback? onTap;
@@ -35,7 +37,7 @@ class SearchResultCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final confidencePct = (result.confidence * 100).round();
 
     return GestureDetector(
@@ -56,9 +58,10 @@ class SearchResultCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _ThumbnailWidget(
-                    thumbnailPath: result.thumbnailPath,
-                    baseUrl: thumbnailBaseUrl,
+                  _VodThumbnail(
+                    serverUrl: thumbnailBaseUrl,
+                    cameraId: result.cameraId,
+                    frameTime: result.frameTime,
                   ),
                   // Confidence badge — top right
                   Positioned(
@@ -131,23 +134,47 @@ class SearchResultCard extends StatelessWidget {
   }
 }
 
-class _ThumbnailWidget extends StatelessWidget {
-  final String? thumbnailPath;
-  final String? baseUrl;
+/// Fetches a thumbnail on demand from the VOD endpoint using the detection's
+/// camera ID and frame time. Passes JWT token for auth.
+class _VodThumbnail extends ConsumerWidget {
+  final String? serverUrl;
+  final String cameraId;
+  final String frameTime;
 
-  const _ThumbnailWidget({this.thumbnailPath, this.baseUrl});
+  const _VodThumbnail({
+    required this.serverUrl,
+    required this.cameraId,
+    required this.frameTime,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    if (thumbnailPath != null && baseUrl != null) {
-      final url = '$baseUrl$thumbnailPath';
-      return Image.network(
-        url,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (serverUrl == null || serverUrl!.isEmpty || frameTime.isEmpty) {
+      return _placeholder();
     }
-    return _placeholder();
+
+    final authService = ref.watch(authServiceProvider);
+
+    return FutureBuilder<String?>(
+      future: authService.getAccessToken(),
+      builder: (context, snapshot) {
+        final token = snapshot.data;
+        if (token == null) return _placeholder();
+
+        final url =
+            '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&time=$frameTime&token=$token';
+
+        return Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder(),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _placeholder();
+          },
+        );
+      },
+    );
   }
 
   Widget _placeholder() {

@@ -1,10 +1,15 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 )
@@ -165,5 +170,47 @@ func (b *EventBroadcaster) PublishRecordingStopped(cameraName string) {
 		Type:    "recording_stopped",
 		Camera:  cameraName,
 		Message: fmt.Sprintf("Recording stopped on %s", cameraName),
+	})
+}
+
+// StreamDetections serves an SSE (Server-Sent Events) stream of detection_frame
+// events filtered to a single camera. The connection stays open until the client
+// disconnects. Each event is a JSON-encoded line prefixed with "data: ".
+//
+// GET /cameras/:id/detections/stream?camera_name=X
+func (b *EventBroadcaster) StreamDetections(c *gin.Context) {
+	cameraName := c.Query("camera_name")
+	if cameraName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_name is required"})
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // disable nginx buffering
+
+	ch := b.Subscribe()
+	defer b.Unsubscribe(ch)
+
+	ctx := c.Request.Context()
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		case event, ok := <-ch:
+			if !ok {
+				return false
+			}
+			if event.Type != "detection_frame" || event.Camera != cameraName {
+				return true // skip non-matching events
+			}
+			data, err := json.Marshal(event)
+			if err != nil {
+				return true
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			return true
+		}
 	})
 }

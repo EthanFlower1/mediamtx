@@ -312,18 +312,32 @@ func (h *HLSHandler) ServeThumbnail(c *gin.Context) {
 	timeStr := c.Query("time")
 	t, err := time.Parse(time.RFC3339, timeStr)
 	if err != nil {
+		t, err = time.Parse(time.RFC3339Nano, timeStr)
+	}
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid time, expected RFC3339"})
 		return
 	}
 
 	// Find the recording that contains this timestamp.
+	// Try exact match first, then widen to find the nearest recording.
 	recs, err := h.DB.QueryRecordings(cameraID, t.Add(-1*time.Second), t.Add(1*time.Second))
+	if (err != nil || len(recs) == 0) {
+		// Fall back: find the most recent recording before this time.
+		recs, err = h.DB.QueryRecordings(cameraID, t.Add(-24*time.Hour), t)
+	}
 	if err != nil || len(recs) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no recording at this time"})
 		return
 	}
 
-	rec := recs[0]
+	// Use the last (most recent) recording.
+	rec := recs[len(recs)-1]
+	// Clamp the requested time to the recording's range.
+	recEnd, _ := time.Parse(time.RFC3339Nano, rec.EndTime)
+	if t.After(recEnd) {
+		t = recEnd.Add(-1 * time.Second)
+	}
 
 	// Use ffmpeg to extract a single frame.
 	startTime, _ := time.Parse("2006-01-02T15:04:05.000Z", rec.StartTime)

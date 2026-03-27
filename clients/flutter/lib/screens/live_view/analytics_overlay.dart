@@ -32,7 +32,9 @@ class AnalyticsOverlay extends ConsumerStatefulWidget {
 class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
   @override
   Widget build(BuildContext context) {
-    final frameAsync = ref.watch(detectionStreamProvider(widget.cameraName));
+    final frameAsync = ref.watch(detectionStreamProvider(
+      (cameraId: widget.cameraId, cameraName: widget.cameraName),
+    ));
 
     final detections = frameAsync.maybeWhen(
       data: (frame) => frame.detections,

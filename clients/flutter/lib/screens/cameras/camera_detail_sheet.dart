@@ -20,7 +20,8 @@ String _ipFromXaddr(String xaddr) {
 /// Injects [username] and [password] into an RTSP URL if they are non-empty.
 /// e.g. rtsp://192.168.1.10/stream → rtsp://admin:pass@192.168.1.10/stream
 String _injectCredentials(String rtsp, String user, String pass) {
-  if (user.isEmpty && pass.isEmpty) return rtsp;
+  if (rtsp.isEmpty || (user.isEmpty && pass.isEmpty)) return rtsp;
+  if (!rtsp.startsWith('rtsp://')) return rtsp;
   try {
     final uri = Uri.parse(rtsp);
     return uri
@@ -133,14 +134,19 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  final _rtspCtrl = TextEditingController();
 
   bool _probing = false;
+  bool _probed = false;
   String? _probeError;
   List<Map<String, dynamic>> _profiles = [];
   Map<String, dynamic>? _capabilities;
-  int? _selectedProfileIndex;
+  // Per-stream role assignments: index → set of roles
+  final Map<int, Set<String>> _streamRoles = {};
   bool _adding = false;
   bool _obscurePass = true;
+
+  static const _allRoles = ['live_view', 'recording', 'mobile', 'ai_detection'];
 
   Map<String, dynamic> get _device => widget.device;
 
@@ -169,6 +175,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
     _userCtrl.dispose();
     _passCtrl.dispose();
     _nameCtrl.dispose();
+    _rtspCtrl.dispose();
     super.dispose();
   }
 
@@ -183,7 +190,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
       _probeError = null;
       _profiles = [];
       _capabilities = null;
-      _selectedProfileIndex = null;
+      _streamRoles.clear();
     });
 
     try {
@@ -195,10 +202,23 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
       final data = res.data as Map<String, dynamic>? ?? {};
       final profiles = (data['profiles'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       final caps = data['capabilities'] as Map<String, dynamic>?;
+      // Auto-assign default roles: highest res → live_view, lowest → recording+ai+mobile
+      _streamRoles.clear();
+      for (int i = 0; i < profiles.length; i++) {
+        if (profiles.length == 1) {
+          _streamRoles[i] = {'live_view', 'recording', 'ai_detection', 'mobile'};
+        } else if (i == 0) {
+          _streamRoles[i] = {'live_view'};
+        } else if (i == profiles.length - 1) {
+          _streamRoles[i] = {'recording', 'ai_detection', 'mobile'};
+        } else {
+          _streamRoles[i] = {};
+        }
+      }
       setState(() {
         _profiles = profiles;
         _capabilities = caps;
-        if (profiles.isNotEmpty) _selectedProfileIndex = 0;
+        _probed = true;
       });
     } catch (e) {
       setState(() => _probeError = e.toString());
@@ -210,17 +230,54 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
   // ── Add camera ────────────────────────────────────────────────────────────
 
   Future<void> _addCamera() async {
-    if (_selectedProfileIndex == null) return;
     final api = ref.read(apiClientProvider);
     if (api == null) return;
 
-    final profile = _profiles[_selectedProfileIndex!];
-    final rawRtsp = profile['rtsp_uri'] as String? ?? profile['rtsp_url'] as String? ?? '';
-    final rtspUrl = _injectCredentials(
-      rawRtsp,
-      _userCtrl.text.trim(),
-      _passCtrl.text,
-    );
+    final user = _userCtrl.text.trim();
+    final pass = _passCtrl.text;
+
+    // Find the primary RTSP URL (first stream with live_view role, or first stream, or manual input).
+    String rtspUrl = '';
+    String profileToken = '';
+
+    if (_profiles.isNotEmpty) {
+      // Find live_view stream for primary URL
+      for (int i = 0; i < _profiles.length; i++) {
+        if (_streamRoles[i]?.contains('live_view') ?? false) {
+          final rawRtsp = _profiles[i]['stream_uri'] as String? ?? _profiles[i]['rtsp_url'] as String? ?? '';
+          rtspUrl = _injectCredentials(rawRtsp, user, pass);
+          profileToken = _profiles[i]['token'] as String? ?? '';
+          break;
+        }
+      }
+      // Fall back to first stream if no live_view assigned
+      if (rtspUrl.isEmpty) {
+        final rawRtsp = _profiles[0]['stream_uri'] as String? ?? _profiles[0]['rtsp_url'] as String? ?? '';
+        rtspUrl = _injectCredentials(rawRtsp, user, pass);
+        profileToken = _profiles[0]['token'] as String? ?? '';
+      }
+    } else {
+      rtspUrl = _injectCredentials(_rtspCtrl.text.trim(), user, pass);
+    }
+
+    if (rtspUrl.isEmpty || !rtspUrl.startsWith('rtsp://')) return;
+
+    // Build profiles array with roles for the backend to create streams
+    final profilesData = <Map<String, dynamic>>[];
+    for (int i = 0; i < _profiles.length; i++) {
+      final p = _profiles[i];
+      final roles = _streamRoles[i] ?? <String>{};
+      final rawRtsp = p['stream_uri'] as String? ?? p['rtsp_url'] as String? ?? '';
+      profilesData.add({
+        'name': p['name'] as String? ?? 'Stream ${i + 1}',
+        'rtsp_url': _injectCredentials(rawRtsp, user, pass),
+        'profile_token': p['token'] as String? ?? '',
+        'video_codec': p['video_codec'] as String? ?? p['codec'] as String? ?? '',
+        'width': p['width'] as int? ?? 0,
+        'height': p['height'] as int? ?? 0,
+        'roles': roles.join(','),
+      });
+    }
 
     setState(() => _adding = true);
     try {
@@ -228,9 +285,10 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
         'name': _nameCtrl.text.trim(),
         'rtsp_url': rtspUrl,
         'onvif_endpoint': _device['xaddr'] ?? '',
-        'onvif_username': _userCtrl.text.trim(),
-        'onvif_password': _passCtrl.text,
-        'onvif_profile_token': profile['token'] ?? profile['name'] ?? '',
+        'onvif_username': user,
+        'onvif_password': pass,
+        'onvif_profile_token': profileToken,
+        if (profilesData.isNotEmpty) 'profiles': profilesData,
       });
       ref.invalidate(camerasProvider);
       if (mounted) {
@@ -317,7 +375,9 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
       statusBadge = const _StatusPill(label: 'OPEN', color: NvrColors.success);
     }
 
-    final canAdd = _selectedProfileIndex != null && !_adding;
+    final hasStreams = _profiles.isNotEmpty ||
+        _rtspCtrl.text.trim().startsWith('rtsp://');
+    final canAdd = hasStreams && !_adding;
 
     return Container(
       decoration: const BoxDecoration(
@@ -448,99 +508,139 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
             ),
           ],
 
-          // ── Stream profiles ──────────────────────────────────────────────
+          // ── Stream profiles with role toggles ──────────────────────────
           if (_profiles.isNotEmpty) ...[
             const SizedBox(height: 20),
             const Divider(color: NvrColors.border, height: 1),
             const SizedBox(height: 20),
             _sectionLabel('STREAMS'),
+            Text(
+              'Tap roles to assign each stream\'s purpose.',
+              style: NvrTypography.body.copyWith(fontSize: 11),
+            ),
+            const SizedBox(height: 10),
             ..._profiles.asMap().entries.map((entry) {
               final idx = entry.key;
               final profile = entry.value;
-              final isSelected = _selectedProfileIndex == idx;
+              final roles = _streamRoles[idx] ?? <String>{};
 
               final name = profile['name'] as String? ?? 'Stream ${idx + 1}';
-              final token = profile['token'] as String? ?? '';
-              final resolution = profile['resolution'] as String? ?? '';
-              final codec = profile['codec'] as String? ?? profile['encoding'] as String? ?? '';
-              final rtsp = profile['rtsp_uri'] as String? ?? profile['rtsp_url'] as String? ?? '';
+              final w = profile['width'] as int? ?? 0;
+              final h = profile['height'] as int? ?? 0;
+              final codec = profile['video_codec'] as String? ?? profile['codec'] as String? ?? '';
+              final rtsp = profile['stream_uri'] as String? ?? profile['rtsp_url'] as String? ?? '';
+              final res = (w > 0 && h > 0) ? '${w}×$h' : '';
 
               final detailParts = <String>[
-                if (resolution.isNotEmpty) resolution,
+                if (res.isNotEmpty) res,
                 if (codec.isNotEmpty) codec,
-                if (token.isNotEmpty) token,
               ];
 
-              return GestureDetector(
-                onTap: () => setState(() => _selectedProfileIndex = idx),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: NvrColors.bgTertiary,
-                    border: Border.all(
-                      color: isSelected ? NvrColors.accent : NvrColors.border,
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Radio indicator
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? NvrColors.accent : NvrColors.textMuted,
-                              width: 1.5,
-                            ),
-                            color: isSelected ? NvrColors.accent : Colors.transparent,
-                          ),
-                          child: isSelected
-                              ? const Icon(Icons.check, size: 8, color: NvrColors.bgPrimary)
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(name, style: NvrTypography.cameraName),
-                            if (detailParts.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                detailParts.join(' · '),
-                                style: NvrTypography.monoLabel.copyWith(
-                                  color: NvrColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                            if (rtsp.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                rtsp,
-                                style: NvrTypography.monoLabel.copyWith(
-                                  color: NvrColors.textMuted,
-                                  fontSize: 8,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: NvrColors.bgTertiary,
+                  border: Border.all(color: NvrColors.border),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: NvrTypography.cameraName),
+                    if (detailParts.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        detailParts.join(' · '),
+                        style: NvrTypography.monoLabel.copyWith(
+                          color: NvrColors.textSecondary,
                         ),
                       ),
                     ],
-                  ),
+                    if (rtsp.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        rtsp,
+                        style: NvrTypography.monoLabel.copyWith(
+                          color: NvrColors.textMuted,
+                          fontSize: 8,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    // Role toggle chips
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _allRoles.map((role) {
+                        final active = roles.contains(role);
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              final set = _streamRoles.putIfAbsent(idx, () => {});
+                              if (active) {
+                                set.remove(role);
+                              } else {
+                                set.add(role);
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? NvrColors.accent.withValues(alpha: 0.15)
+                                  : NvrColors.bgPrimary,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: active
+                                    ? NvrColors.accent
+                                    : NvrColors.border,
+                              ),
+                            ),
+                            child: Text(
+                              role.replaceAll('_', ' ').toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: 'JetBrainsMono',
+                                fontSize: 8,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                                color: active ? NvrColors.accent : NvrColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ),
               );
             }),
+          ],
+
+          // ── Manual RTSP URL (when probe found no streams) ────────────────
+          if (_probed && _profiles.isEmpty) ...[
+            const SizedBox(height: 20),
+            const Divider(color: NvrColors.border, height: 1),
+            const SizedBox(height: 20),
+            _sectionLabel('RTSP URL'),
+            Text(
+              'No streams could be auto-discovered. Enter the RTSP URL manually.',
+              style: NvrTypography.body.copyWith(fontSize: 11),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _rtspCtrl,
+              style: const TextStyle(
+                color: NvrColors.textPrimary,
+                fontFamily: 'JetBrainsMono',
+                fontSize: 12,
+              ),
+              decoration: _inputDecoration(hint: 'rtsp://192.168.1.111:554/stream'),
+              onChanged: (_) => setState(() {}),
+            ),
           ],
 
           // ── Capabilities ─────────────────────────────────────────────────
@@ -591,16 +691,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
             icon: Icons.add,
             onPressed: canAdd ? _addCamera : null,
           ),
-          if (_selectedProfileIndex == null && _profiles.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Select a stream above to continue.',
-                style: NvrTypography.monoLabel.copyWith(color: NvrColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          if (_profiles.isEmpty)
+          if (_profiles.isEmpty && !_probed)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(

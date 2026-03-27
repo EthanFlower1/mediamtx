@@ -51,6 +51,16 @@ func Search(embedder *Embedder, database *db.DB, query string, cameraID string, 
 	queryLower := strings.ToLower(strings.TrimSpace(query))
 	queryWords := strings.Fields(queryLower)
 
+	// Encode the query text once (expensive ONNX inference) and reuse for all detections.
+	var textEmb []float32
+	if embedder != nil {
+		var err error
+		textEmb, err = embedder.EncodeText(query)
+		if err != nil {
+			textEmb = nil
+		}
+	}
+
 	// Score each detection.
 	type scored struct {
 		det   *db.DetectionWithEvent
@@ -62,16 +72,18 @@ func Search(embedder *Embedder, database *db.DB, query string, cameraID string, 
 		score := classMatchScore(det.Class, queryWords)
 
 		// If embedder is available, try embedding-based similarity.
-		// Note: with separate CLIP models, visual embeddings are 768-dim and
-		// text embeddings are 512-dim. Cosine similarity only works when
-		// dimensions match. This will be resolved in a future version with
-		// unified projection models.
-		if embedder != nil && len(det.Embedding) > 0 {
+		// Visual embeddings are 768-dim; text embeddings are 512-dim.
+		// When dimensions differ, use the learned projection matrix to
+		// map visual embeddings into the text space before comparison.
+		if textEmb != nil && len(det.Embedding) > 0 {
 			visualEmb := bytesToFloat32Slice(det.Embedding)
 			if visualEmb != nil {
-				textEmb, err := embedder.EncodeText(query)
-				if err == nil && len(textEmb) == len(visualEmb) {
-					sim := CosineSimilarity(textEmb, visualEmb)
+				compareEmb := visualEmb
+				if len(compareEmb) != len(textEmb) {
+					compareEmb = embedder.ProjectVisual(visualEmb)
+				}
+				if compareEmb != nil && len(compareEmb) == len(textEmb) {
+					sim := CosineSimilarity(textEmb, compareEmb)
 					// Combine class match and embedding similarity.
 					// Weight embedding similarity higher when available.
 					score = 0.3*score + 0.7*sim

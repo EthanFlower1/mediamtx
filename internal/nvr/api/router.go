@@ -191,6 +191,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Real-time detections for live overlay.
 	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
+	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)
 
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)

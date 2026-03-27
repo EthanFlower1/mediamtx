@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -54,6 +55,8 @@ type NVR struct {
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
+
+	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -120,6 +123,10 @@ func (n *NVR) Initialize() error {
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
 	n.startNotificationServer()
 
+	// Monitor camera online/offline state transitions and publish events.
+	n.cameraStatusDone = make(chan struct{})
+	go n.runCameraStatusMonitor(n.cameraStatusDone)
+
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
 		return fmt.Errorf("load or generate keys: %w", err)
@@ -174,6 +181,105 @@ func (n *NVR) Initialize() error {
 	n.startFragmentBackfill()
 
 	return nil
+}
+
+// runCameraStatusMonitor polls the MediaMTX /v3/paths/list endpoint every 5
+// seconds and publishes camera_online/camera_offline events on transitions.
+func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Map of MediaMTX path name → ready state from the previous poll.
+	prevReady := make(map[string]bool)
+	firstPoll := true
+
+	addr := n.APIAddress
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	listURL := fmt.Sprintf("http://%s/v3/paths/list", addr)
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			resp, err := client.Get(listURL)
+			if err != nil {
+				// MediaMTX not yet ready — skip this tick.
+				continue
+			}
+
+			var result struct {
+				Items []struct {
+					Name  string `json:"name"`
+					Ready bool   `json:"ready"`
+				} `json:"items"`
+			}
+			decodeErr := func() error {
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("status %d", resp.StatusCode)
+				}
+				return json.NewDecoder(resp.Body).Decode(&result)
+			}()
+			if decodeErr != nil {
+				continue
+			}
+
+			// Build a name → ready map for this tick.
+			currReady := make(map[string]bool, len(result.Items))
+			for _, item := range result.Items {
+				currReady[item.Name] = item.Ready
+			}
+
+			if firstPoll {
+				// On the first successful poll, seed state without firing events.
+				prevReady = currReady
+				firstPoll = false
+				continue
+			}
+
+			// Detect transitions and look up camera names from the DB.
+			cameras, dbErr := n.database.ListCameras()
+			if dbErr != nil {
+				prevReady = currReady
+				continue
+			}
+
+			// Build a MediaMTX path → camera name index.
+			pathToName := make(map[string]string, len(cameras))
+			for _, cam := range cameras {
+				if cam.MediaMTXPath != "" {
+					pathToName[cam.MediaMTXPath] = cam.Name
+				}
+			}
+
+			for path, ready := range currReady {
+				wasReady, known := prevReady[path]
+				if !known {
+					wasReady = false
+				}
+				if ready == wasReady {
+					continue
+				}
+				cameraName, ok := pathToName[path]
+				if !ok {
+					continue // not a NVR-managed path
+				}
+				if ready {
+					n.events.PublishCameraOnline(cameraName)
+					log.Printf("[NVR] camera online: %s (%s)", cameraName, path)
+				} else {
+					n.events.PublishCameraOffline(cameraName)
+					log.Printf("[NVR] camera offline: %s (%s)", cameraName, path)
+				}
+			}
+
+			prevReady = currReady
+		}
+	}
 }
 
 // startNotificationServer starts a WebSocket server on port 9998.
@@ -300,6 +406,9 @@ func (n *NVR) Close() {
 		n.aiEmbedder.Close()
 	}
 
+	if n.cameraStatusDone != nil {
+		close(n.cameraStatusDone)
+	}
 	if n.wsServer != nil {
 		n.wsServer.Close()
 	}

@@ -85,6 +85,25 @@ type TrackedFrame struct {
 	Image image.Image
 }
 
+// DetectionFrameData holds per-detection bounding box data for a single frame,
+// used by PublishDetectionFrame to broadcast live overlay data to WebSocket clients.
+type DetectionFrameData struct {
+	Class      string
+	Confidence float32
+	TrackID    int
+	X, Y, W, H float32
+}
+
+// EventPublisher is the interface for publishing detection events to notification
+// subscribers. The pipeline calls PublishAIDetection when it detects an
+// important object class (person, vehicle, animal). It also calls
+// PublishDetectionFrame every frame that contains detections so that Flutter
+// analytics overlays can render live bounding boxes.
+type EventPublisher interface {
+	PublishAIDetection(cameraName, className string, confidence float32)
+	PublishDetectionFrame(camera string, detections []DetectionFrameData)
+}
+
 // PipelineConfig holds per-camera pipeline configuration.
 type PipelineConfig struct {
 	CameraID         string

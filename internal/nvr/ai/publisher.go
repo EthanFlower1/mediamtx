@@ -11,6 +11,14 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
+// importantClasses are COCO classes that should trigger notifications.
+var importantClasses = map[string]bool{
+	"person": true, "bicycle": true, "car": true, "motorcycle": true,
+	"bus": true, "truck": true, "boat": true,
+	"cat": true, "dog": true, "horse": true, "sheep": true, "cow": true,
+	"elephant": true, "bear": true, "zebra": true, "giraffe": true,
+}
+
 // Publisher handles all output from tracked frames: WebSocket broadcast,
 // database persistence, and CLIP embedding generation.
 type Publisher struct {

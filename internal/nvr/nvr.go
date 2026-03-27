@@ -2,6 +2,7 @@
 package nvr
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -49,9 +50,12 @@ type NVR struct {
 	callbackMgr *onvif.CallbackManager
 	wsServer    *http.Server // separate WebSocket server for notifications
 
+	ctx       context.Context
+	ctxCancel context.CancelFunc
+
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
-	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
+	aiPipelines     map[string]*ai.Pipeline // camera ID -> pipeline
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
@@ -63,6 +67,8 @@ type NVR struct {
 // creates the DB directory, opens the database, creates the YAML writer,
 // and loads or generates RSA keys.
 func (n *NVR) Initialize() error {
+	n.ctx, n.ctxCancel = context.WithCancel(context.Background())
+
 	if n.JWTSecret == "" {
 		secret := make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
@@ -133,7 +139,7 @@ func (n *NVR) Initialize() error {
 	}
 
 	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
-	n.aiPipelines = make(map[string]*ai.AIPipeline)
+	n.aiPipelines = make(map[string]*ai.Pipeline)
 	if err := ai.InitONNXRuntime(); err != nil {
 		log.Printf("AI: ONNX Runtime not available: %v", err)
 	} else {
@@ -319,18 +325,9 @@ func (n *NVR) startNotificationServer() {
 
 		conn.WriteJSON(map[string]string{"type": "connected"})
 
-		// Replay any active AI detection events so the client doesn't miss
-		// notifications that fired before it connected.
-		for _, p := range n.aiPipelines {
-			if p.HasActiveEvent() {
-				conn.WriteJSON(api.Event{
-					Type:    "ai_detection",
-					Camera:  p.CameraName(),
-					Message: fmt.Sprintf("Activity detected on %s", p.CameraName()),
-					Time:    time.Now().UTC().Format(time.RFC3339),
-				})
-			}
-		}
+		// Active-event replay removed: the new modular ai.Pipeline does not
+		// expose HasActiveEvent/CameraName. Clients will receive new events
+		// via the event broadcaster as they occur.
 
 		ch := n.events.Subscribe()
 		defer n.events.Unsubscribe(ch)
@@ -394,6 +391,11 @@ func (n *NVR) wsPort() string {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	// Cancel the NVR lifecycle context so all pipeline goroutines exit.
+	if n.ctxCancel != nil {
+		n.ctxCancel()
+	}
+
 	// Stop AI pipelines first so they don't write to the DB after it's closed.
 	for id, p := range n.aiPipelines {
 		p.Stop()
@@ -516,89 +518,124 @@ func (n *NVR) migrateMediaMTXPaths() {
 }
 
 // startAIPipelines starts AI detection pipelines for all cameras that have
-// ai_enabled set and a snapshot_uri configured. Each pipeline runs in its
-// own goroutine, capturing snapshots at 2 FPS and running YOLO detection.
+// ai_enabled set. Each pipeline decodes an RTSP stream and runs YOLO detection.
 func (n *NVR) startAIPipelines() {
 	if n.aiDetector == nil {
 		return
 	}
+	n.aiPipelines = make(map[string]*ai.Pipeline)
 
 	cameras, err := n.database.ListCameras()
 	if err != nil {
-		log.Printf("AI: failed to list cameras: %v", err)
+		log.Printf("ai: failed to list cameras: %v", err)
 		return
 	}
-
-	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
 	for _, cam := range cameras {
 		if !cam.AIEnabled {
 			continue
 		}
-		if cam.SnapshotURI == "" {
-			log.Printf("AI: camera %s (%s) has AI enabled but no snapshot URI, skipping", cam.Name, cam.ID)
-			continue
-		}
-
-		pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
-		n.aiPipelines[cam.ID] = pipeline
-
-		username := cam.ONVIFUsername
-		password := n.decryptPassword(encKey, cam.ONVIFPassword)
-		// Fall back to credentials embedded in the RTSP URL if ONVIF creds are empty.
-		if username == "" && cam.RTSPURL != "" {
-			if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
-				username = u.User.Username()
-				if p, ok := u.User.Password(); ok {
-					password = p
-				}
-			}
-		}
-		go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
-		log.Printf("AI: started pipeline for camera %s (%s) at 2 FPS", cam.Name, cam.ID)
+		n.startSinglePipeline(cam)
 	}
+
+	log.Printf("ai: started %d pipelines", len(n.aiPipelines))
+}
+
+// startSinglePipeline resolves the best stream URL for a camera and starts
+// an ai.Pipeline for it.
+func (n *NVR) startSinglePipeline(cam *db.Camera) {
+	// Resolve stream URL: explicit ai_stream_id > ai_detection role > legacy sub_stream_url > main rtsp_url
+	streamURL := ""
+	var streamWidth, streamHeight int
+
+	if cam.AIStreamID != "" {
+		stream, err := n.database.GetCameraStream(cam.AIStreamID)
+		if err == nil {
+			streamURL = stream.RTSPURL
+			streamWidth = stream.Width
+			streamHeight = stream.Height
+		}
+	}
+	if streamURL == "" {
+		resolved, err := n.database.ResolveStreamURL(cam.ID, db.StreamRoleAIDetection)
+		if err == nil && resolved != "" {
+			streamURL = resolved
+		}
+	}
+	if streamURL == "" && cam.SubStreamURL != "" {
+		streamURL = cam.SubStreamURL
+	}
+	if streamURL == "" && cam.RTSPURL != "" {
+		streamURL = cam.RTSPURL
+	}
+	if streamURL == "" {
+		log.Printf("ai: camera %s (%s) has no stream URL for AI", cam.ID, cam.Name)
+		return
+	}
+
+	// Embed credentials into RTSP URL if needed.
+	streamURL = n.embedCredentials(cam, streamURL)
+
+	config := ai.PipelineConfig{
+		CameraID:         cam.ID,
+		CameraName:       cam.Name,
+		StreamURL:        streamURL,
+		StreamWidth:      streamWidth,
+		StreamHeight:     streamHeight,
+		ConfidenceThresh: float32(cam.AIConfidence),
+		TrackTimeout:     cam.AITrackTimeout,
+	}
+
+	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	pipeline.Start(n.ctx)
+	n.aiPipelines[cam.ID] = pipeline
+}
+
+// embedCredentials embeds ONVIF credentials into an RTSP URL if they are not
+// already present. The stored password is decrypted before embedding.
+func (n *NVR) embedCredentials(cam *db.Camera, rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if u.User != nil && u.User.Username() != "" {
+		return rawURL // already has credentials
+	}
+	username := cam.ONVIFUsername
+	password := cam.ONVIFPassword
+	if password != "" {
+		encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+		password = n.decryptPassword(encKey, password)
+	}
+	if username != "" {
+		u.User = url.UserPassword(username, password)
+	}
+	return u.String()
 }
 
 // RestartAIPipeline stops and restarts the AI pipeline for the given camera ID.
 // Called by the API after camera settings change (credentials, AI toggle, etc.).
 func (n *NVR) RestartAIPipeline(cameraID string) {
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+	}
+
 	if n.aiDetector == nil {
 		return
 	}
 
-	// Stop existing pipeline if running.
-	if p, ok := n.aiPipelines[cameraID]; ok {
-		p.Stop()
-		delete(n.aiPipelines, cameraID)
-		log.Printf("AI: stopped pipeline for camera %s", cameraID)
-	}
-
 	cam, err := n.database.GetCamera(cameraID)
 	if err != nil {
-		log.Printf("AI: failed to get camera %s for pipeline restart: %v", cameraID, err)
+		log.Printf("ai: restart pipeline: get camera %s: %v", cameraID, err)
 		return
 	}
 
-	if !cam.AIEnabled || cam.SnapshotURI == "" {
+	if !cam.AIEnabled {
 		return
 	}
 
-	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
-	username := cam.ONVIFUsername
-	password := n.decryptPassword(encKey, cam.ONVIFPassword)
-	if username == "" && cam.RTSPURL != "" {
-		if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
-			username = u.User.Username()
-			if p, ok := u.User.Password(); ok {
-				password = p
-			}
-		}
-	}
-
-	pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
-	n.aiPipelines[cam.ID] = pipeline
-	go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
-	log.Printf("AI: restarted pipeline for camera %s (%s)", cam.Name, cam.ID)
+	n.startSinglePipeline(cam)
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted

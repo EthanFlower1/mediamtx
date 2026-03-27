@@ -148,15 +148,16 @@ func (n *NVR) Initialize() error {
 		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
 		textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
 		vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
+		projPath := filepath.Join(modelsDir, "clip-visual-projection.bin")
 		if _, err := os.Stat(visualPath); err == nil {
 			if _, err := os.Stat(textPath); err == nil {
 				if _, err := os.Stat(vocabPath); err == nil {
-					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath)
+					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath, projPath)
 					if err != nil {
 						log.Printf("AI: failed to load CLIP embedder: %v", err)
 					} else {
 						n.aiEmbedder = emb
-						log.Printf("AI: CLIP embedder loaded")
+						log.Printf("AI: CLIP embedder loaded (with visual projection)")
 					}
 				}
 			}
@@ -376,8 +377,14 @@ func (n *NVR) migrateMediaMTXPaths() {
 			continue
 		}
 
+		// Resolve recording stream URL (prefer camera_streams, fall back to legacy rtsp_url).
+		sourceURL, err := n.database.ResolveStreamURL(cam.ID, db.StreamRoleRecording)
+		if err != nil || sourceURL == "" {
+			sourceURL = cam.RTSPURL
+		}
+
 		yamlConfig := map[string]interface{}{
-			"source": cam.RTSPURL,
+			"source": sourceURL,
 			"record": true,
 		}
 		storagePath := cam.StoragePath

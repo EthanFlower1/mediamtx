@@ -111,6 +111,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	streamHandler := &StreamHandler{DB: cfg.DB}
+
 	jwksHandler := &JWKSHandler{
 		JWKSJSON: cfg.JWKSJSON,
 	}
@@ -218,6 +220,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/bookmarks", bookmarkHandler.Create)
 	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
 	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)
+
+	// Camera streams.
+	protected.GET("/cameras/:id/streams", streamHandler.List)
+	protected.POST("/cameras/:id/streams", streamHandler.Create)
+	protected.PUT("/streams/:id", streamHandler.Update)
+	protected.DELETE("/streams/:id", streamHandler.Delete)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

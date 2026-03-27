@@ -34,10 +34,12 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   bool _controlsVisible = true;
   Timer? _hideControlsTimer;
   bool _aiEnabled = false;
+  bool _muted = true;
 
   @override
   void initState() {
     super.initState();
+    _aiEnabled = widget.camera.aiEnabled;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _initConnection();
     _scheduleHideControls();
@@ -54,7 +56,12 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
     );
 
     _stateSub = _connection!.stateStream.listen((state) {
-      if (mounted) setState(() => _connState = state);
+      if (mounted) {
+        setState(() => _connState = state);
+        if (state == WhepConnectionState.connected) {
+          _connection?.setAudioEnabled(!_muted);
+        }
+      }
     });
 
     _connection!.connect();
@@ -113,7 +120,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
               _buildVideoLayer(),
 
               // ── Analytics overlay ─────────────────────────────────────────
-              if (camera.aiEnabled || _aiEnabled)
+              if (_aiEnabled)
                 AnalyticsOverlay(
                   cameraName: camera.name,
                   cameraId: camera.id,
@@ -224,9 +231,12 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
           children: [
             // Audio pill
             _PillButton(
-              icon: Icons.volume_up,
-              label: 'Audio',
-              onTap: () {},
+              icon: _muted ? Icons.volume_off : Icons.volume_up,
+              label: _muted ? 'Muted' : 'Audio',
+              onTap: () {
+                setState(() => _muted = !_muted);
+                _connection?.setAudioEnabled(!_muted);
+              },
             ),
             const SizedBox(width: 8),
 

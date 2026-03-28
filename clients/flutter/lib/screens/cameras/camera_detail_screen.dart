@@ -14,6 +14,7 @@ import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/segmented_control.dart';
 import '../../widgets/hud/status_badge.dart';
 import '../live_view/camera_tile.dart';
+import 'recording_rules_screen.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -505,6 +506,22 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 segments: const {0: 'CONTINUOUS', 1: 'EVENTS', 2: 'SCHEDULE'},
                 selected: _recordingMode,
                 onChanged: (v) => setState(() => _recordingMode = v),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: HudButton(
+                  style: HudButtonStyle.tactical,
+                  icon: Icons.schedule,
+                  label: 'MANAGE SCHEDULES',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => RecordingRulesScreen(cameraId: widget.cameraId),
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),

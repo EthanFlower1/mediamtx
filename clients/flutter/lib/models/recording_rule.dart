@@ -6,6 +6,7 @@ class RecordingRule {
   final String? endTime;
   final List<int>? daysOfWeek;
   final bool enabled;
+  final String streamId;
 
   const RecordingRule({
     required this.id,
@@ -15,6 +16,7 @@ class RecordingRule {
     this.endTime,
     this.daysOfWeek,
     required this.enabled,
+    this.streamId = '',
   });
 
   factory RecordingRule.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class RecordingRule {
       endTime: json['end_time'] as String?,
       daysOfWeek: daysOfWeek,
       enabled: json['enabled'] as bool,
+      streamId: json['stream_id'] as String? ?? '',
     );
   }
 
@@ -41,6 +44,7 @@ class RecordingRule {
       'end_time': endTime,
       'days_of_week': daysOfWeek,
       'enabled': enabled,
+      'stream_id': streamId,
     };
   }
 }

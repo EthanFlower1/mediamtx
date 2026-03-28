@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/camera_stream.dart';
 import '../../models/recording_rule.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
 
 class RecordingRulesScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -16,6 +18,7 @@ class RecordingRulesScreen extends ConsumerStatefulWidget {
 
 class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
   List<RecordingRule> _rules = [];
+  List<CameraStream> _streams = [];
   bool _loading = true;
   String? _error;
 
@@ -26,6 +29,19 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
   void initState() {
     super.initState();
     _fetchRules();
+    _fetchStreams();
+  }
+
+  Future<void> _fetchStreams() async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    try {
+      final res = await api.get<dynamic>('/cameras/${widget.cameraId}/streams');
+      final list = (res.data as List)
+          .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (mounted) setState(() => _streams = list);
+    } catch (_) {}
   }
 
   Future<void> _fetchRules() async {
@@ -110,6 +126,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
 
   Future<void> _showAddDialog() async {
     String selectedMode = 'motion';
+    String selectedStreamId = '';
     TimeOfDay startTime = const TimeOfDay(hour: 0, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 23, minute: 59);
     List<int> selectedDays = List.generate(7, (i) => i + 1);
@@ -127,6 +144,42 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStreamId,
+                      dropdownColor: NvrColors.bgTertiary,
+                      style: NvrTypography.monoData,
+                      decoration: InputDecoration(
+                        labelText: 'STREAM',
+                        labelStyle: NvrTypography.monoLabel,
+                        filled: true,
+                        fillColor: NvrColors.bgTertiary,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: const BorderSide(color: NvrColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: const BorderSide(color: NvrColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: const BorderSide(color: NvrColors.accent),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('Default', style: NvrTypography.monoData),
+                        ),
+                        ..._streams.map((s) => DropdownMenuItem(
+                          value: s.id,
+                          child: Text(s.displayLabel, style: NvrTypography.monoData),
+                        )),
+                      ],
+                      onChanged: (v) => setDlgState(() => selectedStreamId = v ?? ''),
+                    ),
+                    const SizedBox(height: 12),
                     const Text('Mode', style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
@@ -218,6 +271,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                     Navigator.of(ctx).pop();
                     await _saveNewRule(
                       mode: selectedMode,
+                      streamId: selectedStreamId,
                       startTime: selectedMode == 'schedule'
                           ? '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}'
                           : null,
@@ -239,6 +293,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
 
   Future<void> _saveNewRule({
     required String mode,
+    String streamId = '',
     String? startTime,
     String? endTime,
     List<int>? daysOfWeek,
@@ -249,6 +304,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
       await api.post('/cameras/${widget.cameraId}/recording-rules', data: {
         'mode': mode,
         'enabled': true,
+        if (streamId.isNotEmpty) 'stream_id': streamId,
         if (startTime != null) 'start_time': startTime,
         if (endTime != null) 'end_time': endTime,
         if (daysOfWeek != null) 'days_of_week': daysOfWeek,
@@ -321,10 +377,15 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                       const Divider(color: NvrColors.border, height: 1),
                   itemBuilder: (context, index) {
                     final rule = _rules[index];
+                    String streamLabel = '';
+                    if (rule.streamId.isNotEmpty) {
+                      final stream = _streams.where((s) => s.id == rule.streamId).firstOrNull;
+                      streamLabel = stream != null ? ' — ${stream.displayLabel}' : ' — Custom stream';
+                    }
                     return ListTile(
                       tileColor: NvrColors.bgSecondary,
                       title: Text(
-                        _modeLabel(rule.mode),
+                        '${_modeLabel(rule.mode)}$streamLabel',
                         style: const TextStyle(
                           color: NvrColors.textPrimary,
                           fontWeight: FontWeight.w500,

@@ -540,7 +540,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _aiStreamId,
+                  value: _streams.any((s) => s.id == _aiStreamId) || _aiStreamId.isEmpty
+                      ? _aiStreamId
+                      : '',
                   dropdownColor: NvrColors.bgTertiary,
                   style: NvrTypography.monoData,
                   decoration: InputDecoration(

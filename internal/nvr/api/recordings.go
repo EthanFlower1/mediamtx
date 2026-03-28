@@ -78,7 +78,12 @@ func (h *RecordingHandler) Query(c *gin.Context) {
 		return
 	}
 
-	recordings, err := h.DB.QueryRecordings(cameraID, start, end)
+	var recordings []*db.Recording
+	if c.Query("best_quality") == "true" {
+		recordings, err = h.DB.QueryRecordingsBestQuality(cameraID, start, end)
+	} else {
+		recordings, err = h.DB.QueryRecordings(cameraID, start, end)
+	}
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to query recordings", err)
 		return

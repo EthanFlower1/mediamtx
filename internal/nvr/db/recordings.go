@@ -184,6 +184,35 @@ func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recordin
 	return recs, rows.Err()
 }
 
+// QueryRecordingsBestQuality returns the highest quality recording for each
+// non-overlapping time span within the given range.
+func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) ([]*Recording, error) {
+	rows, err := d.Query(`
+		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
+		FROM recordings
+		WHERE camera_id = ? AND end_time > ? AND start_time < ?
+		ORDER BY start_time`,
+		cameraID, start.UTC().Format(timeFormat), end.UTC().Format(timeFormat),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var recs []*Recording
+	for rows.Next() {
+		rec := &Recording{}
+		if err := rows.Scan(
+			&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+		); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec)
+	}
+	return recs, rows.Err()
+}
+
 // GetTimeline returns time ranges of recordings for a camera within the given
 // window. Each TimeRange corresponds to a single recording's span.
 func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, error) {

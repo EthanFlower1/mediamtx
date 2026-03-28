@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1561,99 +1560,6 @@ func (h *CameraHandler) UpdateAIConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, cam)
-}
-
-// UpdateRecordingStream handles PUT /cameras/:id/recording-stream — sets which
-// stream is used for recording. When a different stream than the live view is
-// selected, dual MediaMTX paths are created (main for live, ~rec for recording).
-func (h *CameraHandler) UpdateRecordingStream(c *gin.Context) {
-	id := c.Param("id")
-
-	var req struct {
-		StreamID string `json:"stream_id"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-
-	if err := h.DB.UpdateCameraRecordingStream(id, req.StreamID); err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
-			return
-		}
-		apiError(c, http.StatusInternalServerError, "failed to update recording stream", err)
-		return
-	}
-
-	cam, err := h.DB.GetCamera(id)
-	if err != nil {
-		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
-		return
-	}
-
-	// Reconfigure YAML paths: if recording stream differs from main, create dual paths.
-	if cam.MediaMTXPath != "" {
-		h.configureRecordingPaths(cam)
-	}
-
-	c.JSON(http.StatusOK, h.buildCameraWithStreams(cam))
-}
-
-// configureRecordingPaths sets up single or dual MediaMTX paths based on
-// whether a separate recording stream is configured.
-func (h *CameraHandler) configureRecordingPaths(cam *db.Camera) {
-	recPath := cam.MediaMTXPath + "~rec"
-
-	if cam.RecordingStreamID == "" {
-		// Default: single path with recording enabled.
-		h.YAMLWriter.SetPathValue(cam.MediaMTXPath, "record", true) //nolint:errcheck
-		h.YAMLWriter.RemovePath(recPath)                            //nolint:errcheck
-		return
-	}
-
-	// Resolve the recording stream URL.
-	stream, err := h.DB.GetCameraStream(cam.RecordingStreamID)
-	if err != nil {
-		nvrLogWarn("cameras", fmt.Sprintf("recording stream %s not found for camera %s, falling back to single path", cam.RecordingStreamID, cam.ID))
-		h.YAMLWriter.SetPathValue(cam.MediaMTXPath, "record", true) //nolint:errcheck
-		h.YAMLWriter.RemovePath(recPath)                            //nolint:errcheck
-		return
-	}
-
-	recStreamURL := stream.RTSPURL
-	// Embed credentials if needed.
-	if u, parseErr := url.Parse(recStreamURL); parseErr == nil && (u.User == nil || u.User.Username() == "") {
-		if cam.ONVIFUsername != "" {
-			password := h.decryptPassword(cam.ONVIFPassword)
-			u.User = url.UserPassword(cam.ONVIFUsername, password)
-			recStreamURL = u.String()
-		}
-	}
-
-	// If recording URL is the same as the main source, keep single path.
-	if recStreamURL == cam.RTSPURL {
-		h.YAMLWriter.SetPathValue(cam.MediaMTXPath, "record", true) //nolint:errcheck
-		h.YAMLWriter.RemovePath(recPath)                            //nolint:errcheck
-		return
-	}
-
-	// Dual paths: main for live view (no recording), ~rec for recording.
-	h.YAMLWriter.SetPathValue(cam.MediaMTXPath, "record", false) //nolint:errcheck
-
-	recordDir := "./recordings/" + cam.MediaMTXPath
-	if cam.StoragePath != "" {
-		recordDir = cam.StoragePath + "/" + cam.MediaMTXPath
-	}
-	recordPath := recordDir + "/%Y-%m-%d_%H-%M-%S"
-
-	h.YAMLWriter.AddPath(recPath, map[string]interface{}{ //nolint:errcheck
-		"source":     recStreamURL,
-		"record":     true,
-		"recordPath": recordPath,
-	})
-
-	nvrLogInfo("cameras", fmt.Sprintf("Configured dual paths for camera %q: live=%s, rec=%s", cam.Name, cam.MediaMTXPath, recPath))
 }
 
 type audioTranscodeRequest struct {

@@ -92,6 +92,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   }
 
   Future<void> _fetchCamera() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -101,6 +102,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     try {
       final res = await api.get<dynamic>('/cameras/${widget.cameraId}');
       final camera = Camera.fromJson(res.data as Map<String, dynamic>);
+      if (!mounted) return;
       setState(() {
         _camera = camera;
         _loading = false;
@@ -112,21 +114,30 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _snapshotCtrl.text = camera.snapshotUri;
         _aiEnabled = camera.aiEnabled;
         _confidence = camera.aiConfidence.clamp(0.2, 0.9);
-        _aiStreamId = camera.aiStreamId;
         _trackTimeout = camera.aiTrackTimeout.toDouble().clamp(1, 30);
         _retentionDays = camera.retentionDays.toDouble().clamp(7, 90);
+        // Don't set _aiStreamId yet — wait for streams to load so the
+        // dropdown always has a matching item.
       });
-      // Fetch streams for the AI stream selector.
+      // Fetch streams, then set the AI stream ID.
       try {
         final streamsRes = await api.get<dynamic>('/cameras/${widget.cameraId}/streams');
         final streamsList = (streamsRes.data as List)
             .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
             .toList();
-        if (mounted) setState(() => _streams = streamsList);
+        if (mounted) {
+          setState(() {
+            _streams = streamsList;
+            // Only set the stream ID if it exists in the loaded streams.
+            final savedId = camera.aiStreamId;
+            _aiStreamId = streamsList.any((s) => s.id == savedId) ? savedId : '';
+          });
+        }
       } catch (_) {
         // Streams may not exist yet — dropdown will show only "Default".
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;

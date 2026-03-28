@@ -23,6 +23,7 @@ final recordingSegmentsProvider =
     'camera_id': key.cameraId,
     'start': start,
     'end': end,
+    'best_quality': 'true',
   });
 
   final data = res.data;

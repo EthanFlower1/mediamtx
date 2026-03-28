@@ -26,7 +26,6 @@ class Camera with _$Camera {
     @JsonKey(name: 'supports_relay') @Default(false) bool supportsRelay,
     @JsonKey(name: 'created_at') String? createdAt,
     @JsonKey(name: 'updated_at') String? updatedAt,
-    @JsonKey(name: 'recording_stream_id') @Default('') String recordingStreamId,
     @JsonKey(name: 'storage_path') @Default('') String storagePath,
     @JsonKey(name: 'storage_status') @Default('default') String storageStatus,
   }) = _Camera;

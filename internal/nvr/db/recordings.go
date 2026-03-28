@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -158,35 +159,6 @@ func (d *DB) InsertRecording(rec *Recording) error {
 // QueryRecordings returns recordings for a camera that overlap the given time
 // range. Overlap logic: end_time > start AND start_time < end.
 func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recording, error) {
-	rows, err := d.Query(`
-		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
-		FROM recordings
-		WHERE camera_id = ? AND end_time > ? AND start_time < ?
-		ORDER BY start_time`,
-		cameraID, start.UTC().Format(timeFormat), end.UTC().Format(timeFormat),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var recs []*Recording
-	for rows.Next() {
-		rec := &Recording{}
-		if err := rows.Scan(
-			&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
-			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
-		); err != nil {
-			return nil, err
-		}
-		recs = append(recs, rec)
-	}
-	return recs, rows.Err()
-}
-
-// QueryRecordingsBestQuality returns the highest quality recording for each
-// non-overlapping time span within the given range.
-func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) ([]*Recording, error) {
 	rows, err := d.Query(`
 		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
 		FROM recordings
@@ -382,4 +354,73 @@ func (d *DB) DeleteRecordingByPath(filePath string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// QueryRecordingsBestQuality returns recordings for a camera in a time range,
+// preferring higher-resolution streams when recordings from multiple streams
+// overlap. For overlapping periods, only the recording from the stream with
+// the largest resolution (width * height) is returned.
+func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) ([]*Recording, error) {
+	all, err := d.QueryRecordings(cameraID, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(all) <= 1 {
+		return all, nil
+	}
+
+	// Build resolution lookup from camera_streams.
+	type streamRes struct {
+		width, height int
+	}
+	streamResolutions := make(map[string]streamRes)
+	rows, err := d.Query(`SELECT id, width, height FROM camera_streams WHERE camera_id = ?`, cameraID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			var w, h int
+			if rows.Scan(&id, &w, &h) == nil {
+				streamResolutions[id] = streamRes{w, h}
+			}
+		}
+	}
+
+	// Score each recording by resolution. Main stream (no ~ in path) gets
+	// max resolution; sub-streams get their actual resolution.
+	resolutionOf := func(rec *Recording) int {
+		idx := strings.LastIndex(rec.FilePath, "~")
+		if idx < 0 {
+			return 9999 * 9999 // main stream: highest priority
+		}
+		suffix := rec.FilePath[idx+1:]
+		if slashIdx := strings.Index(suffix, "/"); slashIdx > 0 {
+			suffix = suffix[:slashIdx]
+		}
+		for id, res := range streamResolutions {
+			if strings.HasPrefix(id, suffix) {
+				return res.width * res.height
+			}
+		}
+		return 0
+	}
+
+	// Filter: for overlapping recordings, keep highest resolution.
+	var result []*Recording
+	for _, rec := range all {
+		overlaps := false
+		for i, existing := range result {
+			if existing.EndTime > rec.StartTime && existing.StartTime < rec.EndTime {
+				if resolutionOf(rec) > resolutionOf(existing) {
+					result[i] = rec
+				}
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			result = append(result, rec)
+		}
+	}
+	return result, nil
 }

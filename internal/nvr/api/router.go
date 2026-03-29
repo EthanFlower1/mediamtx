@@ -113,6 +113,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	streamHandler := &StreamHandler{DB: cfg.DB}
 
+	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
+
 	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 
 	jwksHandler := &JWKSHandler{
@@ -135,6 +137,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Serve event thumbnails as static files (public route for img tags).
 	engine.Static("/thumbnails", "./thumbnails")
+	engine.Static("/screenshots", "./screenshots")
 
 	// ONVIF callback (no auth — camera POSTs notifications here).
 	if cfg.CallbackManager != nil {
@@ -224,6 +227,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/bookmarks", bookmarkHandler.Create)
 	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
 	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)
+
+	// Screenshots.
+	protected.POST("/cameras/:id/screenshot", screenshotHandler.Capture)
+	protected.GET("/screenshots", screenshotHandler.List)
+	protected.GET("/screenshots/:id/download", screenshotHandler.Download)
+	protected.DELETE("/screenshots/:id", screenshotHandler.Delete)
 
 	// Camera streams.
 	protected.GET("/cameras/:id/streams", streamHandler.List)

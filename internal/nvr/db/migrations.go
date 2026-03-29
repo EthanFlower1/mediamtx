@@ -365,4 +365,22 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
         ALTER TABLE cameras ADD COLUMN recording_stream_id TEXT DEFAULT '';
     `,
 	},
+	// Migration 24: Schedule templates and template_id on recording rules.
+	{
+		version: 24,
+		sql: `
+        CREATE TABLE schedule_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            mode TEXT NOT NULL CHECK(mode IN ('always', 'events')),
+            days TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            post_event_seconds INTEGER NOT NULL DEFAULT 30,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+        ALTER TABLE recording_rules ADD COLUMN template_id TEXT DEFAULT '';
+    `,
+	},
 }

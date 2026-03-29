@@ -31,15 +31,15 @@ class NavigationShell extends ConsumerWidget {
 
     // Mobile: < 600px
     if (width < 600) {
-      // Map mobile 5-item nav to router indices
-      // Mobile: 0=Live, 1=Playback, 2=Search, 3=Schedules(index 5), 4=Settings(index 4)
+      // Map mobile 6-item nav to router indices
+      // Mobile: 0=Live, 1=Playback, 2=Search, 3=Screenshots(index 3), 4=Schedules(index 6), 5=Settings(index 5)
       final int mobileIndex;
-      if (selectedIndex == 5) {
-        mobileIndex = 3;
-      } else if (selectedIndex == 4) {
+      if (selectedIndex == 6) {
         mobileIndex = 4;
+      } else if (selectedIndex == 5) {
+        mobileIndex = 5;
       } else {
-        mobileIndex = selectedIndex.clamp(0, 2);
+        mobileIndex = selectedIndex.clamp(0, 3);
       }
       return Scaffold(
         body: Stack(
@@ -51,11 +51,9 @@ class NavigationShell extends ConsumerWidget {
         bottomNavigationBar: MobileBottomNav(
           selectedIndex: mobileIndex,
           onDestinationSelected: (i) {
-            // Map mobile indices back: 0=Live, 1=Playback, 2=Search, 3=Schedules(5), 4=Settings(4)
-            if (i == 3) {
-              onDestinationSelected(5);
-            } else if (i == 4) {
-              onDestinationSelected(4);
+            // Map mobile indices back: 0=Live, 1=Playback, 2=Search, 3=Screenshots(3), 4=Schedules(6), 5=Settings(5)
+            if (i == 4) {
+              onDestinationSelected(6);
             } else {
               onDestinationSelected(i);
             }

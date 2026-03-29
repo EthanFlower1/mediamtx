@@ -21,6 +21,7 @@ class IconRail extends ConsumerWidget {
     (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'Live'),
     (icon: Icons.access_time_outlined, activeIcon: Icons.access_time_filled, label: 'Playback'),
     (icon: Icons.search_outlined, activeIcon: Icons.search, label: 'Search'),
+    (icon: Icons.photo_library_outlined, activeIcon: Icons.photo_library, label: 'Screenshots'),
     (icon: Icons.camera_alt_outlined, activeIcon: Icons.camera_alt, label: 'Devices'),
     (icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'Schedules'),
   ];
@@ -47,19 +48,19 @@ class IconRail extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           // Nav items
-          // Rail indices 0-3 map to router indices 0-3; rail index 4 (Schedules) maps to router index 5.
+          // Rail indices 0-4 map to router indices 0-4; rail index 5 (Schedules) maps to router index 6.
           for (int i = 0; i < _navItems.length; i++) ...[
-            if (i == 3) ...[
+            if (i == 4) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: Container(height: 1, color: NvrColors.border),
               ),
             ],
             _NavIcon(
-              icon: (i < 4 ? i == selectedIndex : selectedIndex == 5) ? _navItems[i].activeIcon : _navItems[i].icon,
-              isActive: i < 4 ? i == selectedIndex : selectedIndex == 5,
+              icon: (i < 5 ? i == selectedIndex : selectedIndex == 6) ? _navItems[i].activeIcon : _navItems[i].icon,
+              isActive: i < 5 ? i == selectedIndex : selectedIndex == 6,
               onTap: () {
-                final routerIndex = i < 4 ? i : 5;
+                final routerIndex = i < 5 ? i : 6;
                 if (routerIndex == selectedIndex) {
                   onCameraPanelToggle();
                 } else {
@@ -83,9 +84,9 @@ class IconRail extends ConsumerWidget {
           // Settings
           _NavIcon(
             icon: Icons.settings_outlined,
-            isActive: false,
-            muted: true,
-            onTap: () => onDestinationSelected(4),
+            isActive: selectedIndex == 5,
+            muted: selectedIndex != 5,
+            onTap: () => onDestinationSelected(5),
             semanticLabel: 'Settings',
           ),
           const SizedBox(height: 14),

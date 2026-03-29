@@ -15,6 +15,7 @@ class MobileBottomNav extends StatelessWidget {
     (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'LIVE'),
     (icon: Icons.access_time_outlined, activeIcon: Icons.access_time_filled, label: 'PLAYBACK'),
     (icon: Icons.search_outlined, activeIcon: Icons.search, label: 'SEARCH'),
+    (icon: Icons.photo_library_outlined, activeIcon: Icons.photo_library, label: 'PHOTOS'),
     (icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'SCHED'),
     (icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'SETTINGS'),
   ];

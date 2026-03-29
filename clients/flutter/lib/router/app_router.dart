@@ -15,20 +15,22 @@ import '../screens/cameras/add_camera_screen.dart';
 import '../screens/cameras/camera_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/schedules/schedules_screen.dart';
+import '../screens/screenshots/screenshots_screen.dart';
 import '../models/camera.dart';
 
 int _indexFromPath(String path) {
   if (path.startsWith('/live')) return 0;
   if (path.startsWith('/playback')) return 1;
   if (path.startsWith('/search')) return 2;
-  if (path.startsWith('/devices')) return 3;
-  if (path.startsWith('/settings')) return 4;
-  if (path.startsWith('/schedules')) return 5;
+  if (path.startsWith('/screenshots')) return 3;
+  if (path.startsWith('/devices')) return 4;
+  if (path.startsWith('/settings')) return 5;
+  if (path.startsWith('/schedules')) return 6;
   return 0;
 }
 
 void _navigateToIndex(BuildContext context, int index) {
-  const paths = ['/live', '/playback', '/search', '/devices', '/settings', '/schedules'];
+  const paths = ['/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules'];
   context.go(paths[index]);
 }
 
@@ -67,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           ]),
           GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
           GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
+          GoRoute(
+            path: '/screenshots',
+            builder: (context, state) => const ScreenshotsScreen(),
+          ),
           GoRoute(path: '/devices', builder: (_, __) => const CameraListScreen(), routes: [
             GoRoute(path: 'add', builder: (_, __) => const AddCameraScreen()),
             GoRoute(path: ':id', builder: (_, state) =>

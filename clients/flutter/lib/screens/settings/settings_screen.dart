@@ -8,6 +8,7 @@ import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import 'audit_panel.dart';
 import 'backup_panel.dart';
+import 'performance_panel.dart';
 import 'storage_panel.dart';
 import 'user_management_screen.dart';
 
@@ -25,7 +26,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _selectedSection = 0;
 
-  static const _sections = ['System', 'Storage', 'Users', 'Backups', 'Audit Log'];
+  static const _sections = ['System', 'Storage', 'Performance', 'Users', 'Backups', 'Audit Log'];
 
   Widget _buildContent() {
     switch (_selectedSection) {
@@ -34,10 +35,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case 1:
         return const StoragePanel();
       case 2:
-        return const UserManagementScreen();
+        return const PerformancePanel();
       case 3:
-        return const BackupPanel();
+        return const UserManagementScreen();
       case 4:
+        return const BackupPanel();
+      case 5:
         return const AuditPanel();
       default:
         return const SizedBox.shrink();

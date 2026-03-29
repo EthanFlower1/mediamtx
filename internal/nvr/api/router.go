@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
@@ -39,10 +40,11 @@ type RouterConfig struct {
 	CallbackManager *onvif.CallbackManager
 	EncryptionKey   []byte // AES-256 key for ONVIF credential encryption
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
-	Embedder        *ai.Embedder // CLIP embedder for semantic search (may be nil)
+	Embedder        *ai.Embedder        // CLIP embedder for semantic search (may be nil)
 	AIRestarter     AIPipelineRestarter // restart AI pipeline on camera settings change (may be nil)
 	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
+	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -92,6 +94,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		ConfigDB:       cfg.DB,
 		ConfigPath:     cfg.ConfigPath,
 		APIAddress:     cfg.APIAddress,
+		Collector:      cfg.Collector,
 	}
 
 	savedClipHandler := &SavedClipHandler{

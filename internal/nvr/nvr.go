@@ -26,6 +26,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
@@ -59,6 +60,8 @@ type NVR struct {
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
+
+	metricsCollector *metrics.Collector
 
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 }
@@ -128,6 +131,9 @@ func (n *NVR) Initialize() error {
 
 	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
 	n.storageMgr.Start()
+
+	n.metricsCollector = metrics.New(360, 10*time.Second)
+	n.metricsCollector.Start()
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -395,6 +401,10 @@ func (n *NVR) wsPort() string {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	if n.metricsCollector != nil {
+		n.metricsCollector.Stop()
+	}
+
 	// Cancel the NVR lifecycle context so all pipeline goroutines exit.
 	if n.ctxCancel != nil {
 		n.ctxCancel()
@@ -723,6 +733,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		AIRestarter:     n,
 		HLSHandler:      n.hlsHandler,
 		StorageManager:  n.storageMgr,
+		Collector:       n.metricsCollector,
 	})
 }
 

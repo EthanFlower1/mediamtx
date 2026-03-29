@@ -1613,3 +1613,69 @@ func (h *CameraHandler) LatestDetections(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, detections)
 }
+
+// AssignStreamSchedule assigns a schedule template to a camera stream, replacing
+// any existing recording rule for that stream. If template_id is empty, the rule
+// is removed without creating a new one.
+//
+// PUT /api/nvr/cameras/:id/stream-schedule
+func (h *CameraHandler) AssignStreamSchedule(c *gin.Context) {
+	cameraID := c.Param("id")
+
+	var req struct {
+		StreamID   string `json:"stream_id"`
+		TemplateID string `json:"template_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	_, err := h.DB.GetCamera(cameraID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "get camera", err)
+		return
+	}
+
+	// Delete existing rule for this camera+stream.
+	rules, _ := h.DB.ListRecordingRules(cameraID)
+	for _, r := range rules {
+		if r.StreamID == req.StreamID {
+			h.DB.DeleteRecordingRule(r.ID)
+		}
+	}
+
+	if req.TemplateID == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "schedule removed"})
+		return
+	}
+
+	tmpl, err := h.DB.GetScheduleTemplate(req.TemplateID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "template not found"})
+		return
+	}
+
+	rule := &db.RecordingRule{
+		CameraID:         cameraID,
+		StreamID:         req.StreamID,
+		TemplateID:       req.TemplateID,
+		Name:             tmpl.Name,
+		Mode:             tmpl.Mode,
+		Days:             tmpl.Days,
+		StartTime:        tmpl.StartTime,
+		EndTime:          tmpl.EndTime,
+		PostEventSeconds: tmpl.PostEventSeconds,
+		Enabled:          true,
+	}
+	if err := h.DB.CreateRecordingRule(rule); err != nil {
+		apiError(c, http.StatusInternalServerError, "create rule", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, rule)
+}

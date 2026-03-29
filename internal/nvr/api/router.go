@@ -113,6 +113,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	streamHandler := &StreamHandler{DB: cfg.DB}
 
+	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
+
 	jwksHandler := &JWKSHandler{
 		JWKSJSON: cfg.JWKSJSON,
 	}
@@ -235,6 +237,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/recording-rules/:id", ruleHandler.Update)
 	protected.DELETE("/recording-rules/:id", ruleHandler.Delete)
 	protected.GET("/cameras/:id/recording-status", ruleHandler.Status)
+
+	// Schedule templates.
+	protected.GET("/schedule-templates", templateHandler.List)
+	protected.POST("/schedule-templates", templateHandler.Create)
+	protected.PUT("/schedule-templates/:id", templateHandler.Update)
+	protected.DELETE("/schedule-templates/:id", templateHandler.Delete)
+
+	// Stream schedule assignment.
+	protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule)
 
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)

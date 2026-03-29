@@ -111,6 +111,10 @@ func (n *NVR) Initialize() error {
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
 
+	if err := n.database.SeedDefaultTemplates(); err != nil {
+		log.Printf("nvr: failed to seed default templates: %v", err)
+	}
+
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.migrateMediaMTXPaths()
 	n.discovery = onvif.NewDiscovery()

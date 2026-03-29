@@ -301,13 +301,22 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     final api = ref.read(apiClientProvider);
     if (api == null) return;
     try {
+      // Map UI mode names to backend mode names.
+      final backendMode = switch (mode) {
+        'continuous' => 'always',
+        'motion' => 'events',
+        'schedule' => 'always', // schedule = always with time constraints
+        _ => mode,
+      };
       await api.post('/cameras/${widget.cameraId}/recording-rules', data: {
-        'mode': mode,
+        'name': '${mode[0].toUpperCase()}${mode.substring(1)} recording',
+        'mode': backendMode,
         'enabled': true,
+        'days': daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6],
+        'start_time': startTime ?? '00:00',
+        'end_time': endTime ?? '00:00',
         if (streamId.isNotEmpty) 'stream_id': streamId,
-        if (startTime != null) 'start_time': startTime,
-        if (endTime != null) 'end_time': endTime,
-        if (daysOfWeek != null) 'days_of_week': daysOfWeek,
+        if (backendMode == 'events') 'post_event_seconds': 30,
       });
       await _fetchRules();
     } catch (e) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/camera.dart';
 import '../../models/camera_stream.dart';
+import '../../models/schedule_template.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recordings_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -11,10 +12,8 @@ import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/analog_slider.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/hud_toggle.dart';
-import '../../widgets/hud/segmented_control.dart';
 import '../../widgets/hud/status_badge.dart';
 import '../live_view/camera_tile.dart';
-import 'recording_rules_screen.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -32,8 +31,8 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   bool _showAdvanced = false;
 
   // ── Recording controls ──────────────────────────────────────────────────
-  bool _recordingEnabled = true;
-  int _recordingMode = 0; // 0=Continuous, 1=Events, 2=Schedule
+  List<ScheduleTemplate> _templates = [];
+  Map<String, String> _streamTemplateMap = {}; // streamID → templateID
 
   // ── AI controls ─────────────────────────────────────────────────────────
   bool _aiEnabled = false;
@@ -136,6 +135,33 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       } catch (_) {
         // Streams may not exist yet — dropdown will show only "Default".
       }
+
+      // Fetch schedule templates.
+      try {
+        final tmplRes = await api.get<dynamic>('/schedule-templates');
+        final tmplList = (tmplRes.data as List)
+            .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
+            .toList();
+        if (mounted) setState(() => _templates = tmplList);
+      } catch (_) {}
+
+      // Build stream → template assignment map from recording rules.
+      try {
+        final rulesRes = await api.get<dynamic>('/cameras/${widget.cameraId}/recording-rules');
+        final rules = rulesRes.data as List<dynamic>? ?? [];
+        final map = <String, String>{};
+        for (final r in rules) {
+          final rule = r as Map<String, dynamic>;
+          final streamId = rule['stream_id'] as String? ?? '';
+          final templateId = rule['template_id'] as String? ?? '';
+          if (templateId.isNotEmpty) {
+            map[streamId] = templateId;
+          } else {
+            map[streamId] = '__custom__';
+          }
+        }
+        if (mounted) setState(() => _streamTemplateMap = map);
+      } catch (_) {}
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -288,6 +314,101 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
+  }
+
+  Future<void> _assignSchedule(String streamId, String templateId) async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+    try {
+      await api.put('/cameras/${widget.cameraId}/stream-schedule', data: {
+        'stream_id': streamId,
+        'template_id': templateId,
+      });
+      if (mounted) {
+        setState(() {
+          if (templateId.isEmpty) {
+            _streamTemplateMap.remove(streamId);
+          } else {
+            _streamTemplateMap[streamId] = templateId;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: NvrColors.success,
+            content: Text(templateId.isEmpty ? 'Schedule removed' : 'Schedule updated'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildScheduleDropdown(String streamId, String label) {
+    final currentTemplateId = _streamTemplateMap[streamId] ?? '';
+    final validValue = currentTemplateId == '__custom__'
+        ? '__custom__'
+        : (_templates.any((t) => t.id == currentTemplateId) ? currentTemplateId : '');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: NvrTypography.monoLabel),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: validValue,
+          dropdownColor: NvrColors.bgTertiary,
+          style: NvrTypography.monoData,
+          isExpanded: true,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: NvrColors.bgTertiary,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: NvrColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: NvrColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: const BorderSide(color: NvrColors.accent),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          items: [
+            const DropdownMenuItem(
+              value: '',
+              child: Text('None', style: NvrTypography.monoData),
+            ),
+            ..._templates.map((t) => DropdownMenuItem(
+              value: t.id,
+              child: Text('${t.name} (${t.description})', style: NvrTypography.monoData),
+            )),
+            if (validValue == '__custom__')
+              const DropdownMenuItem(
+                value: '__custom__',
+                child: Text('Custom', style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Color(0xFF737373),
+                )),
+              ),
+          ],
+          onChanged: (v) {
+            if (v != null && v != '__custom__') {
+              _assignSchedule(streamId, v);
+            }
+          },
+        ),
+      ],
+    );
   }
 
   StatusBadge _statusBadge(String status) {
@@ -502,38 +623,14 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  HudToggle(
-                    value: _recordingEnabled,
-                    onChanged: (v) => setState(() => _recordingEnabled = v),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text('Enable recording', style: NvrTypography.body),
+              if (_streams.isEmpty) ...[
+                _buildScheduleDropdown('', 'Default'),
+              ] else ...[
+                for (final stream in _streams) ...[
+                  _buildScheduleDropdown(stream.id, stream.displayLabel),
+                  if (stream != _streams.last) const SizedBox(height: 8),
                 ],
-              ),
-              const SizedBox(height: 12),
-              HudSegmentedControl<int>(
-                segments: const {0: 'CONTINUOUS', 1: 'EVENTS', 2: 'SCHEDULE'},
-                selected: _recordingMode,
-                onChanged: (v) => setState(() => _recordingMode = v),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: HudButton(
-                  style: HudButtonStyle.tactical,
-                  icon: Icons.schedule,
-                  label: 'MANAGE SCHEDULES',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => RecordingRulesScreen(cameraId: widget.cameraId),
-                      ),
-                    );
-                  },
-                ),
-              ),
+              ],
             ],
           ),
         ),

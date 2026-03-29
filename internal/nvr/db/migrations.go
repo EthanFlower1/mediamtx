@@ -383,4 +383,20 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
         ALTER TABLE recording_rules ADD COLUMN template_id TEXT DEFAULT '';
     `,
 	},
+	// Migration 25: Screenshots table.
+	{
+		version: 25,
+		sql: `
+        CREATE TABLE screenshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            camera_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_screenshots_camera ON screenshots(camera_id);
+        CREATE INDEX idx_screenshots_created ON screenshots(created_at);
+    `,
+	},
 }

@@ -31,9 +31,16 @@ class NavigationShell extends ConsumerWidget {
 
     // Mobile: < 600px
     if (width < 600) {
-      // Map mobile 4-item nav to router indices
-      // Mobile: 0=Live, 1=Playback, 2=Search, 3=Settings(index 4 in router)
-      final mobileIndex = selectedIndex == 4 ? 3 : selectedIndex.clamp(0, 2);
+      // Map mobile 5-item nav to router indices
+      // Mobile: 0=Live, 1=Playback, 2=Search, 3=Schedules(index 5), 4=Settings(index 4)
+      final int mobileIndex;
+      if (selectedIndex == 5) {
+        mobileIndex = 3;
+      } else if (selectedIndex == 4) {
+        mobileIndex = 4;
+      } else {
+        mobileIndex = selectedIndex.clamp(0, 2);
+      }
       return Scaffold(
         body: Stack(
           children: [
@@ -44,8 +51,14 @@ class NavigationShell extends ConsumerWidget {
         bottomNavigationBar: MobileBottomNav(
           selectedIndex: mobileIndex,
           onDestinationSelected: (i) {
-            // Map mobile indices back: 0=Live, 1=Playback, 2=Search, 3=Settings(4)
-            onDestinationSelected(i == 3 ? 4 : i);
+            // Map mobile indices back: 0=Live, 1=Playback, 2=Search, 3=Schedules(5), 4=Settings(4)
+            if (i == 3) {
+              onDestinationSelected(5);
+            } else if (i == 4) {
+              onDestinationSelected(4);
+            } else {
+              onDestinationSelected(i);
+            }
           },
         ),
       );
@@ -60,7 +73,7 @@ class NavigationShell extends ConsumerWidget {
       body: Row(
         children: [
           IconRail(
-            selectedIndex: selectedIndex.clamp(0, 3),
+            selectedIndex: selectedIndex,
             onDestinationSelected: onDestinationSelected,
             onAlertsTap: () => _onAlertsTap(context, ref),
             onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),

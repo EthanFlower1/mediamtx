@@ -22,6 +22,7 @@ class IconRail extends ConsumerWidget {
     (icon: Icons.access_time_outlined, activeIcon: Icons.access_time_filled, label: 'Playback'),
     (icon: Icons.search_outlined, activeIcon: Icons.search, label: 'Search'),
     (icon: Icons.camera_alt_outlined, activeIcon: Icons.camera_alt, label: 'Devices'),
+    (icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month, label: 'Schedules'),
   ];
 
   @override
@@ -46,6 +47,7 @@ class IconRail extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           // Nav items
+          // Rail indices 0-3 map to router indices 0-3; rail index 4 (Schedules) maps to router index 5.
           for (int i = 0; i < _navItems.length; i++) ...[
             if (i == 3) ...[
               Padding(
@@ -54,13 +56,14 @@ class IconRail extends ConsumerWidget {
               ),
             ],
             _NavIcon(
-              icon: i == selectedIndex ? _navItems[i].activeIcon : _navItems[i].icon,
-              isActive: i == selectedIndex,
+              icon: (i < 4 ? i == selectedIndex : selectedIndex == 5) ? _navItems[i].activeIcon : _navItems[i].icon,
+              isActive: i < 4 ? i == selectedIndex : selectedIndex == 5,
               onTap: () {
-                if (i == selectedIndex) {
+                final routerIndex = i < 4 ? i : 5;
+                if (routerIndex == selectedIndex) {
                   onCameraPanelToggle();
                 } else {
-                  onDestinationSelected(i);
+                  onDestinationSelected(routerIndex);
                 }
               },
               semanticLabel: _navItems[i].label,

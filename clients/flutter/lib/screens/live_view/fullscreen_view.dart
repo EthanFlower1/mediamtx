@@ -35,6 +35,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   Timer? _hideControlsTimer;
   bool _aiEnabled = false;
   bool _muted = true;
+  bool _capturing = false;
 
   @override
   void initState() {
@@ -84,12 +85,29 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   }
 
   Future<void> _takeScreenshot() async {
-    // Snapshot via renderer not yet supported in flutter_webrtc;
-    // show a brief snack so the user knows the action was received.
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Screenshot captured')),
-    );
+    if (_capturing || !mounted) return;
+    setState(() => _capturing = true);
+    final api = ref.read(apiClientProvider);
+    if (api == null) {
+      if (mounted) setState(() => _capturing = false);
+      return;
+    }
+    try {
+      await api.post<dynamic>('/cameras/${widget.camera.id}/screenshot');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(backgroundColor: NvrColors.success, content: Text('Screenshot saved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Screenshot failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
   }
 
   @override
@@ -249,8 +267,8 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
             // Snapshot pill
             _PillButton(
-              icon: Icons.photo_camera,
-              label: 'Snapshot',
+              icon: _capturing ? Icons.hourglass_empty : Icons.photo_camera,
+              label: _capturing ? 'Saving...' : 'Snapshot',
               onTap: _takeScreenshot,
             ),
             const SizedBox(width: 8),

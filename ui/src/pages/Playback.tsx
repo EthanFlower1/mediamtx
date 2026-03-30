@@ -702,13 +702,7 @@ export default function Playback() {
   const seekRelative = useCallback((seconds: number) => {
     setPlaybackTime(prev => {
       if (!prev) return prev
-      const newTime = new Date(prev.getTime() + seconds * 1000)
-      // Pause all videos and trigger re-sync
-      videoRefs.current.forEach(video => video.pause())
-      readyCamerasRef.current = new Set()
-      syncPendingRef.current = true
-      videoStartTimeRef.current = newTime
-      return newTime
+      return new Date(prev.getTime() + seconds * 1000)
     })
   }, [])
 

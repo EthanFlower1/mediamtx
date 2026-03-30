@@ -104,7 +104,12 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	profiles, usedMedia2, err := GetProfilesAuto(xaddr, username, password)
 	if err != nil {
 		log.Printf("onvif probe [%s]: GetProfilesAuto failed: %v", xaddr, err)
-		return result, nil // return what we have
+		// Don't fail completely — return capabilities even if profiles fail.
+		// But log clearly so the user knows why there are no streams.
+		return result, nil
+	}
+	if len(profiles) == 0 {
+		log.Printf("onvif probe [%s]: WARNING: 0 profiles returned (camera may not support GetProfiles or auth failed)", xaddr)
 	}
 	result.Profiles = profiles
 

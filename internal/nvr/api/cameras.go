@@ -660,6 +660,7 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 	}
 
 	password := h.decryptPassword(cam.ONVIFPassword)
+	nvrLogInfo("cameras", fmt.Sprintf("Refreshing camera %q: endpoint=%s user=%q passLen=%d", cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, len(password)))
 	result, err := onvif.ProbeDeviceFull(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
 	if err != nil {
 		nvrLogError("cameras", fmt.Sprintf("refresh probe failed for camera %s", id), err)

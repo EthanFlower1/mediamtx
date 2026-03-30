@@ -303,7 +303,8 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  DropdownButtonFormField<String>(
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
                     initialValue: _sort,
                     dropdownColor: NvrColors.bgTertiary,
                     style: NvrTypography.monoData,
@@ -333,6 +334,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                       setState(() => _sort = v ?? 'newest');
                       _fetchScreenshots();
                     },
+                  ),
                   ),
                 ],
               ),

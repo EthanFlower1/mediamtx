@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '../api/client'
+import { pushToast } from '../components/Toast'
 
 export interface RecordingRule {
   id: string
   camera_id: string
   name: string
   mode: 'always' | 'events'
-  days: string // JSON array string from API, e.g. "[0,1,2,3,4,5,6]"
+  days: string
   start_time: string
   end_time: string
   post_event_seconds: number
@@ -32,6 +33,16 @@ export interface CreateRulePayload {
   enabled: boolean
 }
 
+function toastError(title: string, err?: unknown) {
+  pushToast({
+    id: `${title}-${Date.now()}`,
+    type: 'error',
+    title,
+    message: err instanceof Error ? err.message : 'An unexpected error occurred',
+    timestamp: new Date(),
+  })
+}
+
 export function useRecordingRules(cameraId: string | null) {
   const [rules, setRules] = useState<RecordingRule[]>([])
   const [status, setStatus] = useState<RecordingStatus | null>(null)
@@ -46,7 +57,11 @@ export function useRecordingRules(cameraId: string | null) {
         apiFetch(`/cameras/${cameraId}/recording-status`),
       ])
       if (rulesRes.ok) setRules(await rulesRes.json())
+      else toastError('Failed to load recording rules')
       if (statusRes.ok) setStatus(await statusRes.json())
+      else toastError('Failed to load recording status')
+    } catch (err) {
+      toastError('Failed to load recording rules', err)
     } finally {
       setLoading(false)
     }
@@ -62,29 +77,44 @@ export function useRecordingRules(cameraId: string | null) {
 
   const createRule = async (payload: CreateRulePayload) => {
     if (!cameraId) return
-    const res = await apiFetch(`/cameras/${cameraId}/recording-rules`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-    if (res.ok) await refresh()
-    return res
+    try {
+      const res = await apiFetch(`/cameras/${cameraId}/recording-rules`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) await refresh()
+      else toastError('Failed to create recording rule')
+      return res
+    } catch (err) {
+      toastError('Failed to create recording rule', err)
+    }
   }
 
   const updateRule = async (ruleId: string, payload: CreateRulePayload) => {
-    const res = await apiFetch(`/recording-rules/${ruleId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    })
-    if (res.ok) await refresh()
-    return res
+    try {
+      const res = await apiFetch(`/recording-rules/${ruleId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) await refresh()
+      else toastError('Failed to update recording rule')
+      return res
+    } catch (err) {
+      toastError('Failed to update recording rule', err)
+    }
   }
 
   const deleteRule = async (ruleId: string) => {
-    const res = await apiFetch(`/recording-rules/${ruleId}`, {
-      method: 'DELETE',
-    })
-    if (res.ok) await refresh()
-    return res
+    try {
+      const res = await apiFetch(`/recording-rules/${ruleId}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) await refresh()
+      else toastError('Failed to delete recording rule')
+      return res
+    } catch (err) {
+      toastError('Failed to delete recording rule', err)
+    }
   }
 
   return { rules, status, loading, refresh, createRule, updateRule, deleteRule }

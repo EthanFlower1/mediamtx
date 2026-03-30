@@ -318,7 +318,10 @@ export default function Recordings() {
         const dates = new Set<string>()
         data.segments.forEach(s => {
           const d = new Date(s.start)
-          dates.add(d.toISOString().split('T')[0])
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dates.add(`${y}-${m}-${day}`)
         })
         setRecordingDates(dates)
       })
@@ -345,7 +348,10 @@ export default function Recordings() {
         const dates = new Set<string>()
         events.forEach(ev => {
           const d = new Date(ev.started_at)
-          dates.add(d.toISOString().split('T')[0])
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dates.add(`${y}-${m}-${day}`)
         })
         setMotionDates(dates)
       })

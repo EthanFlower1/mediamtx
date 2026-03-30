@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/snackbar_helper.dart';
 
 class PerformancePanel extends ConsumerStatefulWidget {
   const PerformancePanel({super.key});
@@ -18,6 +19,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
   List<dynamic> _history = [];
   Timer? _refreshTimer;
   bool _loading = true;
+  String? _metricsError;
 
   @override
   void initState() {
@@ -45,12 +47,14 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
           _current = data['current'] as Map<String, dynamic>?;
           _history = (data['history'] as List<dynamic>?) ?? [];
           _loading = false;
+          _metricsError = null;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _loading = false;
+          _metricsError = 'Failed to load metrics';
         });
       }
     }

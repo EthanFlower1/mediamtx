@@ -13,6 +13,7 @@ import '../../widgets/hud/analog_slider.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/status_badge.dart';
+import '../../utils/snackbar_helper.dart';
 import '../live_view/camera_tile.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
@@ -146,7 +147,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
             .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
             .toList();
         if (mounted) setState(() => _templates = tmplList);
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) showErrorSnackBar(context, 'Failed to load schedule templates');
+      }
 
       // Build stream → template assignment map from recording rules.
       try {
@@ -164,7 +167,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           }
         }
         if (mounted) setState(() => _streamTemplateMap = map);
-      } catch (_) {}
+      } catch (e) {
+        if (mounted) showErrorSnackBar(context, 'Failed to load recording rules');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

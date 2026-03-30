@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 /// A timespan returned by the MediaMTX /list endpoint.
 class PlaybackTimespan {
@@ -58,6 +59,7 @@ class PlaybackService {
       }
       return [];
     } catch (e) {
+      debugPrint('[PlaybackService] listTimespans failed: $e');
       return [];
     } finally {
       dio.close();

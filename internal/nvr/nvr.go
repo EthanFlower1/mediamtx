@@ -780,12 +780,17 @@ func (n *NVR) indexRecordingFragments(rec *db.Recording) {
 func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	var cam *db.Camera
 
-	// Try to extract camera ID from new path convention: .../nvr/<camera-id>/main/...
+	// Try to extract camera ID from path convention: .../nvr/<camera-id>/main/...
+	// Non-default stream paths use: .../nvr/<camera-id>~<stream-prefix>/...
 	if idx := strings.Index(filePath, "nvr/"); idx >= 0 {
 		rest := filePath[idx+4:] // after "nvr/"
 		parts := strings.SplitN(rest, "/", 2)
 		if len(parts) >= 1 {
 			candidate := parts[0]
+			// Strip ~streamID suffix if present (per-stream recording paths).
+			if tildeIdx := strings.Index(candidate, "~"); tildeIdx > 0 {
+				candidate = candidate[:tildeIdx]
+			}
 			if c, err := n.database.GetCamera(candidate); err == nil {
 				cam = c
 			}

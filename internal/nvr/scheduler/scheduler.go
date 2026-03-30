@@ -246,8 +246,9 @@ func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string) string {
 	}
 
 	streamURL := stream.RTSPURL
-	if streamURL == "" {
-		log.Printf("scheduler: stream %s has empty RTSP URL for camera %s, skipping", streamID, cam.ID)
+	// Validate the URL is a usable RTSP source.
+	if streamURL == "" || !strings.HasPrefix(streamURL, "rtsp://") {
+		log.Printf("scheduler: stream %s has invalid RTSP URL %q for camera %s, skipping", streamID, streamURL, cam.ID)
 		return ""
 	}
 	if u, parseErr := url.Parse(streamURL); parseErr == nil && u.Host != "" && (u.User == nil || u.User.Username() == "") {

@@ -714,7 +714,10 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		}
 	}
 
-	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles", cam.Name, len(result.Profiles)))
+	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles found, streams recreated", cam.Name, len(result.Profiles)))
+	for i, p := range result.Profiles {
+		nvrLogInfo("cameras", fmt.Sprintf("  Profile %d: name=%q token=%q uri=%q codec=%s %dx%d", i, p.Name, p.Token, p.StreamURI, p.VideoCodec, p.Width, p.Height))
+	}
 
 	c.JSON(http.StatusOK, h.buildCameraWithStreams(cam))
 }

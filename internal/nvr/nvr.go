@@ -293,6 +293,30 @@ func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
 				}
 			}
 
+			// Check sub-stream paths (format: <main_path>~<prefix>)
+			for _, cam := range cameras {
+				if cam.MediaMTXPath == "" {
+					continue
+				}
+				subPrefix := cam.MediaMTXPath + "~"
+				for pathName, ready := range currReady {
+					if !strings.HasPrefix(pathName, subPrefix) {
+						continue
+					}
+					prevReady2, existed := prevReady[pathName]
+					if !existed {
+						continue // first observation, skip event
+					}
+					if prevReady2 && !ready {
+						log.Printf("[NVR] sub-stream offline: %s (camera %s)", pathName, cam.Name)
+						n.events.PublishCameraOffline(cam.Name + " (" + strings.TrimPrefix(pathName, subPrefix) + ")")
+					} else if !prevReady2 && ready {
+						log.Printf("[NVR] sub-stream online: %s (camera %s)", pathName, cam.Name)
+						n.events.PublishCameraOnline(cam.Name + " (" + strings.TrimPrefix(pathName, subPrefix) + ")")
+					}
+				}
+			}
+
 			prevReady = currReady
 		}
 	}

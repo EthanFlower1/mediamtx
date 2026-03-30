@@ -20,6 +20,7 @@ class PlaybackController extends ChangeNotifier {
   final Set<String> _mutedCameras = {};
   bool _isInGap = false;
   DateTime _nextPositionUpdate = DateTime(2000);
+  Timer? _seekDebounce;
   DateTime _selectedDate = DateTime.now();
   List<String> _selectedCameraIds = [];
   List<RecordingSegment> _segments = [];
@@ -195,12 +196,22 @@ class PlaybackController extends ChangeNotifier {
     );
     final snapped = _snapToSegment(clamped);
 
-    _isSeeking = true;
+    // Update position immediately for smooth playhead movement.
     _isInGap = false;
     _stopGapTimer();
     _position = snapped;
     notifyListeners();
 
+    // Debounce the actual media seek to avoid overwhelming the player
+    // during scrubbing (timeline fires onPositionChanged per pixel).
+    _seekDebounce?.cancel();
+    _seekDebounce = Timer(const Duration(milliseconds: 150), () {
+      _performSeek(snapped);
+    });
+  }
+
+  Future<void> _performSeek(Duration snapped) async {
+    _isSeeking = true;
     final wasPlaying = _isPlaying;
 
     try {
@@ -213,9 +224,8 @@ class PlaybackController extends ChangeNotifier {
           _currentSegment != null &&
           targetSeg.id == _currentSegment!.id &&
           _players.isNotEmpty) {
-        // Same segment — seek within the local file (instant).
+        // Same segment — seek within the local file.
         final seekPos = _wallClockToPlayerPos(targetTime, targetSeg);
-        debugPrint('SEEK: in-place, target=$targetTime → mediaPos=$seekPos');
         for (final p in _players.values) {
           await p.seekTo(seekPos);
         }
@@ -701,6 +711,7 @@ class PlaybackController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _seekDebounce?.cancel();
     _stopGapTimer();
     _disposeAllPlayers();
     super.dispose();

@@ -8,6 +8,17 @@ import MultiCameraPlayer from '../components/MultiCameraPlayer'
 import RecordingCalendar from '../components/RecordingCalendar'
 import CameraStorageBrowser from '../components/CameraStorageBrowser'
 import { apiFetch } from '../api/client'
+import { pushToast } from '../components/Toast'
+
+function toastError(title: string, err?: unknown) {
+  pushToast({
+    id: `${title}-${Date.now()}`,
+    type: 'error',
+    title,
+    message: err instanceof Error ? err.message : 'An unexpected error occurred',
+    timestamp: new Date(),
+  })
+}
 
 interface SavedClip {
   id: string
@@ -233,7 +244,7 @@ export default function Recordings() {
         }
         return ranges
       })
-      .catch(() => [])
+      .catch(err => { toastError('Failed to load recordings', err); return [] })
   }, [])
 
   // Fetch recordings from MediaMTX when single camera or date changes
@@ -271,7 +282,7 @@ export default function Recordings() {
     apiFetch(url)
       .then(res => res.ok ? res.json() : [])
       .then((data: MotionEvent[]) => setMotionEvents(data))
-      .catch(() => setMotionEvents([]))
+      .catch(err => { toastError('Failed to load motion events', err); setMotionEvents([]) })
   }, [selectedCamera, date, isAllCameras, objectClassFilter])
 
   // Fetch all recording segments for the calendar (build date sets)
@@ -295,7 +306,7 @@ export default function Recordings() {
         })
         setRecordingDates(dates)
       })
-      .catch(() => setRecordingDates(new Set()))
+      .catch(err => { toastError('Failed to load recording dates', err); setRecordingDates(new Set()) })
   }, [mediamtxPath, isAllCameras])
 
   // Fetch motion event dates for the calendar
@@ -315,7 +326,7 @@ export default function Recordings() {
         })
         setMotionDates(dates)
       })
-      .catch(() => setMotionDates(new Set()))
+      .catch(err => { toastError('Failed to load motion dates', err); setMotionDates(new Set()) })
   }, [selectedCamera, isAllCameras])
 
   // Fetch recordings for ALL cameras when "All Cameras" selected
@@ -360,7 +371,7 @@ export default function Recordings() {
     apiFetch(`/saved-clips?camera_id=${selectedCamera}`)
       .then(res => res.ok ? res.json() : [])
       .then((data: SavedClip[]) => setSavedClips(data))
-      .catch(() => setSavedClips([]))
+      .catch(err => { toastError('Failed to load saved clips', err); setSavedClips([]) })
   }, [selectedCamera, isAllCameras])
 
   useEffect(() => {
@@ -390,8 +401,8 @@ export default function Recordings() {
         setSaveClipNotes('')
         fetchSavedClips()
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      toastError('Failed to save clip', err)
     } finally {
       setSavingClip(false)
     }
@@ -404,8 +415,8 @@ export default function Recordings() {
       if (res.ok) {
         fetchSavedClips()
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      toastError('Failed to delete clip', err)
     }
   }
 

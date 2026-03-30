@@ -200,10 +200,6 @@ final usersProvider = FutureProvider<List<User>>((ref) async {
 final auditProvider = FutureProvider<List<AuditEntry>>((ref) async {
   final api = ref.watch(apiClientProvider);
   if (api == null) return [];
-  try {
-    final res = await api.get('/audit', queryParameters: {'limit': 100});
-    return (res.data as List).map((e) => AuditEntry.fromJson(e as Map<String, dynamic>)).toList();
-  } catch (_) {
-    return [];
-  }
+  final res = await api.get('/audit', queryParameters: {'limit': 100});
+  return (res.data as List).map((e) => AuditEntry.fromJson(e as Map<String, dynamic>)).toList();
 });

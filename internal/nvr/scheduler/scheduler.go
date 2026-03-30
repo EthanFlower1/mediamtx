@@ -233,7 +233,8 @@ func streamPath(cam *db.Camera, streamID string) string {
 }
 
 // ensureStreamPath creates a MediaMTX path for a non-default stream.
-func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string) string {
+// The record parameter sets the initial recording state in the YAML.
+func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string, record bool) string {
 	path := streamPath(cam, streamID)
 	if streamID == "" {
 		return path
@@ -268,7 +269,7 @@ func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string) string {
 
 	s.yamlWriter.AddPath(path, map[string]interface{}{
 		"source":     streamURL,
-		"record":     false,
+		"record":     record,
 		"recordPath": recordPath,
 	})
 
@@ -401,7 +402,7 @@ func (s *Scheduler) evaluate() {
 			if streamID == "" {
 				path = cam.MediaMTXPath
 			} else {
-				path = s.ensureStreamPath(cam, streamID)
+				path = s.ensureStreamPath(cam, streamID, desiredRecording)
 			}
 			if path == "" {
 				continue

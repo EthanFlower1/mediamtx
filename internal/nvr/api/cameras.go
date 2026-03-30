@@ -685,10 +685,16 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		return
 	}
 
-	// Recreate streams from probed profiles.
-	if err := h.DB.DeleteStreamsByCamera(cam.ID); err != nil {
-		apiError(c, http.StatusInternalServerError, "delete old streams", err)
-		return
+	// Recreate streams from probed profiles — but only if the probe found any.
+	// Some cameras (e.g., Dahua AD410) return 0 profiles from ONVIF even though
+	// they have streams. Don't wipe existing streams in that case.
+	if len(result.Profiles) == 0 {
+		nvrLogWarn("cameras", fmt.Sprintf("ONVIF probe returned 0 profiles for camera %q, keeping existing streams", cam.Name))
+	} else {
+		if err := h.DB.DeleteStreamsByCamera(cam.ID); err != nil {
+			apiError(c, http.StatusInternalServerError, "delete old streams", err)
+			return
+		}
 	}
 	for i, p := range result.Profiles {
 		roles := ""

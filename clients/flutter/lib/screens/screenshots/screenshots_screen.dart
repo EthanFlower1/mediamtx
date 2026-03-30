@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/hud/hud_button.dart';
 
 class ScreenshotsScreen extends ConsumerStatefulWidget {
@@ -36,7 +37,9 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
     try {
       final res = await api.get<dynamic>('/cameras');
       if (mounted) setState(() => _cameras = res.data as List<dynamic>? ?? []);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) showErrorSnackBar(context, 'Failed to load cameras');
+    }
   }
 
   Future<void> _fetchScreenshots({bool append = false}) async {

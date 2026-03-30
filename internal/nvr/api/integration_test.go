@@ -456,3 +456,189 @@ func TestIntegration_DeleteRuleCleansUpDBAndYAML(t *testing.T) {
 	yamlContent = env.readYAML(t)
 	assert.Contains(t, yamlContent, "record: false", "YAML should have record: false after deleting rule")
 }
+
+// ---------------------------------------------------------------------------
+// Test 7: Multiple rules — union logic (always wins over events)
+// ---------------------------------------------------------------------------
+
+func TestIntegration_MultipleRulesUnionLogic(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Pool Cam","rtsp_url":"rtsp://192.168.1.110/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+
+	// Rule 1: "events" mode matching current day (no stream_id = default).
+	eventsBody := `{
+		"name": "Events Rule",
+		"mode": "events",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wEvents, eventsRule := env.createRule(t, camID, eventsBody)
+	require.Equal(t, http.StatusCreated, wEvents.Code, "events rule create failed: %s", wEvents.Body.String())
+
+	// Rule 2: "always" mode matching current day (no stream_id = default).
+	alwaysBody := `{
+		"name": "Always Rule",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wAlways, alwaysRule := env.createRule(t, camID, alwaysBody)
+	require.Equal(t, http.StatusCreated, wAlways.Code, "always rule create failed: %s", wAlways.Body.String())
+
+	// Evaluate the combined rules.
+	camRules, err := env.DB.ListRecordingRules(camID)
+	require.NoError(t, err)
+	require.Len(t, camRules, 2, "expected 2 rules for camera")
+
+	mode, activeIDs := scheduler.EvaluateRules(camRules, now)
+
+	// Union logic: "always" wins over "events".
+	assert.Equal(t, scheduler.ModeAlways, mode, "union logic should resolve to ModeAlways when both always and events rules match")
+
+	// Both rule IDs should be in the active list.
+	assert.Contains(t, activeIDs, eventsRule.ID, "active IDs should include events rule")
+	assert.Contains(t, activeIDs, alwaysRule.ID, "active IDs should include always rule")
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: Per-stream rules create separate YAML paths
+// ---------------------------------------------------------------------------
+
+func TestIntegration_PerStreamRulesCreateSeparateYAMLPaths(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Patio Cam","rtsp_url":"rtsp://192.168.1.120/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+	mediamtxPath := camResp["mediamtx_path"].(string)
+
+	// Create a sub-stream with a valid rtsp:// URL.
+	streamBody := `{
+		"name": "Sub Stream",
+		"rtsp_url": "rtsp://192.168.1.120/sub",
+		"width": 640,
+		"height": 480,
+		"roles": "recording"
+	}`
+	wStream, stream := env.createStream(t, camID, streamBody)
+	require.Equal(t, http.StatusCreated, wStream.Code, "stream create failed: %s", wStream.Body.String())
+
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+
+	// Rule for default stream (no stream_id) — always, matching now.
+	defaultRuleBody := `{
+		"name": "Default Always",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wDefRule, defRule := env.createRule(t, camID, defaultRuleBody)
+	require.Equal(t, http.StatusCreated, wDefRule.Code, "default rule create failed: %s", wDefRule.Body.String())
+
+	// Rule for sub-stream (with stream_id) — always, matching now.
+	streamRuleBody := `{
+		"name": "Sub Stream Always",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59",
+		"stream_id": "` + stream.ID + `"
+	}`
+	wStreamRule, streamRule := env.createRule(t, camID, streamRuleBody)
+	require.Equal(t, http.StatusCreated, wStreamRule.Code, "stream rule create failed: %s", wStreamRule.Body.String())
+
+	// Verify DB has both rules with correct stream_ids.
+	allRules, err := env.DB.ListRecordingRules(camID)
+	require.NoError(t, err)
+	require.Len(t, allRules, 2, "expected 2 rules for camera")
+
+	ruleStreamIDs := map[string]string{}
+	for _, r := range allRules {
+		ruleStreamIDs[r.ID] = r.StreamID
+	}
+	assert.Equal(t, "", ruleStreamIDs[defRule.ID], "default rule should have empty stream_id")
+	assert.Equal(t, stream.ID, ruleStreamIDs[streamRule.ID], "stream rule should have sub-stream ID")
+
+	// Flush scheduler to trigger evaluation and YAML writes.
+	env.flushScheduler(t)
+
+	// Read YAML and verify both paths exist.
+	yamlContent := env.readYAML(t)
+
+	// Main path should exist.
+	assert.Contains(t, yamlContent, mediamtxPath+":", "YAML should contain main camera path")
+
+	// Sub-stream path: <mediamtx_path>~<stream_id[:8]>
+	streamPrefix := stream.ID
+	if len(streamPrefix) > 8 {
+		streamPrefix = streamPrefix[:8]
+	}
+	expectedSubPath := mediamtxPath + "~" + streamPrefix
+	assert.Contains(t, yamlContent, expectedSubPath+":", "YAML should contain sub-stream path with truncated stream ID")
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: Status API reflects scheduler state
+// ---------------------------------------------------------------------------
+
+func TestIntegration_StatusAPIReflectsSchedulerState(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Lobby Cam","rtsp_url":"rtsp://192.168.1.130/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+
+	// Call Status API before any rules — should be "off" and not recording.
+	wStatus1, cStatus1 := apiCall(http.MethodGet, "/cameras/"+camID+"/recording-rules/status", "")
+	cStatus1.Params = gin.Params{{Key: "id", Value: camID}}
+	env.RuleHandler.Status(cStatus1)
+	require.Equal(t, http.StatusOK, wStatus1.Code, "status call 1 failed: %s", wStatus1.Body.String())
+
+	var resp1 map[string]interface{}
+	require.NoError(t, json.Unmarshal(wStatus1.Body.Bytes(), &resp1))
+	assert.Equal(t, "off", resp1["effective_mode"], "effective_mode should be 'off' with no rules")
+	assert.Equal(t, false, resp1["recording"], "recording should be false with no rules")
+
+	// Create an always rule matching now.
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+	ruleBody := `{
+		"name": "Always Record",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wRule, _ := env.createRule(t, camID, ruleBody)
+	require.Equal(t, http.StatusCreated, wRule.Code, "rule create failed: %s", wRule.Body.String())
+
+	// Flush scheduler so it evaluates and updates internal state.
+	env.flushScheduler(t)
+
+	// Call Status API again — should now be "always" and recording.
+	wStatus2, cStatus2 := apiCall(http.MethodGet, "/cameras/"+camID+"/recording-rules/status", "")
+	cStatus2.Params = gin.Params{{Key: "id", Value: camID}}
+	env.RuleHandler.Status(cStatus2)
+	require.Equal(t, http.StatusOK, wStatus2.Code, "status call 2 failed: %s", wStatus2.Body.String())
+
+	var resp2 map[string]interface{}
+	require.NoError(t, json.Unmarshal(wStatus2.Body.Bytes(), &resp2))
+	assert.Equal(t, "always", resp2["effective_mode"], "effective_mode should be 'always' after scheduler flush")
+	assert.Equal(t, true, resp2["recording"], "recording should be true after scheduler flush")
+}

@@ -121,9 +121,12 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       // Fetch streams, then set the AI stream ID.
       try {
         final streamsRes = await api.get<dynamic>('/cameras/${widget.cameraId}/streams');
-        final streamsList = (streamsRes.data as List)
+        final rawList = streamsRes.data;
+        debugPrint('Streams response for ${widget.cameraId}: $rawList');
+        final streamsList = (rawList as List)
             .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
             .toList();
+        debugPrint('Parsed ${streamsList.length} streams');
         if (mounted) {
           setState(() {
             _streams = streamsList;
@@ -132,8 +135,8 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
             _aiStreamId = streamsList.any((s) => s.id == savedId) ? savedId : '';
           });
         }
-      } catch (_) {
-        // Streams may not exist yet — dropdown will show only "Default".
+      } catch (e) {
+        debugPrint('Failed to fetch streams: $e');
       }
 
       // Fetch schedule templates.

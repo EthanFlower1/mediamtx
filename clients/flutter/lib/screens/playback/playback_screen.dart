@@ -66,6 +66,14 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   }
 
   @override
+  void deactivate() {
+    // Pause playback when navigating away from this tab (GoRouter ShellRoute
+    // keeps the widget alive but deactivates it).
+    _controller?.pause();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _controller?.removeListener(_onControllerChanged);
     _controller?.dispose();

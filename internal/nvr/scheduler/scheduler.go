@@ -260,11 +260,11 @@ func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string) string {
 		}
 	}
 
-	recordDir := "./recordings/" + path
+	recordBase := "./recordings/"
 	if cam.StoragePath != "" {
-		recordDir = cam.StoragePath + "/" + path
+		recordBase = cam.StoragePath + "/"
 	}
-	recordPath := recordDir + "/%Y-%m-%d_%H-%M-%S"
+	recordPath := recordBase + "%path/%Y-%m/%d/%H-%M-%S-%f"
 
 	s.yamlWriter.AddPath(path, map[string]interface{}{
 		"source":     streamURL,

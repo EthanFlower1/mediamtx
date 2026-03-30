@@ -3,6 +3,7 @@ import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import { MotionEvent, eventEmoji } from '../components/Timeline'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
+import { pushToast } from '../components/Toast'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -20,6 +21,16 @@ function toLocalRFC3339(d: Date): string {
 
 function formatTimeHHMMSS(d: Date): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function toastError(title: string, err?: unknown) {
+  pushToast({
+    id: `${title}-${Date.now()}`,
+    type: 'error',
+    title,
+    message: err instanceof Error ? err.message : 'An unexpected error occurred',
+    timestamp: new Date(),
+  })
 }
 
 interface Segment { start: string }
@@ -546,7 +557,7 @@ export default function Playback() {
             return [...prev, { cameraId: cam.id, ranges }]
           })
         })
-        .catch(() => {})
+        .catch(err => toastError('Failed to load recordings for camera', err))
     })
   }, [selectedCameras, date])
 
@@ -566,7 +577,7 @@ export default function Playback() {
     const promises = selectedCameras.map(cam =>
       apiFetch(`/cameras/${cam.id}/motion-events?date=${date}`)
         .then(res => res.ok ? res.json() : [])
-        .catch(() => [])
+        .catch(err => { toastError('Failed to load motion events', err); return [] as MotionEvent[] })
     )
 
     Promise.all(promises).then((results: MotionEvent[][]) => {

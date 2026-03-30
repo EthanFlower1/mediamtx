@@ -506,6 +506,7 @@ export default function Playback() {
       return
     }
 
+    let cancelled = false
     const MAX_SEGMENT_MS = 65 * 60 * 1000
 
     selectedCameras.forEach(cam => {
@@ -516,6 +517,8 @@ export default function Playback() {
       fetch(`${window.location.protocol}//${window.location.hostname}:9997/v3/recordings/get/${cam.mediamtx_path}`)
         .then(res => res.ok ? res.json() : null)
         .then((data: RecordingList | null) => {
+          if (cancelled) return
+
           if (!data || !data.segments) {
             setCameraRanges(prev => {
               const exists = prev.find(cr => cr.cameraId === cam.id)
@@ -559,6 +562,8 @@ export default function Playback() {
         })
         .catch(err => toastError('Failed to load recordings for camera', err))
     })
+
+    return () => { cancelled = true }
   }, [selectedCameras, date])
 
   // Clean up camera ranges when cameras are removed
@@ -574,6 +579,8 @@ export default function Playback() {
       return
     }
 
+    let cancelled = false
+
     const promises = selectedCameras.map(cam =>
       apiFetch(`/cameras/${cam.id}/motion-events?date=${date}`)
         .then(res => res.ok ? res.json() : [])
@@ -581,10 +588,13 @@ export default function Playback() {
     )
 
     Promise.all(promises).then((results: MotionEvent[][]) => {
+      if (cancelled) return
       const all = results.flat()
       all.sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
       setMotionEvents(all)
     })
+
+    return () => { cancelled = true }
   }, [selectedCameras, date])
 
   // Track the current playback wall-clock time in a ref (not state) to avoid

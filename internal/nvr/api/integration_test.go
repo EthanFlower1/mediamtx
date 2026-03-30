@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -138,7 +139,8 @@ func (e *integrationEnv) createRule(t *testing.T, cameraID, body string) (*httpt
 }
 
 // flushScheduler starts the scheduler, waits for its initial 5s delay + one
-// eval cycle + 500ms write coalesce, then stops it.
+// eval cycle + 500ms write coalesce, then stops it. Safe to call multiple
+// times because Stop() reinitializes the stop channel.
 func (e *integrationEnv) flushScheduler(t *testing.T) {
 	t.Helper()
 	e.Scheduler.Start()
@@ -304,4 +306,153 @@ func TestIntegration_RecordingRuleWithStreamID(t *testing.T) {
 	require.Len(t, rules, 1)
 	assert.Equal(t, rule.ID, rules[0].ID)
 	assert.Equal(t, stream.ID, rules[0].StreamID)
+}
+
+// ---------------------------------------------------------------------------
+// Test 4: Scheduler evaluates rules and updates YAML
+// ---------------------------------------------------------------------------
+
+func TestIntegration_SchedulerEvaluatesRulesAndUpdatesYAML(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Front Door","rtsp_url":"rtsp://192.168.1.80/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+
+	// Create an "always" rule that matches the current time.
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+	ruleBody := `{
+		"name": "Always Record",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wRule, rule := env.createRule(t, camID, ruleBody)
+	require.Equal(t, http.StatusCreated, wRule.Code, "rule create failed: %s", wRule.Body.String())
+
+	// Verify EvaluateRules returns ModeAlways for this rule at current time.
+	rules, err := env.DB.ListRecordingRules(camID)
+	require.NoError(t, err)
+	mode, activeIDs := scheduler.EvaluateRules(rules, now)
+	assert.Equal(t, scheduler.ModeAlways, mode, "expected ModeAlways from EvaluateRules")
+	assert.Contains(t, activeIDs, rule.ID, "active IDs should contain our rule")
+
+	// Flush scheduler to trigger full evaluation and YAML write.
+	env.flushScheduler(t)
+
+	// Verify YAML contains record: true for the camera path.
+	yamlContent := env.readYAML(t)
+	assert.Contains(t, yamlContent, "record: true", "YAML should contain record: true after scheduler flush")
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: Disabling a rule turns off recording
+// ---------------------------------------------------------------------------
+
+func TestIntegration_DisableRuleTurnsOffRecording(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Side Yard","rtsp_url":"rtsp://192.168.1.90/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+
+	// Create an "always" rule matching now.
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+	ruleBody := `{
+		"name": "Always Record",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wRule, rule := env.createRule(t, camID, ruleBody)
+	require.Equal(t, http.StatusCreated, wRule.Code, "rule create failed: %s", wRule.Body.String())
+
+	// Flush scheduler — YAML should have record: true.
+	env.flushScheduler(t)
+	yamlContent := env.readYAML(t)
+	assert.Contains(t, yamlContent, "record: true", "YAML should have record: true initially")
+
+	// Update rule via API to set enabled: false.
+	updateBody := `{
+		"name": "Always Record",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59",
+		"enabled": false
+	}`
+	wUpdate, cUpdate := apiCall(http.MethodPut, "/recording-rules/"+rule.ID, updateBody)
+	cUpdate.Params = gin.Params{{Key: "id", Value: rule.ID}}
+	env.RuleHandler.Update(cUpdate)
+	require.Equal(t, http.StatusOK, wUpdate.Code, "rule update failed: %s", wUpdate.Body.String())
+
+	// Verify DB shows rule disabled.
+	dbRule, err := env.DB.GetRecordingRule(rule.ID)
+	require.NoError(t, err)
+	assert.False(t, dbRule.Enabled, "rule should be disabled after update")
+
+	// Flush scheduler again — YAML should now have record: false.
+	env.flushScheduler(t)
+	yamlContent = env.readYAML(t)
+	assert.Contains(t, yamlContent, "record: false", "YAML should have record: false after disabling rule")
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: Deleting a rule cleans up DB and YAML
+// ---------------------------------------------------------------------------
+
+func TestIntegration_DeleteRuleCleansUpDBAndYAML(t *testing.T) {
+	env := setupIntegration(t)
+
+	// Create camera.
+	camBody := `{"name":"Backyard Cam","rtsp_url":"rtsp://192.168.1.100/main"}`
+	wCam, camResp := env.createCamera(t, camBody)
+	require.Equal(t, http.StatusCreated, wCam.Code, "camera create failed: %s", wCam.Body.String())
+	camID := camResp["id"].(string)
+
+	// Create an "always" rule matching now.
+	now := time.Now()
+	dayStr := strconv.Itoa(int(now.Weekday()))
+	ruleBody := `{
+		"name": "Always Record",
+		"mode": "always",
+		"days": [` + dayStr + `],
+		"start_time": "00:00",
+		"end_time": "23:59"
+	}`
+	wRule, rule := env.createRule(t, camID, ruleBody)
+	require.Equal(t, http.StatusCreated, wRule.Code, "rule create failed: %s", wRule.Body.String())
+
+	// Flush scheduler — YAML should have record: true.
+	env.flushScheduler(t)
+	yamlContent := env.readYAML(t)
+	assert.Contains(t, yamlContent, "record: true", "YAML should have record: true initially")
+
+	// Delete rule via API.
+	wDelete, cDelete := apiCall(http.MethodDelete, "/recording-rules/"+rule.ID, "")
+	cDelete.Params = gin.Params{{Key: "id", Value: rule.ID}}
+	env.RuleHandler.Delete(cDelete)
+	require.Equal(t, http.StatusOK, wDelete.Code, "rule delete failed: %s", wDelete.Body.String())
+
+	// Verify rule is gone from DB.
+	_, err := env.DB.GetRecordingRule(rule.ID)
+	assert.Error(t, err, "GetRecordingRule should return error for deleted rule")
+
+	// Verify ListRecordingRules returns empty.
+	rules, err := env.DB.ListRecordingRules(camID)
+	require.NoError(t, err)
+	assert.Empty(t, rules, "ListRecordingRules should return empty after deletion")
+
+	// Flush scheduler — YAML should now have record: false.
+	env.flushScheduler(t)
+	yamlContent = env.readYAML(t)
+	assert.Contains(t, yamlContent, "record: false", "YAML should have record: false after deleting rule")
 }

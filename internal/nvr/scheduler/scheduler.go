@@ -122,6 +122,7 @@ func (s *Scheduler) Start() {
 }
 
 // Stop signals the scheduler goroutine to exit and waits for it to finish.
+// After Stop returns the scheduler can be restarted with Start().
 func (s *Scheduler) Stop() {
 	close(s.stopCh)
 	s.wg.Wait()
@@ -155,6 +156,9 @@ func (s *Scheduler) Stop() {
 			log.Printf("scheduler: flush write for %s: %v", path, err)
 		}
 	}
+
+	// Reinitialize the stop channel so Start() can be called again.
+	s.stopCh = make(chan struct{})
 }
 
 // RemoveCamera removes tracked state for the given camera ID (and all its

@@ -6,6 +6,7 @@ import '../../models/recording_rule.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/snackbar_helper.dart';
 
 class RecordingRulesScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -41,7 +42,9 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
           .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
           .toList();
       if (mounted) setState(() => _streams = list);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) showErrorSnackBar(context, 'Failed to load streams: $e');
+    }
   }
 
   Future<void> _fetchRules() async {
@@ -130,6 +133,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     TimeOfDay startTime = const TimeOfDay(hour: 0, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 23, minute: 59);
     List<int> selectedDays = List.generate(7, (i) => i + 1);
+    int postEventSeconds = 30;
 
     await showDialog<void>(
       context: context,
@@ -205,6 +209,35 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                         if (v != null) setDlgState(() => selectedMode = v);
                       },
                     ),
+                    if (selectedMode == 'motion') ...[
+                      const SizedBox(height: 12),
+                      const Text('Post-event buffer',
+                          style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Slider(
+                              value: postEventSeconds.toDouble(),
+                              min: 0,
+                              max: 300,
+                              divisions: 60,
+                              activeColor: NvrColors.accent,
+                              label: '${postEventSeconds}s',
+                              onChanged: (v) => setDlgState(() => postEventSeconds = v.round()),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 44,
+                            child: Text(
+                              '${postEventSeconds}s',
+                              style: const TextStyle(color: NvrColors.textPrimary, fontSize: 13),
+                              textAlign: TextAlign.end,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (selectedMode == 'schedule') ...[
                       const SizedBox(height: 12),
                       Row(
@@ -279,6 +312,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                           ? '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}'
                           : null,
                       daysOfWeek: selectedMode == 'schedule' ? selectedDays : null,
+                      postEventSeconds: postEventSeconds,
                     );
                   },
                   child: const Text('Save', style: TextStyle(color: Colors.white)),
@@ -297,6 +331,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     String? startTime,
     String? endTime,
     List<int>? daysOfWeek,
+    int postEventSeconds = 30,
   }) async {
     final api = ref.read(apiClientProvider);
     if (api == null) return;
@@ -316,7 +351,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
         'start_time': startTime ?? '00:00',
         'end_time': endTime ?? '00:00',
         if (streamId.isNotEmpty) 'stream_id': streamId,
-        if (backendMode == 'events') 'post_event_seconds': 30,
+        if (backendMode == 'events') 'post_event_seconds': postEventSeconds,
       });
       await _fetchRules();
     } catch (e) {

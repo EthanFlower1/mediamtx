@@ -29,6 +29,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
     _fetchCameras();
   }
 
+
   Future<void> _fetchCameras() async {
     final api = ref.read(apiClientProvider);
     if (api == null) return;
@@ -238,12 +239,21 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            const Padding(
+            Padding(
               padding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Text('SCREENSHOTS', style: NvrTypography.pageTitle),
+                  const Text('SCREENSHOTS', style: NvrTypography.pageTitle),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: NvrColors.textMuted, size: 20),
+                    tooltip: 'Refresh',
+                    onPressed: () {
+                      _fetchScreenshots();
+                      _fetchCameras();
+                    },
+                  ),
                 ],
               ),
             ),

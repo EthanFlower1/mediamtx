@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 
 	onviflib "github.com/use-go/onvif"
 	onvifmedia "github.com/use-go/onvif/media"
@@ -59,9 +60,9 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 		})
 		if err == nil {
 			uri := string(streamResp.MediaUri.Uri)
-			// Inject credentials into the RTSP URL.
-			if username != "" {
-				if u, err := url.Parse(uri); err == nil {
+			// Only inject credentials into valid RTSP URIs.
+			if uri != "" && strings.HasPrefix(uri, "rtsp://") && username != "" {
+				if u, parseErr := url.Parse(uri); parseErr == nil {
 					u.User = url.UserPassword(username, password)
 					uri = u.String()
 				}

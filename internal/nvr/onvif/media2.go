@@ -221,7 +221,7 @@ func GetProfilesAuto(xaddr, username, password string) ([]MediaProfile, bool, er
 			for i := range profiles {
 				uri, sErr := GetStreamUri2(client, profiles[i].Token)
 				if sErr == nil {
-					if username != "" {
+					if uri != "" && strings.HasPrefix(uri, "rtsp://") && username != "" {
 						if u, parseErr := url.Parse(uri); parseErr == nil {
 							u.User = url.UserPassword(username, password)
 							uri = u.String()
@@ -262,7 +262,7 @@ func GetProfilesAuto(xaddr, username, password string) ([]MediaProfile, bool, er
 		})
 		if sErr == nil {
 			uri := string(streamResp.MediaUri.Uri)
-			if username != "" {
+			if uri != "" && strings.HasPrefix(uri, "rtsp://") && username != "" {
 				if u, parseErr := url.Parse(uri); parseErr == nil {
 					u.User = url.UserPassword(username, password)
 					uri = u.String()

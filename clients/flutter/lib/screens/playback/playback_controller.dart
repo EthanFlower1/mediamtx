@@ -173,6 +173,7 @@ class PlaybackController extends ChangeNotifier {
 
   void pause() {
     _isPlaying = false;
+    _seekDebounce?.cancel();
     _stopGapTimer();
     _isInGap = false;
     for (final p in _players.values) {
@@ -529,7 +530,9 @@ class PlaybackController extends ChangeNotifier {
 
         await controller.initialize();
         controller.setPlaybackSpeed(_speed);
-        controller.setVolume(_mutedCameras.contains(camId) ? 0.0 : 1.0);
+        // Set volume immediately after init — await to ensure it's applied
+        // before any audio frames play.
+        await controller.setVolume(_mutedCameras.contains(camId) ? 0.0 : 1.0);
         controller.addListener(_onPositionUpdate);
 
         // Seek to the target position within the file.

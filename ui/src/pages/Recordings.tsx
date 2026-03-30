@@ -257,14 +257,20 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
     setLoadingRecordings(true)
 
     fetchCameraRecordings(mediamtxPath, date)
       .then(ranges => {
+        if (cancelled) return
         setTimelineRanges(ranges)
         setHasRecordings(ranges.length > 0)
       })
-      .finally(() => setLoadingRecordings(false))
+      .finally(() => {
+        if (!cancelled) setLoadingRecordings(false)
+      })
+
+    return () => { cancelled = true }
   }, [mediamtxPath, date, isAllCameras, fetchCameraRecordings])
 
   // Fetch motion events when single camera and date are selected
@@ -274,6 +280,7 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
     let url = `/cameras/${selectedCamera}/motion-events?date=${date}`
     if (objectClassFilter) {
       url += `&object_class=${encodeURIComponent(objectClassFilter)}`
@@ -281,8 +288,14 @@ export default function Recordings() {
 
     apiFetch(url)
       .then(res => res.ok ? res.json() : [])
-      .then((data: MotionEvent[]) => setMotionEvents(data))
-      .catch(err => { toastError('Failed to load motion events', err); setMotionEvents([]) })
+      .then((data: MotionEvent[]) => {
+        if (!cancelled) setMotionEvents(data)
+      })
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load motion events', err); setMotionEvents([]) }
+      })
+
+    return () => { cancelled = true }
   }, [selectedCamera, date, isAllCameras, objectClassFilter])
 
   // Fetch all recording segments for the calendar (build date sets)
@@ -292,9 +305,12 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
+
     fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
       .then(res => res.ok ? res.json() : null)
       .then((data: RecordingList | null) => {
+        if (cancelled) return
         if (!data || !data.segments) {
           setRecordingDates(new Set())
           return
@@ -306,7 +322,11 @@ export default function Recordings() {
         })
         setRecordingDates(dates)
       })
-      .catch(err => { toastError('Failed to load recording dates', err); setRecordingDates(new Set()) })
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load recording dates', err); setRecordingDates(new Set()) }
+      })
+
+    return () => { cancelled = true }
   }, [mediamtxPath, isAllCameras])
 
   // Fetch motion event dates for the calendar
@@ -316,9 +336,12 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
+
     apiFetch(`/cameras/${selectedCamera}/motion-events?days=90`)
       .then(res => res.ok ? res.json() : [])
       .then((events: MotionEvent[]) => {
+        if (cancelled) return
         const dates = new Set<string>()
         events.forEach(ev => {
           const d = new Date(ev.started_at)
@@ -326,7 +349,11 @@ export default function Recordings() {
         })
         setMotionDates(dates)
       })
-      .catch(err => { toastError('Failed to load motion dates', err); setMotionDates(new Set()) })
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load motion dates', err); setMotionDates(new Set()) }
+      })
+
+    return () => { cancelled = true }
   }, [selectedCamera, isAllCameras])
 
   // Fetch recordings for ALL cameras when "All Cameras" selected
@@ -335,6 +362,8 @@ export default function Recordings() {
       if (isAllCameras) setAllCameraRanges([])
       return
     }
+
+    let cancelled = false
 
     // Initialize all cameras as loading
     const initial: AllCameraRanges[] = cameras
@@ -351,6 +380,7 @@ export default function Recordings() {
     // Fetch each camera's recordings in parallel
     initial.forEach(cam => {
       fetchCameraRecordings(cam.mediamtxPath, date).then(ranges => {
+        if (cancelled) return
         setAllCameraRanges(prev =>
           prev.map(c =>
             c.cameraId === cam.cameraId
@@ -360,6 +390,8 @@ export default function Recordings() {
         )
       })
     })
+
+    return () => { cancelled = true }
   }, [isAllCameras, date, cameras, fetchCameraRecordings])
 
   // Fetch saved clips when camera changes

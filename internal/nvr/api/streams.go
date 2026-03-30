@@ -2,7 +2,10 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,6 +43,22 @@ func (h *StreamHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, streams)
 }
 
+// validateStreamURL checks that rawURL is a valid rtsp:// or rtsps:// URL.
+func validateStreamURL(rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("rtsp_url is required")
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "rtsp" && scheme != "rtsps" {
+		return fmt.Errorf("URL scheme must be rtsp:// or rtsps://, got %q", u.Scheme)
+	}
+	return nil
+}
+
 // Create creates a new stream for a camera.
 func (h *StreamHandler) Create(c *gin.Context) {
 	cameraID := c.Param("id")
@@ -56,6 +75,11 @@ func (h *StreamHandler) Create(c *gin.Context) {
 	var req streamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})
+		return
+	}
+
+	if err := validateStreamURL(req.RTSPURL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

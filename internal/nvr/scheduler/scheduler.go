@@ -246,7 +246,11 @@ func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string) string {
 	}
 
 	streamURL := stream.RTSPURL
-	if u, parseErr := url.Parse(streamURL); parseErr == nil && (u.User == nil || u.User.Username() == "") {
+	if streamURL == "" {
+		log.Printf("scheduler: stream %s has empty RTSP URL for camera %s, skipping", streamID, cam.ID)
+		return ""
+	}
+	if u, parseErr := url.Parse(streamURL); parseErr == nil && u.Host != "" && (u.User == nil || u.User.Username() == "") {
 		username := cam.ONVIFUsername
 		password := s.decryptPassword(cam.ONVIFPassword)
 		if username != "" {

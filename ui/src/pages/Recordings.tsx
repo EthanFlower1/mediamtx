@@ -582,44 +582,39 @@ export default function Recordings() {
 
     const clipStartMs = clipStart.getTime()
     const clipEndMs = clipEnd.getTime()
+    const GAP_THRESHOLD_MS = 30000
 
-    // Check if any recording range overlaps with the clip range
-    const overlappingRanges = timelineRanges.filter(r => {
-      const rStart = new Date(r.start).getTime()
-      const rEnd = new Date(r.end).getTime()
-      return rStart < clipEndMs && rEnd > clipStartMs
-    })
+    // Find recording ranges that overlap the clip window
+    const overlapping = timelineRanges
+      .filter(r => {
+        const rStart = new Date(r.start).getTime()
+        const rEnd = new Date(r.end).getTime()
+        return rStart < clipEndMs && rEnd > clipStartMs
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 
-    if (overlappingRanges.length === 0) {
+    if (overlapping.length === 0) {
       return { type: 'error' as const, message: 'No recordings in selected range' }
     }
 
-    // Check if there are gaps within the clip range
-    // Sort overlapping ranges and check for gaps between them
-    const sorted = [...overlappingRanges].sort((a, b) =>
-      new Date(a.start).getTime() - new Date(b.start).getTime()
-    )
-
-    let hasGaps = false
-    // Check gap at the start
-    if (new Date(sorted[0].start).getTime() > clipStartMs + 30000) {
-      hasGaps = true
-    }
-    // Check gaps between ranges
-    for (let i = 1; i < sorted.length; i++) {
-      const prevEnd = new Date(sorted[i - 1].end).getTime()
-      const curStart = new Date(sorted[i].start).getTime()
-      if (curStart - prevEnd > 30000) {
-        hasGaps = true
-        break
+    // Merge overlapping/adjacent ranges (within threshold) clipped to clip window
+    const merged: { start: number; end: number }[] = []
+    for (const r of overlapping) {
+      const rStart = Math.max(new Date(r.start).getTime(), clipStartMs)
+      const rEnd = Math.min(new Date(r.end).getTime(), clipEndMs)
+      if (merged.length > 0 && rStart - merged[merged.length - 1].end <= GAP_THRESHOLD_MS) {
+        merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, rEnd)
+      } else {
+        merged.push({ start: rStart, end: rEnd })
       }
     }
-    // Check gap at the end
-    if (new Date(sorted[sorted.length - 1].end).getTime() < clipEndMs - 30000) {
-      hasGaps = true
-    }
 
-    if (hasGaps) {
+    // Check if merged ranges cover the full clip window
+    const hasStartGap = merged[0].start - clipStartMs > GAP_THRESHOLD_MS
+    const hasEndGap = clipEndMs - merged[merged.length - 1].end > GAP_THRESHOLD_MS
+    const hasMiddleGaps = merged.length > 1
+
+    if (hasStartGap || hasEndGap || hasMiddleGaps) {
       return { type: 'warning' as const, message: 'Clip includes gaps in recording. Footage will skip missing portions.' }
     }
 

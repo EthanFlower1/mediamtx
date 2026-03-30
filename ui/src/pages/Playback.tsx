@@ -604,6 +604,7 @@ export default function Playback() {
   const timelineMarkerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    const currentDate = date
     if (playing && videoStartTimeRef.current) {
       const firstVideo = videoRefs.current.values().next().value
       if (firstVideo) {
@@ -613,7 +614,7 @@ export default function Playback() {
             livePlaybackTimeRef.current = wallTime
             // Update timeline marker position directly in DOM (no React re-render)
             if (timelineMarkerRef.current) {
-              const dayStart = new Date(date + 'T00:00:00')
+              const dayStart = new Date(currentDate + 'T00:00:00')
               const dayMs = 24 * 60 * 60 * 1000
               const TOTAL_HEIGHT = Math.min(960, typeof window !== 'undefined' ? window.innerHeight - 200 : 960)
               const px = ((wallTime.getTime() - dayStart.getTime()) / dayMs) * TOTAL_HEIGHT
@@ -631,7 +632,7 @@ export default function Playback() {
         timeUpdateIntervalRef.current = null
       }
     }
-  }, [playing])
+  }, [playing, date])
 
   // Callbacks
   const handleVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {

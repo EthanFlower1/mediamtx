@@ -144,3 +144,128 @@ func TestConsolidateClosedEvents_SkipsRecentAndOpen(t *testing.T) {
 	dets2, _ := d.ListDetectionsByEvent(event2.ID)
 	assert.Len(t, dets2, 1)
 }
+
+func TestDeleteRecordingsWithoutEvents(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	recNoEvent := &Recording{
+		CameraID:  cam.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/no-event.mp4",
+		FileSize:  1000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(recNoEvent))
+
+	recWithEvent := &Recording{
+		CameraID:  cam.ID,
+		StartTime: fiveDaysAgo.Add(1 * time.Hour).Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(1*time.Hour + 10*time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/with-event.mp4",
+		FileSize:  2000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(recWithEvent))
+
+	event := &MotionEvent{
+		CameraID:  cam.ID,
+		StartedAt: fiveDaysAgo.Add(1*time.Hour + 2*time.Minute).Format(timeFormat),
+		EventType: "ai_detection",
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	endStr := fiveDaysAgo.Add(1*time.Hour + 5*time.Minute).Format(timeFormat)
+	require.NoError(t, d.EndMotionEvent(cam.ID, endStr))
+
+	cutoff := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteRecordingsWithoutEvents(cam.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/no-event.mp4"}, paths)
+
+	recs, err := d.QueryRecordings(cam.ID, fiveDaysAgo, now)
+	require.NoError(t, err)
+	assert.Len(t, recs, 1)
+	assert.Equal(t, "/tmp/with-event.mp4", recs[0].FilePath)
+}
+
+func TestDeleteRecordingsWithEvents(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	now := time.Now().UTC()
+	oneYearAgo := now.AddDate(-1, -1, 0)
+
+	rec := &Recording{
+		CameraID:  cam.ID,
+		StartTime: oneYearAgo.Format(timeFormat),
+		EndTime:   oneYearAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/old-event.mp4",
+		FileSize:  3000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec))
+
+	event := &MotionEvent{
+		CameraID:  cam.ID,
+		StartedAt: oneYearAgo.Add(2 * time.Minute).Format(timeFormat),
+		EventType: "ai_detection",
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	require.NoError(t, d.EndMotionEvent(cam.ID, oneYearAgo.Add(5*time.Minute).Format(timeFormat)))
+
+	cutoff := now.AddDate(-1, 0, 0)
+	paths, err := d.DeleteRecordingsWithEvents(cam.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/old-event.mp4"}, paths)
+}
+
+func TestDeleteMotionEventsBefore(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam", MediaMTXPath: "cameras/test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	now := time.Now().UTC()
+	old := now.AddDate(0, -2, 0)
+
+	// Use separate cameras to avoid EndMotionEvent closing both events.
+	cam2 := &Camera{Name: "test-cam-2", MediaMTXPath: "cameras/test-cam-2"}
+	require.NoError(t, d.CreateCamera(cam2))
+
+	event := &MotionEvent{
+		CameraID:      cam.ID,
+		StartedAt:     old.Format(timeFormat),
+		EventType:     "ai_detection",
+		ObjectClass:   "person",
+		Confidence:    0.9,
+		ThumbnailPath: "/tmp/thumb-old.jpg",
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	require.NoError(t, d.EndMotionEvent(cam.ID, old.Add(5*time.Minute).Format(timeFormat)))
+
+	recent := &MotionEvent{
+		CameraID:  cam2.ID,
+		StartedAt: now.Add(-1 * time.Hour).Format(timeFormat),
+		EventType: "motion",
+	}
+	require.NoError(t, d.InsertMotionEvent(recent))
+	require.NoError(t, d.EndMotionEvent(cam2.ID, now.Add(-50*time.Minute).Format(timeFormat)))
+
+	cutoff := now.AddDate(0, -1, 0)
+	thumbs, deleted, err := d.DeleteMotionEventsBefore(cam.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+	assert.Equal(t, []string{"/tmp/thumb-old.jpg"}, thumbs)
+
+	events, err := d.QueryMotionEvents(cam2.ID, now.Add(-2*time.Hour), now)
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+}

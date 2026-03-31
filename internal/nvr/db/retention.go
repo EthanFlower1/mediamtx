@@ -118,3 +118,141 @@ func (d *DB) consolidateEvent(eventID int64) error {
 
 	return tx.Commit()
 }
+
+// DeleteRecordingsWithoutEvents deletes recordings for a camera that ended
+// before the cutoff and have NO overlapping motion events. Returns the file
+// paths of deleted recordings for disk cleanup.
+func (d *DB) DeleteRecordingsWithoutEvents(cameraID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	rows, err := d.Query(`
+		SELECT r.file_path FROM recordings r
+		WHERE r.camera_id = ? AND r.end_time < ?
+		AND NOT EXISTS (
+			SELECT 1 FROM motion_events me
+			WHERE me.camera_id = r.camera_id
+			AND me.started_at < r.end_time
+			AND (me.ended_at IS NULL OR me.ended_at > r.start_time)
+		)`, cameraID, beforeStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(paths) > 0 {
+		_, err = d.Exec(`
+			DELETE FROM recordings
+			WHERE camera_id = ? AND end_time < ?
+			AND NOT EXISTS (
+				SELECT 1 FROM motion_events me
+				WHERE me.camera_id = recordings.camera_id
+				AND me.started_at < recordings.end_time
+				AND (me.ended_at IS NULL OR me.ended_at > recordings.start_time)
+			)`, cameraID, beforeStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
+// DeleteRecordingsWithEvents deletes recordings for a camera that ended before
+// the cutoff and DO have overlapping motion events. Returns the file paths of
+// deleted recordings for disk cleanup.
+func (d *DB) DeleteRecordingsWithEvents(cameraID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	rows, err := d.Query(`
+		SELECT r.file_path FROM recordings r
+		WHERE r.camera_id = ? AND r.end_time < ?
+		AND EXISTS (
+			SELECT 1 FROM motion_events me
+			WHERE me.camera_id = r.camera_id
+			AND me.started_at < r.end_time
+			AND (me.ended_at IS NULL OR me.ended_at > r.start_time)
+		)`, cameraID, beforeStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(paths) > 0 {
+		_, err = d.Exec(`
+			DELETE FROM recordings
+			WHERE camera_id = ? AND end_time < ?
+			AND EXISTS (
+				SELECT 1 FROM motion_events me
+				WHERE me.camera_id = recordings.camera_id
+				AND me.started_at < recordings.end_time
+				AND (me.ended_at IS NULL OR me.ended_at > recordings.start_time)
+			)`, cameraID, beforeStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
+// DeleteMotionEventsBefore deletes closed motion events for a camera that
+// ended before the cutoff. Returns thumbnail paths for disk cleanup and the
+// number of deleted events. Associated detections are CASCADE-deleted.
+func (d *DB) DeleteMotionEventsBefore(cameraID string, before time.Time) (thumbnailPaths []string, deleted int64, err error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	thumbRows, err := d.Query(`
+		SELECT thumbnail_path FROM motion_events
+		WHERE camera_id = ? AND ended_at IS NOT NULL AND ended_at < ?
+		AND thumbnail_path != ''`, cameraID, beforeStr)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer thumbRows.Close()
+
+	for thumbRows.Next() {
+		var p string
+		if err := thumbRows.Scan(&p); err != nil {
+			return nil, 0, err
+		}
+		thumbnailPaths = append(thumbnailPaths, p)
+	}
+	if err := thumbRows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	res, err := d.Exec(`
+		DELETE FROM motion_events
+		WHERE camera_id = ? AND ended_at IS NOT NULL AND ended_at < ?`,
+		cameraID, beforeStr)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	deleted, _ = res.RowsAffected()
+	return thumbnailPaths, deleted, nil
+}

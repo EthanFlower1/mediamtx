@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1710,6 +1711,42 @@ func (h *CameraHandler) LatestDetections(c *gin.Context) {
 	c.JSON(http.StatusOK, detections)
 }
 
+// Detections returns all detections for a camera within a time range.
+// Used by the playback overlay to batch-fetch detections for a recording segment.
+//
+// GET /api/nvr/cameras/:id/detections?start=RFC3339&end=RFC3339
+func (h *CameraHandler) Detections(c *gin.Context) {
+	id := c.Param("id")
+
+	startStr := c.Query("start")
+	endStr := c.Query("end")
+	if startStr == "" || endStr == "" {
+		apiError(c, http.StatusBadRequest, "start and end query params required", nil)
+		return
+	}
+
+	start, err := time.Parse(time.RFC3339, startStr)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "invalid start time", err)
+		return
+	}
+	end, err := time.Parse(time.RFC3339, endStr)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "invalid end time", err)
+		return
+	}
+
+	detections, err := h.DB.QueryDetectionsByTimeRange(id, start, end)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query detections", err)
+		return
+	}
+	if detections == nil {
+		detections = []*db.Detection{}
+	}
+	c.JSON(http.StatusOK, detections)
+}
+
 // AssignStreamSchedule assigns a schedule template to a camera stream, replacing
 // any existing recording rule for that stream. If template_id is empty, the rule
 // is removed without creating a new one.
@@ -1808,5 +1845,80 @@ func (h *CameraHandler) PurgeEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"deleted": deleted,
 		"message": fmt.Sprintf("purged %d events before %s", deleted, before.Format(time.RFC3339)),
+	})
+}
+
+// StorageEstimate returns per-stream storage projections based on retention settings.
+//
+//	GET /api/nvr/cameras/:id/storage-estimate?retention_days=3&event_retention_days=365
+func (h *CameraHandler) StorageEstimate(c *gin.Context) {
+	id := c.Param("id")
+
+	retDays, _ := strconv.Atoi(c.DefaultQuery("retention_days", "0"))
+	eventRetDays, _ := strconv.Atoi(c.DefaultQuery("event_retention_days", "0"))
+
+	bitrates, err := h.DB.GetStreamBitrates(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to get stream bitrates", err)
+		return
+	}
+
+	eventsPerDay, avgEventDur, freqSource, err := h.DB.GetEventFrequency(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to get event frequency", err)
+		return
+	}
+
+	type streamEstimate struct {
+		StreamID       string  `json:"stream_id"`
+		StreamName     string  `json:"stream_name"`
+		BitrateBps     float64 `json:"bitrate_bps"`
+		BitrateSource  string  `json:"bitrate_source"`
+		NoEventBytes   int64   `json:"no_event_bytes"`
+		EventBytes     int64   `json:"event_bytes"`
+		EventFrequency float64 `json:"event_frequency"`
+		FreqSource     string  `json:"event_frequency_source"`
+		TotalBytes     int64   `json:"total_bytes"`
+	}
+
+	var streams []streamEstimate
+	var total int64
+
+	for _, br := range bitrates {
+		bytesPerSec := br.BitrateBps / 8
+
+		noEventSec := float64(retDays) * 86400
+		eventSecPerDay := eventsPerDay * avgEventDur
+		if eventSecPerDay > 86400 {
+			eventSecPerDay = 86400
+		}
+		noEventSec -= float64(retDays) * eventSecPerDay
+		if noEventSec < 0 {
+			noEventSec = 0
+		}
+		noEventBytes := int64(noEventSec * bytesPerSec)
+
+		eventSec := float64(eventRetDays) * eventSecPerDay
+		eventBytes := int64(eventSec * bytesPerSec)
+
+		totalBytes := noEventBytes + eventBytes
+		total += totalBytes
+
+		streams = append(streams, streamEstimate{
+			StreamID:       br.StreamID,
+			StreamName:     br.StreamName,
+			BitrateBps:     br.BitrateBps,
+			BitrateSource:  br.Source,
+			NoEventBytes:   noEventBytes,
+			EventBytes:     eventBytes,
+			EventFrequency: eventsPerDay,
+			FreqSource:     freqSource,
+			TotalBytes:     totalBytes,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"streams":     streams,
+		"total_bytes": total,
 	})
 }

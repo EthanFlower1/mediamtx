@@ -430,3 +430,153 @@ func TestBackwardCompatibility_LegacyRetention(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/tmp/legacy.mp4"}, paths, "legacy mode deletes regardless of events")
 }
+
+func TestDeleteStreamRecordingsWithoutEvents(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	stream := &CameraStream{CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x"}
+	require.NoError(t, d.CreateCameraStream(stream))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	rec := &Recording{
+		CameraID: cam.ID, StreamID: stream.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/stream-no-event.mp4", FileSize: 1000, Format: "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec))
+
+	otherStream := &CameraStream{CameraID: cam.ID, Name: "Sub", RTSPURL: "rtsp://y"}
+	require.NoError(t, d.CreateCameraStream(otherStream))
+	rec2 := &Recording{
+		CameraID: cam.ID, StreamID: otherStream.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/other-stream.mp4", FileSize: 1000, Format: "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec2))
+
+	cutoff := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteStreamRecordingsWithoutEvents(cam.ID, stream.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/stream-no-event.mp4"}, paths)
+
+	recs, err := d.QueryRecordings(cam.ID, fiveDaysAgo.Add(-1*time.Hour), now)
+	require.NoError(t, err)
+	assert.Len(t, recs, 1)
+	assert.Equal(t, "/tmp/other-stream.mp4", recs[0].FilePath)
+}
+
+func TestDeleteStreamRecordingsWithEvents(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	stream := &CameraStream{CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x"}
+	require.NoError(t, d.CreateCameraStream(stream))
+
+	now := time.Now().UTC()
+	longAgo := now.AddDate(-2, 0, 0)
+
+	rec := &Recording{
+		CameraID: cam.ID, StreamID: stream.ID,
+		StartTime: longAgo.Format(timeFormat),
+		EndTime:   longAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/stream-event.mp4", FileSize: 2000, Format: "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec))
+
+	event := &MotionEvent{
+		CameraID:  cam.ID,
+		StartedAt: longAgo.Add(2 * time.Minute).Format(timeFormat),
+		EventType: "ai_detection",
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	require.NoError(t, d.EndMotionEvent(cam.ID, longAgo.Add(5*time.Minute).Format(timeFormat)))
+
+	cutoff := now.AddDate(-1, 0, 0)
+	paths, err := d.DeleteStreamRecordingsWithEvents(cam.ID, stream.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/stream-event.mp4"}, paths)
+}
+
+func TestPerStreamRetentionFlow(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "multi-stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	// Main stream: 3-day no-event, 365-day event retention.
+	main := &CameraStream{
+		CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x",
+		RetentionDays: 3, EventRetentionDays: 365,
+	}
+	require.NoError(t, d.CreateCameraStream(main))
+
+	// Sub stream: 7-day no-event, 30-day event retention.
+	sub := &CameraStream{
+		CameraID: cam.ID, Name: "Sub", RTSPURL: "rtsp://y",
+		RetentionDays: 7, EventRetentionDays: 30,
+	}
+	require.NoError(t, d.CreateCameraStream(sub))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	// Main stream recording (5 days old, no event) — should be deleted (> 3 days).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: main.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/main-quiet.mp4", FileSize: 1000, Format: "fmp4",
+	}))
+
+	// Sub stream recording (5 days old, no event) — should survive (< 7 days).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: sub.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/sub-quiet.mp4", FileSize: 1000, Format: "fmp4",
+	}))
+
+	// Delete main stream no-event recordings (3-day cutoff).
+	cutoff3 := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteStreamRecordingsWithoutEvents(cam.ID, main.ID, cutoff3)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/main-quiet.mp4"}, paths)
+
+	// Delete sub stream no-event recordings (7-day cutoff) — should find nothing.
+	cutoff7 := now.AddDate(0, 0, -7)
+	paths, err = d.DeleteStreamRecordingsWithoutEvents(cam.ID, sub.ID, cutoff7)
+	require.NoError(t, err)
+	assert.Empty(t, paths, "sub stream recording is only 5 days old, 7-day cutoff should spare it")
+
+	// Verify sub stream recording survived.
+	recs, err := d.QueryRecordings(cam.ID, fiveDaysAgo.Add(-1*time.Hour), now)
+	require.NoError(t, err)
+	assert.Len(t, recs, 1)
+	assert.Equal(t, "/tmp/sub-quiet.mp4", recs[0].FilePath)
+}
+
+func TestUpdateStreamRetention(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	stream := &CameraStream{CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x"}
+	require.NoError(t, d.CreateCameraStream(stream))
+
+	require.NoError(t, d.UpdateStreamRetention(stream.ID, 14, 365))
+
+	updated, err := d.GetCameraStream(stream.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 14, updated.RetentionDays)
+	assert.Equal(t, 365, updated.EventRetentionDays)
+}

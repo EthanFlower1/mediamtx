@@ -38,20 +38,9 @@ func Search(embedder *Embedder, database *db.DB, query string, cameraID string, 
 		limit = 20
 	}
 
-	// Fetch detections with their event/camera metadata.
-	dets, err := database.ListDetectionsWithEvents(cameraID, start, end)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(dets) == 0 {
-		return []SearchResult{}, nil
-	}
-
 	queryLower := strings.ToLower(strings.TrimSpace(query))
 	queryWords := strings.Fields(queryLower)
 
-	// Encode the query text once (expensive ONNX inference) and reuse for all detections.
 	var textEmb []float32
 	if embedder != nil {
 		var err error
@@ -61,20 +50,19 @@ func Search(embedder *Embedder, database *db.DB, query string, cameraID string, 
 		}
 	}
 
-	// Score each detection.
 	type scored struct {
-		det   *db.DetectionWithEvent
-		score float64
+		result SearchResult
+		score  float64
 	}
 	var results []scored
 
+	// Source 1: Live detections (not yet consolidated).
+	dets, err := database.ListDetectionsWithEvents(cameraID, start, end)
+	if err != nil {
+		return nil, err
+	}
 	for _, det := range dets {
 		score := classMatchScore(det.Class, queryWords)
-
-		// If embedder is available, try embedding-based similarity.
-		// Visual embeddings are 768-dim; text embeddings are 512-dim.
-		// When dimensions differ, use the learned projection matrix to
-		// map visual embeddings into the text space before comparison.
 		if textEmb != nil && len(det.Embedding) > 0 {
 			visualEmb := bytesToFloat32Slice(det.Embedding)
 			if visualEmb != nil {
@@ -84,44 +72,77 @@ func Search(embedder *Embedder, database *db.DB, query string, cameraID string, 
 				}
 				if compareEmb != nil && len(compareEmb) == len(textEmb) {
 					sim := CosineSimilarity(textEmb, compareEmb)
-					// Combine class match and embedding similarity.
-					// Weight embedding similarity higher when available.
 					score = 0.3*score + 0.7*sim
 				}
 			}
 		}
-
 		if score > 0 {
-			results = append(results, scored{det: det, score: score})
+			results = append(results, scored{
+				result: SearchResult{
+					DetectionID:   det.ID,
+					EventID:       det.MotionEventID,
+					CameraID:      det.CameraID,
+					CameraName:    det.CameraName,
+					Class:         det.Class,
+					Confidence:    det.Confidence,
+					Similarity:    score,
+					FrameTime:     det.FrameTime,
+					ThumbnailPath: det.ThumbnailPath,
+				},
+				score: score,
+			})
 		}
 	}
 
-	// Sort by score descending.
+	// Source 2: Consolidated events (already compacted).
+	events, err := database.ListSearchableEvents(cameraID, start, end)
+	if err != nil {
+		return nil, err
+	}
+	for _, ev := range events {
+		score := classMatchScore(ev.Class, queryWords)
+		if textEmb != nil && len(ev.Embedding) > 0 {
+			visualEmb := bytesToFloat32Slice(ev.Embedding)
+			if visualEmb != nil {
+				compareEmb := visualEmb
+				if len(compareEmb) != len(textEmb) {
+					compareEmb = embedder.ProjectVisual(visualEmb)
+				}
+				if compareEmb != nil && len(compareEmb) == len(textEmb) {
+					sim := CosineSimilarity(textEmb, compareEmb)
+					score = 0.3*score + 0.7*sim
+				}
+			}
+		}
+		if score > 0 {
+			results = append(results, scored{
+				result: SearchResult{
+					EventID:       ev.EventID,
+					CameraID:      ev.CameraID,
+					CameraName:    ev.CameraName,
+					Class:         ev.Class,
+					Confidence:    ev.Confidence,
+					Similarity:    score,
+					FrameTime:     ev.StartedAt,
+					ThumbnailPath: ev.ThumbnailPath,
+				},
+				score: score,
+			})
+		}
+	}
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].score > results[j].score
 	})
 
-	// Limit results.
 	if len(results) > limit {
 		results = results[:limit]
 	}
 
-	// Convert to SearchResult.
 	out := make([]SearchResult, len(results))
 	for i, r := range results {
-		out[i] = SearchResult{
-			DetectionID:   r.det.ID,
-			EventID:       r.det.MotionEventID,
-			CameraID:      r.det.CameraID,
-			CameraName:    r.det.CameraName,
-			Class:         r.det.Class,
-			Confidence:    r.det.Confidence,
-			Similarity:    r.score,
-			FrameTime:     r.det.FrameTime,
-			ThumbnailPath: r.det.ThumbnailPath,
-		}
+		out[i] = r.result
 	}
-
 	return out, nil
 }
 

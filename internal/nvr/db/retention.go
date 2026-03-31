@@ -256,3 +256,38 @@ func (d *DB) DeleteMotionEventsBefore(cameraID string, before time.Time) (thumbn
 	deleted, _ = res.RowsAffected()
 	return thumbnailPaths, deleted, nil
 }
+
+// TableStats holds row count for a database table.
+type TableStats struct {
+	RowCount int64 `json:"row_count"`
+}
+
+// DatabaseStats holds size and per-table statistics for the SQLite database.
+type DatabaseStats struct {
+	FileSizeBytes int64                `json:"file_size_bytes"`
+	Tables        map[string]TableStats `json:"tables"`
+}
+
+// GetDatabaseStats returns the database file size and row counts for key tables.
+func (d *DB) GetDatabaseStats() (*DatabaseStats, error) {
+	stats := &DatabaseStats{
+		Tables: make(map[string]TableStats),
+	}
+
+	var pageCount, pageSize int64
+	_ = d.QueryRow("PRAGMA page_count").Scan(&pageCount)
+	_ = d.QueryRow("PRAGMA page_size").Scan(&pageSize)
+	stats.FileSizeBytes = pageCount * pageSize
+
+	tables := []string{
+		"recordings", "recording_fragments", "motion_events",
+		"detections", "audit_log", "pending_syncs", "screenshots",
+	}
+	for _, table := range tables {
+		var count int64
+		_ = d.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count)
+		stats.Tables[table] = TableStats{RowCount: count}
+	}
+
+	return stats, nil
+}

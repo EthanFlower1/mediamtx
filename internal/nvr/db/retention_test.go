@@ -269,3 +269,27 @@ func TestDeleteMotionEventsBefore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
 }
+
+func TestGetDatabaseStats(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "stats-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	rec := &Recording{
+		CameraID: cam.ID, StartTime: time.Now().UTC().Format(timeFormat),
+		EndTime: time.Now().UTC().Format(timeFormat), FilePath: "/tmp/r.mp4",
+		FileSize: 100, Format: "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec))
+
+	event := &MotionEvent{CameraID: cam.ID, StartedAt: time.Now().UTC().Format(timeFormat), EventType: "motion"}
+	require.NoError(t, d.InsertMotionEvent(event))
+
+	stats, err := d.GetDatabaseStats()
+	require.NoError(t, err)
+	assert.Greater(t, stats.FileSizeBytes, int64(0))
+	assert.Equal(t, int64(1), stats.Tables["recordings"].RowCount)
+	assert.Equal(t, int64(1), stats.Tables["motion_events"].RowCount)
+	assert.Equal(t, int64(0), stats.Tables["detections"].RowCount)
+}

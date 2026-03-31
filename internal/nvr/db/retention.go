@@ -257,6 +257,104 @@ func (d *DB) DeleteMotionEventsBefore(cameraID string, before time.Time) (thumbn
 	return thumbnailPaths, deleted, nil
 }
 
+// DeleteStreamRecordingsWithoutEvents deletes recordings for a specific stream
+// that ended before the cutoff and have NO overlapping motion events.
+func (d *DB) DeleteStreamRecordingsWithoutEvents(cameraID, streamID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	rows, err := d.Query(`
+		SELECT r.file_path FROM recordings r
+		WHERE r.camera_id = ? AND r.stream_id = ? AND r.end_time < ?
+		AND NOT EXISTS (
+			SELECT 1 FROM motion_events me
+			WHERE me.camera_id = r.camera_id
+			AND me.started_at < r.end_time
+			AND (me.ended_at IS NULL OR me.ended_at > r.start_time)
+		)`, cameraID, streamID, beforeStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(paths) > 0 {
+		_, err = d.Exec(`
+			DELETE FROM recordings
+			WHERE camera_id = ? AND stream_id = ? AND end_time < ?
+			AND NOT EXISTS (
+				SELECT 1 FROM motion_events me
+				WHERE me.camera_id = recordings.camera_id
+				AND me.started_at < recordings.end_time
+				AND (me.ended_at IS NULL OR me.ended_at > recordings.start_time)
+			)`, cameraID, streamID, beforeStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
+// DeleteStreamRecordingsWithEvents deletes recordings for a specific stream
+// that ended before the cutoff and DO have overlapping motion events.
+func (d *DB) DeleteStreamRecordingsWithEvents(cameraID, streamID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	rows, err := d.Query(`
+		SELECT r.file_path FROM recordings r
+		WHERE r.camera_id = ? AND r.stream_id = ? AND r.end_time < ?
+		AND EXISTS (
+			SELECT 1 FROM motion_events me
+			WHERE me.camera_id = r.camera_id
+			AND me.started_at < r.end_time
+			AND (me.ended_at IS NULL OR me.ended_at > r.start_time)
+		)`, cameraID, streamID, beforeStr)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(paths) > 0 {
+		_, err = d.Exec(`
+			DELETE FROM recordings
+			WHERE camera_id = ? AND stream_id = ? AND end_time < ?
+			AND EXISTS (
+				SELECT 1 FROM motion_events me
+				WHERE me.camera_id = recordings.camera_id
+				AND me.started_at < recordings.end_time
+				AND (me.ended_at IS NULL OR me.ended_at > recordings.start_time)
+			)`, cameraID, streamID, beforeStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
 // TableStats holds row count for a database table.
 type TableStats struct {
 	RowCount int64 `json:"row_count"`

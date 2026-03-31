@@ -13,6 +13,7 @@ const timeFormat = "2006-01-02T15:04:05.000Z"
 type Recording struct {
 	ID         int64  `json:"id"`
 	CameraID   string `json:"camera_id"`
+	StreamID   string `json:"stream_id"`
 	StartTime  string `json:"start_time"`
 	EndTime    string `json:"end_time"`
 	DurationMs int64  `json:"duration_ms"`
@@ -139,9 +140,9 @@ func (d *DB) InsertRecording(rec *Recording) error {
 	}
 
 	res, err := d.Exec(`
-		INSERT INTO recordings (camera_id, start_time, end_time, duration_ms, file_path, file_size, format)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		rec.CameraID, rec.StartTime, rec.EndTime, rec.DurationMs,
+		INSERT INTO recordings (camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		rec.CameraID, rec.StreamID, rec.StartTime, rec.EndTime, rec.DurationMs,
 		rec.FilePath, rec.FileSize, rec.Format,
 	)
 	if err != nil {
@@ -160,7 +161,7 @@ func (d *DB) InsertRecording(rec *Recording) error {
 // range. Overlap logic: end_time > start AND start_time < end.
 func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recording, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
 		FROM recordings
 		WHERE camera_id = ? AND end_time > ? AND start_time < ?
 		ORDER BY start_time`,
@@ -175,7 +176,7 @@ func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recordin
 	for rows.Next() {
 		rec := &Recording{}
 		if err := rows.Scan(
-			&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
+			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
 		); err != nil {
 			return nil, err
@@ -223,10 +224,10 @@ func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, er
 func (d *DB) GetRecording(id int64) (*Recording, error) {
 	rec := &Recording{}
 	err := d.QueryRow(`
-		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
 		FROM recordings WHERE id = ?`, id,
 	).Scan(
-		&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
+		&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
 	)
 	if errors.Is(err, sql.ErrNoRows) {

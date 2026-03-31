@@ -28,8 +28,10 @@ type CameraStream struct {
 	AudioCodec   string `json:"audio_codec"`
 	Width        int    `json:"width"`
 	Height       int    `json:"height"`
-	Roles        string `json:"roles"`
-	CreatedAt    string `json:"created_at"`
+	Roles              string `json:"roles"`
+	CreatedAt          string `json:"created_at"`
+	RetentionDays      int    `json:"retention_days"`
+	EventRetentionDays int    `json:"event_retention_days"`
 }
 
 // HasRole reports whether the stream is assigned the given role.
@@ -83,7 +85,8 @@ func (d *DB) CreateCameraStream(s *CameraStream) error {
 func (d *DB) ListCameraStreams(cameraID string) ([]*CameraStream, error) {
 	rows, err := d.Query(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			audio_codec, width, height, roles, created_at
+			audio_codec, width, height, roles, created_at,
+			retention_days, event_retention_days
 		FROM camera_streams
 		WHERE camera_id = ?
 		ORDER BY (width * height) DESC, created_at ASC`, cameraID)
@@ -98,6 +101,7 @@ func (d *DB) ListCameraStreams(cameraID string) ([]*CameraStream, error) {
 		if err := rows.Scan(
 			&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
 			&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+			&s.RetentionDays, &s.EventRetentionDays,
 		); err != nil {
 			return nil, err
 		}
@@ -112,11 +116,13 @@ func (d *DB) GetCameraStream(id string) (*CameraStream, error) {
 	s := &CameraStream{}
 	err := d.QueryRow(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			audio_codec, width, height, roles, created_at
+			audio_codec, width, height, roles, created_at,
+			retention_days, event_retention_days
 		FROM camera_streams WHERE id = ?`, id,
 	).Scan(
 		&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
 		&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+		&s.RetentionDays, &s.EventRetentionDays,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -220,7 +226,8 @@ func (d *DB) ResolveStream(cameraID, role string) (*CameraStream, error) {
 	s := &CameraStream{}
 	err := d.QueryRow(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			audio_codec, width, height, roles, created_at
+			audio_codec, width, height, roles, created_at,
+			retention_days, event_retention_days
 		FROM camera_streams
 		WHERE camera_id = ?
 		  AND (',' || roles || ',' LIKE '%,' || ? || ',%')
@@ -229,6 +236,7 @@ func (d *DB) ResolveStream(cameraID, role string) (*CameraStream, error) {
 	).Scan(
 		&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
 		&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+		&s.RetentionDays, &s.EventRetentionDays,
 	)
 	if err == nil {
 		return s, nil
@@ -258,4 +266,24 @@ func (d *DB) ResolveStream(cameraID, role string) (*CameraStream, error) {
 		RTSPURL:  rtspURL,
 		Roles:    "live_view,recording,ai_detection,mobile",
 	}, nil
+}
+
+// UpdateStreamRetention updates the retention policy for a stream.
+func (d *DB) UpdateStreamRetention(id string, retentionDays, eventRetentionDays int) error {
+	res, err := d.Exec(`
+		UPDATE camera_streams SET retention_days = ?, event_retention_days = ?
+		WHERE id = ?`,
+		retentionDays, eventRetentionDays, id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

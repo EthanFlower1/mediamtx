@@ -413,4 +413,14 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE motion_events ADD COLUMN detection_summary TEXT DEFAULT '';
 		`,
 	},
+	// Migration 28: Per-stream retention and recording-to-stream association.
+	{
+		version: 28,
+		sql: `
+		ALTER TABLE recordings ADD COLUMN stream_id TEXT DEFAULT '';
+		CREATE INDEX IF NOT EXISTS idx_recordings_stream ON recordings(stream_id);
+		ALTER TABLE camera_streams ADD COLUMN retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE camera_streams ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
+		`,
+	},
 }

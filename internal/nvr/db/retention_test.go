@@ -94,31 +94,36 @@ func TestConsolidateClosedEvents(t *testing.T) {
 func TestConsolidateClosedEvents_SkipsRecentAndOpen(t *testing.T) {
 	d := openTestDB(t)
 
-	cam := &Camera{Name: "test-cam"}
-	require.NoError(t, d.CreateCamera(cam))
+	// Camera 1: open event (should NOT be consolidated).
+	cam1 := &Camera{Name: "cam-open", MediaMTXPath: "cam-open"}
+	require.NoError(t, d.CreateCamera(cam1))
 
 	event1 := &MotionEvent{
-		CameraID:  cam.ID,
+		CameraID:  cam1.ID,
 		StartedAt: time.Now().Add(-2 * time.Hour).UTC().Format(timeFormat),
 		EventType: "ai_detection",
 	}
 	require.NoError(t, d.InsertMotionEvent(event1))
-	det := &Detection{
+	det1 := &Detection{
 		MotionEventID: event1.ID,
 		FrameTime:     time.Now().Add(-2 * time.Hour).UTC().Format(timeFormat),
 		Class:         "car",
 		Confidence:    0.8,
 		BoxX: 0.1, BoxY: 0.2, BoxW: 0.3, BoxH: 0.4,
 	}
-	require.NoError(t, d.InsertDetection(det))
+	require.NoError(t, d.InsertDetection(det1))
+
+	// Camera 2: recently-closed event (should NOT be consolidated).
+	cam2 := &Camera{Name: "cam-recent", MediaMTXPath: "cam-recent"}
+	require.NoError(t, d.CreateCamera(cam2))
 
 	event2 := &MotionEvent{
-		CameraID:  cam.ID,
+		CameraID:  cam2.ID,
 		StartedAt: time.Now().Add(-10 * time.Minute).UTC().Format(timeFormat),
 		EventType: "ai_detection",
 	}
 	require.NoError(t, d.InsertMotionEvent(event2))
-	require.NoError(t, d.EndMotionEvent(cam.ID, time.Now().Add(-5*time.Minute).UTC().Format(timeFormat)))
+	require.NoError(t, d.EndMotionEvent(cam2.ID, time.Now().Add(-5*time.Minute).UTC().Format(timeFormat)))
 	det2 := &Detection{
 		MotionEventID: event2.ID,
 		FrameTime:     time.Now().Add(-8 * time.Minute).UTC().Format(timeFormat),
@@ -128,10 +133,12 @@ func TestConsolidateClosedEvents_SkipsRecentAndOpen(t *testing.T) {
 	}
 	require.NoError(t, d.InsertDetection(det2))
 
+	// Consolidation with 1-hour threshold should skip both.
 	count, err := d.ConsolidateClosedEvents(1 * time.Hour)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 
+	// Both events should still have their detections.
 	dets1, _ := d.ListDetectionsByEvent(event1.ID)
 	assert.Len(t, dets1, 1)
 	dets2, _ := d.ListDetectionsByEvent(event2.ID)

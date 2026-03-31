@@ -91,6 +91,9 @@ func (d *DB) consolidateEvent(eventID int64) error {
 		}
 	}
 	detRows.Close()
+	if err := detRows.Err(); err != nil {
+		return err
+	}
 
 	if len(entries) == 0 {
 		return nil

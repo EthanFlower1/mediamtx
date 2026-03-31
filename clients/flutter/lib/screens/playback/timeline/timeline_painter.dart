@@ -53,7 +53,21 @@ class TimelinePainter extends CustomPainter {
   static const double _recordingHeight = 18;
   static const double _eventTop = 21;
   static const double _eventHeight = 14;
-  static const double _bookmarkY = 38;
+  static const double _motionEventTop = 37;
+  static const double _motionEventHeight = 10;
+  static const double _bookmarkY = 49;
+
+  // Color map for object classes.
+  static const Map<String, Color> _objectClassColors = {
+    'person': Color(0xFFF59E0B),   // amber/orange
+    'vehicle': Color(0xFF3B82F6),  // blue
+    'car': Color(0xFF3B82F6),      // blue (alias)
+    'truck': Color(0xFF3B82F6),    // blue (alias)
+    'animal': Color(0xFF22C55E),   // green
+    'dog': Color(0xFF22C55E),      // green (alias)
+    'cat': Color(0xFF22C55E),      // green (alias)
+  };
+  static const Color _defaultEventColor = Color(0xFF525252); // muted gray
 
   /// Convert a time (seconds from midnight) to an x pixel position.
   double _timeToX(double timeSeconds, double widgetWidth) {
@@ -78,6 +92,7 @@ class TimelinePainter extends CustomPainter {
     _paintTimeGrid(canvas, size, range);
     _paintRecordingSegments(canvas, size, range);
     _paintMotionIntensity(canvas, size, range);
+    _paintMotionEvents(canvas, size, range);
     _paintBookmarks(canvas, size, range);
   }
 
@@ -308,6 +323,50 @@ class TimelinePainter extends CustomPainter {
 
       canvas.drawRect(
         Rect.fromLTRB(x1, _eventTop, x2, _eventTop + _eventHeight),
+        paint,
+      );
+    }
+  }
+
+  // ─── Layer 3b: Individual Motion Event Markers ──────────────────────
+
+  void _paintMotionEvents(
+    Canvas canvas,
+    Size size,
+    ({double startSeconds, double endSeconds}) range,
+  ) {
+    if (events.isEmpty) return;
+
+    for (final evt in events) {
+      final evtStartSeconds =
+          evt.startTime.difference(dayStart).inMilliseconds / 1000.0;
+      final evtEnd = evt.endTime ?? evt.startTime.add(const Duration(seconds: 5));
+      final evtEndSeconds =
+          evtEnd.difference(dayStart).inMilliseconds / 1000.0;
+
+      // Cull events outside the visible range.
+      if (evtEndSeconds < range.startSeconds ||
+          evtStartSeconds > range.endSeconds) {
+        continue;
+      }
+
+      final color = _objectClassColors[evt.objectClass?.toLowerCase() ?? '']
+          ?? _defaultEventColor;
+
+      final paint = Paint()..color = color.withValues(alpha: 0.7);
+
+      final x1 = _timeToX(evtStartSeconds, size.width).clamp(0.0, size.width);
+      final x2 = _timeToX(evtEndSeconds, size.width).clamp(0.0, size.width);
+
+      // Ensure a minimum width of 2px so very short events are visible.
+      final minX2 = (x1 + 2).clamp(0.0, size.width);
+      final drawX2 = x2 < minX2 ? minX2 : x2;
+
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          x1, _motionEventTop, drawX2, _motionEventTop + _motionEventHeight,
+          const Radius.circular(1.5),
+        ),
         paint,
       );
     }

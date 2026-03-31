@@ -135,7 +135,7 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   static const double _dayEndSeconds = 86400; // 24 * 3600
 
   // Timeline body height.
-  static const double _timelineHeight = 70;
+  static const double _timelineHeight = 80;
 
   @override
   void initState() {
@@ -229,9 +229,6 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
         _dayEndSeconds * _pixelsPerSecond,
       );
     });
-
-    // Notify parent of the new position.
-    _firePositionChanged();
   }
 
   // ─── Computed Values ─────────────────────────────────────────────────

@@ -180,6 +180,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
+	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
 
 	// Relay outputs.
@@ -244,6 +245,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/streams/:id", streamHandler.Update)
 	protected.PUT("/streams/:id/roles", streamHandler.UpdateRoles)
 	protected.DELETE("/streams/:id", streamHandler.Delete)
+	protected.PUT("/streams/:id/retention", streamHandler.UpdateRetention)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

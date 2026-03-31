@@ -13,6 +13,8 @@ class CameraStream {
   final String liveAudioCodec;
   final int liveWidth;
   final int liveHeight;
+  final int retentionDays;
+  final int eventRetentionDays;
 
   const CameraStream({
     required this.id,
@@ -29,6 +31,8 @@ class CameraStream {
     this.liveAudioCodec = '',
     this.liveWidth = 0,
     this.liveHeight = 0,
+    this.retentionDays = 0,
+    this.eventRetentionDays = 0,
   });
 
   factory CameraStream.fromJson(Map<String, dynamic> json) {
@@ -47,6 +51,8 @@ class CameraStream {
       liveAudioCodec: json['live_audio_codec'] as String? ?? '',
       liveWidth: json['live_width'] as int? ?? 0,
       liveHeight: json['live_height'] as int? ?? 0,
+      retentionDays: json['retention_days'] as int? ?? 0,
+      eventRetentionDays: json['event_retention_days'] as int? ?? 0,
     );
   }
 

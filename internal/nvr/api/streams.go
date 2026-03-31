@@ -294,3 +294,42 @@ func (h *StreamHandler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "stream deleted"})
 }
+
+// streamRetentionRequest is the JSON body for updating a stream's retention policy.
+type streamRetentionRequest struct {
+	RetentionDays      int `json:"retention_days"`
+	EventRetentionDays int `json:"event_retention_days"`
+}
+
+// UpdateRetention updates retention settings for a specific stream.
+func (h *StreamHandler) UpdateRetention(c *gin.Context) {
+	id := c.Param("id")
+
+	var req streamRetentionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if req.RetentionDays < 0 || req.EventRetentionDays < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "retention days must be >= 0"})
+		return
+	}
+
+	if err := h.DB.UpdateStreamRetention(id, req.RetentionDays, req.EventRetentionDays); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "stream not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to update stream retention", err)
+		return
+	}
+
+	stream, err := h.DB.GetCameraStream(id)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve stream", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, stream)
+}

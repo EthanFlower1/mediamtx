@@ -43,6 +43,10 @@ mixin _$Camera {
   String get subStreamUrl => throw _privateConstructorUsedError;
   @JsonKey(name: 'retention_days')
   int get retentionDays => throw _privateConstructorUsedError;
+  @JsonKey(name: 'event_retention_days')
+  int get eventRetentionDays => throw _privateConstructorUsedError;
+  @JsonKey(name: 'detection_retention_days')
+  int get detectionRetentionDays => throw _privateConstructorUsedError;
   @JsonKey(name: 'motion_timeout_seconds')
   int get motionTimeoutSeconds => throw _privateConstructorUsedError;
   @JsonKey(name: 'snapshot_uri')
@@ -94,6 +98,8 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
+      @JsonKey(name: 'event_retention_days') int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') String snapshotUri,
       @JsonKey(name: 'supports_events') bool supportsEvents,
@@ -135,6 +141,8 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
+    Object? eventRetentionDays = null,
+    Object? detectionRetentionDays = null,
     Object? motionTimeoutSeconds = null,
     Object? snapshotUri = null,
     Object? supportsEvents = null,
@@ -199,6 +207,14 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      eventRetentionDays: null == eventRetentionDays
+          ? _value.eventRetentionDays
+          : eventRetentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      detectionRetentionDays: null == detectionRetentionDays
+          ? _value.detectionRetentionDays
+          : detectionRetentionDays // ignore: cast_nullable_to_non_nullable
               as int,
       motionTimeoutSeconds: null == motionTimeoutSeconds
           ? _value.motionTimeoutSeconds
@@ -269,6 +285,8 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
+      @JsonKey(name: 'event_retention_days') int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') String snapshotUri,
       @JsonKey(name: 'supports_events') bool supportsEvents,
@@ -308,6 +326,8 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
+    Object? eventRetentionDays = null,
+    Object? detectionRetentionDays = null,
     Object? motionTimeoutSeconds = null,
     Object? snapshotUri = null,
     Object? supportsEvents = null,
@@ -372,6 +392,14 @@ class __$$CameraImplCopyWithImpl<$Res>
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      eventRetentionDays: null == eventRetentionDays
+          ? _value.eventRetentionDays
+          : eventRetentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      detectionRetentionDays: null == detectionRetentionDays
+          ? _value.detectionRetentionDays
+          : detectionRetentionDays // ignore: cast_nullable_to_non_nullable
               as int,
       motionTimeoutSeconds: null == motionTimeoutSeconds
           ? _value.motionTimeoutSeconds
@@ -438,6 +466,9 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'ai_track_timeout') this.aiTrackTimeout = 5,
       @JsonKey(name: 'sub_stream_url') this.subStreamUrl = '',
       @JsonKey(name: 'retention_days') this.retentionDays = 30,
+      @JsonKey(name: 'event_retention_days') this.eventRetentionDays = 0,
+      @JsonKey(name: 'detection_retention_days')
+      this.detectionRetentionDays = 0,
       @JsonKey(name: 'motion_timeout_seconds') this.motionTimeoutSeconds = 8,
       @JsonKey(name: 'snapshot_uri') this.snapshotUri = '',
       @JsonKey(name: 'supports_events') this.supportsEvents = false,
@@ -493,6 +524,12 @@ class _$CameraImpl implements _Camera {
   @JsonKey(name: 'retention_days')
   final int retentionDays;
   @override
+  @JsonKey(name: 'event_retention_days')
+  final int eventRetentionDays;
+  @override
+  @JsonKey(name: 'detection_retention_days')
+  final int detectionRetentionDays;
+  @override
   @JsonKey(name: 'motion_timeout_seconds')
   final int motionTimeoutSeconds;
   @override
@@ -533,7 +570,7 @@ class _$CameraImpl implements _Camera {
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, streamPaths: $streamPaths)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, streamPaths: $streamPaths)';
   }
 
   @override
@@ -563,6 +600,10 @@ class _$CameraImpl implements _Camera {
                 other.subStreamUrl == subStreamUrl) &&
             (identical(other.retentionDays, retentionDays) ||
                 other.retentionDays == retentionDays) &&
+            (identical(other.eventRetentionDays, eventRetentionDays) ||
+                other.eventRetentionDays == eventRetentionDays) &&
+            (identical(other.detectionRetentionDays, detectionRetentionDays) ||
+                other.detectionRetentionDays == detectionRetentionDays) &&
             (identical(other.motionTimeoutSeconds, motionTimeoutSeconds) ||
                 other.motionTimeoutSeconds == motionTimeoutSeconds) &&
             (identical(other.snapshotUri, snapshotUri) ||
@@ -604,6 +645,8 @@ class _$CameraImpl implements _Camera {
         aiTrackTimeout,
         subStreamUrl,
         retentionDays,
+        eventRetentionDays,
+        detectionRetentionDays,
         motionTimeoutSeconds,
         snapshotUri,
         supportsEvents,
@@ -648,6 +691,9 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'ai_track_timeout') final int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') final String subStreamUrl,
       @JsonKey(name: 'retention_days') final int retentionDays,
+      @JsonKey(name: 'event_retention_days') final int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days')
+      final int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') final int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') final String snapshotUri,
       @JsonKey(name: 'supports_events') final bool supportsEvents,
@@ -699,6 +745,12 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'retention_days')
   int get retentionDays;
+  @override
+  @JsonKey(name: 'event_retention_days')
+  int get eventRetentionDays;
+  @override
+  @JsonKey(name: 'detection_retention_days')
+  int get detectionRetentionDays;
   @override
   @JsonKey(name: 'motion_timeout_seconds')
   int get motionTimeoutSeconds;

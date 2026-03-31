@@ -89,6 +89,30 @@ class CameraStorage {
   }
 }
 
+class DatabaseStats {
+  final int fileSizeBytes;
+  final Map<String, int> tableRowCounts;
+
+  const DatabaseStats({
+    required this.fileSizeBytes,
+    required this.tableRowCounts,
+  });
+
+  factory DatabaseStats.fromJson(Map<String, dynamic> json) {
+    final tables = json['tables'] as Map<String, dynamic>? ?? {};
+    final counts = <String, int>{};
+    for (final entry in tables.entries) {
+      if (entry.value is Map<String, dynamic>) {
+        counts[entry.key] = (entry.value as Map<String, dynamic>)['row_count'] as int? ?? 0;
+      }
+    }
+    return DatabaseStats(
+      fileSizeBytes: json['file_size_bytes'] as int? ?? 0,
+      tableRowCounts: counts,
+    );
+  }
+}
+
 class StorageInfo {
   final int totalBytes;
   final int usedBytes;
@@ -97,6 +121,7 @@ class StorageInfo {
   final bool warning;
   final bool critical;
   final List<CameraStorage> perCamera;
+  final DatabaseStats? database;
 
   const StorageInfo({
     required this.totalBytes,
@@ -106,6 +131,7 @@ class StorageInfo {
     required this.warning,
     required this.critical,
     required this.perCamera,
+    this.database,
   });
 
   double get usagePercent {
@@ -119,6 +145,11 @@ class StorageInfo {
         .map((e) => CameraStorage.fromJson(e as Map<String, dynamic>))
         .toList();
 
+    final rawDb = json['database'];
+    final database = rawDb is Map<String, dynamic>
+        ? DatabaseStats.fromJson(rawDb)
+        : null;
+
     return StorageInfo(
       totalBytes: json['total_bytes'] as int? ?? 0,
       usedBytes: json['used_bytes'] as int? ?? 0,
@@ -127,6 +158,7 @@ class StorageInfo {
       warning: json['warning'] as bool? ?? false,
       critical: json['critical'] as bool? ?? false,
       perCamera: perCamera,
+      database: database,
     );
   }
 }

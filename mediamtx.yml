@@ -805,7 +805,6 @@ paths:
   # do not match another entry.
   all_others:
   nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
-    record: false
     source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
   nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main~a33d4430:
     record: true

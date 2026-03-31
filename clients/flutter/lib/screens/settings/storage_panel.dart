@@ -235,10 +235,69 @@ class StoragePanel extends ConsumerWidget {
                 ),
               ),
             ],
+
+            // ── Database stats ──
+            if (info.database != null) ...[
+              const SizedBox(height: 24),
+              Text('DATABASE', style: NvrTypography.monoSection),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: NvrColors.bgSecondary,
+                  border: Border.all(color: NvrColors.border),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('DB SIZE', style: NvrTypography.monoLabel),
+                        ),
+                        Text(
+                          _formatBytes(info.database!.fileSizeBytes),
+                          style: NvrTypography.monoData.copyWith(color: NvrColors.accent),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ...info.database!.tableRowCounts.entries.map((entry) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.key.toUpperCase().replaceAll('_', ' '),
+                                style: NvrTypography.monoData,
+                              ),
+                            ),
+                            Text(
+                              _formatCount(entry.value),
+                              style: NvrTypography.monoData.copyWith(
+                                color: NvrColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
           ],
         );
       },
     );
+  }
+
+  String _formatCount(int count) {
+    if (count < 1000) return '$count';
+    if (count < 1000000) return '${(count / 1000).toStringAsFixed(1)}K';
+    return '${(count / 1000000).toStringAsFixed(1)}M';
   }
 }
 

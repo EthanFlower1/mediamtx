@@ -19,6 +19,8 @@ class Camera with _$Camera {
     @JsonKey(name: 'ai_track_timeout') @Default(5) int aiTrackTimeout,
     @JsonKey(name: 'sub_stream_url') @Default('') String subStreamUrl,
     @JsonKey(name: 'retention_days') @Default(30) int retentionDays,
+    @JsonKey(name: 'event_retention_days') @Default(0) int eventRetentionDays,
+    @JsonKey(name: 'detection_retention_days') @Default(0) int detectionRetentionDays,
     @JsonKey(name: 'motion_timeout_seconds') @Default(8) int motionTimeoutSeconds,
     @JsonKey(name: 'snapshot_uri') @Default('') String snapshotUri,
     @JsonKey(name: 'supports_events') @Default(false) bool supportsEvents,

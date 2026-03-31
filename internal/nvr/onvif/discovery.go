@@ -25,6 +25,7 @@ type MediaProfile struct {
 	Name       string `json:"name"`
 	StreamURI  string `json:"stream_uri"`
 	VideoCodec string `json:"video_codec,omitempty"`
+	AudioCodec string `json:"audio_codec,omitempty"`
 	Width      int    `json:"width,omitempty"`
 	Height     int    `json:"height,omitempty"`
 }
@@ -228,6 +229,11 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 		mp.VideoCodec = string(enc.Encoding)
 		mp.Width = int(enc.Resolution.Width)
 		mp.Height = int(enc.Resolution.Height)
+
+		// Extract audio encoding info.
+		if aenc := string(p.AudioEncoderConfiguration.Encoding); aenc != "" {
+			mp.AudioCodec = aenc
+		}
 
 		// Get RTSP stream URI.
 		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, onvifDev, onvifmedia.GetStreamUri{

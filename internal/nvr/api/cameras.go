@@ -43,10 +43,19 @@ type CameraHandler struct {
 	StorageMgr    *storage.Manager      // may be nil
 }
 
+// streamPathEntry is a lightweight stream reference for the live view picker.
+type streamPathEntry struct {
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Resolution string `json:"resolution,omitempty"`
+}
+
 // cameraResponse wraps db.Camera and adds a storage_status field.
 type cameraResponse struct {
 	db.Camera
-	StorageStatus string `json:"storage_status"`
+	StorageStatus string            `json:"storage_status"`
+	LiveViewPath  string            `json:"live_view_path"`
+	StreamPaths   []streamPathEntry `json:"stream_paths"`
 }
 
 // cameraWithStreams extends cameraResponse to include stream records.
@@ -60,7 +69,45 @@ func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 	if h.StorageMgr != nil {
 		status = h.StorageMgr.StorageStatus(cam)
 	}
-	return cameraResponse{Camera: *cam, StorageStatus: status}
+
+	streams, _ := h.DB.ListCameraStreams(cam.ID)
+
+	// Build stream paths list for the live view picker.
+	var streamPaths []streamPathEntry
+	for i, s := range streams {
+		path := cam.MediaMTXPath
+		if i > 0 {
+			path = cameraStreamPath(cam, s.ID)
+		}
+		res := ""
+		if s.Width > 0 && s.Height > 0 {
+			res = fmt.Sprintf("%dx%d", s.Width, s.Height)
+		}
+		streamPaths = append(streamPaths, streamPathEntry{
+			Name:       s.Name,
+			Path:       path,
+			Resolution: res,
+		})
+	}
+
+	// Resolve default live view path from the stream with the live_view role.
+	lvPath := cam.MediaMTXPath
+	if stream, err := h.DB.ResolveStream(cam.ID, db.StreamRoleLiveView); err == nil && stream.ID != "" {
+		// Find this stream's path from the list we just built.
+		for _, sp := range streamPaths {
+			if sp.Name == stream.Name {
+				lvPath = sp.Path
+				break
+			}
+		}
+	}
+
+	return cameraResponse{
+		Camera:        *cam,
+		StorageStatus: status,
+		LiveViewPath:  lvPath,
+		StreamPaths:   streamPaths,
+	}
 }
 
 func (h *CameraHandler) buildCameraWithStreams(cam *db.Camera) cameraWithStreams {
@@ -78,6 +125,19 @@ func (h *CameraHandler) buildCameraWithStreams(cam *db.Camera) cameraWithStreams
 
 // encryptPassword encrypts a plaintext password for storage. If no encryption
 // key is configured or the password is empty, the plaintext is returned as-is.
+// cameraStreamPath returns the MediaMTX path for a sub-stream, using the first
+// 8 characters of the stream ID as a stable suffix.
+func cameraStreamPath(cam *db.Camera, streamID string) string {
+	if streamID == "" || cam.MediaMTXPath == "" {
+		return cam.MediaMTXPath
+	}
+	prefix := streamID
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	return cam.MediaMTXPath + "~" + prefix
+}
+
 func (h *CameraHandler) encryptPassword(plaintext string) string {
 	if len(h.EncryptionKey) == 0 || plaintext == "" {
 		return plaintext
@@ -128,6 +188,7 @@ type cameraRequest struct {
 		RTSPURL      string `json:"rtsp_url"`
 		ProfileToken string `json:"profile_token"`
 		VideoCodec   string `json:"video_codec"`
+		AudioCodec   string `json:"audio_codec"`
 		Width        int    `json:"width"`
 		Height       int    `json:"height"`
 		Roles        string `json:"roles"`
@@ -331,6 +392,7 @@ func (h *CameraHandler) Create(c *gin.Context) {
 				RTSPURL:      p.RTSPURL,
 				ProfileToken: p.ProfileToken,
 				VideoCodec:   p.VideoCodec,
+				AudioCodec:   p.AudioCodec,
 				Width:        p.Width,
 				Height:       p.Height,
 				Roles:        roles,
@@ -348,17 +410,38 @@ func (h *CameraHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Write the path to YAML config.
+	// All paths start with record: false. The scheduler will enable recording
+	// when a recording rule is active for the stream.
+	mainShouldRecord := false
+
+	// Write the main path to YAML config.
 	yamlConfig := map[string]interface{}{
 		"source":     cam.RTSPURL,
-		"record":     true,
+		"record":     mainShouldRecord,
 		"recordPath": recordPath,
 	}
 	if err := h.YAMLWriter.AddPath(pathName, yamlConfig); err != nil {
-		// Rollback: delete the camera from DB.
 		_ = h.DB.DeleteCamera(cam.ID)
 		apiError(c, http.StatusInternalServerError, "failed to write config", err)
 		return
+	}
+
+	// Create YAML paths for sub-streams so MediaMTX knows about them.
+	// Recording starts as false; the scheduler enables it when rules are active.
+	streams, _ := h.DB.ListCameraStreams(cam.ID)
+	for i, s := range streams {
+		if i == 0 {
+			continue // main stream already handled
+		}
+		subPath := cameraStreamPath(cam, s.ID)
+		subConfig := map[string]interface{}{
+			"source":     s.RTSPURL,
+			"record":     false,
+			"recordPath": recordPath,
+		}
+		if err := h.YAMLWriter.AddPath(subPath, subConfig); err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to write sub-stream path %s: %v", subPath, err))
+		}
 	}
 
 	nvrLogInfo("cameras", fmt.Sprintf("Created camera %q (id=%s, path=%s)", cam.Name, cam.ID, pathName))
@@ -712,6 +795,7 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 			RTSPURL:      p.StreamURI,
 			ProfileToken: p.Token,
 			VideoCodec:   p.VideoCodec,
+			AudioCodec:   p.AudioCodec,
 			Width:        p.Width,
 			Height:       p.Height,
 			Roles:        roles,
@@ -723,7 +807,7 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 
 	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles found, streams recreated", cam.Name, len(result.Profiles)))
 	for i, p := range result.Profiles {
-		nvrLogInfo("cameras", fmt.Sprintf("  Profile %d: name=%q token=%q uri=%q codec=%s %dx%d", i, p.Name, p.Token, p.StreamURI, p.VideoCodec, p.Width, p.Height))
+		nvrLogInfo("cameras", fmt.Sprintf("  Profile %d: name=%q token=%q uri=%q video=%s audio=%s %dx%d", i, p.Name, p.Token, p.StreamURI, p.VideoCodec, p.AudioCodec, p.Width, p.Height))
 	}
 
 	c.JSON(http.StatusOK, h.buildCameraWithStreams(cam))

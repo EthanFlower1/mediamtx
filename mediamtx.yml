@@ -526,7 +526,7 @@ pathDefaults:
   # Default path settings -> Record
 
   # Record streams to disk.
-  record: true
+  record: false
   # Path of recording segments.
   # Extension is added automatically.
   # Available variables are %path (path name), %Y %m %d (year, month, day),
@@ -806,5 +806,8 @@ paths:
   all_others:
   nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
     record: false
-    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
     source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
+  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main~a33d4430:
+    record: true
+    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
+    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=1&unicast=true&proto=Onvif

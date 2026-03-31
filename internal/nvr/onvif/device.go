@@ -47,6 +47,7 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 			Token:      string(p.Token),
 			Name:       string(p.Name),
 			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
+			AudioCodec: string(p.AudioEncoderConfiguration.Encoding),
 			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
 			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
 		}

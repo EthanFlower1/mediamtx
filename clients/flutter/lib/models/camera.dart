@@ -28,7 +28,20 @@ class Camera with _$Camera {
     @JsonKey(name: 'updated_at') String? updatedAt,
     @JsonKey(name: 'storage_path') @Default('') String storagePath,
     @JsonKey(name: 'storage_status') @Default('default') String storageStatus,
+    @JsonKey(name: 'live_view_path') @Default('') String liveViewPath,
+    @JsonKey(name: 'stream_paths') @Default([]) List<StreamPath> streamPaths,
   }) = _Camera;
 
   factory Camera.fromJson(Map<String, dynamic> json) => _$CameraFromJson(json);
+}
+
+@freezed
+class StreamPath with _$StreamPath {
+  const factory StreamPath({
+    @Default('') String name,
+    @Default('') String path,
+    @Default('') String resolution,
+  }) = _StreamPath;
+
+  factory StreamPath.fromJson(Map<String, dynamic> json) => _$StreamPathFromJson(json);
 }

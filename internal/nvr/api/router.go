@@ -114,7 +114,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
-	streamHandler := &StreamHandler{DB: cfg.DB}
+	streamHandler := &StreamHandler{DB: cfg.DB, APIAddress: cfg.APIAddress}
 
 	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
 
@@ -241,6 +241,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/streams", streamHandler.List)
 	protected.POST("/cameras/:id/streams", streamHandler.Create)
 	protected.PUT("/streams/:id", streamHandler.Update)
+	protected.PUT("/streams/:id/roles", streamHandler.UpdateRoles)
 	protected.DELETE("/streams/:id", streamHandler.Delete)
 
 	// Recording rules.
@@ -295,6 +296,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
+	protected.POST("/search/backfill", searchHandler.Backfill)
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)

@@ -51,9 +51,12 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
     final serverUrl = auth.serverUrl ?? '';
     final camera = widget.camera;
 
+    final livePath = camera.liveViewPath.isNotEmpty
+        ? camera.liveViewPath
+        : camera.mediamtxPath;
     _connection = WhepConnection(
       serverUrl: serverUrl,
-      mediamtxPath: camera.mediamtxPath,
+      mediamtxPath: livePath,
     );
 
     _stateSub = _connection!.stateStream.listen((state) {

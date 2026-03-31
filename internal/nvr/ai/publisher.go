@@ -222,7 +222,13 @@ func (pub *Publisher) generateEmbedding(det *db.Detection, img image.Image, box 
 		log.Printf("[ai] embedding error: %v", err)
 		return
 	}
-	det.Embedding = float32SliceToBytes(embedding)
+	embBytes := Float32SliceToBytes(embedding)
+	det.Embedding = embBytes
+	if det.ID != 0 {
+		if err := pub.database.UpdateDetectionEmbedding(det.ID, embBytes); err != nil {
+			log.Printf("[ai] update embedding error: %v", err)
+		}
+	}
 }
 
 // cropRegion extracts a bounding box region from an image.

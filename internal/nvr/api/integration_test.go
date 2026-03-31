@@ -176,7 +176,7 @@ func TestIntegration_CameraCreationWritesYAML(t *testing.T) {
 	// --- YAML file checks ---
 	yamlContent := env.readYAML(t)
 	assert.Contains(t, yamlContent, expectedPath+":")
-	assert.Contains(t, yamlContent, "record: true")
+	assert.Contains(t, yamlContent, "record: false")
 	assert.Contains(t, yamlContent, "source: rtsp://192.168.1.50/stream")
 }
 

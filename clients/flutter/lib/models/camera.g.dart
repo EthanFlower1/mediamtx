@@ -30,6 +30,11 @@ _$CameraImpl _$$CameraImplFromJson(Map<String, dynamic> json) => _$CameraImpl(
       updatedAt: json['updated_at'] as String?,
       storagePath: json['storage_path'] as String? ?? '',
       storageStatus: json['storage_status'] as String? ?? 'default',
+      liveViewPath: json['live_view_path'] as String? ?? '',
+      streamPaths: (json['stream_paths'] as List<dynamic>?)
+              ?.map((e) => StreamPath.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
@@ -56,4 +61,20 @@ Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
       'updated_at': instance.updatedAt,
       'storage_path': instance.storagePath,
       'storage_status': instance.storageStatus,
+      'live_view_path': instance.liveViewPath,
+      'stream_paths': instance.streamPaths,
+    };
+
+_$StreamPathImpl _$$StreamPathImplFromJson(Map<String, dynamic> json) =>
+    _$StreamPathImpl(
+      name: json['name'] as String? ?? '',
+      path: json['path'] as String? ?? '',
+      resolution: json['resolution'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$$StreamPathImplToJson(_$StreamPathImpl instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'path': instance.path,
+      'resolution': instance.resolution,
     };

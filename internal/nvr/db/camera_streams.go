@@ -25,6 +25,7 @@ type CameraStream struct {
 	RTSPURL      string `json:"rtsp_url"`
 	ProfileToken string `json:"profile_token"`
 	VideoCodec   string `json:"video_codec"`
+	AudioCodec   string `json:"audio_codec"`
 	Width        int    `json:"width"`
 	Height       int    `json:"height"`
 	Roles        string `json:"roles"`
@@ -69,10 +70,10 @@ func (d *DB) CreateCameraStream(s *CameraStream) error {
 
 	_, err := d.Exec(`
 		INSERT INTO camera_streams (id, camera_id, name, rtsp_url, profile_token,
-			video_codec, width, height, roles, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			video_codec, audio_codec, width, height, roles, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.CameraID, s.Name, s.RTSPURL, s.ProfileToken,
-		s.VideoCodec, s.Width, s.Height, s.Roles, s.CreatedAt,
+		s.VideoCodec, s.AudioCodec, s.Width, s.Height, s.Roles, s.CreatedAt,
 	)
 	return err
 }
@@ -82,7 +83,7 @@ func (d *DB) CreateCameraStream(s *CameraStream) error {
 func (d *DB) ListCameraStreams(cameraID string) ([]*CameraStream, error) {
 	rows, err := d.Query(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			width, height, roles, created_at
+			audio_codec, width, height, roles, created_at
 		FROM camera_streams
 		WHERE camera_id = ?
 		ORDER BY (width * height) DESC, created_at ASC`, cameraID)
@@ -96,7 +97,7 @@ func (d *DB) ListCameraStreams(cameraID string) ([]*CameraStream, error) {
 		s := &CameraStream{}
 		if err := rows.Scan(
 			&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
-			&s.VideoCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+			&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -111,11 +112,11 @@ func (d *DB) GetCameraStream(id string) (*CameraStream, error) {
 	s := &CameraStream{}
 	err := d.QueryRow(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			width, height, roles, created_at
+			audio_codec, width, height, roles, created_at
 		FROM camera_streams WHERE id = ?`, id,
 	).Scan(
 		&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
-		&s.VideoCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+		&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -132,10 +133,10 @@ func (d *DB) UpdateCameraStream(s *CameraStream) error {
 	res, err := d.Exec(`
 		UPDATE camera_streams
 		SET name = ?, rtsp_url = ?, profile_token = ?, video_codec = ?,
-			width = ?, height = ?, roles = ?
+			audio_codec = ?, width = ?, height = ?, roles = ?
 		WHERE id = ?`,
 		s.Name, s.RTSPURL, s.ProfileToken, s.VideoCodec,
-		s.Width, s.Height, s.Roles, s.ID,
+		s.AudioCodec, s.Width, s.Height, s.Roles, s.ID,
 	)
 	if err != nil {
 		return err
@@ -219,7 +220,7 @@ func (d *DB) ResolveStream(cameraID, role string) (*CameraStream, error) {
 	s := &CameraStream{}
 	err := d.QueryRow(`
 		SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
-			width, height, roles, created_at
+			audio_codec, width, height, roles, created_at
 		FROM camera_streams
 		WHERE camera_id = ?
 		  AND (',' || roles || ',' LIKE '%,' || ? || ',%')
@@ -227,7 +228,7 @@ func (d *DB) ResolveStream(cameraID, role string) (*CameraStream, error) {
 		LIMIT 1`, cameraID, role,
 	).Scan(
 		&s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
-		&s.VideoCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
+		&s.VideoCodec, &s.AudioCodec, &s.Width, &s.Height, &s.Roles, &s.CreatedAt,
 	)
 	if err == nil {
 		return s, nil

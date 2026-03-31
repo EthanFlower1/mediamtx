@@ -24,7 +24,7 @@ func cropImage(img image.Image, rect image.Rectangle) image.Image {
 }
 
 // float32SliceToBytes converts a float32 slice to a byte slice for DB storage.
-func float32SliceToBytes(fs []float32) []byte {
+func Float32SliceToBytes(fs []float32) []byte {
 	buf := make([]byte, len(fs)*4)
 	for i, f := range fs {
 		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(f))

@@ -356,6 +356,113 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     }
   }
 
+  Future<void> _toggleRole(CameraStream stream, String role, bool currentlyActive) async {
+    final api = ref.read(apiClientProvider);
+    if (api == null) return;
+
+    final roles = List<String>.from(stream.roleList);
+    if (currentlyActive) {
+      roles.remove(role);
+    } else {
+      roles.add(role);
+    }
+
+    try {
+      await api.put('/streams/${stream.id}/roles', data: {
+        'roles': roles.join(','),
+      });
+      _fetchCamera(); // reload streams
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildStreamInfoCard(CameraStream stream) {
+    final details = <String>[
+      if (stream.resolutionLabel.isNotEmpty) stream.resolutionLabel,
+      if (stream.effectiveVideoCodec.isNotEmpty) stream.effectiveVideoCodec.toUpperCase(),
+      if (stream.effectiveAudioCodec.isNotEmpty) stream.effectiveAudioCodec.toUpperCase(),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: NvrColors.bgTertiary,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: NvrColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Stream name + details summary
+          Row(
+            children: [
+              Expanded(
+                child: Text(stream.name, style: NvrTypography.cameraName),
+              ),
+              if (details.isNotEmpty)
+                Text(
+                  details.join(' · '),
+                  style: NvrTypography.monoLabel,
+                ),
+            ],
+          ),
+
+          // Roles as tappable tags
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: ['live_view', 'recording', 'ai_detection', 'mobile'].map((role) {
+              final active = stream.roleList.contains(role);
+              return GestureDetector(
+                onTap: () => _toggleRole(stream, role, active),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? NvrColors.accent.withValues(alpha: 0.15)
+                        : NvrColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: active
+                          ? NvrColors.accent.withValues(alpha: 0.3)
+                          : NvrColors.border,
+                    ),
+                  ),
+                  child: Text(
+                    role.replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 9,
+                      color: active ? NvrColors.accent : NvrColors.textMuted,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          // RTSP URL
+          if (stream.rtspUrl.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              stream.rtspUrl,
+              style: NvrTypography.monoLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildScheduleDropdown(String streamId, String label) {
     final currentTemplateId = _streamTemplateMap[streamId] ?? '';
     final validValue = currentTemplateId == '__custom__'
@@ -625,6 +732,23 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Streams section
+        if (_streams.isNotEmpty)
+          _SectionCard(
+            header: 'STREAMS',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < _streams.length; i++) ...[
+                  _buildStreamInfoCard(_streams[i]),
+                  if (i < _streams.length - 1) const SizedBox(height: 8),
+                ],
+              ],
+            ),
+          ),
+
+        if (_streams.isNotEmpty) const SizedBox(height: 12),
+
         // Recording section
         _SectionCard(
           header: 'RECORDING',
@@ -719,15 +843,15 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                   valueFormatter: (v) => '${v.round()}s',
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: HudButton(
-                    style: HudButtonStyle.tactical,
-                    onPressed: _savingAi ? null : _saveAi,
-                    label: _savingAi ? 'SAVING...' : 'SAVE AI SETTINGS',
-                  ),
-                ),
               ],
+              SizedBox(
+                width: double.infinity,
+                child: HudButton(
+                  style: HudButtonStyle.tactical,
+                  onPressed: _savingAi ? null : _saveAi,
+                  label: _savingAi ? 'SAVING...' : 'SAVE AI SETTINGS',
+                ),
+              ),
             ],
           ),
         ),

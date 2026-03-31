@@ -45,6 +45,7 @@ type media2Profile struct {
 
 type media2Configurations struct {
 	VideoEncoder *media2VideoEncoderConfig `xml:"VideoEncoder"`
+	AudioEncoder *media2AudioEncoderConfig `xml:"AudioEncoder"`
 }
 
 type media2VideoEncoderConfig struct {
@@ -55,6 +56,10 @@ type media2VideoEncoderConfig struct {
 type media2Resolution struct {
 	Width  int `xml:"Width"`
 	Height int `xml:"Height"`
+}
+
+type media2AudioEncoderConfig struct {
+	Encoding string `xml:"Encoding"`
 }
 
 type getStreamUri2Response struct {
@@ -147,6 +152,9 @@ func GetProfiles2(client *Client) ([]MediaProfile, error) {
 			mp.VideoCodec = p.Configurations.VideoEncoder.Encoding
 			mp.Width = p.Configurations.VideoEncoder.Resolution.Width
 			mp.Height = p.Configurations.VideoEncoder.Resolution.Height
+		}
+		if p.Configurations.AudioEncoder != nil {
+			mp.AudioCodec = p.Configurations.AudioEncoder.Encoding
 		}
 		profiles = append(profiles, mp)
 	}
@@ -249,6 +257,7 @@ func GetProfilesAuto(xaddr, username, password string) ([]MediaProfile, bool, er
 			Token:      string(p.Token),
 			Name:       string(p.Name),
 			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
+			AudioCodec: string(p.AudioEncoderConfiguration.Encoding),
 			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
 			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
 		}

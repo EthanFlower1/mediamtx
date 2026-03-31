@@ -61,6 +61,10 @@ mixin _$Camera {
   String get storagePath => throw _privateConstructorUsedError;
   @JsonKey(name: 'storage_status')
   String get storageStatus => throw _privateConstructorUsedError;
+  @JsonKey(name: 'live_view_path')
+  String get liveViewPath => throw _privateConstructorUsedError;
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths => throw _privateConstructorUsedError;
 
   /// Serializes this Camera to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -98,7 +102,9 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'created_at') String? createdAt,
       @JsonKey(name: 'updated_at') String? updatedAt,
       @JsonKey(name: 'storage_path') String storagePath,
-      @JsonKey(name: 'storage_status') String storageStatus});
+      @JsonKey(name: 'storage_status') String storageStatus,
+      @JsonKey(name: 'live_view_path') String liveViewPath,
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
 }
 
 /// @nodoc
@@ -138,6 +144,8 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? updatedAt = freezed,
     Object? storagePath = null,
     Object? storageStatus = null,
+    Object? liveViewPath = null,
+    Object? streamPaths = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -228,6 +236,14 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.storageStatus
           : storageStatus // ignore: cast_nullable_to_non_nullable
               as String,
+      liveViewPath: null == liveViewPath
+          ? _value.liveViewPath
+          : liveViewPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      streamPaths: null == streamPaths
+          ? _value.streamPaths
+          : streamPaths // ignore: cast_nullable_to_non_nullable
+              as List<StreamPath>,
     ) as $Val);
   }
 }
@@ -261,7 +277,9 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'created_at') String? createdAt,
       @JsonKey(name: 'updated_at') String? updatedAt,
       @JsonKey(name: 'storage_path') String storagePath,
-      @JsonKey(name: 'storage_status') String storageStatus});
+      @JsonKey(name: 'storage_status') String storageStatus,
+      @JsonKey(name: 'live_view_path') String liveViewPath,
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
 }
 
 /// @nodoc
@@ -299,6 +317,8 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? updatedAt = freezed,
     Object? storagePath = null,
     Object? storageStatus = null,
+    Object? liveViewPath = null,
+    Object? streamPaths = null,
   }) {
     return _then(_$CameraImpl(
       id: null == id
@@ -389,6 +409,14 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.storageStatus
           : storageStatus // ignore: cast_nullable_to_non_nullable
               as String,
+      liveViewPath: null == liveViewPath
+          ? _value.liveViewPath
+          : liveViewPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      streamPaths: null == streamPaths
+          ? _value._streamPaths
+          : streamPaths // ignore: cast_nullable_to_non_nullable
+              as List<StreamPath>,
     ));
   }
 }
@@ -418,7 +446,11 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'created_at') this.createdAt,
       @JsonKey(name: 'updated_at') this.updatedAt,
       @JsonKey(name: 'storage_path') this.storagePath = '',
-      @JsonKey(name: 'storage_status') this.storageStatus = 'default'});
+      @JsonKey(name: 'storage_status') this.storageStatus = 'default',
+      @JsonKey(name: 'live_view_path') this.liveViewPath = '',
+      @JsonKey(name: 'stream_paths')
+      final List<StreamPath> streamPaths = const []})
+      : _streamPaths = streamPaths;
 
   factory _$CameraImpl.fromJson(Map<String, dynamic> json) =>
       _$$CameraImplFromJson(json);
@@ -487,10 +519,21 @@ class _$CameraImpl implements _Camera {
   @override
   @JsonKey(name: 'storage_status')
   final String storageStatus;
+  @override
+  @JsonKey(name: 'live_view_path')
+  final String liveViewPath;
+  final List<StreamPath> _streamPaths;
+  @override
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths {
+    if (_streamPaths is EqualUnmodifiableListView) return _streamPaths;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_streamPaths);
+  }
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, streamPaths: $streamPaths)';
   }
 
   @override
@@ -537,7 +580,11 @@ class _$CameraImpl implements _Camera {
             (identical(other.storagePath, storagePath) ||
                 other.storagePath == storagePath) &&
             (identical(other.storageStatus, storageStatus) ||
-                other.storageStatus == storageStatus));
+                other.storageStatus == storageStatus) &&
+            (identical(other.liveViewPath, liveViewPath) ||
+                other.liveViewPath == liveViewPath) &&
+            const DeepCollectionEquality()
+                .equals(other._streamPaths, _streamPaths));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -565,7 +612,9 @@ class _$CameraImpl implements _Camera {
         createdAt,
         updatedAt,
         storagePath,
-        storageStatus
+        storageStatus,
+        liveViewPath,
+        const DeepCollectionEquality().hash(_streamPaths)
       ]);
 
   /// Create a copy of Camera
@@ -607,8 +656,10 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'created_at') final String? createdAt,
       @JsonKey(name: 'updated_at') final String? updatedAt,
       @JsonKey(name: 'storage_path') final String storagePath,
-      @JsonKey(name: 'storage_status')
-      final String storageStatus}) = _$CameraImpl;
+      @JsonKey(name: 'storage_status') final String storageStatus,
+      @JsonKey(name: 'live_view_path') final String liveViewPath,
+      @JsonKey(name: 'stream_paths')
+      final List<StreamPath> streamPaths}) = _$CameraImpl;
 
   factory _Camera.fromJson(Map<String, dynamic> json) = _$CameraImpl.fromJson;
 
@@ -675,11 +726,206 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'storage_status')
   String get storageStatus;
+  @override
+  @JsonKey(name: 'live_view_path')
+  String get liveViewPath;
+  @override
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths;
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$CameraImplCopyWith<_$CameraImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+StreamPath _$StreamPathFromJson(Map<String, dynamic> json) {
+  return _StreamPath.fromJson(json);
+}
+
+/// @nodoc
+mixin _$StreamPath {
+  String get name => throw _privateConstructorUsedError;
+  String get path => throw _privateConstructorUsedError;
+  String get resolution => throw _privateConstructorUsedError;
+
+  /// Serializes this StreamPath to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $StreamPathCopyWith<StreamPath> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $StreamPathCopyWith<$Res> {
+  factory $StreamPathCopyWith(
+          StreamPath value, $Res Function(StreamPath) then) =
+      _$StreamPathCopyWithImpl<$Res, StreamPath>;
+  @useResult
+  $Res call({String name, String path, String resolution});
+}
+
+/// @nodoc
+class _$StreamPathCopyWithImpl<$Res, $Val extends StreamPath>
+    implements $StreamPathCopyWith<$Res> {
+  _$StreamPathCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? path = null,
+    Object? resolution = null,
+  }) {
+    return _then(_value.copyWith(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      path: null == path
+          ? _value.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      resolution: null == resolution
+          ? _value.resolution
+          : resolution // ignore: cast_nullable_to_non_nullable
+              as String,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$StreamPathImplCopyWith<$Res>
+    implements $StreamPathCopyWith<$Res> {
+  factory _$$StreamPathImplCopyWith(
+          _$StreamPathImpl value, $Res Function(_$StreamPathImpl) then) =
+      __$$StreamPathImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String name, String path, String resolution});
+}
+
+/// @nodoc
+class __$$StreamPathImplCopyWithImpl<$Res>
+    extends _$StreamPathCopyWithImpl<$Res, _$StreamPathImpl>
+    implements _$$StreamPathImplCopyWith<$Res> {
+  __$$StreamPathImplCopyWithImpl(
+      _$StreamPathImpl _value, $Res Function(_$StreamPathImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? path = null,
+    Object? resolution = null,
+  }) {
+    return _then(_$StreamPathImpl(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      path: null == path
+          ? _value.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      resolution: null == resolution
+          ? _value.resolution
+          : resolution // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$StreamPathImpl implements _StreamPath {
+  const _$StreamPathImpl(
+      {this.name = '', this.path = '', this.resolution = ''});
+
+  factory _$StreamPathImpl.fromJson(Map<String, dynamic> json) =>
+      _$$StreamPathImplFromJson(json);
+
+  @override
+  @JsonKey()
+  final String name;
+  @override
+  @JsonKey()
+  final String path;
+  @override
+  @JsonKey()
+  final String resolution;
+
+  @override
+  String toString() {
+    return 'StreamPath(name: $name, path: $path, resolution: $resolution)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$StreamPathImpl &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.path, path) || other.path == path) &&
+            (identical(other.resolution, resolution) ||
+                other.resolution == resolution));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, name, path, resolution);
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$StreamPathImplCopyWith<_$StreamPathImpl> get copyWith =>
+      __$$StreamPathImplCopyWithImpl<_$StreamPathImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$StreamPathImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _StreamPath implements StreamPath {
+  const factory _StreamPath(
+      {final String name,
+      final String path,
+      final String resolution}) = _$StreamPathImpl;
+
+  factory _StreamPath.fromJson(Map<String, dynamic> json) =
+      _$StreamPathImpl.fromJson;
+
+  @override
+  String get name;
+  @override
+  String get path;
+  @override
+  String get resolution;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$StreamPathImplCopyWith<_$StreamPathImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

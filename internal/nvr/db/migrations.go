@@ -399,4 +399,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
         CREATE INDEX idx_screenshots_created ON screenshots(created_at);
     `,
 	},
+	// Migration 26: Add audio_codec column to camera_streams.
+	{
+		version: 26,
+		sql:     `ALTER TABLE camera_streams ADD COLUMN audio_codec TEXT NOT NULL DEFAULT '';`,
+	},
 }

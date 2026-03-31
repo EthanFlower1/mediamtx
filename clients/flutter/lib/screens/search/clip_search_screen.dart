@@ -65,7 +65,30 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
   void _search() {
     final q = _controller.text.trim();
     if (q.isEmpty) return;
-    ref.read(searchProvider.notifier).search(q);
+
+    final now = DateTime.now();
+    DateTime? start;
+    DateTime? end;
+
+    switch (_selectedTimeRange) {
+      case _TimeRange.all:
+        // No time constraint — omit start/end so server searches all time.
+        break;
+      case _TimeRange.lastHour:
+        start = now.subtract(const Duration(hours: 1));
+        end = now;
+      case _TimeRange.today:
+        start = DateTime(now.year, now.month, now.day);
+        end = now;
+      case _TimeRange.yesterday:
+        start = DateTime(now.year, now.month, now.day - 1);
+        end = DateTime(now.year, now.month, now.day);
+      case _TimeRange.last7d:
+        start = now.subtract(const Duration(days: 7));
+        end = now;
+    }
+
+    ref.read(searchProvider.notifier).search(q, start: start, end: end);
     _focusNode.unfocus();
   }
 

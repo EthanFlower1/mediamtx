@@ -225,6 +225,9 @@ func streamKey(cameraID, streamID string) string {
 }
 
 // streamPath returns the MediaMTX path for a stream.
+// Uses the first 8 characters of the stream ID as a stable suffix.
+// Stream names are for display only — paths use IDs so renaming a stream
+// doesn't orphan recordings or YAML entries.
 func streamPath(cam *db.Camera, streamID string) string {
 	if streamID == "" || cam.MediaMTXPath == "" {
 		return cam.MediaMTXPath
@@ -239,9 +242,8 @@ func streamPath(cam *db.Camera, streamID string) string {
 // ensureStreamPath creates a MediaMTX path for a non-default stream.
 // The record parameter sets the initial recording state in the YAML.
 func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string, record bool) string {
-	path := streamPath(cam, streamID)
 	if streamID == "" {
-		return path
+		return cam.MediaMTXPath
 	}
 
 	stream, err := s.db.GetCameraStream(streamID)
@@ -249,6 +251,8 @@ func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string, record boo
 		log.Printf("scheduler: stream %s not found for camera %s", streamID, cam.ID)
 		return ""
 	}
+
+	path := streamPath(cam, streamID)
 
 	streamURL := stream.RTSPURL
 	// Validate the URL is a usable RTSP source.
@@ -408,6 +412,30 @@ func (s *Scheduler) evaluate() {
 			} else {
 				path = s.ensureStreamPath(cam, streamID, desiredRecording)
 			}
+			if path == "" && streamID != "" {
+				// Stream no longer exists in DB — clean up orphaned YAML paths and state.
+				s.mu.Lock()
+				if prev, exists := s.states[sk]; exists {
+					delete(s.states, sk)
+					// Try to remove any YAML path that was created with the old naming.
+					// Check both old format (UUID prefix) and new format (stream name).
+					oldPrefix := streamID
+					if len(oldPrefix) > 8 {
+						oldPrefix = oldPrefix[:8]
+					}
+					oldPath := cam.MediaMTXPath + "~" + oldPrefix
+					s.yamlWriter.RemovePath(oldPath)
+					if prev.Recording && s.eventPub != nil {
+						s.eventPub.PublishRecordingStopped(cam.Name)
+					}
+				}
+				if sm, ok := s.motionSMs[sk]; ok {
+					sm.Stop()
+					delete(s.motionSMs, sk)
+				}
+				s.mu.Unlock()
+				continue
+			}
 			if path == "" {
 				continue
 			}
@@ -449,6 +477,35 @@ func (s *Scheduler) evaluate() {
 			// Clean up non-default stream paths when mode is off.
 			if mode == ModeOff && streamID != "" {
 				s.yamlWriter.RemovePath(path)
+			}
+		}
+	}
+
+	// Clean up orphaned sub-stream YAML paths. These are paths containing "~"
+	// that don't correspond to any active stream state in the scheduler.
+	nvrPaths, nvrErr := s.yamlWriter.GetNVRPaths()
+	if nvrErr != nil {
+		log.Printf("scheduler: GetNVRPaths error: %v", nvrErr)
+	}
+	s.mu.Lock()
+	activeSubPaths := make(map[string]bool)
+	for sk := range s.states {
+		if idx := strings.Index(sk, ":"); idx >= 0 {
+			camID := sk[:idx]
+			if cam, ok := camByID[camID]; ok {
+				streamID := sk[idx+1:]
+				activeSubPaths[streamPath(cam, streamID)] = true
+			}
+		}
+	}
+	s.mu.Unlock()
+	log.Printf("scheduler: orphan sweep: %d YAML paths, %d active sub-paths", len(nvrPaths), len(activeSubPaths))
+	for _, p := range nvrPaths {
+		if strings.Contains(p, "~") {
+			log.Printf("scheduler: orphan check: path=%q active=%v", p, activeSubPaths[p])
+			if !activeSubPaths[p] {
+				log.Printf("scheduler: removing orphaned sub-stream path %q from YAML", p)
+				s.yamlWriter.RemovePath(p)
 			}
 		}
 	}

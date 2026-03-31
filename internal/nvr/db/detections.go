@@ -37,6 +37,63 @@ func (d *DB) InsertDetection(det *Detection) error {
 	return nil
 }
 
+// UpdateDetectionEmbedding writes a CLIP embedding for an existing detection.
+func (d *DB) UpdateDetectionEmbedding(detectionID int64, embedding []byte) error {
+	_, err := d.Exec(
+		`UPDATE detections SET embedding = ? WHERE id = ?`,
+		embedding, detectionID,
+	)
+	return err
+}
+
+// DetectionForBackfill is a detection needing embedding, enriched with camera info.
+type DetectionForBackfill struct {
+	Detection
+	CameraID string
+}
+
+// ListDetectionsNeedingEmbedding returns one detection per (event, class) pair
+// that has no embedding, within the given time range. This selects the first
+// detection of each unique object entry — matching what the live pipeline does.
+func (d *DB) ListDetectionsNeedingEmbedding(start, end time.Time) ([]*DetectionForBackfill, error) {
+	rows, err := d.Query(`
+		SELECT d.id, d.motion_event_id, d.frame_time, d.class, d.confidence,
+			d.box_x, d.box_y, d.box_w, d.box_h, me.camera_id
+		FROM detections d
+		JOIN motion_events me ON d.motion_event_id = me.id
+		WHERE (d.embedding IS NULL OR length(d.embedding) = 0)
+		  AND d.frame_time >= ?
+		  AND d.frame_time <= ?
+		  AND d.id IN (
+			SELECT MIN(id) FROM detections
+			WHERE (embedding IS NULL OR length(embedding) = 0)
+			  AND frame_time >= ?
+			  AND frame_time <= ?
+			GROUP BY motion_event_id, class
+		  )
+		ORDER BY d.frame_time`,
+		start.UTC().Format(timeFormat), end.UTC().Format(timeFormat),
+		start.UTC().Format(timeFormat), end.UTC().Format(timeFormat),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*DetectionForBackfill
+	for rows.Next() {
+		r := &DetectionForBackfill{}
+		if err := rows.Scan(
+			&r.ID, &r.MotionEventID, &r.FrameTime, &r.Class, &r.Confidence,
+			&r.BoxX, &r.BoxY, &r.BoxW, &r.BoxH, &r.CameraID,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
 // ListDetectionsByEvent returns all detections for a given motion event ID.
 func (d *DB) ListDetectionsByEvent(eventID int64) ([]*Detection, error) {
 	rows, err := d.Query(`

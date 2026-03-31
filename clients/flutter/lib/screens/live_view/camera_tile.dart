@@ -36,6 +36,9 @@ class _CameraTileState extends State<CameraTile> {
   late Timer _clockTimer;
   DateTime _now = DateTime.now();
 
+  // Stream override — when non-null, overrides the default liveViewPath.
+  String? _overridePath;
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +54,8 @@ class _CameraTileState extends State<CameraTile> {
     final oldOnline = oldWidget.camera.status != 'disconnected';
     final newOnline = widget.camera.status != 'disconnected';
     final pathChanged =
-        oldWidget.camera.mediamtxPath != widget.camera.mediamtxPath;
+        oldWidget.camera.mediamtxPath != widget.camera.mediamtxPath ||
+        oldWidget.camera.liveViewPath != widget.camera.liveViewPath;
     final serverChanged = oldWidget.serverUrl != widget.serverUrl;
 
     // Reconnect when camera comes online, path changes, or server changes.
@@ -62,14 +66,23 @@ class _CameraTileState extends State<CameraTile> {
     }
   }
 
+  String get _activePath {
+    if (_overridePath != null) return _overridePath!;
+    final camera = widget.camera;
+    return camera.liveViewPath.isNotEmpty
+        ? camera.liveViewPath
+        : camera.mediamtxPath;
+  }
+
   void _initConnection() {
     final camera = widget.camera;
     final isOnline = camera.status != 'disconnected';
-    if (!isOnline || camera.mediamtxPath.isEmpty) return;
+    final livePath = _activePath;
+    if (!isOnline || livePath.isEmpty) return;
 
     _connection = WhepConnection(
       serverUrl: widget.serverUrl,
-      mediamtxPath: camera.mediamtxPath,
+      mediamtxPath: livePath,
     );
 
     _stateSub = _connection!.stateStream.listen((state) {
@@ -81,6 +94,14 @@ class _CameraTileState extends State<CameraTile> {
 
   Future<void> _retry() async {
     await _connection?.retry();
+  }
+
+  void _switchStream(String path) {
+    if (path == _activePath) return;
+    setState(() => _overridePath = path);
+    _disposeConnection();
+    _connState = WhepConnectionState.connecting;
+    _initConnection();
   }
 
   void _disposeConnection() {
@@ -140,13 +161,25 @@ class _CameraTileState extends State<CameraTile> {
                     : StatusBadge.offline(),
               ),
 
-              // Top-right: REC badge when AI is enabled.
-              if (camera.aiEnabled)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: StatusBadge.recording(),
+              // Top-right: stream picker + REC badge.
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (camera.streamPaths.length > 1)
+                      _StreamPickerButton(
+                        streamPaths: camera.streamPaths,
+                        activePath: _activePath,
+                        onSelected: _switchStream,
+                      ),
+                    if (camera.streamPaths.length > 1 && camera.aiEnabled)
+                      const SizedBox(width: 4),
+                    if (camera.aiEnabled) StatusBadge.recording(),
+                  ],
                 ),
+              ),
 
               // Bottom-left: camera name.
               Positioned(
@@ -337,5 +370,79 @@ class _CameraTileState extends State<CameraTile> {
       case WhepConnectionState.disposed:
         return Container(color: NvrColors.bgSecondary);
     }
+  }
+}
+
+class _StreamPickerButton extends StatelessWidget {
+  final List<StreamPath> streamPaths;
+  final String activePath;
+  final ValueChanged<String> onSelected;
+
+  const _StreamPickerButton({
+    required this.streamPaths,
+    required this.activePath,
+    required this.onSelected,
+  });
+
+  String _label(StreamPath sp) {
+    if (sp.resolution.isNotEmpty) return '${sp.name} (${sp.resolution})';
+    return sp.name;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final offset = box.localToGlobal(Offset.zero);
+        final picked = await showMenu<String>(
+          context: context,
+          position: RelativeRect.fromLTRB(
+            offset.dx,
+            offset.dy + box.size.height + 4,
+            offset.dx + box.size.width,
+            0,
+          ),
+          color: NvrColors.bgSecondary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: NvrColors.border),
+          ),
+          items: streamPaths.map((sp) {
+            final isActive = sp.path == activePath;
+            return PopupMenuItem<String>(
+              value: sp.path,
+              height: 32,
+              child: Text(
+                _label(sp),
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 10,
+                  color: isActive ? NvrColors.accent : NvrColors.textMuted,
+                ),
+              ),
+            );
+          }).toList(),
+        );
+        if (picked != null) onSelected(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: NvrColors.bgPrimary.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(color: NvrColors.border),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.videocam, color: NvrColors.textMuted, size: 10),
+            SizedBox(width: 2),
+            Icon(Icons.keyboard_arrow_down, color: NvrColors.textMuted, size: 10),
+          ],
+        ),
+      ),
+    );
   }
 }

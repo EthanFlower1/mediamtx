@@ -584,53 +584,89 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 		log.Printf("scheduler: consolidated detections for %d events", consolidated)
 	}
 
-	// Step 2: Per-camera retention.
+	// Step 2: Per-camera/stream retention.
 	for _, cam := range cameras {
-		if cam.RetentionDays <= 0 {
+		streams, err := s.db.ListCameraStreams(cam.ID)
+		if err != nil {
+			log.Printf("scheduler: failed to list streams for camera %s: %v", cam.Name, err)
 			continue
 		}
 
-		noEventCutoff := now.AddDate(0, 0, -cam.RetentionDays)
-
-		if cam.EventRetentionDays > 0 {
-			// Smart mode: retention_days for no-event recordings,
-			// event_retention_days for recordings with events.
-			paths, err := s.db.DeleteRecordingsWithoutEvents(cam.ID, noEventCutoff)
-			if err != nil {
-				log.Printf("scheduler: no-event retention FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
-			} else if len(paths) > 0 {
-				removed := removeFiles(paths)
-				log.Printf("scheduler: no-event retention for %s: deleted %d recordings (%d files removed)", cam.Name, len(paths), removed)
-			}
-
-			eventCutoff := now.AddDate(0, 0, -cam.EventRetentionDays)
-			paths, err = s.db.DeleteRecordingsWithEvents(cam.ID, eventCutoff)
-			if err != nil {
-				log.Printf("scheduler: event retention FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
-			} else if len(paths) > 0 {
-				removed := removeFiles(paths)
-				log.Printf("scheduler: event retention for %s: deleted %d recordings (%d files removed)", cam.Name, len(paths), removed)
-			}
-		} else {
-			// Legacy mode: retention_days applies to ALL recordings.
-			paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
-			if err != nil {
-				log.Printf("scheduler: retention cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+		// Per-stream retention: iterate streams with retention configured.
+		handledByStream := false
+		for _, stream := range streams {
+			if stream.RetentionDays <= 0 {
 				continue
 			}
-			if len(paths) > 0 {
-				removed := removeFiles(paths)
-				log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
-					cam.Name, len(paths), removed, noEventCutoff.Format(time.RFC3339))
+			handledByStream = true
+			noEventCutoff := now.AddDate(0, 0, -stream.RetentionDays)
+
+			if stream.EventRetentionDays > 0 {
+				paths, err := s.db.DeleteStreamRecordingsWithoutEvents(cam.ID, stream.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream no-event retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream no-event retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
+
+				eventCutoff := now.AddDate(0, 0, -stream.EventRetentionDays)
+				paths, err = s.db.DeleteStreamRecordingsWithEvents(cam.ID, stream.ID, eventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream event retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream event retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
+			} else {
+				paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
 			}
 		}
 
-		// Step 3: Clean old motion events if detection retention is configured.
+		// Camera-level fallback for recordings not covered by stream retention.
+		if !handledByStream && cam.RetentionDays > 0 {
+			noEventCutoff := now.AddDate(0, 0, -cam.RetentionDays)
+
+			if cam.EventRetentionDays > 0 {
+				paths, err := s.db.DeleteRecordingsWithoutEvents(cam.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: no-event retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: no-event retention for %s: deleted %d recordings (%d files)", cam.Name, len(paths), removed)
+				}
+
+				eventCutoff := now.AddDate(0, 0, -cam.EventRetentionDays)
+				paths, err = s.db.DeleteRecordingsWithEvents(cam.ID, eventCutoff)
+				if err != nil {
+					log.Printf("scheduler: event retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: event retention for %s: deleted %d recordings (%d files)", cam.Name, len(paths), removed)
+				}
+			} else {
+				paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: retention for %s: deleted %d recordings (%d files), cutoff %s", cam.Name, len(paths), removed, noEventCutoff.Format(time.RFC3339))
+				}
+			}
+		}
+
+		// Step 3: Clean old motion events.
 		if cam.DetectionRetentionDays > 0 {
 			eventCutoff := now.AddDate(0, 0, -cam.DetectionRetentionDays)
 			thumbs, n, err := s.db.DeleteMotionEventsBefore(cam.ID, eventCutoff)
 			if err != nil {
-				log.Printf("scheduler: event data cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+				log.Printf("scheduler: event data cleanup FAILED for camera %s: %v", cam.Name, err)
 			} else if n > 0 {
 				removeFiles(thumbs)
 				log.Printf("scheduler: event data cleanup for %s: deleted %d events", cam.Name, n)

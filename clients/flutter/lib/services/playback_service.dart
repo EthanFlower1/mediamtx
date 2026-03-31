@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/detection_frame.dart';
+
 /// A timespan returned by the MediaMTX /list endpoint.
 class PlaybackTimespan {
   final DateTime start;
@@ -124,6 +126,50 @@ class PlaybackService {
       durationSecs: durationSecs,
       token: token,
     );
+  }
+
+  /// Fetch historical detections for a camera within a time range.
+  /// Used by the playback overlay to batch-load detections for a segment.
+  Future<List<PlaybackDetection>> fetchDetections({
+    required String cameraId,
+    required DateTime start,
+    required DateTime end,
+    String? token,
+  }) async {
+    final uri = Uri.parse(serverUrl);
+    final params = <String, String>{
+      'start': start.toUtc().toIso8601String(),
+      'end': end.toUtc().toIso8601String(),
+    };
+
+    final url = Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.port,
+      path: '/api/nvr/cameras/$cameraId/detections',
+      queryParameters: params,
+    ).toString();
+
+    final dio = Dio();
+    try {
+      final options = Options();
+      if (token != null && token.isNotEmpty) {
+        options.headers = {'Authorization': 'Bearer $token'};
+      }
+      final response = await dio.get<List<dynamic>>(url, options: options);
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data!
+            .map((e) =>
+                PlaybackDetection.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[PlaybackService] fetchDetections failed: $e');
+      return [];
+    } finally {
+      dio.close();
+    }
   }
 
   static String _toRfc3339(DateTime d) {

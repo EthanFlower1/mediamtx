@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +15,7 @@ import '../../widgets/hud/analog_slider.dart';
 import '../../widgets/hud/hud_button.dart';
 import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/status_badge.dart';
+import '../../widgets/stream_card.dart';
 import '../../utils/snackbar_helper.dart';
 import '../live_view/camera_tile.dart';
 
@@ -42,8 +45,11 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   double _trackTimeout = 5;
   List<CameraStream> _streams = [];
 
-  // ── Retention ───────────────────────────────────────────────────────────
-  double _retentionDays = 30;
+  // ── Per-stream settings (held locally until save) ────────────────────
+  Map<String, StreamSettingsState> _streamSettings = {};
+  Set<String> _expandedStreams = {};
+  Map<String, StreamStorageEstimate> _storageEstimates = {};
+  Timer? _estimateTimer;
 
   // ── Advanced / ONVIF ────────────────────────────────────────────────────
   late final TextEditingController _nameCtrl;
@@ -81,6 +87,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
 
   @override
   void dispose() {
+    _estimateTimer?.cancel();
     _nameCtrl.dispose();
     _rtspCtrl.dispose();
     _onvifCtrl.dispose();
@@ -115,7 +122,6 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _aiEnabled = camera.aiEnabled;
         _confidence = camera.aiConfidence.clamp(0.2, 0.9);
         _trackTimeout = camera.aiTrackTimeout.toDouble().clamp(1, 30);
-        _retentionDays = camera.retentionDays.toDouble().clamp(7, 90);
         // Don't set _aiStreamId yet — wait for streams to load so the
         // dropdown always has a matching item.
       });
@@ -170,6 +176,17 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       } catch (e) {
         if (mounted) showErrorSnackBar(context, 'Failed to load recording rules');
       }
+
+      // Initialize per-stream settings state.
+      final newSettings = <String, StreamSettingsState>{};
+      for (final stream in _streams) {
+        final tmplId = _streamTemplateMap[stream.id] ?? '';
+        newSettings[stream.id] = StreamSettingsState.fromStream(stream, templateId: tmplId);
+      }
+      if (mounted) {
+        setState(() => _streamSettings = newSettings);
+      }
+      _fetchStorageEstimates();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -179,73 +196,59 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     }
   }
 
-  // ── Save: general (name / rtsp / onvif) ──────────────────────────────────
-  Future<void> _saveGeneral() async {
+  // ── Save all settings at once ─────────────────────────────────────────
+  Future<void> _saveAll() async {
     final api = ref.read(apiClientProvider);
     if (api == null) return;
-    setState(() => _savingGeneral = true);
+
+    setState(() {
+      _savingGeneral = true;
+      _savingAi = true;
+      _savingAdvanced = true;
+    });
+
     try {
+      // 1. Save general settings.
       await api.put('/cameras/${widget.cameraId}', data: {
         'name': _nameCtrl.text.trim(),
         'rtsp_url': _rtspCtrl.text.trim(),
         'onvif_endpoint': _onvifCtrl.text.trim(),
       });
-      _fetchCamera();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingGeneral = false);
-    }
-  }
 
-  // ── Save: AI settings ────────────────────────────────────────────────────
-  Future<void> _saveAi() async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-    if (mounted) setState(() => _savingAi = true);
-    try {
+      // 2. Save AI settings.
       await api.put('/cameras/${widget.cameraId}/ai', data: {
         'ai_enabled': _aiEnabled,
         'stream_id': _aiStreamId,
         'confidence': _confidence,
         'track_timeout': _trackTimeout.round(),
       });
-      _fetchCamera();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('AI settings saved')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingAi = false);
-    }
-  }
 
-  // ── Save: advanced / retention ───────────────────────────────────────────
-  Future<void> _saveAdvanced() async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-    setState(() => _savingAdvanced = true);
-    try {
-      await api.put('/cameras/${widget.cameraId}', data: {
-        'retention_days': _retentionDays.round(),
-      });
-      _fetchCamera();
+      // 3. Save per-stream settings.
+      for (final entry in _streamSettings.entries) {
+        final streamId = entry.key;
+        final state = entry.value;
+
+        await api.put('/streams/$streamId/roles', data: {
+          'roles': state.roles.join(','),
+        });
+
+        final oldTemplateId = _streamTemplateMap[streamId] ?? '';
+        if (state.templateId != oldTemplateId) {
+          await api.put('/cameras/${widget.cameraId}/stream-schedule', data: {
+            'stream_id': streamId,
+            'template_id': state.templateId,
+          });
+        }
+
+        await api.put('/streams/$streamId/retention', data: {
+          'retention_days': state.retentionDays.round(),
+          'event_retention_days': state.eventRetentionDays.round(),
+        });
+      }
+
+      // 4. Refresh from server.
+      await _fetchCamera();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
@@ -258,8 +261,57 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _savingAdvanced = false);
+      if (mounted) {
+        setState(() {
+          _savingGeneral = false;
+          _savingAi = false;
+          _savingAdvanced = false;
+        });
+      }
     }
+  }
+
+  // ── Fetch storage estimates (debounced) ─────────────────────────────────
+  void _fetchStorageEstimates() {
+    _estimateTimer?.cancel();
+    _estimateTimer = Timer(const Duration(milliseconds: 300), () async {
+      final api = ref.read(apiClientProvider);
+      if (api == null || _camera == null) return;
+
+      int retDays = 0;
+      int eventDays = 0;
+      for (final s in _streamSettings.values) {
+        if (s.retentionDays > retDays) retDays = s.retentionDays.round();
+        if (s.eventRetentionDays > eventDays) eventDays = s.eventRetentionDays.round();
+      }
+
+      try {
+        final res = await api.get('/cameras/${widget.cameraId}/storage-estimate',
+          queryParameters: {
+            'retention_days': retDays,
+            'event_retention_days': eventDays,
+          },
+        );
+        final data = res.data as Map<String, dynamic>;
+        final streams = (data['streams'] as List<dynamic>? ?? []);
+        final estimates = <String, StreamStorageEstimate>{};
+        for (final s in streams) {
+          final est = StreamStorageEstimate.fromJson(s as Map<String, dynamic>);
+          estimates[est.streamId] = est;
+        }
+        if (mounted) setState(() => _storageEstimates = estimates);
+      } catch (_) {}
+    });
+  }
+
+  // ── Retention summary for stat tile ─────────────────────────────────────
+  String _retentionSummary() {
+    if (_streamSettings.isEmpty) return '--';
+    final retentions = _streamSettings.values
+        .map((s) => '${s.retentionDays.round()}d/${s.eventRetentionDays.round()}d')
+        .toSet();
+    if (retentions.length == 1) return retentions.first;
+    return 'Mixed';
   }
 
   // ── ONVIF probe ──────────────────────────────────────────────────────────
@@ -322,208 +374,6 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
-  }
-
-  Future<void> _assignSchedule(String streamId, String templateId) async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-    try {
-      await api.put('/cameras/${widget.cameraId}/stream-schedule', data: {
-        'stream_id': streamId,
-        'template_id': templateId,
-      });
-      if (mounted) {
-        setState(() {
-          if (templateId.isEmpty) {
-            _streamTemplateMap.remove(streamId);
-          } else {
-            _streamTemplateMap[streamId] = templateId;
-          }
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: NvrColors.success,
-            content: Text(templateId.isEmpty ? 'Schedule removed' : 'Schedule updated'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _toggleRole(CameraStream stream, String role, bool currentlyActive) async {
-    final api = ref.read(apiClientProvider);
-    if (api == null) return;
-
-    final roles = List<String>.from(stream.roleList);
-    if (currentlyActive) {
-      roles.remove(role);
-    } else {
-      roles.add(role);
-    }
-
-    try {
-      await api.put('/streams/${stream.id}/roles', data: {
-        'roles': roles.join(','),
-      });
-      _fetchCamera(); // reload streams
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
-        );
-      }
-    }
-  }
-
-  Widget _buildStreamInfoCard(CameraStream stream) {
-    final details = <String>[
-      if (stream.resolutionLabel.isNotEmpty) stream.resolutionLabel,
-      if (stream.effectiveVideoCodec.isNotEmpty) stream.effectiveVideoCodec.toUpperCase(),
-      if (stream.effectiveAudioCodec.isNotEmpty) stream.effectiveAudioCodec.toUpperCase(),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: NvrColors.bgTertiary,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: NvrColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Stream name + details summary
-          Row(
-            children: [
-              Expanded(
-                child: Text(stream.name, style: NvrTypography.cameraName),
-              ),
-              if (details.isNotEmpty)
-                Text(
-                  details.join(' · '),
-                  style: NvrTypography.monoLabel,
-                ),
-            ],
-          ),
-
-          // Roles as tappable tags
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: ['live_view', 'recording', 'ai_detection', 'mobile'].map((role) {
-              final active = stream.roleList.contains(role);
-              return GestureDetector(
-                onTap: () => _toggleRole(stream, role, active),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? NvrColors.accent.withValues(alpha: 0.15)
-                        : NvrColors.bgSecondary,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: active
-                          ? NvrColors.accent.withValues(alpha: 0.3)
-                          : NvrColors.border,
-                    ),
-                  ),
-                  child: Text(
-                    role.replaceAll('_', ' ').toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 9,
-                      color: active ? NvrColors.accent : NvrColors.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-
-          // RTSP URL
-          if (stream.rtspUrl.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              stream.rtspUrl,
-              style: NvrTypography.monoLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScheduleDropdown(String streamId, String label) {
-    final currentTemplateId = _streamTemplateMap[streamId] ?? '';
-    final validValue = currentTemplateId == '__custom__'
-        ? '__custom__'
-        : (_templates.any((t) => t.id == currentTemplateId) ? currentTemplateId : '');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: NvrTypography.monoLabel),
-        const SizedBox(height: 4),
-        DropdownButtonFormField<String>(
-          value: validValue,
-          dropdownColor: NvrColors.bgTertiary,
-          style: NvrTypography.monoData,
-          isExpanded: true,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: NvrColors.bgTertiary,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: NvrColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: NvrColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: NvrColors.accent),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          items: [
-            const DropdownMenuItem(
-              value: '',
-              child: Text('None', style: NvrTypography.monoData),
-            ),
-            ..._templates.map((t) => DropdownMenuItem(
-              value: t.id,
-              child: Text('${t.name} (${t.description})', style: NvrTypography.monoData),
-            )),
-            if (validValue == '__custom__')
-              const DropdownMenuItem(
-                value: '__custom__',
-                child: Text('Custom', style: TextStyle(
-                  fontFamily: 'JetBrainsMono',
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Color(0xFF737373),
-                )),
-              ),
-          ],
-          onChanged: (v) {
-            if (v != null && v != '__custom__') {
-              _assignSchedule(streamId, v);
-            }
-          },
-        ),
-      ],
-    );
   }
 
   StatusBadge _statusBadge(String status) {
@@ -718,7 +568,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
             _StatTile(label: 'EVENTS TODAY', value: eventsStr, valueStyle: NvrTypography.monoDataLarge),
             _StatTile(
               label: 'RETENTION',
-              value: '${_retentionDays.round()}d',
+              value: _retentionSummary(),
               valueStyle: NvrTypography.monoDataLarge,
             ),
           ],
@@ -732,44 +582,41 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Streams section
-        if (_streams.isNotEmpty)
-          _SectionCard(
-            header: 'STREAMS',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (int i = 0; i < _streams.length; i++) ...[
-                  _buildStreamInfoCard(_streams[i]),
-                  if (i < _streams.length - 1) const SizedBox(height: 8),
-                ],
-              ],
+        // ── Stream cards ──
+        if (_streams.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text('STREAMS', style: NvrTypography.monoSection),
+          ),
+          for (final stream in _streams)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: StreamCard(
+                stream: stream,
+                settings: _streamSettings[stream.id] ?? StreamSettingsState.fromStream(stream, templateId: ''),
+                estimate: _storageEstimates[stream.id],
+                templates: _templates,
+                expanded: _expandedStreams.contains(stream.id),
+                onToggleExpand: () {
+                  setState(() {
+                    if (_expandedStreams.contains(stream.id)) {
+                      _expandedStreams.remove(stream.id);
+                    } else {
+                      _expandedStreams.add(stream.id);
+                    }
+                  });
+                },
+                onChanged: (newState) {
+                  setState(() => _streamSettings[stream.id] = newState);
+                  _fetchStorageEstimates();
+                },
+              ),
             ),
-          ),
-
-        if (_streams.isNotEmpty) const SizedBox(height: 12),
-
-        // Recording section
-        _SectionCard(
-          header: 'RECORDING',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_streams.isEmpty) ...[
-                _buildScheduleDropdown('', 'Default'),
-              ] else ...[
-                for (final stream in _streams) ...[
-                  _buildScheduleDropdown(stream.id, stream.displayLabel),
-                  if (stream != _streams.last) const SizedBox(height: 8),
-                ],
-              ],
-            ],
-          ),
-        ),
+        ],
 
         const SizedBox(height: 12),
 
-        // AI Detection section
+        // ── AI Detection (camera-level, no dedicated save) ──
         _SectionCard(
           header: 'AI DETECTION',
           child: Column(
@@ -822,16 +669,15 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                   items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('Default', style: NvrTypography.monoData),
-                    ),
+                    const DropdownMenuItem(value: '', child: Text('Auto', style: NvrTypography.monoData)),
                     ..._streams.map((s) => DropdownMenuItem(
                       value: s.id,
                       child: Text(s.displayLabel, style: NvrTypography.monoData),
                     )),
                   ],
-                  onChanged: (v) => setState(() => _aiStreamId = v ?? ''),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _aiStreamId = v);
+                  },
                 ),
                 const SizedBox(height: 12),
                 AnalogSlider(
@@ -842,38 +688,14 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                   onChanged: (v) => setState(() => _trackTimeout = v),
                   valueFormatter: (v) => '${v.round()}s',
                 ),
-                const SizedBox(height: 12),
               ],
-              SizedBox(
-                width: double.infinity,
-                child: HudButton(
-                  style: HudButtonStyle.tactical,
-                  onPressed: _savingAi ? null : _saveAi,
-                  label: _savingAi ? 'SAVING...' : 'SAVE AI SETTINGS',
-                ),
-              ),
             ],
           ),
         ),
 
         const SizedBox(height: 12),
 
-        // Retention section
-        _SectionCard(
-          header: 'RETENTION',
-          child: AnalogSlider(
-            label: 'RETENTION',
-            value: _retentionDays,
-            min: 7,
-            max: 90,
-            onChanged: (v) => setState(() => _retentionDays = v),
-            valueFormatter: (v) => '${v.round()} DAYS',
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // Connection info section
+        // ── Connection info ──
         _SectionCard(
           header: 'CONNECTION',
           child: Column(
@@ -881,13 +703,11 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
               _KvRow(label: 'Protocol', value: camera.rtspUrl.startsWith('rtsp') ? 'RTSP' : 'HTTP'),
               const SizedBox(height: 6),
               _KvRow(label: 'ONVIF', value: camera.onvifEndpoint.isEmpty ? 'Not configured' : 'Configured'),
-              const SizedBox(height: 6),
-              _KvRow(label: 'AI Stream', value: camera.subStreamUrl.isEmpty ? 'None' : 'Configured'),
             ],
           ),
         ),
 
-        // ── Advanced sections (behind gear icon) ────────────────────
+        // ── Advanced sections ──
         if (_showAdvanced) ...[
           const SizedBox(height: 16),
           _buildAdvancedSections(camera),
@@ -895,15 +715,12 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
 
         const SizedBox(height: 24),
 
-        // Save button
+        // ── Single save button ──
         HudButton(
-          label: _savingGeneral || _savingAdvanced ? 'SAVING...' : 'SAVE CHANGES',
-          onPressed: (_savingGeneral || _savingAdvanced)
+          label: _savingGeneral || _savingAdvanced || _savingAi ? 'SAVING...' : 'SAVE CHANGES',
+          onPressed: (_savingGeneral || _savingAdvanced || _savingAi)
               ? null
-              : () async {
-                  await _saveGeneral();
-                  if (_showAdvanced) await _saveAdvanced();
-                },
+              : _saveAll,
         ),
 
         const SizedBox(height: 16),

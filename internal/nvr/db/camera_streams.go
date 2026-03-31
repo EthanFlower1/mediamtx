@@ -287,3 +287,19 @@ func (d *DB) UpdateStreamRetention(id string, retentionDays, eventRetentionDays 
 	}
 	return nil
 }
+
+// ResolveStreamByPathPrefix finds a stream ID by matching the first 8
+// characters of the stream ID against the given prefix. Used to map
+// recording file paths back to their source stream.
+func (d *DB) ResolveStreamByPathPrefix(cameraID, prefix string) (string, error) {
+	var streamID string
+	err := d.QueryRow(`
+		SELECT id FROM camera_streams
+		WHERE camera_id = ? AND id LIKE ? || '%'
+		LIMIT 1`, cameraID, prefix,
+	).Scan(&streamID)
+	if err != nil {
+		return "", err
+	}
+	return streamID, nil
+}

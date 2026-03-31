@@ -803,6 +803,7 @@ func (n *NVR) indexRecordingFragments(rec *db.Recording) {
 // It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
 func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	var cam *db.Camera
+	var streamPrefix string
 
 	// Try to extract camera ID from path convention: .../nvr/<camera-id>/main/...
 	// Non-default stream paths use: .../nvr/<camera-id>~<stream-prefix>/...
@@ -811,8 +812,9 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		parts := strings.SplitN(rest, "/", 2)
 		if len(parts) >= 1 {
 			candidate := parts[0]
-			// Strip ~streamID suffix if present (per-stream recording paths).
+			// Capture ~streamID prefix if present (per-stream recording paths).
 			if tildeIdx := strings.Index(candidate, "~"); tildeIdx > 0 {
+				streamPrefix = candidate[tildeIdx+1:]
 				candidate = candidate[:tildeIdx]
 			}
 			if c, err := n.database.GetCamera(candidate); err == nil {
@@ -862,6 +864,13 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		FilePath:   filePath,
 		FileSize:   fileSize,
 		Format:     format,
+	}
+
+	// Resolve stream ID from path prefix.
+	if streamPrefix != "" {
+		if sid, err := n.database.ResolveStreamByPathPrefix(cam.ID, streamPrefix); err == nil {
+			rec.StreamID = sid
+		}
 	}
 
 	// Retry up to 3 times with 1-second delay on failure.

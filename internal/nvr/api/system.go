@@ -143,12 +143,19 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 		usedPercent = float64(usedBytes) / float64(totalBytes) * 100
 	}
 
+	// Database stats.
+	var dbStats *db.DatabaseStats
+	if h.ConfigDB != nil {
+		dbStats, _ = h.ConfigDB.GetDatabaseStats()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"total_bytes":      totalBytes,
 		"free_bytes":       freeBytes,
 		"used_bytes":       usedBytes,
 		"recordings_bytes": recordingsBytes,
 		"per_camera":       perCamera,
+		"database":         dbStats,
 		"warning":          usedPercent > 85,
 		"critical":         usedPercent > 95,
 	})

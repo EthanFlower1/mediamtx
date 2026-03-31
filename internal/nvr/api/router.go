@@ -219,6 +219,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
+	protected.DELETE("/cameras/:id/events", cameraHandler.PurgeEvents)
 
 	// Saved clips.
 	protected.GET("/saved-clips", savedClipHandler.List)

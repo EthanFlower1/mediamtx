@@ -815,7 +815,9 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 
 // retentionRequest is the JSON body for updating a camera's retention policy.
 type retentionRequest struct {
-	RetentionDays int `json:"retention_days"`
+	RetentionDays          int `json:"retention_days"`
+	EventRetentionDays     int `json:"event_retention_days"`
+	DetectionRetentionDays int `json:"detection_retention_days"`
 }
 
 // UpdateRetention updates the retention policy for a specific camera.
@@ -828,12 +830,12 @@ func (h *CameraHandler) UpdateRetention(c *gin.Context) {
 		return
 	}
 
-	if req.RetentionDays < 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "retention_days must be >= 0"})
+	if req.RetentionDays < 0 || req.EventRetentionDays < 0 || req.DetectionRetentionDays < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "retention days must be >= 0"})
 		return
 	}
 
-	if err := h.DB.UpdateCameraRetention(id, req.RetentionDays); err != nil {
+	if err := h.DB.UpdateCameraRetentionPolicy(id, req.RetentionDays, req.EventRetentionDays, req.DetectionRetentionDays); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
 			return
@@ -1772,4 +1774,39 @@ func (h *CameraHandler) AssignStreamSchedule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, rule)
+}
+
+// PurgeEvents deletes closed motion events (and their consolidated data) for
+// a camera that ended before the given timestamp.
+//
+//	DELETE /api/nvr/cameras/:id/events?before=RFC3339
+func (h *CameraHandler) PurgeEvents(c *gin.Context) {
+	id := c.Param("id")
+
+	beforeStr := c.Query("before")
+	if beforeStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter 'before' is required (RFC3339)"})
+		return
+	}
+	before, err := time.Parse(time.RFC3339, beforeStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid 'before' time format, use RFC3339"})
+		return
+	}
+
+	thumbs, deleted, err := h.DB.DeleteMotionEventsBefore(id, before)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to purge events", err)
+		return
+	}
+
+	// Clean up thumbnail files.
+	for _, p := range thumbs {
+		os.Remove(p)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"deleted": deleted,
+		"message": fmt.Sprintf("purged %d events before %s", deleted, before.Format(time.RFC3339)),
+	})
 }

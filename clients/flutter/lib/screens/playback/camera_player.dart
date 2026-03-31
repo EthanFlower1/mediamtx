@@ -5,6 +5,8 @@ import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/corner_brackets.dart';
 import 'playback_controller.dart';
+import '../../models/detection_frame.dart';
+import 'playback_detection_overlay.dart';
 
 class CameraPlayer extends StatefulWidget {
   final String cameraId;
@@ -132,6 +134,19 @@ class _CameraPlayerState extends State<CameraPlayer> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_ctrl.hasDetectionsForCamera(_camId))
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: _TileButton(
+                          icon: _ctrl.isOverlayDisabled(_camId)
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          tooltip: _ctrl.isOverlayDisabled(_camId)
+                              ? 'Show detections'
+                              : 'Hide detections',
+                          onPressed: () => _ctrl.toggleOverlay(_camId),
+                        ),
+                      ),
                     _TileButton(
                       icon: _ctrl.isCameraMuted(_camId)
                           ? Icons.volume_off
@@ -205,12 +220,31 @@ class _CameraPlayerState extends State<CameraPlayer> {
         child: CircularProgressIndicator(color: NvrColors.accent),
       );
     }
+
+    // Get detections for the current playback time.
+    final dayStart = DateTime(
+      _ctrl.selectedDate.year,
+      _ctrl.selectedDate.month,
+      _ctrl.selectedDate.day,
+    );
+    final currentTime = dayStart.add(_ctrl.position);
+    final showOverlay = !_ctrl.isOverlayDisabled(_camId);
+    final detections = showOverlay
+        ? _ctrl.getDetectionsAtTime(_camId, currentTime)
+        : <DetectionBox>[];
+
     return FittedBox(
       fit: BoxFit.contain,
       child: SizedBox(
         width: vc.value.size.width,
         height: vc.value.size.height,
-        child: VideoPlayer(vc),
+        child: Stack(
+          children: [
+            VideoPlayer(vc),
+            if (detections.isNotEmpty)
+              PlaybackDetectionOverlay(detections: detections),
+          ],
+        ),
       ),
     );
   }

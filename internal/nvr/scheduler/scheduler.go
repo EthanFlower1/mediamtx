@@ -570,37 +570,88 @@ func (s *Scheduler) CancelMotionTimer(cameraID string) {
 	}
 }
 
-// runRetentionCleanup iterates over cameras with retention_days > 0 and
-// deletes recordings (both DB records and disk files) older than the
-// retention period. It also cleans up old audit log entries.
+// runRetentionCleanup consolidates old detections, applies event-aware recording
+// retention, cleans up old motion events, and prunes the audit log.
 func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 	now := time.Now().UTC()
+
+	// Step 1: Consolidate detections from closed events (older than 1 hour)
+	// into compact JSON summaries on the motion_event row.
+	consolidated, err := s.db.ConsolidateClosedEvents(1 * time.Hour)
+	if err != nil {
+		log.Printf("scheduler: detection consolidation failed: %v", err)
+	} else if consolidated > 0 {
+		log.Printf("scheduler: consolidated detections for %d events", consolidated)
+	}
+
+	// Step 2: Per-camera retention.
 	for _, cam := range cameras {
 		if cam.RetentionDays <= 0 {
 			continue
 		}
-		cutoff := now.AddDate(0, 0, -cam.RetentionDays)
-		paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, cutoff)
-		if err != nil {
-			log.Printf("scheduler: retention cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
-			continue
-		}
-		if len(paths) == 0 {
-			continue
-		}
-		var filesRemoved int
-		for _, p := range paths {
-			if err := os.Remove(p); err == nil {
-				filesRemoved++
+
+		noEventCutoff := now.AddDate(0, 0, -cam.RetentionDays)
+
+		if cam.EventRetentionDays > 0 {
+			// Smart mode: retention_days for no-event recordings,
+			// event_retention_days for recordings with events.
+			paths, err := s.db.DeleteRecordingsWithoutEvents(cam.ID, noEventCutoff)
+			if err != nil {
+				log.Printf("scheduler: no-event retention FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+			} else if len(paths) > 0 {
+				removed := removeFiles(paths)
+				log.Printf("scheduler: no-event retention for %s: deleted %d recordings (%d files removed)", cam.Name, len(paths), removed)
+			}
+
+			eventCutoff := now.AddDate(0, 0, -cam.EventRetentionDays)
+			paths, err = s.db.DeleteRecordingsWithEvents(cam.ID, eventCutoff)
+			if err != nil {
+				log.Printf("scheduler: event retention FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+			} else if len(paths) > 0 {
+				removed := removeFiles(paths)
+				log.Printf("scheduler: event retention for %s: deleted %d recordings (%d files removed)", cam.Name, len(paths), removed)
+			}
+		} else {
+			// Legacy mode: retention_days applies to ALL recordings.
+			paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
+			if err != nil {
+				log.Printf("scheduler: retention cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+				continue
+			}
+			if len(paths) > 0 {
+				removed := removeFiles(paths)
+				log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
+					cam.Name, len(paths), removed, noEventCutoff.Format(time.RFC3339))
 			}
 		}
-		log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
-			cam.Name, len(paths), filesRemoved, cutoff.Format(time.RFC3339))
+
+		// Step 3: Clean old motion events if detection retention is configured.
+		if cam.DetectionRetentionDays > 0 {
+			eventCutoff := now.AddDate(0, 0, -cam.DetectionRetentionDays)
+			thumbs, n, err := s.db.DeleteMotionEventsBefore(cam.ID, eventCutoff)
+			if err != nil {
+				log.Printf("scheduler: event data cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
+			} else if n > 0 {
+				removeFiles(thumbs)
+				log.Printf("scheduler: event data cleanup for %s: deleted %d events", cam.Name, n)
+			}
+		}
 	}
 
-	// Clean audit log entries older than 90 days.
+	// Step 4: Clean audit log entries older than 90 days.
 	auditCutoff := now.AddDate(0, 0, -90)
 	_ = s.db.DeleteAuditEntriesBefore(auditCutoff)
+}
+
+// removeFiles deletes files from disk and returns the count successfully removed.
+func removeFiles(paths []string) int {
+	removed := 0
+	for _, p := range paths {
+		if err := os.Remove(p); err == nil {
+			removed++
+		}
+	}
+	return removed
 }
 
 // startEventPipelineLocked creates and starts an EventSubscriber and MotionSM

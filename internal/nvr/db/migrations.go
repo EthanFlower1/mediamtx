@@ -404,4 +404,13 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 26,
 		sql:     `ALTER TABLE camera_streams ADD COLUMN audio_codec TEXT NOT NULL DEFAULT '';`,
 	},
+	// Migration 27: Event-aware retention and detection consolidation.
+	{
+		version: 27,
+		sql: `
+		ALTER TABLE cameras ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE cameras ADD COLUMN detection_retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE motion_events ADD COLUMN detection_summary TEXT DEFAULT '';
+		`,
+	},
 }

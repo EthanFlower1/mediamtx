@@ -293,3 +293,140 @@ func TestGetDatabaseStats(t *testing.T) {
 	assert.Equal(t, int64(1), stats.Tables["motion_events"].RowCount)
 	assert.Equal(t, int64(0), stats.Tables["detections"].RowCount)
 }
+
+func TestFullRetentionFlow(t *testing.T) {
+	d := openTestDB(t)
+
+	// Create camera with smart retention: 3-day no-event, 365-day event, 365-day detection.
+	cam := &Camera{
+		Name:                   "front-door",
+		RetentionDays:          3,
+		EventRetentionDays:     365,
+		DetectionRetentionDays: 365,
+	}
+	require.NoError(t, d.CreateCamera(cam))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	// Recording 1: no event overlap (should be deleted by 3-day retention).
+	recQuiet := &Recording{
+		CameraID:  cam.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/quiet.mp4",
+		FileSize:  1000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(recQuiet))
+
+	// Recording 2: has event overlap (should survive 3-day, deleted after 365-day).
+	recEvent := &Recording{
+		CameraID:  cam.ID,
+		StartTime: fiveDaysAgo.Add(1 * time.Hour).Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(1*time.Hour + 10*time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/event.mp4",
+		FileSize:  2000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(recEvent))
+
+	// Recording 3: recent (should survive everything).
+	recRecent := &Recording{
+		CameraID:  cam.ID,
+		StartTime: now.Add(-1 * time.Hour).Format(timeFormat),
+		EndTime:   now.Add(-50 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/recent.mp4",
+		FileSize:  3000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(recRecent))
+
+	// Motion event overlapping Recording 2.
+	event := &MotionEvent{
+		CameraID:    cam.ID,
+		StartedAt:   fiveDaysAgo.Add(1*time.Hour + 2*time.Minute).Format(timeFormat),
+		EventType:   "ai_detection",
+		ObjectClass: "person",
+		Confidence:  0.9,
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	require.NoError(t, d.EndMotionEvent(cam.ID,
+		fiveDaysAgo.Add(1*time.Hour+5*time.Minute).Format(timeFormat)))
+
+	// Detection for the event.
+	det := &Detection{
+		MotionEventID: event.ID,
+		FrameTime:     fiveDaysAgo.Add(1*time.Hour + 3*time.Minute).Format(timeFormat),
+		Class:         "person",
+		Confidence:    0.92,
+		BoxX: 0.1, BoxY: 0.2, BoxW: 0.3, BoxH: 0.4,
+		Embedding: []byte{1, 2, 3, 4},
+	}
+	require.NoError(t, d.InsertDetection(det))
+
+	// --- Step 1: Consolidate ---
+	consolidated, err := d.ConsolidateClosedEvents(1 * time.Hour)
+	require.NoError(t, err)
+	assert.Equal(t, 1, consolidated)
+
+	// Verify detections are gone, summary exists.
+	dets, _ := d.ListDetectionsByEvent(event.ID)
+	assert.Empty(t, dets)
+	var summary string
+	d.QueryRow("SELECT detection_summary FROM motion_events WHERE id = ?", event.ID).Scan(&summary)
+	assert.Contains(t, summary, "person")
+
+	// --- Step 2: Delete no-event recordings (3-day cutoff) ---
+	noEventCutoff := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteRecordingsWithoutEvents(cam.ID, noEventCutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/quiet.mp4"}, paths)
+
+	// --- Step 3: Event recordings should survive ---
+	eventCutoff := now.AddDate(0, 0, -365)
+	paths, err = d.DeleteRecordingsWithEvents(cam.ID, eventCutoff)
+	require.NoError(t, err)
+	assert.Empty(t, paths, "event recording is only 5 days old, 365-day cutoff should not delete it")
+
+	// Verify: event recording + recent recording remain.
+	allRecs, err := d.QueryRecordings(cam.ID, fiveDaysAgo.Add(-1*time.Hour), now)
+	require.NoError(t, err)
+	assert.Len(t, allRecs, 2)
+}
+
+func TestBackwardCompatibility_LegacyRetention(t *testing.T) {
+	d := openTestDB(t)
+
+	// Camera with only retention_days set (event_retention_days=0 = legacy mode).
+	cam := &Camera{Name: "legacy-cam", RetentionDays: 3}
+	require.NoError(t, d.CreateCamera(cam))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	// Recording with event overlap.
+	rec := &Recording{
+		CameraID:  cam.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/legacy.mp4",
+		FileSize:  1000,
+		Format:    "fmp4",
+	}
+	require.NoError(t, d.InsertRecording(rec))
+
+	event := &MotionEvent{
+		CameraID:  cam.ID,
+		StartedAt: fiveDaysAgo.Add(2 * time.Minute).Format(timeFormat),
+		EventType: "ai_detection",
+	}
+	require.NoError(t, d.InsertMotionEvent(event))
+	require.NoError(t, d.EndMotionEvent(cam.ID, fiveDaysAgo.Add(5*time.Minute).Format(timeFormat)))
+
+	// Legacy mode: DeleteRecordingsByDateRange deletes ALL old recordings.
+	cutoff := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteRecordingsByDateRange(cam.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/legacy.mp4"}, paths, "legacy mode deletes regardless of events")
+}

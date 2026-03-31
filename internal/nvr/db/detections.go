@@ -256,3 +256,35 @@ func (d *DB) GetRecentDetections(cameraID string, since time.Time) ([]*Detection
 	}
 	return detections, rows.Err()
 }
+
+// QueryDetectionsByTimeRange returns all detections for a camera within the
+// given time range, ordered by frame_time ascending for playback consumption.
+func (d *DB) QueryDetectionsByTimeRange(cameraID string, start, end time.Time) ([]*Detection, error) {
+	rows, err := d.Query(`
+		SELECT d.id, d.motion_event_id, d.frame_time, d.class, d.confidence,
+			d.box_x, d.box_y, d.box_w, d.box_h, COALESCE(d.attributes, '')
+		FROM detections d
+		JOIN motion_events me ON d.motion_event_id = me.id
+		WHERE me.camera_id = ? AND d.frame_time >= ? AND d.frame_time <= ?
+		ORDER BY d.frame_time ASC`,
+		cameraID, start.UTC().Format(timeFormat), end.UTC().Format(timeFormat),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var detections []*Detection
+	for rows.Next() {
+		det := &Detection{}
+		if err := rows.Scan(
+			&det.ID, &det.MotionEventID, &det.FrameTime, &det.Class,
+			&det.Confidence, &det.BoxX, &det.BoxY, &det.BoxW, &det.BoxH,
+			&det.Attributes,
+		); err != nil {
+			return nil, err
+		}
+		detections = append(detections, det)
+	}
+	return detections, rows.Err()
+}

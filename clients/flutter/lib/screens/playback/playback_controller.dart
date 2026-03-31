@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/bookmark.dart';
+import '../../models/detection_frame.dart';
 import '../../models/recording.dart';
 import '../../services/playback_service.dart';
 
@@ -41,6 +42,10 @@ class PlaybackController extends ChangeNotifier {
   // The recording segment currently loaded in the player.
   RecordingSegment? _currentSegment;
 
+  // Detection cache — prefetched per segment for playback overlay.
+  final Map<String, List<PlaybackDetection>> _detectionCache = {};
+  final Set<String> _overlayDisabledCameras = {};
+
   static const _maxPosition = Duration(hours: 24);
 
   PlaybackController({
@@ -64,6 +69,14 @@ class PlaybackController extends ChangeNotifier {
   List<Bookmark> get bookmarks => _bookmarks;
   Map<String, VideoPlayerController> get videoControllers => _players;
   String? get error => _error;
+
+  Map<String, List<PlaybackDetection>> get detectionCache => _detectionCache;
+  bool isOverlayDisabled(String cameraId) =>
+      _overlayDisabledCameras.contains(cameraId);
+
+  bool hasDetectionsForCamera(String cameraId) =>
+      _detectionCache.containsKey(cameraId) &&
+      _detectionCache[cameraId]!.isNotEmpty;
 
   // ── Data setters ────────────────────────────────────────────────────
 
@@ -226,9 +239,22 @@ class PlaybackController extends ChangeNotifier {
           targetSeg.id == _currentSegment!.id &&
           _players.isNotEmpty) {
         // Same segment — seek within the local file.
+        // Pause before seeking so the player renders the target frame
+        // immediately; without this, some backends (AVPlayer on macOS/iOS)
+        // keep showing the old position until playback is toggled.
+        if (wasPlaying) {
+          for (final p in _players.values) {
+            await p.pause();
+          }
+        }
         final seekPos = _wallClockToPlayerPos(targetTime, targetSeg);
         for (final p in _players.values) {
           await p.seekTo(seekPos);
+        }
+        if (wasPlaying) {
+          for (final p in _players.values) {
+            await p.play();
+          }
         }
       } else if (targetSeg != null) {
         // Different segment — open the new file.
@@ -274,6 +300,71 @@ class PlaybackController extends ChangeNotifier {
   }
 
   bool isCameraMuted(String cameraId) => _mutedCameras.contains(cameraId);
+
+  void toggleOverlay(String cameraId) {
+    if (_overlayDisabledCameras.contains(cameraId)) {
+      _overlayDisabledCameras.remove(cameraId);
+    } else {
+      _overlayDisabledCameras.add(cameraId);
+    }
+    notifyListeners();
+  }
+
+  /// Returns detections for [cameraId] within [tolerance] of [time].
+  /// Uses binary search on the sorted cache for efficient lookup.
+  List<DetectionBox> getDetectionsAtTime(
+    String cameraId,
+    DateTime time, {
+    Duration tolerance = const Duration(milliseconds: 500),
+  }) {
+    final cache = _detectionCache[cameraId];
+    if (cache == null || cache.isEmpty) return [];
+
+    final results = <DetectionBox>[];
+    // Binary search for the first detection within the tolerance window.
+    final windowStart = time.subtract(tolerance);
+    final windowEnd = time.add(tolerance);
+
+    int lo = 0, hi = cache.length;
+    while (lo < hi) {
+      final mid = (lo + hi) ~/ 2;
+      if (cache[mid].frameTime.isBefore(windowStart)) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    // Collect all detections within the window starting from lo.
+    for (int i = lo; i < cache.length; i++) {
+      if (cache[i].frameTime.isAfter(windowEnd)) break;
+      results.add(cache[i].toDetectionBox());
+    }
+
+    return results;
+  }
+
+  /// Fetch detections for all selected cameras within the given segment's
+  /// time range and populate the cache.
+  Future<void> _fetchDetectionsForSegment(RecordingSegment seg) async {
+    final token = await getAccessToken();
+    for (final camId in _selectedCameraIds) {
+      try {
+        final detections = await playbackService.fetchDetections(
+          cameraId: camId,
+          start: seg.startTime,
+          end: seg.endTime,
+          token: token,
+        );
+        // Guard against stale results if segment changed during fetch.
+        if (_currentSegment?.id != seg.id) return;
+        _detectionCache[camId] = detections;
+      } catch (e) {
+        debugPrint('Failed to fetch detections for camera $camId: $e');
+      }
+    }
+    notifyListeners();
+  }
 
   void stepFrame(int direction) {
     const frameDur = Duration(milliseconds: 33);
@@ -565,6 +656,9 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
+    // Fetch detections for the segment (non-blocking).
+    _fetchDetectionsForSegment(seg);
+
     notifyListeners();
   }
 
@@ -709,6 +803,7 @@ class PlaybackController extends ChangeNotifier {
       p.dispose();
     }
     _players.clear();
+    _detectionCache.clear();
   }
 
   @override

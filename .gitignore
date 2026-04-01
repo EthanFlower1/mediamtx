@@ -19,6 +19,9 @@ thumbnails/
 *.db
 models/*.bin
 models/*.onnx
+models/*.json
+*.pt
+*.onnx
 
 # Claude Code / Superpowers
 .claude/

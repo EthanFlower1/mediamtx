@@ -22,6 +22,7 @@ import '../../widgets/onvif/imaging_section.dart';
 import '../../widgets/onvif/relay_section.dart';
 import '../../widgets/onvif/ptz_enhanced_section.dart';
 import '../../widgets/onvif/audio_section.dart';
+import '../../widgets/onvif/media_config_section.dart';
 import '../live_view/camera_tile.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
@@ -819,6 +820,14 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                 );
               }),
             ],
+          ],
+        ),
+
+        const SizedBox(height: 8),
+        _ExpandableSection(
+          title: 'MEDIA CONFIGURATION',
+          children: [
+            MediaConfigSection(cameraId: widget.cameraId),
           ],
         ),
 

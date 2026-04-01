@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_provider.dart';
 import '../models/device_info.dart';
+import '../models/media_profile.dart';
 import '../models/ptz_status.dart';
 
 final deviceInfoProvider =
@@ -82,6 +83,57 @@ final ptzStatusProvider =
   try {
     final res = await api.get('/cameras/$cameraId/ptz/status');
     return PtzStatus.fromJson(res.data as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+});
+
+final mediaProfilesProvider =
+    FutureProvider.family<List<ProfileInfo>, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return [];
+  try {
+    final res = await api.get('/cameras/$cameraId/media/profiles');
+    final data = res.data;
+    if (data is List) {
+      return data
+          .map((e) => ProfileInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+});
+
+final videoSourcesProvider =
+    FutureProvider.family<List<VideoSourceInfo>, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return [];
+  try {
+    final res = await api.get('/cameras/$cameraId/media/video-sources');
+    final data = res.data;
+    if (data is List) {
+      return data
+          .map((e) => VideoSourceInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+});
+
+typedef EncoderOptionsKey = ({String cameraId, String configToken});
+
+final videoEncoderOptionsProvider =
+    FutureProvider.family<VideoEncoderOptions?, EncoderOptionsKey>((ref, key) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return null;
+  try {
+    final res = await api.get(
+        '/cameras/${key.cameraId}/media/video-encoder/${key.configToken}/options');
+    return VideoEncoderOptions.fromJson(res.data as Map<String, dynamic>);
   } catch (_) {
     return null;
   }

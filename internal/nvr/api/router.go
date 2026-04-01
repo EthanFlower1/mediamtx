@@ -196,6 +196,22 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Device info.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
 
+	// Device management.
+	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)
+	protected.GET("/cameras/:id/device/hostname", cameraHandler.GetDeviceHostnameHandler)
+	protected.PUT("/cameras/:id/device/hostname", cameraHandler.SetDeviceHostnameHandler)
+	protected.POST("/cameras/:id/device/reboot", cameraHandler.RebootDevice)
+	protected.GET("/cameras/:id/device/scopes", cameraHandler.GetDeviceScopesHandler)
+	protected.GET("/cameras/:id/device/network/interfaces", cameraHandler.GetNetworkInterfacesHandler)
+	protected.GET("/cameras/:id/device/network/protocols", cameraHandler.GetNetworkProtocolsHandler)
+	protected.PUT("/cameras/:id/device/network/protocols", cameraHandler.SetNetworkProtocolsHandler)
+	protected.GET("/cameras/:id/device/network/dns", cameraHandler.GetDNSConfigHandler)
+	protected.GET("/cameras/:id/device/network/ntp", cameraHandler.GetNTPConfigHandler)
+	protected.GET("/cameras/:id/device/users", cameraHandler.GetDeviceUsersHandler)
+	protected.POST("/cameras/:id/device/users", cameraHandler.CreateDeviceUserHandler)
+	protected.PUT("/cameras/:id/device/users/:username", cameraHandler.UpdateDeviceUserHandler)
+	protected.DELETE("/cameras/:id/device/users/:username", cameraHandler.DeleteDeviceUserHandler)
+
 	// Relay outputs.
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)

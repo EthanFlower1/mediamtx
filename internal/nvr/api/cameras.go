@@ -152,7 +152,11 @@ func (h *CameraHandler) List(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, cameras)
+	responses := make([]cameraResponse, 0, len(cameras))
+	for _, cam := range cameras {
+		responses = append(responses, h.buildCameraResponse(cam))
+	}
+	c.JSON(http.StatusOK, responses)
 }
 
 // getPathStatuses fetches all paths from MediaMTX in one call and returns a

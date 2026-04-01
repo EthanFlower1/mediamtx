@@ -83,6 +83,8 @@ func (h *RecordingHealth) CheckStall(now time.Time) bool {
 
 // RecordSegment updates health when a new segment is received.
 // Returns the previous status so callers can detect recovery transitions.
+// If status is HealthInactive, timestamps are updated but status is not
+// changed — the evaluate() loop handles the inactive→healthy transition.
 func (h *RecordingHealth) RecordSegment(t time.Time) (prevStatus string) {
 	prevStatus = h.Status
 	h.LastSegmentTime = t

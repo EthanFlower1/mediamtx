@@ -169,6 +169,7 @@ func (s *Scheduler) RemoveCamera(cameraID string) {
 	defer s.mu.Unlock()
 	s.stopEventPipelineLocked(cameraID)
 	delete(s.states, cameraID)
+	delete(s.healthStates, cameraID)
 }
 
 // NotifySegmentForCamera is called when a recording segment completes for the
@@ -374,7 +375,16 @@ func (s *Scheduler) evaluate() {
 		}
 	}
 
-	// Check recording health for stalls and attempt recovery.
+	// Check recording health for stalls. Collect stalled camera IDs under
+	// the lock, then handle recovery outside the lock to avoid holding the
+	// mutex during DB calls and goroutine spawning.
+	type stalledEntry struct {
+		camID       string
+		shouldRestart bool
+		shouldFail    bool
+	}
+	var stalledCameras []stalledEntry
+
 	s.mu.Lock()
 	for camID, h := range s.healthStates {
 		st := s.states[camID]
@@ -388,32 +398,40 @@ func (s *Scheduler) evaluate() {
 			h.Status = HealthHealthy
 		}
 		if h.CheckStall(now) && h.Status == HealthStalled {
-			cam, err := s.db.GetCamera(camID)
-			if err != nil {
-				continue
-			}
 			if h.ShouldRestart(now) {
-				log.Printf("scheduler: recording stalled for %s, attempting restart (attempt %d)", cam.Name, h.RestartAttempts+1)
 				h.MarkRestarted(now)
-				path := cam.MediaMTXPath
-				go func(p string) {
-					_ = s.yamlWriter.SetPathValue(p, "record", false)
-					time.Sleep(2 * time.Second)
-					_ = s.yamlWriter.SetPathValue(p, "record", true)
-				}(path)
-				if s.eventPub != nil {
-					s.eventPub.PublishRecordingStalled(cam.Name)
-				}
-			} else if h.RestartAttempts >= MaxRestartAttempts && h.Status == HealthStalled {
+				stalledCameras = append(stalledCameras, stalledEntry{camID: camID, shouldRestart: true})
+			} else if h.RestartAttempts >= MaxRestartAttempts {
 				h.MarkFailed()
-				log.Printf("scheduler: recording recovery failed for %s after %d attempts", cam.Name, MaxRestartAttempts)
-				if s.eventPub != nil {
-					s.eventPub.PublishRecordingFailed(cam.Name)
-				}
+				stalledCameras = append(stalledCameras, stalledEntry{camID: camID, shouldFail: true})
 			}
 		}
 	}
 	s.mu.Unlock()
+
+	// Handle recovery actions outside the mutex.
+	for _, entry := range stalledCameras {
+		cam, err := s.db.GetCamera(entry.camID)
+		if err != nil {
+			continue
+		}
+		if entry.shouldRestart {
+			log.Printf("scheduler: recording stalled for %s, attempting restart", cam.Name)
+			go func(p string) {
+				_ = s.yamlWriter.SetPathValue(p, "record", false)
+				time.Sleep(2 * time.Second)
+				_ = s.yamlWriter.SetPathValue(p, "record", true)
+			}(cam.MediaMTXPath)
+			if s.eventPub != nil {
+				s.eventPub.PublishRecordingStalled(cam.Name)
+			}
+		} else if entry.shouldFail {
+			log.Printf("scheduler: recording recovery failed for %s after %d attempts", cam.Name, MaxRestartAttempts)
+			if s.eventPub != nil {
+				s.eventPub.PublishRecordingFailed(cam.Name)
+			}
+		}
+	}
 
 	// Run retention cleanup if enough time has passed.
 	if time.Since(s.lastRetentionCheck) >= retentionCheckInterval {

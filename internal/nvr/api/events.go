@@ -23,7 +23,7 @@ type DetectionData struct {
 
 // Event represents a system event that is broadcast to SSE clients.
 type Event struct {
-	Type       string          `json:"type"`    // "motion", "camera_offline", "camera_online", "recording_started", "recording_stopped", "detection_frame"
+	Type       string          `json:"type"`    // "motion", "camera_offline", "camera_online", "recording_started", "recording_stopped", "recording_stalled", "recording_recovered", "recording_failed", "detection_frame"
 	Camera     string          `json:"camera"`  // camera name
 	Message    string          `json:"message"`
 	Time       string          `json:"time"`

@@ -2,12 +2,10 @@ package onvif
 
 import (
 	"context"
-	"encoding/xml"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 	"time"
+
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // RecordingSource describes the source of an ONVIF recording.
@@ -56,176 +54,9 @@ type TrackConfiguration struct {
 	Description string `json:"description"`
 }
 
-// --- SOAP XML types for recording control ---
-
-type recordingControlEnvelope struct {
-	XMLName xml.Name             `xml:"Envelope"`
-	Body    recordingControlBody `xml:"Body"`
-}
-
-type recordingControlBody struct {
-	CreateRecordingResponse          *createRecordingResponse          `xml:"CreateRecordingResponse"`
-	DeleteRecordingResponse          *deleteRecordingResponse          `xml:"DeleteRecordingResponse"`
-	GetRecordingConfigurationResponse *getRecordingConfigurationResponse `xml:"GetRecordingConfigurationResponse"`
-	CreateRecordingJobResponse       *createRecordingJobResponse       `xml:"CreateRecordingJobResponse"`
-	DeleteRecordingJobResponse       *deleteRecordingJobResponse       `xml:"DeleteRecordingJobResponse"`
-	GetRecordingJobStateResponse     *getRecordingJobStateResponse     `xml:"GetRecordingJobStateResponse"`
-	CreateTrackResponse             *createTrackResponse             `xml:"CreateTrackResponse"`
-	DeleteTrackResponse             *deleteTrackResponse             `xml:"DeleteTrackResponse"`
-	GetTrackConfigurationResponse   *getTrackConfigurationResponse   `xml:"GetTrackConfigurationResponse"`
-	Fault                            *recordingControlFault            `xml:"Fault"`
-}
-
-type recordingControlFault struct {
-	Faultstring string `xml:"faultstring"`
-}
-
-type createRecordingResponse struct {
-	RecordingToken string `xml:"RecordingToken"`
-}
-
-type deleteRecordingResponse struct{}
-
-type getRecordingConfigurationResponse struct {
-	RecordingConfiguration recordingConfigurationXML `xml:"RecordingConfiguration"`
-}
-
-type recordingConfigurationXML struct {
-	RecordingToken       string `xml:"token,attr"`
-	Source               recordingSourceXML `xml:"Source"`
-	MaximumRetentionTime string             `xml:"MaximumRetentionTime"`
-	Content              string             `xml:"Content"`
-}
-
-type recordingSourceXML struct {
-	SourceID    string `xml:"SourceID"`
-	Name        string `xml:"Name"`
-	Location    string `xml:"Location"`
-	Description string `xml:"Description"`
-	Address     string `xml:"Address"`
-}
-
-type createRecordingJobResponse struct {
-	JobToken       string                     `xml:"JobToken"`
-	JobConfiguration recordingJobConfigXML    `xml:"JobConfiguration"`
-}
-
-type recordingJobConfigXML struct {
-	RecordingToken string `xml:"RecordingToken"`
-	Mode           string `xml:"Mode"`
-	Priority       int    `xml:"Priority"`
-}
-
-type deleteRecordingJobResponse struct{}
-
-type getRecordingJobStateResponse struct {
-	State recordingJobStateXML `xml:"State"`
-}
-
-type recordingJobStateXML struct {
-	RecordingToken string                      `xml:"RecordingToken"`
-	State          string                      `xml:"State"`
-	Sources        recordingJobStateSourcesXML `xml:"Sources"`
-}
-
-type recordingJobStateSourcesXML struct {
-	Items []recordingJobStateSourceXML `xml:"Source"`
-}
-
-type recordingJobStateSourceXML struct {
-	SourceToken recordingJobSourceTokenXML `xml:"SourceToken"`
-	State       string                     `xml:"State"`
-}
-
-type recordingJobSourceTokenXML struct {
-	Token string `xml:"Token"`
-}
-
-// --- Track SOAP XML response types ---
-
-type createTrackResponse struct {
-	TrackToken string `xml:"TrackToken"`
-}
-
-type deleteTrackResponse struct{}
-
-type getTrackConfigurationResponse struct {
-	TrackConfiguration trackConfigurationXML `xml:"TrackConfiguration"`
-}
-
-type trackConfigurationXML struct {
-	TrackToken  string `xml:"token,attr"`
-	TrackType   string `xml:"TrackType"`
-	Description string `xml:"Description"`
-}
-
-// --- SOAP helpers ---
-
-func recordingControlSoap(innerBody string) string {
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
-            xmlns:trc="http://www.onvif.org/ver10/recording/wsdl"
-            xmlns:tt="http://www.onvif.org/ver10/schema">
-  <s:Header></s:Header>
-  <s:Body>
-    %s
-  </s:Body>
-</s:Envelope>`, innerBody)
-}
-
-func doRecordingControlSOAP(ctx context.Context, controlURL, username, password, body string) ([]byte, error) {
-	soapBody := recordingControlSoap(body)
-
-	if username != "" {
-		soapBody = injectWSSecurity(soapBody, username, password)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, controlURL, strings.NewReader(soapBody))
-	if err != nil {
-		return nil, fmt.Errorf("create recording control request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/soap+xml; charset=utf-8")
-
-	httpClient := &http.Client{Timeout: 15 * time.Second}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("recording control http request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, fmt.Errorf("recording control read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("recording control SOAP fault (HTTP %d): %s", resp.StatusCode, truncate(string(respBody), 200))
-	}
-
-	return respBody, nil
-}
-
-// getRecordingControlURL returns the recording control service URL for the device.
-func getRecordingControlURL(xaddr, username, password string) (string, error) {
-	client, err := NewClient(xaddr, username, password)
-	if err != nil {
-		return "", fmt.Errorf("connect to ONVIF device: %w", err)
-	}
-
-	controlURL := client.ServiceURL("recording_control")
-	if controlURL == "" {
-		// Fallback: some devices may register under "recording".
-		controlURL = client.ServiceURL("recording")
-	}
-	if controlURL == "" {
-		return "", fmt.Errorf("device does not support recording control service")
-	}
-	return controlURL, nil
-}
-
 // GetRecordingConfiguration returns the configuration for a specific recording on the device.
 func GetRecordingConfiguration(xaddr, username, password, recordingToken string) (*RecordingConfiguration, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("GetRecordingConfiguration: %w", err)
 	}
@@ -233,31 +64,15 @@ func GetRecordingConfiguration(xaddr, username, password, recordingToken string)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:GetRecordingConfiguration>
-      <trc:RecordingToken>%s</trc:RecordingToken>
-    </trc:GetRecordingConfiguration>`, xmlEscape(recordingToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	rc, err := client.Dev.GetRecordingConfiguration(ctx, recordingToken)
 	if err != nil {
 		return nil, fmt.Errorf("GetRecordingConfiguration: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return nil, fmt.Errorf("GetRecordingConfiguration parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return nil, fmt.Errorf("GetRecordingConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.GetRecordingConfigurationResponse == nil {
-		return nil, fmt.Errorf("GetRecordingConfiguration: empty response")
-	}
-
-	rc := env.Body.GetRecordingConfigurationResponse.RecordingConfiguration
 	return &RecordingConfiguration{
-		RecordingToken:       rc.RecordingToken,
+		RecordingToken:       recordingToken,
 		Source: RecordingSource{
-			SourceID:    rc.Source.SourceID,
+			SourceID:    rc.Source.SourceId,
 			Name:        rc.Source.Name,
 			Location:    rc.Source.Location,
 			Description: rc.Source.Description,
@@ -273,7 +88,7 @@ func CreateRecording(
 	xaddr, username, password string,
 	source RecordingSource, maxRetention, content string,
 ) (string, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return "", fmt.Errorf("CreateRecording: %w", err)
 	}
@@ -281,44 +96,23 @@ func CreateRecording(
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:CreateRecording>
-      <trc:RecordingConfiguration>
-        <tt:Source>
-          <tt:SourceID>%s</tt:SourceID>
-          <tt:Name>%s</tt:Name>
-          <tt:Location>%s</tt:Location>
-          <tt:Description>%s</tt:Description>
-          <tt:Address>%s</tt:Address>
-        </tt:Source>
-        <tt:MaximumRetentionTime>%s</tt:MaximumRetentionTime>
-        <tt:Content>%s</tt:Content>
-      </trc:RecordingConfiguration>
-    </trc:CreateRecording>`,
-		xmlEscape(source.SourceID),
-		xmlEscape(source.Name),
-		xmlEscape(source.Location),
-		xmlEscape(source.Description),
-		xmlEscape(source.Address),
-		xmlEscape(maxRetention),
-		xmlEscape(content))
+	config := &onvifgo.RecordingConfiguration{
+		Source: onvifgo.RecordingSourceInformation{
+			SourceId:    source.SourceID,
+			Name:        source.Name,
+			Location:    source.Location,
+			Description: source.Description,
+			Address:     source.Address,
+		},
+		MaximumRetentionTime: maxRetention,
+		Content:              content,
+	}
 
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	token, err := client.Dev.CreateRecording(ctx, config)
 	if err != nil {
 		return "", fmt.Errorf("CreateRecording: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return "", fmt.Errorf("CreateRecording parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return "", fmt.Errorf("CreateRecording SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.CreateRecordingResponse == nil {
-		return "", fmt.Errorf("CreateRecording: empty response")
-	}
-
-	token := strings.TrimSpace(env.Body.CreateRecordingResponse.RecordingToken)
 	if token == "" {
 		return "", fmt.Errorf("CreateRecording: empty recording token in response")
 	}
@@ -327,7 +121,7 @@ func CreateRecording(
 
 // DeleteRecording deletes a recording container from the device's edge storage.
 func DeleteRecording(xaddr, username, password, recordingToken string) error {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return fmt.Errorf("DeleteRecording: %w", err)
 	}
@@ -335,21 +129,8 @@ func DeleteRecording(xaddr, username, password, recordingToken string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:DeleteRecording>
-      <trc:RecordingToken>%s</trc:RecordingToken>
-    </trc:DeleteRecording>`, xmlEscape(recordingToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
-	if err != nil {
+	if err := client.Dev.DeleteRecording(ctx, recordingToken); err != nil {
 		return fmt.Errorf("DeleteRecording: %w", err)
-	}
-
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return fmt.Errorf("DeleteRecording parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return fmt.Errorf("DeleteRecording SOAP fault: %s", env.Body.Fault.Faultstring)
 	}
 
 	return nil
@@ -361,7 +142,7 @@ func CreateRecordingJob(
 	xaddr, username, password, recordingToken, mode string,
 	priority int,
 ) (*RecordingJobConfiguration, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("CreateRecordingJob: %w", err)
 	}
@@ -369,45 +150,28 @@ func CreateRecordingJob(
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:CreateRecordingJob>
-      <trc:JobConfiguration>
-        <tt:RecordingToken>%s</tt:RecordingToken>
-        <tt:Mode>%s</tt:Mode>
-        <tt:Priority>%d</tt:Priority>
-      </trc:JobConfiguration>
-    </trc:CreateRecordingJob>`,
-		xmlEscape(recordingToken),
-		xmlEscape(mode),
-		priority)
+	config := &onvifgo.RecordingJobConfiguration{
+		RecordingToken: recordingToken,
+		Mode:           mode,
+		Priority:       priority,
+	}
 
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	jobToken, actualConfig, err := client.Dev.CreateRecordingJob(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("CreateRecordingJob: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return nil, fmt.Errorf("CreateRecordingJob parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return nil, fmt.Errorf("CreateRecordingJob SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.CreateRecordingJobResponse == nil {
-		return nil, fmt.Errorf("CreateRecordingJob: empty response")
-	}
-
-	resp := env.Body.CreateRecordingJobResponse
 	return &RecordingJobConfiguration{
-		JobToken:       strings.TrimSpace(resp.JobToken),
-		RecordingToken: resp.JobConfiguration.RecordingToken,
-		Mode:           resp.JobConfiguration.Mode,
-		Priority:       resp.JobConfiguration.Priority,
+		JobToken:       jobToken,
+		RecordingToken: actualConfig.RecordingToken,
+		Mode:           actualConfig.Mode,
+		Priority:       actualConfig.Priority,
 	}, nil
 }
 
 // DeleteRecordingJob deletes a recording job from the device.
 func DeleteRecordingJob(xaddr, username, password, jobToken string) error {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return fmt.Errorf("DeleteRecordingJob: %w", err)
 	}
@@ -415,21 +179,8 @@ func DeleteRecordingJob(xaddr, username, password, jobToken string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:DeleteRecordingJob>
-      <trc:JobToken>%s</trc:JobToken>
-    </trc:DeleteRecordingJob>`, xmlEscape(jobToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
-	if err != nil {
+	if err := client.Dev.DeleteRecordingJob(ctx, jobToken); err != nil {
 		return fmt.Errorf("DeleteRecordingJob: %w", err)
-	}
-
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return fmt.Errorf("DeleteRecordingJob parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return fmt.Errorf("DeleteRecordingJob SOAP fault: %s", env.Body.Fault.Faultstring)
 	}
 
 	return nil
@@ -437,7 +188,7 @@ func DeleteRecordingJob(xaddr, username, password, jobToken string) error {
 
 // GetRecordingJobState returns the current state of a recording job.
 func GetRecordingJobState(xaddr, username, password, jobToken string) (*RecordingJobState, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("GetRecordingJobState: %w", err)
 	}
@@ -445,31 +196,19 @@ func GetRecordingJobState(xaddr, username, password, jobToken string) (*Recordin
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:GetRecordingJobState>
-      <trc:JobToken>%s</trc:JobToken>
-    </trc:GetRecordingJobState>`, xmlEscape(jobToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	st, err := client.Dev.GetRecordingJobState(ctx, jobToken)
 	if err != nil {
 		return nil, fmt.Errorf("GetRecordingJobState: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return nil, fmt.Errorf("GetRecordingJobState parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return nil, fmt.Errorf("GetRecordingJobState SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.GetRecordingJobStateResponse == nil {
-		return nil, fmt.Errorf("GetRecordingJobState: empty response")
-	}
-
-	st := env.Body.GetRecordingJobStateResponse.State
 	var sources []RecordingJobStateSource
-	for _, src := range st.Sources.Items {
+	for _, src := range st.Sources {
+		sourceToken := ""
+		if src.SourceToken != nil {
+			sourceToken = src.SourceToken.Token
+		}
 		sources = append(sources, RecordingJobStateSource{
-			SourceToken: src.SourceToken.Token,
+			SourceToken: sourceToken,
 			State:       src.State,
 		})
 	}
@@ -484,7 +223,7 @@ func GetRecordingJobState(xaddr, username, password, jobToken string) (*Recordin
 
 // GetTrackConfiguration returns the configuration for a specific track within a recording.
 func GetTrackConfiguration(xaddr, username, password, recordingToken, trackToken string) (*TrackConfiguration, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("GetTrackConfiguration: %w", err)
 	}
@@ -492,32 +231,13 @@ func GetTrackConfiguration(xaddr, username, password, recordingToken, trackToken
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:GetTrackConfiguration>
-      <trc:RecordingToken>%s</trc:RecordingToken>
-      <trc:TrackToken>%s</trc:TrackToken>
-    </trc:GetTrackConfiguration>`,
-		xmlEscape(recordingToken),
-		xmlEscape(trackToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	tc, err := client.Dev.GetTrackConfiguration(ctx, recordingToken, trackToken)
 	if err != nil {
 		return nil, fmt.Errorf("GetTrackConfiguration: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return nil, fmt.Errorf("GetTrackConfiguration parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return nil, fmt.Errorf("GetTrackConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.GetTrackConfigurationResponse == nil {
-		return nil, fmt.Errorf("GetTrackConfiguration: empty response")
-	}
-
-	tc := env.Body.GetTrackConfigurationResponse.TrackConfiguration
 	return &TrackConfiguration{
-		TrackToken:  tc.TrackToken,
+		TrackToken:  trackToken,
 		TrackType:   tc.TrackType,
 		Description: tc.Description,
 	}, nil
@@ -526,7 +246,7 @@ func GetTrackConfiguration(xaddr, username, password, recordingToken, trackToken
 // CreateTrack adds a new track to a recording on the device's edge storage.
 // TrackType must be "Video", "Audio", or "Metadata".
 func CreateTrack(xaddr, username, password, recordingToken, trackType, description string) (string, error) {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return "", fmt.Errorf("CreateTrack: %w", err)
 	}
@@ -534,34 +254,16 @@ func CreateTrack(xaddr, username, password, recordingToken, trackType, descripti
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:CreateTrack>
-      <trc:RecordingToken>%s</trc:RecordingToken>
-      <trc:TrackConfiguration>
-        <tt:TrackType>%s</tt:TrackType>
-        <tt:Description>%s</tt:Description>
-      </trc:TrackConfiguration>
-    </trc:CreateTrack>`,
-		xmlEscape(recordingToken),
-		xmlEscape(trackType),
-		xmlEscape(description))
+	config := &onvifgo.TrackConfiguration{
+		TrackType:   trackType,
+		Description: description,
+	}
 
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	token, err := client.Dev.CreateTrack(ctx, recordingToken, config)
 	if err != nil {
 		return "", fmt.Errorf("CreateTrack: %w", err)
 	}
 
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return "", fmt.Errorf("CreateTrack parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return "", fmt.Errorf("CreateTrack SOAP fault: %s", env.Body.Fault.Faultstring)
-	}
-	if env.Body.CreateTrackResponse == nil {
-		return "", fmt.Errorf("CreateTrack: empty response")
-	}
-
-	token := strings.TrimSpace(env.Body.CreateTrackResponse.TrackToken)
 	if token == "" {
 		return "", fmt.Errorf("CreateTrack: empty track token in response")
 	}
@@ -570,7 +272,7 @@ func CreateTrack(xaddr, username, password, recordingToken, trackType, descripti
 
 // DeleteTrack removes a track from a recording on the device's edge storage.
 func DeleteTrack(xaddr, username, password, recordingToken, trackToken string) error {
-	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return fmt.Errorf("DeleteTrack: %w", err)
 	}
@@ -578,24 +280,8 @@ func DeleteTrack(xaddr, username, password, recordingToken, trackToken string) e
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	reqBody := fmt.Sprintf(`<trc:DeleteTrack>
-      <trc:RecordingToken>%s</trc:RecordingToken>
-      <trc:TrackToken>%s</trc:TrackToken>
-    </trc:DeleteTrack>`,
-		xmlEscape(recordingToken),
-		xmlEscape(trackToken))
-
-	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
-	if err != nil {
+	if err := client.Dev.DeleteTrack(ctx, recordingToken, trackToken); err != nil {
 		return fmt.Errorf("DeleteTrack: %w", err)
-	}
-
-	var env recordingControlEnvelope
-	if err := xml.Unmarshal(body, &env); err != nil {
-		return fmt.Errorf("DeleteTrack parse: %w", err)
-	}
-	if env.Body.Fault != nil {
-		return fmt.Errorf("DeleteTrack SOAP fault: %s", env.Body.Fault.Faultstring)
 	}
 
 	return nil

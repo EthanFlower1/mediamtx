@@ -73,6 +73,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	statsHandler := &StatsHandler{
+		DB: cfg.DB,
+	}
+
 	userHandler := &UserHandler{
 		DB:    cfg.DB,
 		Audit: audit,
@@ -247,6 +251,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Recording statistics.
+	protected.GET("/recordings/stats", statsHandler.GetStats)
+	protected.GET("/recordings/stats/:camera_id/gaps", statsHandler.GetGaps)
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)

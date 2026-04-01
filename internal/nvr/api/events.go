@@ -172,6 +172,24 @@ func (b *EventBroadcaster) PublishRecordingStopped(cameraName string) {
 	})
 }
 
+// PublishSegmentCorrupted publishes a segment-corrupted event.
+func (b *EventBroadcaster) PublishSegmentCorrupted(cameraID string, recordingID int64, filePath, detail string) {
+	b.Publish(Event{
+		Type:    "segment_corrupted",
+		Camera:  cameraID,
+		Message: fmt.Sprintf("Segment corrupted: %s", detail),
+	})
+}
+
+// PublishSegmentQuarantined publishes a segment-quarantined event.
+func (b *EventBroadcaster) PublishSegmentQuarantined(cameraID string, recordingID int64, quarantinePath string) {
+	b.Publish(Event{
+		Type:    "segment_quarantined",
+		Camera:  cameraID,
+		Message: fmt.Sprintf("Segment quarantined to %s", quarantinePath),
+	})
+}
+
 // PublishRecordingStalled publishes a recording-stalled event.
 func (b *EventBroadcaster) PublishRecordingStalled(cameraName string) {
 	b.Publish(Event{

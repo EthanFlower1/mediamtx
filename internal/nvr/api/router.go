@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,7 @@ type RouterConfig struct {
 	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
+	QuarantineBase  string              // quarantine directory for corrupted recordings
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -71,6 +73,17 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	recordingHandler := &RecordingHandler{
 		DB: cfg.DB,
+	}
+
+	quarantineBase := cfg.QuarantineBase
+	if quarantineBase == "" {
+		quarantineBase = filepath.Join(cfg.RecordingsPath, ".quarantine")
+	}
+	integrityHandler := &IntegrityHandler{
+		DB:             cfg.DB,
+		Events:         cfg.Events,
+		RecordingsBase: cfg.RecordingsPath,
+		QuarantineBase: quarantineBase,
 	}
 
 	statsHandler := &StatsHandler{
@@ -267,6 +280,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Recording integrity.
+	protected.GET("/recordings/integrity", recordingHandler.IntegritySummary)
+	protected.POST("/recordings/verify", integrityHandler.Verify)
+	protected.POST("/recordings/:id/quarantine", integrityHandler.Quarantine)
+	protected.POST("/recordings/:id/unquarantine", integrityHandler.Unquarantine)
 
 	// Recording statistics.
 	protected.GET("/recordings/stats", statsHandler.GetStats)

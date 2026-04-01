@@ -1202,6 +1202,47 @@ func (h *CameraHandler) SetRelayOutputState(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// GetDeviceInfo returns basic device information from the camera.
+//
+//	GET /cameras/:id/device-info
+func (h *CameraHandler) GetDeviceInfo(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	client, err := onvif.NewClient(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to connect to camera"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	info, err := client.Dev.GetDeviceInformation(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get device information"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"manufacturer":     info.Manufacturer,
+		"model":            info.Model,
+		"firmware_version": info.FirmwareVersion,
+		"serial_number":    info.SerialNumber,
+		"hardware_id":      info.HardwareID,
+	})
+}
+
 // AudioCapabilities returns the audio capabilities for a camera.
 //
 //	GET /cameras/:id/audio/capabilities

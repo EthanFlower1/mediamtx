@@ -183,6 +183,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
 
+	// Device info.
+	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
+
 	// Relay outputs.
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)

@@ -70,20 +70,20 @@ type pathManagerParent interface {
 }
 
 type pathManager struct {
-	logLevel          conf.LogLevel
-	rtspAddress       string
-	dumpPackets       bool
-	readTimeout       conf.Duration
-	writeTimeout      conf.Duration
-	writeQueueSize    int
-	udpReadBufferSize uint
-	rtpMaxPayloadSize int
-	pathConfs         map[string]*conf.Path
-	authManager       pathManagerAuthManager
-	externalCmdPool        *externalcmd.Pool
-	onNVRSegmentComplete   func(string, time.Duration)
-	metrics                *metrics.Metrics
-	parent                 pathManagerParent
+	logLevel             conf.LogLevel
+	rtspAddress          string
+	dumpPackets          bool
+	readTimeout          conf.Duration
+	writeTimeout         conf.Duration
+	writeQueueSize       int
+	udpReadBufferSize    uint
+	rtpMaxPayloadSize    int
+	pathConfs            map[string]*conf.Path
+	authManager          pathManagerAuthManager
+	externalCmdPool      *externalcmd.Pool
+	onNVRSegmentComplete func(string, time.Duration)
+	metrics              *metrics.Metrics
+	parent               pathManagerParent
 
 	ctx       context.Context
 	ctxCancel func()
@@ -458,22 +458,22 @@ func (pm *pathManager) createPath(
 	matches []string,
 ) {
 	pa := &path{
-		parentCtx:         pm.ctx,
-		logLevel:          pm.logLevel,
-		dumpPackets:       pm.dumpPackets,
-		rtspAddress:       pm.rtspAddress,
-		readTimeout:       pm.readTimeout,
-		writeTimeout:      pm.writeTimeout,
-		writeQueueSize:    pm.writeQueueSize,
-		udpReadBufferSize: pm.udpReadBufferSize,
-		rtpMaxPayloadSize: pm.rtpMaxPayloadSize,
-		conf:              pathConf,
-		name:              name,
-		matches:           matches,
-		wg:                &pm.wg,
-		externalCmdPool:        pm.externalCmdPool,
-		onNVRSegmentComplete:   pm.onNVRSegmentComplete,
-		parent:                 pm,
+		parentCtx:            pm.ctx,
+		logLevel:             pm.logLevel,
+		dumpPackets:          pm.dumpPackets,
+		rtspAddress:          pm.rtspAddress,
+		readTimeout:          pm.readTimeout,
+		writeTimeout:         pm.writeTimeout,
+		writeQueueSize:       pm.writeQueueSize,
+		udpReadBufferSize:    pm.udpReadBufferSize,
+		rtpMaxPayloadSize:    pm.rtpMaxPayloadSize,
+		conf:                 pathConf,
+		name:                 name,
+		matches:              matches,
+		wg:                   &pm.wg,
+		externalCmdPool:      pm.externalCmdPool,
+		onNVRSegmentComplete: pm.onNVRSegmentComplete,
+		parent:               pm,
 	}
 	pa.initialize()
 	pm.paths[name] = pa

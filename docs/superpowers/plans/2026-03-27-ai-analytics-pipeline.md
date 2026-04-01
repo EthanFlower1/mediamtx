@@ -49,6 +49,7 @@ internal/nvr/
 ### Task 1: Shared Types
 
 **Files:**
+
 - Create: `internal/nvr/ai/types.go`
 - Create: `internal/nvr/ai/types_test.go`
 
@@ -222,6 +223,7 @@ git commit -m "feat(ai): add shared pipeline types"
 ### Task 2: DB Migration — Add stream_id and track_timeout
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/cameras.go`
 
@@ -241,6 +243,7 @@ Locate the `migrations` slice in `internal/nvr/db/migrations.go` and append afte
 ```
 
 Update `currentVersion`:
+
 ```go
 const currentVersion = 22
 ```
@@ -301,11 +304,13 @@ Actually, we should store confidence in the DB too so it persists across restart
 ```
 
 And add to Camera struct:
+
 ```go
 AIConfidence     float64 `json:"ai_confidence"`
 ```
 
 Update `UpdateCameraAIConfig`:
+
 ```go
 func (d *DB) UpdateCameraAIConfig(id string, aiEnabled bool, streamID string, confidence float64, trackTimeout int) error {
 	if trackTimeout <= 0 {
@@ -348,6 +353,7 @@ git commit -m "feat(db): add ai_stream_id, ai_confidence, ai_track_timeout colum
 ### Task 3: Frame Source Stage
 
 **Files:**
+
 - Create: `internal/nvr/ai/frame_source.go`
 - Create: `internal/nvr/ai/frame_source_test.go`
 
@@ -592,6 +598,7 @@ git commit -m "feat(ai): add FrameSrc stage with FFmpeg subprocess"
 ### Task 4: IoU Tracker Stage
 
 **Files:**
+
 - Create: `internal/nvr/ai/tracker.go`
 - Create: `internal/nvr/ai/tracker_test.go`
 
@@ -1026,6 +1033,7 @@ git commit -m "feat(ai): add IoU tracker stage with persistent object IDs"
 ### Task 5: Detection Merge (YOLO + ONVIF)
 
 **Files:**
+
 - Create: `internal/nvr/ai/merge.go`
 - Create: `internal/nvr/ai/merge_test.go`
 
@@ -1150,6 +1158,7 @@ git commit -m "feat(ai): add YOLO + ONVIF detection merge with IoU dedup"
 ### Task 6: Publisher Stage
 
 **Files:**
+
 - Create: `internal/nvr/ai/publisher.go`
 - Create: `internal/nvr/ai/publisher_test.go`
 
@@ -1461,6 +1470,7 @@ git commit -m "feat(ai): add Publisher stage for WS broadcast, DB writes, embedd
 ### Task 7: ONVIF Metadata Source
 
 **Files:**
+
 - Create: `internal/nvr/ai/onvif_source.go`
 
 - [ ] **Step 1: Write onvif_source.go**
@@ -1579,6 +1589,7 @@ git commit -m "feat(ai): add ONVIFSrc for camera metadata stream parsing"
 ### Task 8: Pipeline Orchestrator
 
 **Files:**
+
 - Rewrite: `internal/nvr/ai/pipeline.go`
 - Create: `internal/nvr/ai/pipeline_test.go`
 
@@ -1862,6 +1873,7 @@ git commit -m "feat(ai): add modular Pipeline orchestrator wiring all stages"
 ### Task 9: Update API Endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 
 - [ ] **Step 1: Update the UpdateAIConfig handler**
@@ -1922,6 +1934,7 @@ git commit -m "feat(api): expand PUT /cameras/:id/ai with stream_id, confidence,
 ### Task 10: NVR Integration
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go`
 
 - [ ] **Step 1: Update aiPipelines map type**
@@ -2084,6 +2097,7 @@ git commit -m "feat(nvr): integrate modular AI pipeline with stream resolution"
 ### Task 11: Clean Up Legacy Pipeline
 
 **Files:**
+
 - Delete: `internal/nvr/ai/pipeline_legacy.go`
 - Modify: `internal/nvr/ai/publisher.go` (if needed — ensure `cropImage` and `float32SliceToBytes` are available)
 

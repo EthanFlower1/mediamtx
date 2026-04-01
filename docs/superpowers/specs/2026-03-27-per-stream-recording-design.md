@@ -12,12 +12,12 @@ Recording rules already have a `stream_id` field (migration 21) but the schedule
 
 ## Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Timeline display | Single bar, best quality wins | Keep UI simple; system picks best available |
-| Quality preference | Main (highest res) preferred, sub as fallback | Users want best quality when available |
-| Stream on rules | Optional, defaults to main path | Backward compatible, simple for most users |
-| Per-camera recording_stream_id | Remove (superseded by per-rule stream_id) | Per-rule is more flexible, avoids duplication |
+| Decision                       | Choice                                        | Rationale                                     |
+| ------------------------------ | --------------------------------------------- | --------------------------------------------- |
+| Timeline display               | Single bar, best quality wins                 | Keep UI simple; system picks best available   |
+| Quality preference             | Main (highest res) preferred, sub as fallback | Users want best quality when available        |
+| Stream on rules                | Optional, defaults to main path               | Backward compatible, simple for most users    |
+| Per-camera recording_stream_id | Remove (superseded by per-rule stream_id)     | Per-rule is more flexible, avoids duplication |
 
 ---
 
@@ -32,6 +32,7 @@ The scheduler's `evaluate()` groups rules by camera, resolves one `EffectiveMode
 The scheduler groups rules by **(camera, stream_id)** pair. Each unique pair gets its own path and independent recording state.
 
 For each camera during evaluation:
+
 1. Group active matching rules by `stream_id` (empty string = default/main)
 2. Evaluate `EffectiveMode` per group independently
 3. For the default group (empty `stream_id`): use `cam.MediaMTXPath` as before
@@ -69,6 +70,7 @@ func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) (
 ```
 
 Logic:
+
 1. Query all recordings for the camera in the time range (same overlap logic as `QueryRecordings`)
 2. For each recording, determine the stream resolution from the file path:
    - Path contains `~{streamID}` → look up stream width×height from `camera_streams`
@@ -82,6 +84,7 @@ The existing `QueryRecordings` stays unchanged for backward compatibility. The t
 ### API change
 
 Add a `best_quality=true` query parameter to `GET /recordings`:
+
 - When `best_quality=true`: use `QueryRecordingsBestQuality`
 - When absent or false: use `QueryRecordings` (current behavior, returns all)
 
@@ -92,6 +95,7 @@ Add a `best_quality=true` query parameter to `GET /recordings`:
 The `recording_stream_id` column (migration 23), the `PUT /cameras/:id/recording-stream` endpoint, the `UpdateCameraRecordingStream` DB function, and the `configureRecordingPaths` logic are all removed. Per-rule `stream_id` replaces them entirely.
 
 Migration 24 drops the column:
+
 ```sql
 -- SQLite doesn't support DROP COLUMN before 3.35.0, so we leave the column
 -- but stop using it. The API and UI no longer reference it.
@@ -128,6 +132,7 @@ No visual changes. The single bar per camera stays. Recordings from all streams 
 ### Playback stream selection
 
 When the user taps a point on the timeline to play:
+
 1. The provider fetches recordings with `best_quality=true`
 2. Finds the segment covering the requested timestamp
 3. Plays that segment — user doesn't know or care which stream it's from
@@ -150,6 +155,7 @@ final res = await api.get('/recordings', queryParameters: {
 ## Files Changed
 
 ### Backend
+
 - `internal/nvr/scheduler/scheduler.go` — per-stream rule grouping, path management, per-stream MotionSM
 - `internal/nvr/db/recordings.go` — `QueryRecordingsBestQuality`
 - `internal/nvr/api/recordings.go` — `best_quality` query param
@@ -158,6 +164,7 @@ final res = await api.get('/recordings', queryParameters: {
 - `internal/nvr/db/cameras.go` — stop reading/writing `recording_stream_id`
 
 ### Flutter
+
 - `lib/screens/cameras/camera_detail_screen.dart` — remove recording stream dropdown
 - `lib/screens/cameras/recording_rules_screen.dart` — add stream dropdown to create/edit dialog
 - `lib/models/recording_rule.dart` — ensure `streamId` field exists

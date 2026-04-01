@@ -13,9 +13,11 @@
 ## File Map
 
 **Create:**
+
 - `clients/flutter/lib/widgets/stream_card.dart` — Collapsible stream card widget
 
 **Modify:**
+
 - `clients/flutter/lib/models/camera_stream.dart` — Add retention fields
 - `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` — Rebuild right column, single save, remove auto-saves
 - `clients/flutter/lib/models/camera.dart` — No changes needed (retention fields already exist)
@@ -25,6 +27,7 @@
 ### Task 1: CameraStream Model Update
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/camera_stream.dart`
 
 - [ ] **Step 1: Add retention fields to CameraStream**
@@ -67,6 +70,7 @@ git commit -m "feat(flutter): add retention fields to CameraStream model"
 ### Task 2: Stream Card Widget
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/stream_card.dart`
 
 This is a new widget that renders a single stream as a collapsible card. Collapsed shows a one-line summary; expanded shows roles, recording schedule dropdown, and retention sliders with inline storage estimates.
@@ -508,6 +512,7 @@ git commit -m "feat(flutter): add collapsible stream card widget with storage es
 ### Task 3: Camera Detail Screen Refactor
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 This is the main task — rebuilding the right column. The changes are:
@@ -599,17 +604,19 @@ void _fetchStorageEstimates() {
 }
 ```
 
-- [ ] **Step 4: Initialize stream settings in _fetchCamera**
+- [ ] **Step 4: Initialize stream settings in \_fetchCamera**
 
 In the `_fetchCamera` method, after the streams are loaded and `_streamTemplateMap` is built (around line 174), add initialization of `_streamSettings`:
 
 Find the existing line:
+
 ```dart
         _retentionDays = camera.retentionDays.toDouble().clamp(0, 90);
         _eventRetentionDays = camera.eventRetentionDays.toDouble().clamp(0, 730);
 ```
 
 Replace with:
+
 ```dart
         // Camera-level retention is kept for backward compat display only.
 ```
@@ -627,13 +634,13 @@ Then, after the recording rules are loaded (after the `_streamTemplateMap` is bu
         _fetchStorageEstimates();
 ```
 
-- [ ] **Step 5: Remove auto-save from _toggleRole**
+- [ ] **Step 5: Remove auto-save from \_toggleRole**
 
 Replace the entire `_toggleRole` method with a no-op — role toggling is now handled locally in the StreamCard widget via `onChanged`. The method can be removed entirely. Also remove `_assignSchedule` since schedule changes are also local now.
 
 Actually, keep both methods but they are no longer called directly from UI. They'll be called during save instead. Let's leave them for now and change how save works in Step 7.
 
-- [ ] **Step 6: Rebuild _buildRightColumn**
+- [ ] **Step 6: Rebuild \_buildRightColumn**
 
 Replace the entire `_buildRightColumn` method:
 
@@ -788,7 +795,7 @@ Widget _buildRightColumn(Camera camera) {
 }
 ```
 
-- [ ] **Step 7: Implement _saveAll method**
+- [ ] **Step 7: Implement \_saveAll method**
 
 Add a new `_saveAll` method that saves everything in sequence:
 
@@ -896,9 +903,10 @@ String _retentionSummary() {
 }
 ```
 
-- [ ] **Step 9: Remove old _saveGeneral, _saveAi, _saveAdvanced methods**
+- [ ] **Step 9: Remove old \_saveGeneral, \_saveAi, \_saveAdvanced methods**
 
 These are replaced by `_saveAll`. Remove:
+
 - `_saveGeneral()` method
 - `_saveAi()` method
 - `_saveAdvanced()` method
@@ -908,6 +916,7 @@ Also remove `_buildStreamInfoCard` and `_buildScheduleDropdown` since they're re
 - [ ] **Step 10: Clean up dispose**
 
 In `dispose()`, add:
+
 ```dart
 _estimateTimer?.cancel();
 ```
@@ -929,11 +938,13 @@ git commit -m "feat(flutter): redesign camera detail with stream cards, single s
 ### Task 4: Cleanup and Polish
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 - [ ] **Step 1: Remove dead code**
 
 Remove any remaining references to the old patterns:
+
 - Remove `_toggleRole` method (role toggling is now in StreamCard)
 - Remove `_assignSchedule` method (schedule changes are in StreamCard)
 - Remove the `_savingAdvanced` flag if unused after `_saveAll` refactor
@@ -946,6 +957,7 @@ Search the file for `SAVE AI SETTINGS` — it should not exist. The only save bu
 - [ ] **Step 3: Verify no auto-saves remain**
 
 Search for direct API calls outside of `_saveAll` and `_fetchCamera`:
+
 - No `api.put` calls in `_toggleRole` (removed)
 - No `api.put` calls in `_assignSchedule` (removed)
 - No `api.put` calls in any `onChanged` callbacks
@@ -966,9 +978,9 @@ git commit -m "refactor(flutter): remove dead code and auto-save patterns from c
 
 ## Summary
 
-| Task | What it does |
-|------|-------------|
-| 1 | Add retention fields to CameraStream model |
-| 2 | Create StreamCard widget with collapsible roles + schedule + retention + estimates |
-| 3 | Refactor camera detail screen: stream cards, single save, storage estimates |
-| 4 | Clean up dead code, verify no auto-saves remain |
+| Task | What it does                                                                       |
+| ---- | ---------------------------------------------------------------------------------- |
+| 1    | Add retention fields to CameraStream model                                         |
+| 2    | Create StreamCard widget with collapsible roles + schedule + retention + estimates |
+| 3    | Refactor camera detail screen: stream cards, single save, storage estimates        |
+| 4    | Clean up dead code, verify no auto-saves remain                                    |

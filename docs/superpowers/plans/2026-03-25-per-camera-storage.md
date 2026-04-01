@@ -15,6 +15,7 @@
 ### Task 1: Database Migration — Add `storage_path` to cameras and create `pending_syncs` table
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go:237-253` (append migration 18)
 - Modify: `internal/nvr/db/cameras.go:14-43` (add StoragePath field to Camera struct)
 - Modify: `internal/nvr/db/cameras.go:48-78` (update CreateCamera INSERT)
@@ -126,6 +127,7 @@ git commit -m "feat(storage): add storage_path to cameras and pending_syncs tabl
 ### Task 2: Database — `pending_syncs` CRUD operations
 
 **Files:**
+
 - Create: `internal/nvr/db/pending_syncs.go`
 - Create: `internal/nvr/db/pending_syncs_test.go`
 
@@ -417,6 +419,7 @@ git commit -m "feat(storage): add pending_syncs CRUD operations"
 ### Task 3: Update MediaMTX path naming to use camera ID
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go:194-277` (Create handler — change path naming)
 - Modify: `internal/nvr/nvr.go:553-624` (OnSegmentComplete — update camera discovery)
 - Test: `internal/nvr/api/cameras_test.go`
@@ -474,7 +477,7 @@ cam.MediaMTXPath = pathName
 
 Add `uuid` import: `"github.com/google/uuid"`
 
-Add `StoragePath string \`json:"storage_path"\`` to `cameraRequest` struct.
+Add `StoragePath string \`json:"storage_path"\``to`cameraRequest` struct.
 
 Add storage path validation before creating the camera:
 
@@ -571,6 +574,7 @@ git commit -m "feat(storage): use camera ID in MediaMTX path naming convention"
 ### Task 4: Update camera API — storage_path on create/update, storage_status in response
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go:280-348` (Update handler — accept storage_path)
 - Modify: `internal/nvr/api/cameras.go:108-192` (List/Get — add storage_status to response)
 - Test: `internal/nvr/api/cameras_test.go`
@@ -650,6 +654,7 @@ git commit -m "feat(storage): support storage_path on camera create/update API"
 ### Task 5: StorageManager — Health Monitor
 
 **Files:**
+
 - Create: `internal/nvr/storage/manager.go`
 - Create: `internal/nvr/storage/manager_test.go`
 
@@ -963,6 +968,7 @@ git commit -m "feat(storage): add StorageManager with health monitoring and fail
 ### Task 6: StorageManager — Sync Worker
 
 **Files:**
+
 - Modify: `internal/nvr/storage/manager.go` (add syncLoop, processSync)
 - Create: `internal/nvr/storage/sync_test.go`
 
@@ -1270,6 +1276,7 @@ git commit -m "feat(storage): add sync worker for fallback recording recovery"
 ### Task 7: OnSegmentComplete — Pending sync detection
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go:553-624` (add pending sync detection after recording insert)
 
 - [ ] **Step 1: Write failing test for pending sync auto-detection**
@@ -1378,6 +1385,7 @@ git commit -m "feat(storage): auto-detect fallback recordings and queue for sync
 ### Task 8: Wire StorageManager into NVR startup
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go:32-55` (add storageManager field)
 - Modify: `internal/nvr/nvr.go:60-170` (initialize and start StorageManager)
 
@@ -1421,6 +1429,7 @@ git commit -m "feat(storage): wire StorageManager into NVR startup"
 ### Task 9: Storage API endpoints
 
 **Files:**
+
 - Create: `internal/nvr/api/storage.go`
 - Modify: `internal/nvr/api/router.go` (register routes)
 - Create: `internal/nvr/api/storage_test.go`
@@ -1670,6 +1679,7 @@ git commit -m "feat(storage): add storage status/pending/sync API endpoints"
 ### Task 10: Update HLS serving to use recording ID
 
 **Files:**
+
 - Modify: `internal/nvr/api/hls.go:360-424` (ServeSegment and segmentURLFromFilePath)
 
 - [ ] **Step 1: Write failing test for recording-ID-based serving**
@@ -1762,10 +1772,13 @@ func segmentURLFromRecordingID(recordingID int64, token string) string {
 Update all callers in `hls.go`. The main call site is in the playlist builder where `segmentURLFromFilePath(rec.FilePath, h.RecordingsPath, token)` is called — change to `segmentURLFromRecordingID(rec.ID, token)`. Search for all usages of `segmentURLFromFilePath` and replace.
 
 Update route registration in `internal/nvr/api/router.go` from:
+
 ```go
 nvr.GET("/vod/segments/*filepath", cfg.HLSHandler.ServeSegment)
 ```
+
 to:
+
 ```go
 nvr.GET("/vod/segments/:id", cfg.HLSHandler.ServeSegment)
 ```
@@ -1792,6 +1805,7 @@ git commit -m "feat(storage): serve recording segments by DB ID instead of file 
 ### Task 11: Add `storage_status` to camera API responses
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (Get, List handlers — inject storage_status)
 
 - [ ] **Step 1: Add StorageManager reference to CameraHandler**
@@ -1842,6 +1856,7 @@ git commit -m "feat(storage): add storage_status to camera API responses"
 ### Task 12: Flutter — Add storage_path to Camera model
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/camera.dart`
 
 - [ ] **Step 1: Add storage fields to Camera model**
@@ -1870,6 +1885,7 @@ git commit -m "feat(storage): add storage_path and storage_status to Flutter cam
 ### Task 13: Flutter — Storage tab on Camera Detail Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` (add 6th tab)
 - Create: `clients/flutter/lib/screens/cameras/tabs/storage_tab.dart`
 
@@ -2023,6 +2039,7 @@ git commit -m "feat(storage): add Storage tab to Flutter camera detail screen"
 ### Task 14: Migration — Rename existing camera MediaMTX paths
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go` (add migration function called during Initialize)
 
 - [ ] **Step 1: Write migration function**
@@ -2101,6 +2118,7 @@ git commit -m "feat(storage): migrate existing camera paths to nvr/<id>/main con
 ### Task 15: Integration test — End-to-end storage failover
 
 **Files:**
+
 - Create: `internal/nvr/storage/integration_test.go`
 
 - [ ] **Step 1: Write integration test**

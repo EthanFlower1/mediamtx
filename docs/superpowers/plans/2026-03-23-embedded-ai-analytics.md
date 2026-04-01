@@ -15,45 +15,48 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `models/yolov8n.onnx` | Bundled YOLO nano model (~6MB) |
-| `models/yolov8m.onnx` | Bundled YOLO medium model (~50MB) |
-| `models/clip-vit-b32-visual.onnx` | Bundled CLIP visual encoder (~350MB) |
-| `models/clip-vit-b32-text.onnx` | Bundled CLIP text encoder (~65MB) |
-| `internal/nvr/ai/models.go` | go:embed for all ONNX model files |
-| `internal/nvr/ai/detector.go` | YOLO inference wrapper (preprocess, run, postprocess NMS) |
-| `internal/nvr/ai/detector_test.go` | Detector unit tests |
-| `internal/nvr/ai/embedder.go` | CLIP inference wrapper (visual + text encoding) |
-| `internal/nvr/ai/embedder_test.go` | Embedder unit tests |
-| `internal/nvr/ai/decoder.go` | Frame decoder (MJPEG + H.264 → image.Image) |
-| `internal/nvr/ai/pipeline.go` | Per-camera AI pipeline (reader → decode → detect → embed → store) |
-| `internal/nvr/ai/search.go` | Semantic search (cosine similarity against stored embeddings) |
-| `internal/nvr/api/search.go` | Search HTTP handler |
-| `ui/src/components/AISearchBar.tsx` | Free-text search input for semantic search |
-| `ui/src/components/DetectionOverlay.tsx` | Real-time bounding box overlay (replaces AnalyticsOverlay) |
+
+| File                                     | Responsibility                                                    |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| `models/yolov8n.onnx`                    | Bundled YOLO nano model (~6MB)                                    |
+| `models/yolov8m.onnx`                    | Bundled YOLO medium model (~50MB)                                 |
+| `models/clip-vit-b32-visual.onnx`        | Bundled CLIP visual encoder (~350MB)                              |
+| `models/clip-vit-b32-text.onnx`          | Bundled CLIP text encoder (~65MB)                                 |
+| `internal/nvr/ai/models.go`              | go:embed for all ONNX model files                                 |
+| `internal/nvr/ai/detector.go`            | YOLO inference wrapper (preprocess, run, postprocess NMS)         |
+| `internal/nvr/ai/detector_test.go`       | Detector unit tests                                               |
+| `internal/nvr/ai/embedder.go`            | CLIP inference wrapper (visual + text encoding)                   |
+| `internal/nvr/ai/embedder_test.go`       | Embedder unit tests                                               |
+| `internal/nvr/ai/decoder.go`             | Frame decoder (MJPEG + H.264 → image.Image)                       |
+| `internal/nvr/ai/pipeline.go`            | Per-camera AI pipeline (reader → decode → detect → embed → store) |
+| `internal/nvr/ai/search.go`              | Semantic search (cosine similarity against stored embeddings)     |
+| `internal/nvr/api/search.go`             | Search HTTP handler                                               |
+| `ui/src/components/AISearchBar.tsx`      | Free-text search input for semantic search                        |
+| `ui/src/components/DetectionOverlay.tsx` | Real-time bounding box overlay (replaces AnalyticsOverlay)        |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `go.mod` | Add yalue/onnxruntime_go, pion/mediadevices |
-| `internal/nvr/db/migrations.go` | Migration v14: detections table, AI columns on cameras and motion_events |
-| `internal/nvr/db/cameras.go` | Add sub_stream_url, ai_enabled fields |
-| `internal/nvr/db/motion_events.go` | Add embedding, description fields |
-| `internal/nvr/nvr.go` | Start/stop AI pipelines per camera |
-| `internal/nvr/api/router.go` | Register search endpoint |
-| `internal/nvr/api/cameras.go` | AI enable/disable, sub stream selection endpoints |
-| `ui/src/hooks/useCameras.ts` | Add ai_enabled, sub_stream_url fields |
-| `ui/src/pages/CameraManagement.tsx` | AI toggle, sub stream selector |
-| `ui/src/pages/ClipSearch.tsx` | Semantic search bar integration |
-| `ui/src/pages/LiveView.tsx` | Real-time detection overlay |
-| `ui/src/pages/Settings.tsx` | AI settings panel |
+
+| File                                | Change                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `go.mod`                            | Add yalue/onnxruntime_go, pion/mediadevices                              |
+| `internal/nvr/db/migrations.go`     | Migration v14: detections table, AI columns on cameras and motion_events |
+| `internal/nvr/db/cameras.go`        | Add sub_stream_url, ai_enabled fields                                    |
+| `internal/nvr/db/motion_events.go`  | Add embedding, description fields                                        |
+| `internal/nvr/nvr.go`               | Start/stop AI pipelines per camera                                       |
+| `internal/nvr/api/router.go`        | Register search endpoint                                                 |
+| `internal/nvr/api/cameras.go`       | AI enable/disable, sub stream selection endpoints                        |
+| `ui/src/hooks/useCameras.ts`        | Add ai_enabled, sub_stream_url fields                                    |
+| `ui/src/pages/CameraManagement.tsx` | AI toggle, sub stream selector                                           |
+| `ui/src/pages/ClipSearch.tsx`       | Semantic search bar integration                                          |
+| `ui/src/pages/LiveView.tsx`         | Real-time detection overlay                                              |
+| `ui/src/pages/Settings.tsx`         | AI settings panel                                                        |
 
 ---
 
 ### Task 1: Add dependencies and obtain ONNX models
 
 **Files:**
+
 - Modify: `go.mod`
 - Create: `models/` directory
 - Create: `internal/nvr/ai/models.go`
@@ -69,6 +72,7 @@ go get github.com/pion/mediadevices
 - [ ] **Step 2: Obtain ONNX models**
 
 Download the pre-converted ONNX models:
+
 - YOLOv8n: from Ultralytics GitHub releases or export via `ultralytics` Python package
 - YOLOv8m: same source
 - CLIP ViT-B/32: from Hugging Face ONNX exports
@@ -124,6 +128,7 @@ git commit -m "feat(nvr): add ONNX models and runtime dependency for AI analytic
 ### Task 2: Database schema for detections and AI fields
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/cameras.go`
 - Modify: `internal/nvr/db/motion_events.go`
@@ -204,6 +209,7 @@ git commit -m "feat(nvr): add detections table and AI fields for cameras and eve
 ### Task 3: YOLO detector wrapper
 
 **Files:**
+
 - Create: `internal/nvr/ai/detector.go`
 - Create: `internal/nvr/ai/detector_test.go`
 
@@ -229,6 +235,7 @@ func (d *Detector) Close()
 ```
 
 The Detect method:
+
 1. Resize image to 640x640
 2. Convert to float32 tensor [1, 3, 640, 640] (CHW format, normalized 0-1)
 3. Run ONNX inference
@@ -256,6 +263,7 @@ git commit -m "feat(nvr): add YOLO detector wrapper with NMS postprocessing"
 ### Task 4: Frame decoder (MJPEG + H.264)
 
 **Files:**
+
 - Create: `internal/nvr/ai/decoder.go`
 
 - [ ] **Step 1: Implement frame decoder**
@@ -286,6 +294,7 @@ git commit -m "feat(nvr): add frame decoder for MJPEG and H.264"
 ### Task 5: CLIP embedder wrapper
 
 **Files:**
+
 - Create: `internal/nvr/ai/embedder.go`
 - Create: `internal/nvr/ai/embedder_test.go`
 
@@ -304,6 +313,7 @@ func (e *Embedder) Close()
 ```
 
 EncodeImage:
+
 1. Resize to 224x224
 2. Normalize with CLIP mean/std ([0.48145466, 0.4578275, 0.40821073], [0.26862954, 0.26130258, 0.27577711])
 3. Convert to float32 tensor [1, 3, 224, 224]
@@ -311,6 +321,7 @@ EncodeImage:
 5. L2-normalize output vector
 
 EncodeText:
+
 1. Tokenize text (CLIP BPE tokenizer — need to implement or use a Go port)
 2. Pad/truncate to 77 tokens
 3. Run text ONNX session
@@ -334,6 +345,7 @@ git commit -m "feat(nvr): add CLIP embedder with visual and text encoding"
 ### Task 6: AI pipeline (per-camera frame processing)
 
 **Files:**
+
 - Create: `internal/nvr/ai/pipeline.go`
 - Modify: `internal/nvr/nvr.go`
 
@@ -360,6 +372,7 @@ func (p *AIPipeline) Stop()
 ```
 
 ProcessFrame flow:
+
 1. Decode frame data → `image.Image`
 2. Run YOLOv8n → list of detections
 3. Filter by confidence threshold
@@ -376,6 +389,7 @@ ProcessFrame flow:
 - [ ] **Step 2: Wire into NVR lifecycle**
 
 In `nvr.go`:
+
 - Create shared Detector and Embedder instances on startup (load models once)
 - For each camera with `ai_enabled && sub_stream_url != ""`, create AIPipeline
 - Register pipeline as a MediaMTX stream reader on the sub stream path
@@ -393,6 +407,7 @@ git commit -m "feat(nvr): add per-camera AI pipeline with detection and embeddin
 ### Task 7: Semantic search API
 
 **Files:**
+
 - Create: `internal/nvr/ai/search.go`
 - Create: `internal/nvr/api/search.go`
 - Modify: `internal/nvr/api/router.go`
@@ -440,6 +455,7 @@ git commit -m "feat(nvr): add semantic search API with CLIP text-to-image matchi
 ### Task 8: Camera AI configuration API and UI
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 - Modify: `ui/src/pages/CameraManagement.tsx`
@@ -454,6 +470,7 @@ PUT /cameras/:id/ai    body: {"ai_enabled": true, "sub_stream_url": "rtsp://..."
 - [ ] **Step 2: Update camera management UI**
 
 In the expanded camera detail panel, add:
+
 - Sub stream profile selector (show all profiles from ONVIF probe, recommend MJPEG)
 - AI toggle switch
 - AI status indicator (active/disabled/error)
@@ -471,6 +488,7 @@ git commit -m "feat(nvr): add AI configuration UI with sub stream selection"
 ### Task 9: Search UI and detection overlay
 
 **Files:**
+
 - Create: `ui/src/components/AISearchBar.tsx`
 - Create: `ui/src/components/DetectionOverlay.tsx`
 - Modify: `ui/src/pages/ClipSearch.tsx`
@@ -480,6 +498,7 @@ git commit -m "feat(nvr): add AI configuration UI with sub stream selection"
 - [ ] **Step 1: Create AISearchBar**
 
 Free-text search input with:
+
 - Text input field with search icon
 - Camera filter dropdown (optional)
 - Date range picker (optional)
@@ -495,6 +514,7 @@ Add AISearchBar at the top of the Clips page, above the existing event-type filt
 - [ ] **Step 3: Create DetectionOverlay**
 
 Real-time bounding box overlay for live view:
+
 - WebSocket connection to receive detections from the AI pipeline
 - Canvas overlay rendering boxes with class labels and confidence
 - Color-coded: blue=person, green=vehicle, amber=animal, red=other
@@ -505,6 +525,7 @@ Note: For v1, poll the detections API every 500ms instead of WebSocket. Add WebS
 - [ ] **Step 4: Add AI settings to Settings page**
 
 New "AI Analytics" tab:
+
 - Global AI enable/disable
 - Confidence threshold slider (0.1 - 0.9, default 0.5)
 - Model info: loaded models, inference device
@@ -522,11 +543,13 @@ git commit -m "feat(nvr): add semantic search UI, detection overlay, and AI sett
 ### Task 10: Tier 2 refinement and integration test
 
 **Files:**
+
 - Modify: `internal/nvr/ai/pipeline.go`
 
 - [ ] **Step 1: Add Tier 2 refinement**
 
 After a motion event ends:
+
 1. Load the event's snapshot
 2. Run YOLOv8m on it
 3. Update the event's `object_class` and `confidence` with the refined result
@@ -544,6 +567,7 @@ go run .
 ```
 
 Verify:
+
 1. AI pipeline starts for enabled cameras
 2. Detections appear in real-time on live view
 3. Events get refined classification after ending

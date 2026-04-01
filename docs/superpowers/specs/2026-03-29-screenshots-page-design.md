@@ -70,6 +70,7 @@ Response: Screenshot (201)
 ```
 
 Logic:
+
 1. Get camera from DB
 2. Call `onvif.CaptureSnapshot()` with camera's RTSP URL, ONVIF credentials, `./screenshots` dir, camera ID, and snapshot URI
 3. Stat the file for size
@@ -119,10 +120,12 @@ This already exists in the router for thumbnails at `/thumbnails`. Add an equiva
 ## Backend: File Structure
 
 New files:
+
 - `internal/nvr/db/screenshots.go` — Screenshot struct + CRUD
 - `internal/nvr/api/screenshots.go` — ScreenshotHandler with Capture, List, Download, Delete
 
 Modified files:
+
 - `internal/nvr/db/migrations.go` — Migration 25
 - `internal/nvr/api/router.go` — Register new routes + static file server
 
@@ -135,6 +138,7 @@ Modified files:
 Icon: `Icons.photo_library_outlined` / `Icons.photo_library`. Position: after Search, before the separator (index 3 in the sidebar, pushing Devices to 4, Schedules to 5). Route: `/screenshots`.
 
 Router index mapping (after insertion):
+
 - 0: /live
 - 1: /playback
 - 2: /search
@@ -150,16 +154,19 @@ All navigation components (icon_rail, mobile_bottom_nav, navigation_shell) must 
 **Header row:** "SCREENSHOTS" title (pageTitle style)
 
 **Filter bar:** Row with:
+
 - Camera dropdown: "All Cameras" + list of cameras from camerasProvider
 - Sort dropdown: "Newest" / "Oldest"
 
 **Grid body:** Responsive grid of screenshot cards:
+
 - Desktop (≥600px): 4 columns
 - Mobile: 2 columns
 - Each card: thumbnail image (aspect ratio 16:9), camera name below, timestamp below that
 - Card background: NvrColors.bgSecondary, 1px border, 8px radius
 
 **Tap action:** Opens a dialog/overlay showing the full-size screenshot with:
+
 - Camera name + timestamp in header
 - Full-size image
 - "DOWNLOAD" button (HudButton tactical)
@@ -170,6 +177,7 @@ All navigation components (icon_rail, mobile_bottom_nav, navigation_shell) must 
 ### Fullscreen View: Wire Screenshot Button
 
 Replace the placeholder `_takeScreenshot()`:
+
 1. Set loading state on the button
 2. Call `POST /cameras/${camera.id}/screenshot`
 3. On success: green snackbar "Screenshot saved"
@@ -181,11 +189,13 @@ Replace the placeholder `_takeScreenshot()`:
 ## Flutter: Files
 
 ### New Files
+
 - `lib/screens/screenshots/screenshots_screen.dart` — main gallery page
 
 ### Modified Files
+
 - `lib/router/app_router.dart` — add `/screenshots` route at index 3
 - `lib/widgets/shell/icon_rail.dart` — add Screenshots nav item after Search
 - `lib/widgets/shell/mobile_bottom_nav.dart` — add Screenshots item
 - `lib/widgets/shell/navigation_shell.dart` — update index mapping
-- `lib/screens/live_view/fullscreen_view.dart` — wire _takeScreenshot to API
+- `lib/screens/live_view/fullscreen_view.dart` — wire \_takeScreenshot to API

@@ -7,7 +7,7 @@
 # Global settings -> General
 
 # Verbosity of the program; available values are "error", "warn", "info", "debug".
-logLevel: debug
+logLevel: info
 # Destinations of log messages; available values are "stdout", "file" and "syslog".
 logDestinations: [stdout]
 # When destination is "stdout" or "file", emit logs in structured format (JSONL).
@@ -159,7 +159,7 @@ authJWTAudience:
 # Global settings -> Control API
 
 # Enable controlling the server through the Control API.
-api: true
+api: false
 # Address of the Control API listener.
 apiAddress: :9997
 # Enable HTTPS on the Control API server.
@@ -231,7 +231,7 @@ pprofTrustedProxies: []
 # Global settings -> Playback server
 
 # Enable downloading recordings from the playback server.
-playback: true
+playback: false
 # Address of the playback server listener.
 playbackAddress: :9996
 # Enable HTTPS on the playback server.
@@ -442,11 +442,11 @@ srtAddress: :8890
 # NVR settings
 
 # Enable NVR functionality (camera management UI, ONVIF, recording timeline).
-nvr: yes
+nvr: false
 # Path to the NVR SQLite database.
 nvrDatabase: ~/.mediamtx/nvr.db
 # Secret key for encrypting stored credentials. Auto-generated on first run if empty.
-nvrJWTSecret: "9f0d5d697e5ec9d7666c11f97ba421dfe52ea7aa0238150b454871b0052bc42d"
+nvrJWTSecret: ""
 
 ###############################################
 # Default path settings
@@ -804,11 +804,3 @@ paths:
   # Settings under path "all_others" are applied to all paths that
   # do not match another entry.
   all_others:
-  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
-    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
-  nvr/e9e84a21-4e7a-414f-a38a-99ed29046e37/main:
-    source: rtsp://admin:Gsd4life.@192.168.1.105:554/media/video1
-  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main~a33d4430:
-    record: true
-    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
-    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=1&unicast=true&proto=Onvif

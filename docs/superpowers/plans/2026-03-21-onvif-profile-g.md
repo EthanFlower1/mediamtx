@@ -15,29 +15,32 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/recording.go` | Recording Search service: FindRecordings, GetRecordingSummary, search results |
-| `internal/nvr/onvif/replay.go` | Replay service: GetReplayUri for playback from camera storage |
-| `ui/src/components/CameraStorageBrowser.tsx` | Browse and play camera-side recordings |
+
+| File                                         | Responsibility                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `internal/nvr/onvif/recording.go`            | Recording Search service: FindRecordings, GetRecordingSummary, search results |
+| `internal/nvr/onvif/replay.go`               | Replay service: GetReplayUri for playback from camera storage                 |
+| `ui/src/components/CameraStorageBrowser.tsx` | Browse and play camera-side recordings                                        |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `internal/nvr/onvif/client.go` | Verify Recording and Replay in Capabilities (already there) |
-| `internal/nvr/api/cameras.go` | Add edge-recordings, edge-playback, edge-import endpoints |
-| `internal/nvr/api/router.go` | Register new routes |
-| `internal/nvr/db/migrations.go` | Migration v11: supports_edge_recording flag |
-| `internal/nvr/db/cameras.go` | Add SupportsEdgeRecording field |
-| `internal/nvr/onvif/device.go` | ProbeDeviceFull populates edge recording capability |
-| `ui/src/pages/Recordings.tsx` | Add NVR/Camera Storage toggle |
-| `ui/src/hooks/useCameras.ts` | Add supports_edge_recording field |
+
+| File                            | Change                                                      |
+| ------------------------------- | ----------------------------------------------------------- |
+| `internal/nvr/onvif/client.go`  | Verify Recording and Replay in Capabilities (already there) |
+| `internal/nvr/api/cameras.go`   | Add edge-recordings, edge-playback, edge-import endpoints   |
+| `internal/nvr/api/router.go`    | Register new routes                                         |
+| `internal/nvr/db/migrations.go` | Migration v11: supports_edge_recording flag                 |
+| `internal/nvr/db/cameras.go`    | Add SupportsEdgeRecording field                             |
+| `internal/nvr/onvif/device.go`  | ProbeDeviceFull populates edge recording capability         |
+| `ui/src/pages/Recordings.tsx`   | Add NVR/Camera Storage toggle                               |
+| `ui/src/hooks/useCameras.ts`    | Add supports_edge_recording field                           |
 
 ---
 
 ### Task 1: Recording Search service client
 
 **Files:**
+
 - Create: `internal/nvr/onvif/recording.go`
 
 - [ ] **Step 1: Create recording.go with search functions**
@@ -108,6 +111,7 @@ git commit -m "feat(nvr): add ONVIF Recording Search service client"
 ### Task 2: Replay service client
 
 **Files:**
+
 - Create: `internal/nvr/onvif/replay.go`
 
 - [ ] **Step 1: Create replay.go**
@@ -144,6 +148,7 @@ git commit -m "feat(nvr): add ONVIF Replay service client for camera playback"
 ### Task 3: Edge recording API endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -168,6 +173,7 @@ git commit -m "feat(nvr): add ONVIF Replay service client for camera playback"
 - [ ] **Step 2: Register routes**
 
 In `router.go`:
+
 ```go
 protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)
 protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
@@ -186,6 +192,7 @@ git commit -m "feat(nvr): add edge recording API endpoints for camera storage ac
 ### Task 4: Database capability flag
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/cameras.go`
 - Modify: `internal/nvr/onvif/device.go`
@@ -224,6 +231,7 @@ git commit -m "feat(nvr): add edge recording capability flag to camera model"
 ### Task 5: Camera Storage Browser UI
 
 **Files:**
+
 - Create: `ui/src/components/CameraStorageBrowser.tsx`
 - Modify: `ui/src/pages/Recordings.tsx`
 
@@ -233,12 +241,13 @@ A component that browses and plays recordings from the camera's SD card:
 
 ```typescript
 interface Props {
-  cameraId: string
-  camera: Camera
+  cameraId: string;
+  camera: Camera;
 }
 ```
 
 Features:
+
 - Fetch edge recordings from `GET /api/nvr/cameras/{id}/edge-recordings`
 - Show summary: total recordings, date range covered
 - List recordings with recording token, source name, time range
@@ -251,6 +260,7 @@ Features:
 - [ ] **Step 2: Add NVR/Camera Storage toggle to Recordings page**
 
 In `ui/src/pages/Recordings.tsx`, add a toggle/tab at the top:
+
 - "NVR Recordings" (default) — shows existing timeline + playback
 - "Camera Storage" — shows CameraStorageBrowser component
 

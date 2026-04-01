@@ -69,6 +69,7 @@ type ByteTracker struct {
 ### YOLO Confidence Threshold Change
 
 The existing `AIPipeline.confThreshold` must be lowered from **0.5 to 0.3** so that YOLO returns both high and low-confidence detections. ByteTrack then splits them:
+
 - High confidence (>0.5): first-pass matching
 - Low confidence (0.3-0.5): second-pass recovery of occluded objects
 
@@ -102,6 +103,7 @@ func (bt *ByteTracker) ActiveTracks() []*Track
 ## 2. Detection Zones
 
 ### Files
+
 - `internal/nvr/ai/zone.go` — zone model, point-in-polygon
 - `internal/nvr/db/zones.go` — DB CRUD
 - `internal/nvr/db/migrations.go` — v15 migration
@@ -155,6 +157,7 @@ func implicitFullFrameZone(cameraID string) Zone {
 ```
 
 The implicit zone uses default alert rules:
+
 - person: cooldown 30s, notify_on_enter=true, notify_on_leave=false, notify_on_loiter=false
 - vehicle: cooldown 60s, notify_on_enter=true, notify_on_leave=false, notify_on_loiter=false
 - animal: cooldown 60s, notify_on_enter=true, notify_on_leave=false, notify_on_loiter=false
@@ -173,13 +176,13 @@ func PointInPolygon(px, py float64, polygon [][2]float64) bool
 
 All zone endpoints are registered under the authenticated route group.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/cameras/:id/zones` | List zones + rules for camera |
-| POST | `/cameras/:id/zones` | Create zone with polygon and optional rules |
-| PUT | `/zones/:id` | Update zone polygon, name, or rules |
-| DELETE | `/zones/:id` | Delete zone and its rules |
-| GET | `/cameras/:id/snapshot` | Proxy camera's snapshot URI with digest auth |
+| Method | Path                    | Description                                  |
+| ------ | ----------------------- | -------------------------------------------- |
+| GET    | `/cameras/:id/zones`    | List zones + rules for camera                |
+| POST   | `/cameras/:id/zones`    | Create zone with polygon and optional rules  |
+| PUT    | `/zones/:id`            | Update zone polygon, name, or rules          |
+| DELETE | `/zones/:id`            | Delete zone and its rules                    |
+| GET    | `/cameras/:id/snapshot` | Proxy camera's snapshot URI with digest auth |
 
 ### Snapshot Endpoint
 
@@ -316,11 +319,11 @@ func (cm *CooldownManager) ShouldNotify(req NotificationRequest, rule ZoneAlertR
 
 ### Defaults
 
-| Class Category | Cooldown | Loiter Threshold |
-|----------------|----------|------------------|
-| person | 30s | 0 (disabled) |
-| vehicle (car, truck, bus, motorcycle, bicycle, boat) | 60s | 0 (disabled) |
-| animal (cat, dog, horse, etc.) | 60s | 0 (disabled) |
+| Class Category                                       | Cooldown | Loiter Threshold |
+| ---------------------------------------------------- | -------- | ---------------- |
+| person                                               | 30s      | 0 (disabled)     |
+| vehicle (car, truck, bus, motorcycle, bicycle, boat) | 60s      | 0 (disabled)     |
+| animal (cat, dog, horse, etc.)                       | 60s      | 0 (disabled)     |
 
 ### Garbage Collection
 
@@ -384,18 +387,24 @@ Updated `Notification` TypeScript interface:
 
 ```typescript
 export interface Notification {
-  id: string
-  type: 'motion' | 'ai_detection' | 'camera_offline' | 'camera_online' | 'recording_started' | 'recording_stopped'
-  camera: string
-  message: string
-  time: Date
-  read: boolean
+  id: string;
+  type:
+    | "motion"
+    | "ai_detection"
+    | "camera_offline"
+    | "camera_online"
+    | "recording_started"
+    | "recording_stopped";
+  camera: string;
+  message: string;
+  time: Date;
+  read: boolean;
   // Structured AI fields (optional, present for ai_detection events)
-  zone?: string
-  className?: string
-  action?: string    // "entered", "loitering", "left"
-  trackId?: number
-  confidence?: number
+  zone?: string;
+  className?: string;
+  action?: string; // "entered", "loitering", "left"
+  trackId?: number;
+  confidence?: number;
 }
 ```
 
@@ -414,7 +423,7 @@ const notif: Notification = {
   action: data.action,
   trackId: data.track_id,
   confidence: data.confidence,
-}
+};
 ```
 
 - Title derived from action: "Person Entered", "Person Loitering", "Car Left"
@@ -515,24 +524,24 @@ CREATE INDEX idx_detections_track ON detections(track_id);
 
 ## 8. File Map
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `internal/nvr/ai/tracker.go` | Create | ByteTrack + Kalman filter |
-| `internal/nvr/ai/zone.go` | Create | Zone model, PointInPolygon |
-| `internal/nvr/ai/state.go` | Create | State machine, transition logic |
-| `internal/nvr/ai/cooldown.go` | Create | Cooldown manager |
-| `internal/nvr/ai/pipeline.go` | Modify | Integrate tracker, zones, state, cooldowns; lower confThreshold to 0.3 |
-| `internal/nvr/db/zones.go` | Create | Zone + rule CRUD |
-| `internal/nvr/db/migrations.go` | Modify | Add v15 migration |
-| `internal/nvr/api/events.go` | Modify | Add structured fields to Event, PublishTrackedDetection method |
-| `internal/nvr/api/zones.go` | Create | Zone REST endpoints + snapshot proxy |
-| `internal/nvr/api/router.go` | Modify | Register zone routes |
-| `internal/nvr/nvr.go` | Modify | Wire zone loading, pass to pipelines |
-| `ui/src/components/ZoneEditor.tsx` | Create | Polygon drawing + zone config UI |
-| `ui/src/components/AnalyticsOverlay.tsx` | Modify | Render track IDs, zone overlays, loiter color |
-| `ui/src/hooks/useNotifications.ts` | Modify | Updated Notification interface, action-based titles |
-| `ui/src/pages/CameraManagement.tsx` | Modify | Add "Zones" button per camera |
-| `ui/src/components/Toast.tsx` | Modify | Action-based severity styling |
+| File                                     | Action | Responsibility                                                         |
+| ---------------------------------------- | ------ | ---------------------------------------------------------------------- |
+| `internal/nvr/ai/tracker.go`             | Create | ByteTrack + Kalman filter                                              |
+| `internal/nvr/ai/zone.go`                | Create | Zone model, PointInPolygon                                             |
+| `internal/nvr/ai/state.go`               | Create | State machine, transition logic                                        |
+| `internal/nvr/ai/cooldown.go`            | Create | Cooldown manager                                                       |
+| `internal/nvr/ai/pipeline.go`            | Modify | Integrate tracker, zones, state, cooldowns; lower confThreshold to 0.3 |
+| `internal/nvr/db/zones.go`               | Create | Zone + rule CRUD                                                       |
+| `internal/nvr/db/migrations.go`          | Modify | Add v15 migration                                                      |
+| `internal/nvr/api/events.go`             | Modify | Add structured fields to Event, PublishTrackedDetection method         |
+| `internal/nvr/api/zones.go`              | Create | Zone REST endpoints + snapshot proxy                                   |
+| `internal/nvr/api/router.go`             | Modify | Register zone routes                                                   |
+| `internal/nvr/nvr.go`                    | Modify | Wire zone loading, pass to pipelines                                   |
+| `ui/src/components/ZoneEditor.tsx`       | Create | Polygon drawing + zone config UI                                       |
+| `ui/src/components/AnalyticsOverlay.tsx` | Modify | Render track IDs, zone overlays, loiter color                          |
+| `ui/src/hooks/useNotifications.ts`       | Modify | Updated Notification interface, action-based titles                    |
+| `ui/src/pages/CameraManagement.tsx`      | Modify | Add "Zones" button per camera                                          |
+| `ui/src/components/Toast.tsx`            | Modify | Action-based severity styling                                          |
 
 ---
 

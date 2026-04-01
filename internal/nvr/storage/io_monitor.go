@@ -2,6 +2,8 @@ package storage
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -212,4 +214,30 @@ func (m *IOMonitor) UpdateThresholds(path string, warnMs, critMs float64) error 
 	}
 	pm.SetThresholds(warnMs, critMs)
 	return nil
+}
+
+const benchBlockSize = 1 << 20 // 1 MB
+
+// BenchmarkPath writes and removes a 1 MB test file in the given directory,
+// returning the measured I/O latency and throughput.
+func BenchmarkPath(dir string) (IOSample, error) {
+	testFile := filepath.Join(dir, ".nvr_io_bench")
+	data := make([]byte, benchBlockSize)
+
+	start := time.Now()
+	if err := os.WriteFile(testFile, data, 0o644); err != nil {
+		return IOSample{}, err
+	}
+	elapsed := time.Since(start)
+
+	os.Remove(testFile)
+
+	latencyMs := float64(elapsed.Microseconds()) / 1000.0
+	throughputMB := float64(benchBlockSize) / (1024 * 1024) / elapsed.Seconds()
+
+	return IOSample{
+		Timestamp:    time.Now(),
+		LatencyMs:    latencyMs,
+		ThroughputMB: throughputMB,
+	}, nil
 }

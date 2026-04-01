@@ -38,7 +38,8 @@ func TestManager_EvaluateHealth(t *testing.T) {
 	badDir := "/nonexistent/storage/path"
 
 	m := &Manager{
-		health: make(map[string]bool),
+		health:    make(map[string]bool),
+		ioMonitor: NewIOMonitor(50, 200),
 	}
 
 	m.evaluateHealth(map[string][]string{

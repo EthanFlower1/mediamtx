@@ -195,3 +195,27 @@ func TestIOMonitor_UpdateThresholds_UnknownPath(t *testing.T) {
 		t.Fatal("expected error for unknown path")
 	}
 }
+
+func TestBenchmarkPath(t *testing.T) {
+	dir := t.TempDir()
+	sample, err := BenchmarkPath(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sample.LatencyMs <= 0 {
+		t.Fatalf("expected positive latency, got %f", sample.LatencyMs)
+	}
+	if sample.ThroughputMB <= 0 {
+		t.Fatalf("expected positive throughput, got %f", sample.ThroughputMB)
+	}
+	if sample.Timestamp.IsZero() {
+		t.Fatal("expected non-zero timestamp")
+	}
+}
+
+func TestBenchmarkPath_InvalidDir(t *testing.T) {
+	_, err := BenchmarkPath("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Fatal("expected error for invalid dir")
+	}
+}

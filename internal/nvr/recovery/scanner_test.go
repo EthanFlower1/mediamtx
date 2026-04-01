@@ -118,3 +118,12 @@ func TestScanPropagatesDBError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
 }
+
+func TestScanPropagatesUnindexedDBError(t *testing.T) {
+	db := &mockDB{
+		unindexedPathsErr: fmt.Errorf("database locked"),
+	}
+	_, err := ScanForCandidates([]string{t.TempDir()}, db)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "database locked")
+}

@@ -67,10 +67,13 @@ func ScanForCandidates(recordDirs []string, db DBQuerier) ([]Candidate, error) {
 				return nil // too small to be valid fMP4
 			}
 
+			// Normalize to absolute path for DB comparison.
+			absPath, _ := filepath.Abs(path)
+
 			// Check if this file is known to the DB.
-			if _, known := knownPaths[path]; !known {
+			if _, known := knownPaths[absPath]; !known {
 				candidates = append(candidates, Candidate{
-					FilePath:   path,
+					FilePath:   absPath,
 					HasDBEntry: false,
 				})
 			}

@@ -172,6 +172,30 @@ func (b *EventBroadcaster) PublishRecordingStopped(cameraName string) {
 	})
 }
 
+// PublishDiskSlow publishes a disk-slow event for the given storage path.
+func (b *EventBroadcaster) PublishDiskSlow(path string, avgLatencyMs, throughputMB, thresholdMs float64) {
+	b.Publish(Event{
+		Type:    "disk_slow",
+		Message: fmt.Sprintf("Disk I/O slow on %s: %.1fms avg (threshold: %.0fms)", path, avgLatencyMs, thresholdMs),
+	})
+}
+
+// PublishDiskCritical publishes a disk-critical event for the given storage path.
+func (b *EventBroadcaster) PublishDiskCritical(path string, avgLatencyMs, throughputMB, thresholdMs float64) {
+	b.Publish(Event{
+		Type:    "disk_critical",
+		Message: fmt.Sprintf("Disk I/O critical on %s: %.1fms avg (threshold: %.0fms)", path, avgLatencyMs, thresholdMs),
+	})
+}
+
+// PublishDiskRecovered publishes a disk-recovered event for the given storage path.
+func (b *EventBroadcaster) PublishDiskRecovered(path string, avgLatencyMs, throughputMB float64) {
+	b.Publish(Event{
+		Type:    "disk_recovered",
+		Message: fmt.Sprintf("Disk I/O recovered on %s: %.1fms avg", path, avgLatencyMs),
+	})
+}
+
 // StreamDetections serves an SSE (Server-Sent Events) stream of detection_frame
 // events filtered to a single camera. The connection stays open until the client
 // disconnects. Each event is a JSON-encoded line prefixed with "data: ".

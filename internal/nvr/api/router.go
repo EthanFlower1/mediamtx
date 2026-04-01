@@ -177,6 +177,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)
 	protected.GET("/cameras/:id/ptz/presets", cameraHandler.PTZPresets)
 	protected.GET("/cameras/:id/ptz/capabilities", cameraHandler.PTZCapabilities)
+	protected.GET("/cameras/:id/ptz/status", cameraHandler.PTZStatus)
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)

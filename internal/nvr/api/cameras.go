@@ -901,6 +901,7 @@ type ptzRequest struct {
 	Tilt        float64 `json:"tilt"`
 	Zoom        float64 `json:"zoom"`
 	PresetToken string  `json:"preset_token"`
+	PresetName  string  `json:"name"`
 }
 
 // PTZCommand handles PTZ control requests.
@@ -980,6 +981,51 @@ func (h *CameraHandler) PTZCommand(c *gin.Context) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "PTZ goto home failed"})
 			return
 		}
+	case "absolute_move":
+		if err := ctrl.AbsoluteMove(profileToken, req.Pan, req.Tilt, req.Zoom); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "absolute move failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		return
+	case "relative_move":
+		if err := ctrl.RelativeMove(profileToken, req.Pan, req.Tilt, req.Zoom); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "relative move failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		return
+	case "set_preset":
+		name := req.PresetName
+		if name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "preset name is required"})
+			return
+		}
+		token, err := ctrl.SetPreset(profileToken, name)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "set preset failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"token": token})
+		return
+	case "remove_preset":
+		if req.PresetToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "preset_token is required"})
+			return
+		}
+		if err := ctrl.RemovePreset(profileToken, req.PresetToken); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "remove preset failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		return
+	case "set_home":
+		if err := ctrl.SetHomePosition(profileToken); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "set home position failed"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		return
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown action: " + req.Action})
 		return
@@ -1085,6 +1131,43 @@ func (h *CameraHandler) PTZCapabilities(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"nodes": nodes})
+}
+
+// PTZStatus returns the current PTZ position and movement state.
+func (h *CameraHandler) PTZStatus(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	ctrl, err := onvif.NewPTZController(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to connect to camera"})
+		return
+	}
+
+	profileToken := cam.ONVIFProfileToken
+	if profileToken == "" {
+		profileToken = "000"
+	}
+
+	status, err := ctrl.GetStatus(profileToken)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get PTZ status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, status)
 }
 
 // GetSettings retrieves the current imaging settings from a camera via ONVIF.

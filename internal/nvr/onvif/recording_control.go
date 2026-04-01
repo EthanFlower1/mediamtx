@@ -522,3 +522,81 @@ func GetTrackConfiguration(xaddr, username, password, recordingToken, trackToken
 		Description: tc.Description,
 	}, nil
 }
+
+// CreateTrack adds a new track to a recording on the device's edge storage.
+// TrackType must be "Video", "Audio", or "Metadata".
+func CreateTrack(xaddr, username, password, recordingToken, trackType, description string) (string, error) {
+	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	if err != nil {
+		return "", fmt.Errorf("CreateTrack: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	reqBody := fmt.Sprintf(`<trc:CreateTrack>
+      <trc:RecordingToken>%s</trc:RecordingToken>
+      <trc:TrackConfiguration>
+        <tt:TrackType>%s</tt:TrackType>
+        <tt:Description>%s</tt:Description>
+      </trc:TrackConfiguration>
+    </trc:CreateTrack>`,
+		xmlEscape(recordingToken),
+		xmlEscape(trackType),
+		xmlEscape(description))
+
+	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	if err != nil {
+		return "", fmt.Errorf("CreateTrack: %w", err)
+	}
+
+	var env recordingControlEnvelope
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return "", fmt.Errorf("CreateTrack parse: %w", err)
+	}
+	if env.Body.Fault != nil {
+		return "", fmt.Errorf("CreateTrack SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.CreateTrackResponse == nil {
+		return "", fmt.Errorf("CreateTrack: empty response")
+	}
+
+	token := strings.TrimSpace(env.Body.CreateTrackResponse.TrackToken)
+	if token == "" {
+		return "", fmt.Errorf("CreateTrack: empty track token in response")
+	}
+	return token, nil
+}
+
+// DeleteTrack removes a track from a recording on the device's edge storage.
+func DeleteTrack(xaddr, username, password, recordingToken, trackToken string) error {
+	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	if err != nil {
+		return fmt.Errorf("DeleteTrack: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	reqBody := fmt.Sprintf(`<trc:DeleteTrack>
+      <trc:RecordingToken>%s</trc:RecordingToken>
+      <trc:TrackToken>%s</trc:TrackToken>
+    </trc:DeleteTrack>`,
+		xmlEscape(recordingToken),
+		xmlEscape(trackToken))
+
+	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	if err != nil {
+		return fmt.Errorf("DeleteTrack: %w", err)
+	}
+
+	var env recordingControlEnvelope
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return fmt.Errorf("DeleteTrack parse: %w", err)
+	}
+	if env.Body.Fault != nil {
+		return fmt.Errorf("DeleteTrack SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+
+	return nil
+}

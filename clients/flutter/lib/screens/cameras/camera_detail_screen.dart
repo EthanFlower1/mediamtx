@@ -17,6 +17,11 @@ import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/status_badge.dart';
 import '../../widgets/stream_card.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/onvif/device_info_section.dart';
+import '../../widgets/onvif/imaging_section.dart';
+import '../../widgets/onvif/relay_section.dart';
+import '../../widgets/onvif/ptz_presets_section.dart';
+import '../../widgets/onvif/audio_section.dart';
 import '../live_view/camera_tile.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
@@ -59,11 +64,6 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
   late final TextEditingController _passCtrl;
   late final TextEditingController _subStreamCtrl;
   late final TextEditingController _snapshotCtrl;
-
-  // ── Imaging sliders ──────────────────────────────────────────────────────
-  double _brightness = 0.5;
-  double _contrast = 0.5;
-  double _saturation = 0.5;
 
   bool _savingGeneral = false;
   bool _savingAi = false;
@@ -695,6 +695,12 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
 
         const SizedBox(height: 12),
 
+        // ── Device info (ONVIF) ──
+        if (_camera?.onvifEndpoint.isNotEmpty == true) ...[
+          DeviceInfoSection(cameraId: widget.cameraId),
+          const SizedBox(height: 12),
+        ],
+
         // ── Connection info ──
         _SectionCard(
           header: 'CONNECTION',
@@ -838,32 +844,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _ExpandableSection(
           title: 'IMAGING',
           children: [
-            AnalogSlider(
-              label: 'BRIGHTNESS',
-              value: _brightness,
-              min: 0.0,
-              max: 1.0,
-              onChanged: (v) => setState(() => _brightness = v),
-              valueFormatter: (v) => '${(v * 100).round()}%',
-            ),
-            const SizedBox(height: 12),
-            AnalogSlider(
-              label: 'CONTRAST',
-              value: _contrast,
-              min: 0.0,
-              max: 1.0,
-              onChanged: (v) => setState(() => _contrast = v),
-              valueFormatter: (v) => '${(v * 100).round()}%',
-            ),
-            const SizedBox(height: 12),
-            AnalogSlider(
-              label: 'SATURATION',
-              value: _saturation,
-              min: 0.0,
-              max: 1.0,
-              onChanged: (v) => setState(() => _saturation = v),
-              valueFormatter: (v) => '${(v * 100).round()}%',
-            ),
+            ImagingSection(cameraId: widget.cameraId),
           ],
         ),
 
@@ -891,9 +872,27 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _ExpandableSection(
           title: 'AUDIO',
           children: [
-            const Text('Audio settings coming soon.', style: NvrTypography.body),
+            AudioSection(cameraId: widget.cameraId),
           ],
         ),
+
+        const SizedBox(height: 8),
+        if (_camera?.supportsRelay == true)
+          _ExpandableSection(
+            title: 'RELAY OUTPUTS',
+            children: [
+              RelaySection(cameraId: widget.cameraId),
+            ],
+          ),
+
+        const SizedBox(height: 8),
+        if (_camera?.ptzCapable == true)
+          _ExpandableSection(
+            title: 'PTZ PRESETS',
+            children: [
+              PtzPresetsSection(cameraId: widget.cameraId),
+            ],
+          ),
       ],
     );
   }

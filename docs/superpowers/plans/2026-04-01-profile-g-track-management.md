@@ -15,17 +15,19 @@
 ## File Structure
 
 ### Modified files
-| File | Responsibility |
-|------|---------------|
+
+| File                                      | Responsibility                                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `internal/nvr/onvif/recording_control.go` | Add TrackConfiguration type, 3 XML response types, extend recordingControlBody, add 3 public SOAP functions |
-| `internal/nvr/api/recording_control.go` | Add 3 API handler methods on CameraHandler |
-| `internal/nvr/api/router.go` | Register 3 new routes |
+| `internal/nvr/api/recording_control.go`   | Add 3 API handler methods on CameraHandler                                                                  |
+| `internal/nvr/api/router.go`              | Register 3 new routes                                                                                       |
 
 ---
 
 ### Task 1: Add ONVIF track SOAP types and GetTrackConfiguration
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/recording_control.go`
 
 - [ ] **Step 1: Add the TrackConfiguration JSON type**
@@ -142,6 +144,7 @@ git commit -m "feat(nvr/onvif): add track types and GetTrackConfiguration (KAI-1
 ### Task 2: Add CreateTrack and DeleteTrack ONVIF functions
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/recording_control.go`
 
 - [ ] **Step 1: Add CreateTrack function**
@@ -254,6 +257,7 @@ git commit -m "feat(nvr/onvif): add CreateTrack and DeleteTrack (KAI-11)"
 ### Task 3: Add API handlers for track management
 
 **Files:**
+
 - Modify: `internal/nvr/api/recording_control.go`
 
 - [ ] **Step 1: Add CreateEdgeTrack handler**
@@ -423,6 +427,7 @@ git commit -m "feat(nvr/api): add track management API handlers (KAI-11)"
 ### Task 4: Register track routes
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go`
 
 - [ ] **Step 1: Add track management routes**

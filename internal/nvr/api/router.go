@@ -258,6 +258,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/cameras/:id/recording-control/jobs/:token", cameraHandler.DeleteEdgeRecordingJob)
 	protected.GET("/cameras/:id/recording-control/jobs/:token/state", cameraHandler.GetEdgeRecordingJobState)
 
+	// Track management (Profile G — manage tracks within recordings on device).
+	protected.POST("/cameras/:id/recording-control/recordings/:token/tracks", cameraHandler.CreateEdgeTrack)
+	protected.DELETE("/cameras/:id/recording-control/recordings/:token/tracks/:trackToken", cameraHandler.DeleteEdgeTrack)
+	protected.GET("/cameras/:id/recording-control/tracks/:trackToken/config", cameraHandler.GetEdgeTrackConfig)
+
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)

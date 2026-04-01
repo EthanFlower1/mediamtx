@@ -17,6 +17,7 @@ Three layers integrated into the existing codebase:
 - `quota_critical_percent INTEGER NOT NULL DEFAULT 90` — critical threshold percentage
 
 **New `storage_quotas` table for global quotas:**
+
 ```sql
 CREATE TABLE storage_quotas (
     id TEXT PRIMARY KEY,

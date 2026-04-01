@@ -88,6 +88,8 @@ type Scheduler struct {
 	writeTimer      *time.Timer
 
 	lastRetentionCheck time.Time // timestamp of last retention cleanup run
+
+	healthStates map[string]*RecordingHealth // camera ID -> recording health
 }
 
 // New creates a new Scheduler.
@@ -104,6 +106,7 @@ func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr 
 		motionSMs:     make(map[string]*MotionSM),
 		eventSubs:     make(map[string]*onvif.EventSubscriber),
 		motionTimers:  make(map[string]*time.Timer),
+		healthStates: make(map[string]*RecordingHealth),
 	}
 }
 

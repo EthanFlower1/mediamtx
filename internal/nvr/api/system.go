@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 )
 
 // SetupChecker reports whether initial setup is required.
@@ -39,6 +40,7 @@ type SystemHandler struct {
 	ConfigPath     string           // path to mediamtx.yml for reading server configuration
 	APIAddress     string           // MediaMTX API address for live camera status
 	Collector      *metrics.Collector // ring-buffer metrics collector (may be nil)
+	StorageMgr     *storage.Manager   // storage manager for disk I/O metrics (may be nil)
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -544,6 +546,53 @@ func (h *SystemHandler) ExportConfigAdmin(c *gin.Context) {
 		return
 	}
 	h.ExportConfig(c)
+}
+
+// DiskIO returns per-path I/O performance status and latency history.
+//
+//	GET /api/nvr/system/disk-io
+func (h *SystemHandler) DiskIO(c *gin.Context) {
+	if h.StorageMgr == nil {
+		c.JSON(http.StatusOK, gin.H{"paths": map[string]interface{}{}})
+		return
+	}
+	status := h.StorageMgr.GetIOMonitor().GetStatus()
+	c.JSON(http.StatusOK, gin.H{"paths": status})
+}
+
+// UpdateDiskIOThresholds updates warn/critical latency thresholds for a storage path.
+//
+//	PUT /api/nvr/system/disk-io/thresholds
+func (h *SystemHandler) UpdateDiskIOThresholds(c *gin.Context) {
+	if h.StorageMgr == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "storage manager not available"})
+		return
+	}
+
+	var req struct {
+		Path   string  `json:"path" binding:"required"`
+		WarnMs float64 `json:"warn_ms" binding:"required,gt=0"`
+		CritMs float64 `json:"critical_ms" binding:"required,gt=0"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.WarnMs >= req.CritMs {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "warn_ms must be less than critical_ms"})
+		return
+	}
+
+	if err := h.StorageMgr.GetIOMonitor().UpdateThresholds(req.Path, req.WarnMs, req.CritMs); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"path":        req.Path,
+		"warn_ms":     req.WarnMs,
+		"critical_ms": req.CritMs,
+	})
 }
 
 // ImportConfigAdmin wraps ImportConfig with an admin role check.

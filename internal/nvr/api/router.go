@@ -95,6 +95,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		ConfigPath:     cfg.ConfigPath,
 		APIAddress:     cfg.APIAddress,
 		Collector:      cfg.Collector,
+		StorageMgr:     cfg.StorageManager,
 	}
 
 	savedClipHandler := &SavedClipHandler{
@@ -307,6 +308,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)
 	protected.GET("/system/metrics", systemHandler.Metrics)
+	protected.GET("/system/disk-io", systemHandler.DiskIO)
+	protected.PUT("/system/disk-io/thresholds", systemHandler.UpdateDiskIOThresholds)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)

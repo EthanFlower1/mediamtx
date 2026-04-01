@@ -184,6 +184,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
 
+	// Media configuration.
+	protected.GET("/cameras/:id/media/profiles", cameraHandler.GetMediaProfiles)
+	protected.POST("/cameras/:id/media/profiles", cameraHandler.CreateMediaProfile)
+	protected.DELETE("/cameras/:id/media/profiles/:token", cameraHandler.DeleteMediaProfile)
+	protected.GET("/cameras/:id/media/video-sources", cameraHandler.GetVideoSources)
+	protected.GET("/cameras/:id/media/video-encoder/:token", cameraHandler.GetVideoEncoder)
+	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
+	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
+
 	// Device info.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
 

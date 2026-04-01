@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_provider.dart';
 import '../models/device_info.dart';
+import '../models/ptz_status.dart';
 
 final deviceInfoProvider =
     FutureProvider.family<DeviceInfo?, String>((ref, cameraId) async {
@@ -69,6 +70,18 @@ final audioCapabilitiesProvider =
   try {
     final res = await api.get('/cameras/$cameraId/audio/capabilities');
     return AudioCapabilities.fromJson(res.data as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+});
+
+final ptzStatusProvider =
+    FutureProvider.family<PtzStatus?, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return null;
+  try {
+    final res = await api.get('/cameras/$cameraId/ptz/status');
+    return PtzStatus.fromJson(res.data as Map<String, dynamic>);
   } catch (_) {
     return null;
   }

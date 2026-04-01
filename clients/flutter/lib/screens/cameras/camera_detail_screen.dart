@@ -20,7 +20,7 @@ import '../../utils/snackbar_helper.dart';
 import '../../widgets/onvif/device_info_section.dart';
 import '../../widgets/onvif/imaging_section.dart';
 import '../../widgets/onvif/relay_section.dart';
-import '../../widgets/onvif/ptz_presets_section.dart';
+import '../../widgets/onvif/ptz_enhanced_section.dart';
 import '../../widgets/onvif/audio_section.dart';
 import '../live_view/camera_tile.dart';
 
@@ -888,9 +888,9 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         const SizedBox(height: 8),
         if (_camera?.ptzCapable == true)
           _ExpandableSection(
-            title: 'PTZ PRESETS',
+            title: 'PTZ CONTROL',
             children: [
-              PtzPresetsSection(cameraId: widget.cameraId),
+              PtzEnhancedSection(cameraId: widget.cameraId),
             ],
           ),
       ],

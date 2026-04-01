@@ -172,6 +172,24 @@ func (b *EventBroadcaster) PublishRecordingStopped(cameraName string) {
 	})
 }
 
+// PublishSegmentCorrupted publishes a segment-corrupted event.
+func (b *EventBroadcaster) PublishSegmentCorrupted(cameraID string, recordingID int64, filePath, detail string) {
+	b.Publish(Event{
+		Type:    "segment_corrupted",
+		Camera:  cameraID,
+		Message: fmt.Sprintf("Segment corrupted: %s", detail),
+	})
+}
+
+// PublishSegmentQuarantined publishes a segment-quarantined event.
+func (b *EventBroadcaster) PublishSegmentQuarantined(cameraID string, recordingID int64, quarantinePath string) {
+	b.Publish(Event{
+		Type:    "segment_quarantined",
+		Camera:  cameraID,
+		Message: fmt.Sprintf("Segment quarantined to %s", quarantinePath),
+	})
+}
+
 // StreamDetections serves an SSE (Server-Sent Events) stream of detection_frame
 // events filtered to a single camera. The connection stays open until the client
 // disconnects. Each event is a JSON-encoded line prefixed with "data: ".

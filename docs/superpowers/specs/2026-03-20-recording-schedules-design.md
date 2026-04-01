@@ -49,6 +49,7 @@ CREATE TABLE recording_rules (
 A rule with `start_time: "22:00"` and `end_time: "06:00"` means 10pm to 6am. The `days` array specifies the day the rule **starts** on. A Monday 22:00-06:00 rule covers Monday night into Tuesday morning.
 
 **Matching logic:** A rule matches the current time if:
+
 - Today is in `days` AND `current_time >= start_time`, OR
 - Yesterday is in `days` AND `current_time < end_time` (for cross-midnight rules where `start > end`)
 
@@ -107,12 +108,14 @@ To prevent YAML write storms from rapid motion on/off events:
 When a camera has any active `events` mode rules, the NVR subscribes to the camera's ONVIF event service using PullPoint subscription (poll-based, more reliable than WS-Notify across camera brands). Polls every 2 seconds.
 
 Target event topics:
+
 - `tns1:RuleEngine/CellMotionDetector/Motion`
 - `tns1:VideoSource/MotionAlarm`
 
 ### Implementation approach
 
 The `use-go/onvif` library's event package has type definitions but no SDK convenience functions for events. The implementation will use raw SOAP calls via `dev.CallMethod()` for:
+
 - `CreatePullPointSubscription` — create the subscription
 - `PullMessages` — poll for events
 - `Unsubscribe` — clean up on shutdown
@@ -170,6 +173,7 @@ GET    /cameras/:id/recording-status     — current effective mode, motion stat
 Returns 404 if camera does not exist.
 
 Response:
+
 ```json
 {
   "effective_mode": "always|events|off",
@@ -200,11 +204,13 @@ Response:
 Located on the Camera Management page or accessible from a camera's detail view.
 
 **Rules list:**
+
 - Table/card list showing all rules for the selected camera
 - Columns: name, mode (badge), days (abbreviated), time range, post-buffer (events only), enabled toggle
 - Edit and delete actions per rule
 
 **Add/Edit Rule form:**
+
 - Name text input
 - Mode selector: Always / Events
 - Day checkboxes with shortcut buttons: "Weekdays" (Mon-Fri), "Weekends" (Sat-Sun), "Every day"
@@ -213,11 +219,13 @@ Located on the Camera Management page or accessible from a camera's detail view.
 - Enabled toggle
 
 **Schedule preview:**
+
 - A 7-column (days) × 48-row (30-minute slots) grid
 - Color-coded cells: blue = always, amber = events, gray = no coverage
 - Overlapping rules show the effective mode per cell (union logic: always wins over events)
 
 **Live status indicator:**
+
 - Per camera, shows: current effective mode, whether recording is active, motion state (for events mode)
 
 ## Implementation Notes
@@ -225,6 +233,7 @@ Located on the Camera Management page or accessible from a camera's detail view.
 ### Files to create/modify
 
 **New files:**
+
 - `internal/nvr/db/recording_rules.go` — CRUD queries for recording_rules table
 - `internal/nvr/api/recording_rules.go` — HTTP handlers
 - `internal/nvr/scheduler/scheduler.go` — background evaluator goroutine with write coalescing
@@ -232,6 +241,7 @@ Located on the Camera Management page or accessible from a camera's detail view.
 - `ui/src/pages/RecordingRules.tsx` or section in CameraManagement
 
 **Modified files:**
+
 - `internal/nvr/db/migrations.go` — add recording_rules table migration
 - `internal/nvr/api/router.go` — register new endpoints
 - `internal/nvr/api/cameras.go` — call scheduler.RemoveCamera on delete

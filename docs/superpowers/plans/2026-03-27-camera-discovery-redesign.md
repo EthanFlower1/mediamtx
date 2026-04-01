@@ -13,6 +13,7 @@
 ### Task 1: Backend — Add `AuthRequired` field to `DiscoveredDevice`
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/discovery.go:33-39` (DiscoveredDevice struct)
 - Modify: `internal/nvr/onvif/discovery.go:180-242` (enrichDevice method)
 
@@ -118,6 +119,7 @@ git commit -m "feat(discovery): add auth_required field to DiscoveredDevice"
 ### Task 2: Backend — Cross-reference existing cameras in discovery results
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/discovery.go:33-39` (add ExistingCameraID field)
 - Modify: `internal/nvr/api/cameras.go:519-527` (DiscoverResults handler)
 
@@ -187,6 +189,7 @@ git commit -m "feat(discovery): cross-reference existing cameras in results"
 ### Task 3: Flutter — Discovery result card widget
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/cameras/discovery_card.dart`
 
 - [ ] **Step 1: Create the discovery card widget**
@@ -393,6 +396,7 @@ git commit -m "feat(flutter): add rich discovery result card widget"
 ### Task 4: Flutter — Camera detail bottom sheet
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/cameras/camera_detail_sheet.dart`
 
 - [ ] **Step 1: Create the detail bottom sheet widget**
@@ -972,7 +976,8 @@ git commit -m "feat(flutter): add camera detail bottom sheet with auth, streams,
 ### Task 5: Flutter — Wire up discover tab with new widgets
 
 **Files:**
-- Modify: `clients/flutter/lib/screens/cameras/add_camera_screen.dart:81-328` (_DiscoverTab section)
+
+- Modify: `clients/flutter/lib/screens/cameras/add_camera_screen.dart:81-328` (\_DiscoverTab section)
 
 - [ ] **Step 1: Replace the discover tab internals**
 

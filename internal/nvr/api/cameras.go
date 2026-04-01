@@ -54,9 +54,10 @@ type streamPathEntry struct {
 // cameraResponse wraps db.Camera and adds a storage_status field.
 type cameraResponse struct {
 	db.Camera
-	StorageStatus string            `json:"storage_status"`
-	LiveViewPath  string            `json:"live_view_path"`
-	StreamPaths   []streamPathEntry `json:"stream_paths"`
+	StorageStatus   string            `json:"storage_status"`
+	LiveViewPath    string            `json:"live_view_path"`
+	StreamPaths     []streamPathEntry `json:"stream_paths"`
+	RecordingHealth string            `json:"recording_health"`
 }
 
 // cameraWithStreams extends cameraResponse to include stream records.
@@ -103,11 +104,19 @@ func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 		}
 	}
 
+	recordingHealth := scheduler.HealthInactive
+	if h.Scheduler != nil {
+		if rh := h.Scheduler.GetRecordingHealth(cam.ID); rh != nil {
+			recordingHealth = rh.Status
+		}
+	}
+
 	return cameraResponse{
-		Camera:        *cam,
-		StorageStatus: status,
-		LiveViewPath:  lvPath,
-		StreamPaths:   streamPaths,
+		Camera:          *cam,
+		StorageStatus:   status,
+		LiveViewPath:    lvPath,
+		StreamPaths:     streamPaths,
+		RecordingHealth: recordingHealth,
 	}
 }
 

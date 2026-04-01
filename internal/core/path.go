@@ -66,22 +66,22 @@ type pathAPIPathsGetReq struct {
 }
 
 type path struct {
-	parentCtx         context.Context
-	logLevel          conf.LogLevel
-	dumpPackets       bool
-	rtspAddress       string
-	readTimeout       conf.Duration
-	writeTimeout      conf.Duration
-	writeQueueSize    int
-	udpReadBufferSize uint
-	rtpMaxPayloadSize int
-	conf              *conf.Path
-	name              string
-	matches           []string
-	wg                *sync.WaitGroup
-	externalCmdPool        *externalcmd.Pool
-	onNVRSegmentComplete   func(string, time.Duration)
-	parent                 pathParent
+	parentCtx            context.Context
+	logLevel             conf.LogLevel
+	dumpPackets          bool
+	rtspAddress          string
+	readTimeout          conf.Duration
+	writeTimeout         conf.Duration
+	writeQueueSize       int
+	udpReadBufferSize    uint
+	rtpMaxPayloadSize    int
+	conf                 *conf.Path
+	name                 string
+	matches              []string
+	wg                   *sync.WaitGroup
+	externalCmdPool      *externalcmd.Pool
+	onNVRSegmentComplete func(string, time.Duration)
+	parent               pathParent
 
 	// accessed by pathManager only
 	ready    bool

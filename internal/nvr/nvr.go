@@ -26,6 +26,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
@@ -64,6 +65,8 @@ type NVR struct {
 	metricsCollector *metrics.Collector
 
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
+
+	integrityScanner *integrity.Scanner
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -196,6 +199,53 @@ func (n *NVR) Initialize() error {
 
 	// Start background migration for recordings that predate fragment indexing.
 	n.startFragmentBackfill()
+
+	// Start background integrity scanner.
+	n.integrityScanner = &integrity.Scanner{
+		Interval:  1 * time.Hour,
+		BatchSize: 100,
+		FetchFunc: func(cutoff time.Time, batchSize int) ([]integrity.ScanItem, error) {
+			recs, err := n.database.GetRecordingsNeedingVerification(cutoff, batchSize)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]integrity.ScanItem, 0, len(recs))
+			for _, rec := range recs {
+				fragCount := 0
+				if frags, err := n.database.GetFragments(rec.ID); err == nil {
+					fragCount = len(frags)
+				}
+				items = append(items, integrity.ScanItem{
+					RecordingID: rec.ID,
+					CameraID:    rec.CameraID,
+					Info: integrity.RecordingInfo{
+						FilePath:      rec.FilePath,
+						FileSize:      rec.FileSize,
+						InitSize:      rec.InitSize,
+						FragmentCount: fragCount,
+						DurationMs:    rec.DurationMs,
+					},
+				})
+			}
+			return items, nil
+		},
+		OnResult: func(recordingID int64, result integrity.VerificationResult) {
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			var detail *string
+			if result.Detail != "" {
+				detail = &result.Detail
+			}
+			n.database.UpdateRecordingStatus(recordingID, result.Status, detail, now)
+
+			if result.Status == integrity.StatusCorrupted && n.events != nil {
+				rec, err := n.database.GetRecording(recordingID)
+				if err == nil {
+					n.events.PublishSegmentCorrupted(rec.CameraID, recordingID, rec.FilePath, result.Detail)
+				}
+			}
+		},
+	}
+	go n.integrityScanner.Run(n.ctx)
 
 	return nil
 }
@@ -891,6 +941,11 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		return
 	}
 
+	// Notify the scheduler for health tracking.
+	if n.sched != nil {
+		n.sched.NotifySegmentForCamera(cam.ID)
+	}
+
 	detectAndInsertPendingSync(n.database, rec, cam)
 
 	if n.hlsHandler != nil {
@@ -902,6 +957,34 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	if format == "fmp4" {
 		go n.indexRecordingFragments(rec)
 	}
+
+	// Verify segment integrity inline (file is still in page cache).
+	go func() {
+		fragCount := 0
+		if frags, err := n.database.GetFragments(rec.ID); err == nil {
+			fragCount = len(frags)
+		}
+
+		info := integrity.RecordingInfo{
+			FilePath:      rec.FilePath,
+			FileSize:      rec.FileSize,
+			InitSize:      rec.InitSize,
+			FragmentCount: fragCount,
+			DurationMs:    rec.DurationMs,
+		}
+		result := integrity.VerifySegment(info)
+
+		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+		var detail *string
+		if result.Detail != "" {
+			detail = &result.Detail
+		}
+		n.database.UpdateRecordingStatus(rec.ID, result.Status, detail, now)
+
+		if result.Status == integrity.StatusCorrupted && n.events != nil {
+			n.events.PublishSegmentCorrupted(cam.ID, rec.ID, rec.FilePath, result.Detail)
+		}
+	}()
 }
 
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.

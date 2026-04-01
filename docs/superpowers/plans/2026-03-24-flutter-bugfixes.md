@@ -14,28 +14,30 @@
 
 ## File Structure
 
-| File | Task | Fix |
-|------|------|-----|
-| `clients/flutter/lib/screens/live_view/analytics_overlay.dart` | 1 | Fix overlay visibility + WebSocket connection |
-| `clients/flutter/lib/screens/live_view/fullscreen_view.dart` | 1 | Ensure overlay is sized correctly in Stack |
-| `clients/flutter/lib/screens/live_view/camera_tile.dart` | 1 | Add overlay to grid tiles too |
-| `clients/flutter/lib/models/search_result.dart` | 2 | Fix type casts |
-| `clients/flutter/lib/providers/search_provider.dart` | 2 | Safe JSON parsing |
-| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` | 3 | Fetch and display ONVIF profiles |
-| `clients/flutter/lib/models/zone.dart` | 4 | Handle polygon as JSON string |
-| `clients/flutter/lib/screens/playback/timeline_widget.dart` | 5 | Full rewrite as scrubable timeline bar |
-| `clients/flutter/lib/screens/playback/playback_screen.dart` | 5 | Increase timeline size, make it interactive |
+| File                                                            | Task | Fix                                           |
+| --------------------------------------------------------------- | ---- | --------------------------------------------- |
+| `clients/flutter/lib/screens/live_view/analytics_overlay.dart`  | 1    | Fix overlay visibility + WebSocket connection |
+| `clients/flutter/lib/screens/live_view/fullscreen_view.dart`    | 1    | Ensure overlay is sized correctly in Stack    |
+| `clients/flutter/lib/screens/live_view/camera_tile.dart`        | 1    | Add overlay to grid tiles too                 |
+| `clients/flutter/lib/models/search_result.dart`                 | 2    | Fix type casts                                |
+| `clients/flutter/lib/providers/search_provider.dart`            | 2    | Safe JSON parsing                             |
+| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` | 3    | Fetch and display ONVIF profiles              |
+| `clients/flutter/lib/models/zone.dart`                          | 4    | Handle polygon as JSON string                 |
+| `clients/flutter/lib/screens/playback/timeline_widget.dart`     | 5    | Full rewrite as scrubable timeline bar        |
+| `clients/flutter/lib/screens/playback/playback_screen.dart`     | 5    | Increase timeline size, make it interactive   |
 
 ---
 
 ### Task 1: Fix AI Overlay in Live View
 
 **Root cause:** The analytics overlay depends on `detection_frame` WebSocket events, but:
+
 1. The backend `detection_frame` broadcast was only added in the worktree branch — it may not be in the running server binary
 2. The overlay widget uses `StreamProvider` which shows nothing on loading/error (returns `SizedBox.shrink`)
 3. The overlay in `fullscreen_view.dart` is correctly positioned but the grid `camera_tile.dart` doesn't include it at all
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/analytics_overlay.dart`
 - Modify: `clients/flutter/lib/screens/live_view/fullscreen_view.dart`
 - Modify: `clients/flutter/lib/screens/live_view/camera_tile.dart`
@@ -153,6 +155,7 @@ git commit -m "fix(flutter): AI overlay with REST polling fallback, add to grid 
 **Root cause:** The search API returns `detection_id` and `event_id` as integers, but somewhere in the parsing chain they're being cast `as String`. The `SearchResult.fromJson` uses `as String?` for `cameraId` which could fail if the API returns an int.
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/search_result.dart`
 
 - [ ] **Step 1: Make all JSON casts safe using toString()**
@@ -192,6 +195,7 @@ git commit -m "fix(flutter): safe type casts in search result JSON parsing"
 **Root cause:** The camera detail screen only shows editable text fields for the current RTSP URL. It doesn't fetch or display available ONVIF media profiles.
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 - [ ] **Step 1: Add profile fetching to the General tab**
@@ -248,6 +252,7 @@ git commit -m "fix(flutter): fetch and display ONVIF profiles in camera settings
 **Root cause:** The backend returns `polygon` as a JSON string (e.g., `"[[0.1,0.2],[0.3,0.4]]"`) but the Dart model tries to cast it directly as `List<dynamic>`. When the API returns a string instead of an array, the cast fails.
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/zone.dart`
 
 - [ ] **Step 1: Handle polygon as either string or list**
@@ -301,12 +306,14 @@ git commit -m "fix(flutter): handle polygon as JSON string or list in zone parsi
 **Root cause:** The current timeline is only 64px (too small to be useful) and only renders basic hour lines. It needs to be a full interactive timeline like Milestone/Frigate with recording segments, motion events, and a draggable playhead.
 
 **Files:**
+
 - Rewrite: `clients/flutter/lib/screens/playback/timeline_widget.dart`
 - Modify: `clients/flutter/lib/screens/playback/playback_screen.dart`
 
 - [ ] **Step 1: Rewrite timeline_widget.dart as a full scrubable timeline**
 
 The new timeline should:
+
 1. **Be at least 200px tall** (vertical) or 120px tall (horizontal)
 2. **Show recording segments** as colored bars (fetch from `/recordings?camera_id=...&start=...&end=...`)
 3. **Show motion events** as colored markers/dots on the timeline (amber for motion, blue for person, green for vehicle)
@@ -316,6 +323,7 @@ The new timeline should:
 7. **Auto-scroll** to keep the playhead visible
 
 Implementation approach:
+
 - Use `GestureDetector` for tap-to-seek and pan-to-drag-playhead
 - Use `CustomPainter` for all rendering
 - Recording segments painted as filled rectangles with rounded ends
@@ -370,6 +378,7 @@ class _TimelineWidgetState extends ConsumerState<TimelineWidget> {
 ```
 
 The painter draws in this order:
+
 1. Background (dark)
 2. Time grid lines + labels
 3. Recording segment bars (colored by camera)
@@ -379,10 +388,12 @@ The painter draws in this order:
 - [ ] **Step 2: Update playback_screen.dart to give the timeline more space**
 
 Change the timeline container sizes:
+
 - Wide layout: timeline width from `64` to `220`
 - Narrow layout: timeline height from `64` to `140`
 
 In `_WideLayout`:
+
 ```dart
 Container(
   width: 220,  // was 64
@@ -392,6 +403,7 @@ Container(
 ```
 
 In `_NarrowLayout`:
+
 ```dart
 Container(
   height: 140,  // was 64

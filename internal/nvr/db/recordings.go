@@ -19,8 +19,11 @@ type Recording struct {
 	DurationMs int64  `json:"duration_ms"`
 	FilePath   string `json:"file_path"`
 	FileSize   int64  `json:"file_size"`
-	Format     string `json:"format"`
-	InitSize   int64  `json:"init_size"`
+	Format       string  `json:"format"`
+	InitSize     int64   `json:"init_size"`
+	Status       string  `json:"status"`
+	StatusDetail *string `json:"status_detail"`
+	VerifiedAt   *string `json:"verified_at"`
 }
 
 // RecordingFragment represents a single moof+mdat fragment within an fMP4 recording.
@@ -104,7 +107,7 @@ func (d *DB) HasFragments(recordingID int64) (bool, error) {
 // GetUnindexedRecordings returns recording IDs that have no fragments, newest first.
 func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
 	rows, err := d.Query(`
-        SELECT r.id, r.camera_id, r.start_time, r.end_time, r.duration_ms, r.file_path, r.file_size, r.format
+        SELECT r.id, r.camera_id, r.stream_id, r.start_time, r.end_time, r.duration_ms, r.file_path, r.file_size, r.format, r.init_size, r.status, r.status_detail, r.verified_at
         FROM recordings r
         LEFT JOIN recording_fragments rf ON rf.recording_id = r.id
         WHERE rf.id IS NULL
@@ -117,8 +120,8 @@ func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
 	var recs []*Recording
 	for rows.Next() {
 		rec := &Recording{}
-		if err := rows.Scan(&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
-			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize, &rec.Status, &rec.StatusDetail, &rec.VerifiedAt); err != nil {
 			return nil, err
 		}
 		recs = append(recs, rec)
@@ -161,7 +164,7 @@ func (d *DB) InsertRecording(rec *Recording) error {
 // range. Overlap logic: end_time > start AND start_time < end.
 func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recording, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
 		FROM recordings
 		WHERE camera_id = ? AND end_time > ? AND start_time < ?
 		ORDER BY start_time`,
@@ -178,6 +181,7 @@ func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recordin
 		if err := rows.Scan(
 			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -224,11 +228,12 @@ func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, er
 func (d *DB) GetRecording(id int64) (*Recording, error) {
 	rec := &Recording{}
 	err := d.QueryRow(`
-		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
 		FROM recordings WHERE id = ?`, id,
 	).Scan(
 		&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+		&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -267,6 +272,40 @@ func (d *DB) GetStoragePerCamera() ([]CameraStorage, error) {
 			return nil, err
 		}
 		results = append(results, cs)
+	}
+	return results, rows.Err()
+}
+
+// StreamStorage holds aggregate storage statistics for a single stream.
+type StreamStorage struct {
+	StreamID     string `json:"stream_id"`
+	StreamName   string `json:"stream_name"`
+	TotalBytes   int64  `json:"total_bytes"`
+	SegmentCount int64  `json:"segment_count"`
+}
+
+// GetStoragePerStream returns total storage used and segment count per stream
+// for a given camera.
+func (d *DB) GetStoragePerStream(cameraID string) ([]StreamStorage, error) {
+	rows, err := d.Query(`
+		SELECT r.stream_id, COALESCE(cs.name, ''), COALESCE(SUM(r.file_size), 0), COUNT(*)
+		FROM recordings r
+		LEFT JOIN camera_streams cs ON cs.id = r.stream_id
+		WHERE r.camera_id = ?
+		GROUP BY r.stream_id
+		ORDER BY COALESCE(cs.name, '')`, cameraID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []StreamStorage
+	for rows.Next() {
+		var ss StreamStorage
+		if err := rows.Scan(&ss.StreamID, &ss.StreamName, &ss.TotalBytes, &ss.SegmentCount); err != nil {
+			return nil, err
+		}
+		results = append(results, ss)
 	}
 	return results, rows.Err()
 }
@@ -424,4 +463,124 @@ func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) (
 		}
 	}
 	return result, nil
+}
+
+// UpdateRecordingStatus sets the integrity verification status for a recording.
+func (d *DB) UpdateRecordingStatus(id int64, status string, statusDetail *string, verifiedAt string) error {
+	_, err := d.Exec(
+		"UPDATE recordings SET status = ?, status_detail = ?, verified_at = ? WHERE id = ?",
+		status, statusDetail, verifiedAt, id,
+	)
+	return err
+}
+
+// GetRecordingsNeedingVerification returns recordings that need verification: either status='unverified'
+// or verified_at older than the given cutoff. Results are ordered newest-first, limited to batchSize.
+func (d *DB) GetRecordingsNeedingVerification(cutoff time.Time, batchSize int) ([]*Recording, error) {
+	rows, err := d.Query(`
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
+		FROM recordings
+		WHERE status = 'unverified' OR (verified_at IS NOT NULL AND verified_at < ?)
+		ORDER BY start_time DESC
+		LIMIT ?`,
+		cutoff.UTC().Format(timeFormat), batchSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var recs []*Recording
+	for rows.Next() {
+		rec := &Recording{}
+		if err := rows.Scan(
+			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec)
+	}
+	return recs, rows.Err()
+}
+
+// IntegritySummary holds aggregate counts of recording statuses.
+type IntegritySummary struct {
+	Total       int64 `json:"total"`
+	OK          int64 `json:"ok"`
+	Corrupted   int64 `json:"corrupted"`
+	Quarantined int64 `json:"quarantined"`
+	Unverified  int64 `json:"unverified"`
+}
+
+// GetIntegritySummary returns aggregate status counts, optionally filtered by camera.
+func (d *DB) GetIntegritySummary(cameraID string) (*IntegritySummary, error) {
+	var query string
+	var args []interface{}
+	if cameraID != "" {
+		query = `SELECT
+			COUNT(*) as total,
+			SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'corrupted' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'unverified' THEN 1 ELSE 0 END)
+		FROM recordings WHERE camera_id = ?`
+		args = append(args, cameraID)
+	} else {
+		query = `SELECT
+			COUNT(*) as total,
+			SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'corrupted' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'quarantined' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'unverified' THEN 1 ELSE 0 END)
+		FROM recordings`
+	}
+
+	s := &IntegritySummary{}
+	err := d.QueryRow(query, args...).Scan(&s.Total, &s.OK, &s.Corrupted, &s.Quarantined, &s.Unverified)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// GetRecordingsByFilter returns recordings matching optional camera and time range filters.
+func (d *DB) GetRecordingsByFilter(cameraID string, start, end *time.Time) ([]*Recording, error) {
+	query := `SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at FROM recordings WHERE 1=1`
+	var args []interface{}
+
+	if cameraID != "" {
+		query += " AND camera_id = ?"
+		args = append(args, cameraID)
+	}
+	if start != nil {
+		query += " AND end_time > ?"
+		args = append(args, start.UTC().Format(timeFormat))
+	}
+	if end != nil {
+		query += " AND start_time < ?"
+		args = append(args, end.UTC().Format(timeFormat))
+	}
+	query += " ORDER BY start_time DESC"
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var recs []*Recording
+	for rows.Next() {
+		rec := &Recording{}
+		if err := rows.Scan(
+			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec)
+	}
+	return recs, rows.Err()
 }

@@ -18,15 +18,15 @@ The current AI pipeline (`internal/nvr/ai/pipeline.go`) polls JPEG snapshots via
 
 ## Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Frame source | FFmpeg subprocess decoding RTSP stream | Proven (Frigate uses this), supports all codecs, no CGo dependency |
-| Detection FPS | Match sub-stream native FPS | No artificial throttling; user controls load via stream choice on camera |
-| Stream selection | Configurable per camera (any stream) | Not hardcoded to sub-stream; user assigns via `ai_detection` role or explicit `stream_id` |
-| Object tracking | Simple IoU tracker | Minimum needed for enter/leave/loiter events; upgrade path to SORT/DeepSORT exists |
-| Camera analytics | Always run YOLO; ONVIF metadata supplements | Consistent detection quality across all cameras regardless of camera capabilities |
-| Architecture | Modular pipeline with channel-connected stages | Clean separation, independently testable stages, natural backpressure |
-| Overlay delivery | WebSocket (existing) | Already works; `detection_frame` event format stays the same with real track IDs |
+| Decision         | Choice                                         | Rationale                                                                                 |
+| ---------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Frame source     | FFmpeg subprocess decoding RTSP stream         | Proven (Frigate uses this), supports all codecs, no CGo dependency                        |
+| Detection FPS    | Match sub-stream native FPS                    | No artificial throttling; user controls load via stream choice on camera                  |
+| Stream selection | Configurable per camera (any stream)           | Not hardcoded to sub-stream; user assigns via `ai_detection` role or explicit `stream_id` |
+| Object tracking  | Simple IoU tracker                             | Minimum needed for enter/leave/loiter events; upgrade path to SORT/DeepSORT exists        |
+| Camera analytics | Always run YOLO; ONVIF metadata supplements    | Consistent detection quality across all cameras regardless of camera capabilities         |
+| Architecture     | Modular pipeline with channel-connected stages | Clean separation, independently testable stages, natural backpressure                     |
+| Overlay delivery | WebSocket (existing)                           | Already works; `detection_frame` event format stays the same with real track IDs          |
 
 ---
 
@@ -201,7 +201,15 @@ Every frame with tracked objects is published to the `EventBroadcaster` as a `de
   "camera": "Front Door",
   "time": "2026-03-27T15:30:00Z",
   "detections": [
-    {"class": "person", "confidence": 0.92, "track_id": 3, "x": 0.2, "y": 0.3, "w": 0.15, "h": 0.4}
+    {
+      "class": "person",
+      "confidence": 0.92,
+      "track_id": 3,
+      "x": 0.2,
+      "y": 0.3,
+      "w": 0.15,
+      "h": 0.4
+    }
   ]
 }
 ```
@@ -327,6 +335,7 @@ internal/nvr/ai/
 Minimal. The `detection_frame` WebSocket event format stays the same. The only visible change is that `track_id` values are now real persistent IDs from the tracker, so overlay labels show stable identifiers instead of `0`.
 
 No changes needed to:
+
 - `detection_stream_provider.dart` — already consumes from WebSocket
 - `analytics_overlay.dart` — already renders `track_id` in labels
 - `detection_frame.dart` — already parses `trackId` field

@@ -15,28 +15,31 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `ui/src/components/AnalyticsOverlay.tsx` | Canvas overlay rendering bounding boxes on live video |
-| `ui/src/components/AnalyticsConfig.tsx` | Analytics module management UI (enable/disable modules, create rules) |
+
+| File                                     | Responsibility                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| `ui/src/components/AnalyticsOverlay.tsx` | Canvas overlay rendering bounding boxes on live video                 |
+| `ui/src/components/AnalyticsConfig.tsx`  | Analytics module management UI (enable/disable modules, create rules) |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `internal/nvr/db/migrations.go` | Migration v12: object_class + confidence on motion_events (if not already from Profile T) |
-| `internal/nvr/db/motion_events.go` | Add object_class and confidence fields, filter query |
-| `internal/nvr/scheduler/scheduler.go` | Store object class from metadata when available |
-| `internal/nvr/api/recordings.go` | Add object type filter to motion events query |
-| `ui/src/pages/Recordings.tsx` | Add object type filter chips (All, Person, Vehicle, Animal) |
-| `ui/src/pages/LiveView.tsx` | Add analytics overlay toggle to camera modal |
-| `ui/src/components/Timeline.tsx` | Different emoji per object class |
-| `ui/src/pages/CameraManagement.tsx` | Add AnalyticsConfig section |
+
+| File                                  | Change                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `internal/nvr/db/migrations.go`       | Migration v12: object_class + confidence on motion_events (if not already from Profile T) |
+| `internal/nvr/db/motion_events.go`    | Add object_class and confidence fields, filter query                                      |
+| `internal/nvr/scheduler/scheduler.go` | Store object class from metadata when available                                           |
+| `internal/nvr/api/recordings.go`      | Add object type filter to motion events query                                             |
+| `ui/src/pages/Recordings.tsx`         | Add object type filter chips (All, Person, Vehicle, Animal)                               |
+| `ui/src/pages/LiveView.tsx`           | Add analytics overlay toggle to camera modal                                              |
+| `ui/src/components/Timeline.tsx`      | Different emoji per object class                                                          |
+| `ui/src/pages/CameraManagement.tsx`   | Add AnalyticsConfig section                                                               |
 
 ---
 
 ### Task 1: Object classification in database
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/motion_events.go`
 - Modify: `internal/nvr/api/recordings.go`
@@ -76,12 +79,14 @@ GET /cameras/:id/motion-events?date=2026-03-21&object_class=person
 ### Task 2: Object type filter UI on Recordings page
 
 **Files:**
+
 - Modify: `ui/src/pages/Recordings.tsx`
 - Modify: `ui/src/components/Timeline.tsx`
 
 - [ ] **Step 1: Add filter chips to Recordings page**
 
 Above the timeline, add clickable filter pills:
+
 - All | 🏃 Motion | 👤 Person | 🚗 Vehicle | 🐾 Animal | 🛡️ Tampering
 - Selected filter highlighted with accent color
 - Clicking a filter refetches motion events with `object_class` param
@@ -90,6 +95,7 @@ Above the timeline, add clickable filter pills:
 - [ ] **Step 2: Update Timeline event markers with class-specific emojis**
 
 In Timeline.tsx, update the emoji based on `object_class`:
+
 ```
 "person" → 👤
 "vehicle" → 🚗
@@ -105,6 +111,7 @@ In Timeline.tsx, update the emoji based on `object_class`:
 ### Task 3: Analytics overlay component
 
 **Files:**
+
 - Create: `ui/src/components/AnalyticsOverlay.tsx`
 - Modify: `ui/src/pages/LiveView.tsx`
 
@@ -114,20 +121,21 @@ A Canvas-based overlay that renders bounding boxes on top of live video:
 
 ```typescript
 interface Detection {
-  objectId: string
-  className: string   // "Person", "Vehicle", "Animal"
-  confidence: number  // 0-100
-  box: { left: number; top: number; right: number; bottom: number } // 0-1 normalized
+  objectId: string;
+  className: string; // "Person", "Vehicle", "Animal"
+  confidence: number; // 0-100
+  box: { left: number; top: number; right: number; bottom: number }; // 0-1 normalized
 }
 
 interface Props {
-  cameraId: string
-  videoRef: React.RefObject<HTMLVideoElement>
-  enabled: boolean
+  cameraId: string;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  enabled: boolean;
 }
 ```
 
 Features:
+
 - Positioned absolutely over the video element
 - Canvas matches video dimensions
 - Renders color-coded bounding boxes:
@@ -153,6 +161,7 @@ In LiveView.tsx CameraModal, add an "Analytics" toggle button next to the screen
 ### Task 4: Analytics configuration UI
 
 **Files:**
+
 - Create: `ui/src/components/AnalyticsConfig.tsx`
 - Modify: `ui/src/pages/CameraManagement.tsx`
 
@@ -161,6 +170,7 @@ In LiveView.tsx CameraModal, add an "Analytics" toggle button next to the screen
 A management component for analytics modules and rules:
 
 Features:
+
 - Fetch modules from `GET /cameras/:id/analytics/modules`
 - Fetch rules from `GET /cameras/:id/analytics/rules`
 - Show modules as cards with name, type, and description

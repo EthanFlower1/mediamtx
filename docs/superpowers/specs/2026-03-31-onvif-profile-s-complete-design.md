@@ -26,6 +26,7 @@ Connect server capabilities that already exist to the Flutter client.
 **One new API endpoint:**
 
 - `GET /cameras/:id/device-info` — calls `client.Dev.GetDeviceInformation(ctx)`, returns:
+
 ```json
 {
   "manufacturer": "string",
@@ -37,6 +38,7 @@ Connect server capabilities that already exist to the Flutter client.
 ```
 
 All other endpoints already exist:
+
 - `GET/PUT /cameras/:id/settings` (imaging)
 - `GET /cameras/:id/relay-outputs`, `POST /cameras/:id/relay-outputs/:token/state` (relay)
 - `GET /cameras/:id/ptz/presets`, `POST /cameras/:id/ptz` with preset/home actions (PTZ)
@@ -57,6 +59,7 @@ All other endpoints already exist:
 5. **Audio Capabilities** — read-only: has microphone (yes/no), has speaker/backchannel (yes/no). From `GET /cameras/:id/audio/capabilities`.
 
 **New Riverpod providers:**
+
 - `deviceInfoProvider(cameraId)` — fetches device info
 - `imagingSettingsProvider(cameraId)` — fetches/updates imaging settings
 - `relayOutputsProvider(cameraId)` — fetches relay outputs
@@ -79,6 +82,7 @@ All other endpoints already exist:
 - `GetStatus(profileToken string) (*PTZStatus, error)`
 
 **New type:**
+
 ```go
 type PTZStatus struct {
     PanPosition  float64 `json:"pan_position"`
@@ -89,6 +93,7 @@ type PTZStatus struct {
 ```
 
 **Extended `POST /cameras/:id/ptz` actions:**
+
 - `{"action": "absolute_move", "pan": 0.5, "tilt": -0.3, "zoom": 0.2}`
 - `{"action": "relative_move", "pan": 0.1, "tilt": 0.0, "zoom": 0.0}`
 - `{"action": "set_preset", "name": "Front Door"}` — returns `{"token": "..."}`
@@ -96,6 +101,7 @@ type PTZStatus struct {
 - `{"action": "set_home"}`
 
 **New endpoint:**
+
 - `GET /cameras/:id/ptz/status` — current position and movement state
 
 ### Flutter Changes
@@ -109,6 +115,7 @@ type PTZStatus struct {
 5. Virtual joystick — overlay on live view, sends continuous move while held, stops on release
 
 **New provider:**
+
 - `ptzStatusProvider(cameraId)` — polls status every 2s when PTZ panel expanded
 
 ---
@@ -120,12 +127,14 @@ type PTZStatus struct {
 **New file `internal/nvr/onvif/media_config.go`:**
 
 Profile management:
+
 - `GetProfilesFull(xaddr, user, pass) ([]*ProfileInfo, error)`
 - `GetProfileFull(xaddr, user, pass, token) (*ProfileInfo, error)`
 - `CreateMediaProfile(xaddr, user, pass, name) (*ProfileInfo, error)`
 - `DeleteMediaProfile(xaddr, user, pass, token) error`
 
 Video configuration:
+
 - `GetVideoSources(xaddr, user, pass) ([]*VideoSourceInfo, error)`
 - `GetVideoEncoderConfig(xaddr, user, pass, token) (*VideoEncoderConfig, error)`
 - `SetVideoEncoderConfig(xaddr, user, pass, config *VideoEncoderConfig) error`
@@ -135,6 +144,7 @@ Video configuration:
 - `RemoveVideoEncoderFromProfile(xaddr, user, pass, profileToken string) error`
 
 Audio configuration:
+
 - `GetAudioEncoderConfig(xaddr, user, pass, token) (*AudioEncoderConfig, error)`
 - `SetAudioEncoderConfig(xaddr, user, pass, config *AudioEncoderConfig) error`
 - `GetAudioEncoderOptions(xaddr, user, pass, configToken string) (*AudioEncoderOptions, error)`
@@ -142,6 +152,7 @@ Audio configuration:
 - `RemoveAudioEncoderFromProfile(xaddr, user, pass, profileToken string) error`
 
 **Types:**
+
 ```go
 type ProfileInfo struct {
     Token        string              `json:"token"`
@@ -218,12 +229,14 @@ type PTZConfigInfo struct {
 **API endpoints:**
 
 Profiles:
+
 - `GET /cameras/:id/media/profiles`
 - `GET /cameras/:id/media/profiles/:token`
 - `POST /cameras/:id/media/profiles` — `{"name": "..."}`
 - `DELETE /cameras/:id/media/profiles/:token`
 
 Video:
+
 - `GET /cameras/:id/media/video-sources`
 - `GET /cameras/:id/media/video-encoder/:token`
 - `PUT /cameras/:id/media/video-encoder/:token`
@@ -232,6 +245,7 @@ Video:
 - `DELETE /cameras/:id/media/profiles/:token/video-encoder`
 
 Audio:
+
 - `GET /cameras/:id/media/audio-encoder/:token`
 - `PUT /cameras/:id/media/audio-encoder/:token`
 - `GET /cameras/:id/media/audio-encoder/:token/options`
@@ -250,6 +264,7 @@ Audio:
 3. Video Sources — read-only list (token, native resolution, framerate).
 
 **New providers:**
+
 - `mediaProfilesProvider(cameraId)`
 - `videoEncoderOptionsProvider(cameraId, configToken)`
 - `audioEncoderOptionsProvider(cameraId, configToken)`
@@ -264,6 +279,7 @@ Audio:
 **New file `internal/nvr/onvif/device_mgmt.go`:**
 
 System:
+
 - `GetSystemDateAndTime(xaddr, user, pass) (*DateTimeInfo, error)`
 - `SetSystemDateAndTime(xaddr, user, pass, info *DateTimeInfo) error`
 - `GetDeviceHostname(xaddr, user, pass) (*HostnameInfo, error)`
@@ -272,6 +288,7 @@ System:
 - `GetDeviceScopes(xaddr, user, pass) ([]string, error)`
 
 Network:
+
 - `GetNetworkInterfaces(xaddr, user, pass) ([]*NetworkInterfaceInfo, error)`
 - `GetNetworkProtocols(xaddr, user, pass) ([]*NetworkProtocolInfo, error)`
 - `SetNetworkProtocols(xaddr, user, pass, protocols []*NetworkProtocolInfo) error`
@@ -280,12 +297,14 @@ Network:
 - `SetNTPConfig(xaddr, user, pass, fromDHCP bool, servers []string) error`
 
 Device users:
+
 - `GetDeviceUsers(xaddr, user, pass) ([]*DeviceUser, error)`
 - `CreateDeviceUser(xaddr, user, pass, username, password, role string) error`
 - `DeleteDeviceUser(xaddr, user, pass, username string) error`
 - `SetDeviceUser(xaddr, user, pass, username, password, role string) error`
 
 **Types:**
+
 ```go
 type DateTimeInfo struct {
     Type           string `json:"type"` // "Manual" or "NTP"
@@ -347,6 +366,7 @@ type DeviceUser struct {
 **API endpoints:**
 
 System:
+
 - `GET /cameras/:id/device/datetime`
 - `PUT /cameras/:id/device/datetime`
 - `GET /cameras/:id/device/hostname`
@@ -355,6 +375,7 @@ System:
 - `GET /cameras/:id/device/scopes`
 
 Network:
+
 - `GET /cameras/:id/device/network/interfaces`
 - `GET /cameras/:id/device/network/protocols`
 - `PUT /cameras/:id/device/network/protocols`
@@ -363,6 +384,7 @@ Network:
 - `PUT /cameras/:id/device/network/ntp`
 
 Device users:
+
 - `GET /cameras/:id/device/users`
 - `POST /cameras/:id/device/users` — `{"username", "password", "role"}`
 - `PUT /cameras/:id/device/users/:username`
@@ -379,6 +401,7 @@ Device users:
 3. **Device Users** — user list with role badges, "Add User" dialog (username, password, role dropdown), edit user (password/role), delete with confirmation.
 
 **New providers:**
+
 - `deviceDateTimeProvider(cameraId)`
 - `deviceHostnameProvider(cameraId)`
 - `networkInterfacesProvider(cameraId)`
@@ -393,6 +416,7 @@ Device users:
 ### Server (Go)
 
 New/modified files:
+
 - `internal/nvr/onvif/media_config.go` — Phase 3 media configuration methods
 - `internal/nvr/onvif/device_mgmt.go` — Phase 4 device management methods
 - `internal/nvr/onvif/ptz.go` — Phase 2 enhanced PTZ methods (extend existing)
@@ -401,6 +425,7 @@ New/modified files:
 ### Flutter
 
 New files per phase:
+
 - `lib/providers/device_info_provider.dart`
 - `lib/providers/imaging_settings_provider.dart`
 - `lib/providers/relay_outputs_provider.dart`
@@ -430,4 +455,5 @@ New files per phase:
 - `lib/widgets/device_management_section.dart`
 
 Modified:
+
 - `lib/screens/camera_detail_screen.dart` — add collapsible sections for each phase

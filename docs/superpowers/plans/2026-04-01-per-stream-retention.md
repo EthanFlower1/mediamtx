@@ -13,6 +13,7 @@
 ### Task 1: Add `DeleteStreamRecordingsByDateRange` DB Function
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention.go` (after line 356)
 - Modify: `internal/nvr/db/retention_test.go` (append)
 
@@ -134,6 +135,7 @@ git commit -m "feat(db): add DeleteStreamRecordingsByDateRange for stream-scoped
 ### Task 2: Fix Scheduler Bug — Use Stream-Scoped Deletion
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go:622`
 
 - [ ] **Step 1: Fix the bug**
@@ -183,6 +185,7 @@ git commit -m "fix(scheduler): use stream-scoped deletion to avoid deleting othe
 ### Task 3: Add `GetStoragePerStream` DB Function
 
 **Files:**
+
 - Modify: `internal/nvr/db/recordings.go` (after `GetStoragePerCamera`, ~line 272)
 - Modify: `internal/nvr/db/retention_test.go` (append)
 
@@ -302,6 +305,7 @@ git commit -m "feat(db): add GetStoragePerStream for per-stream storage breakdow
 ### Task 4: Add Stream Storage API Endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/streams.go` (append handler)
 - Modify: `internal/nvr/api/router.go` (register route)
 

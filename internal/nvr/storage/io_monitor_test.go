@@ -74,3 +74,76 @@ func TestPathIOMetrics_RingBufferWrap(t *testing.T) {
 		t.Fatalf("expected newest=364.0, got %f", h[359].LatencyMs)
 	}
 }
+
+func TestPathIOMetrics_EvaluateHealthy(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	for i := 0; i < 5; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
+	}
+	prev, curr := m.Evaluate()
+	if prev != IOStateHealthy || curr != IOStateHealthy {
+		t.Fatalf("expected healthy->healthy, got %s->%s", prev, curr)
+	}
+}
+
+func TestPathIOMetrics_EvaluateSlow(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	for i := 0; i < 5; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 75, ThroughputMB: 13})
+	}
+	prev, curr := m.Evaluate()
+	if curr != IOStateSlow {
+		t.Fatalf("expected slow, got %s", curr)
+	}
+	_ = prev
+}
+
+func TestPathIOMetrics_EvaluateCritical(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	for i := 0; i < 5; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
+	}
+	prev, curr := m.Evaluate()
+	if curr != IOStateCritical {
+		t.Fatalf("expected critical, got %s", curr)
+	}
+	_ = prev
+}
+
+func TestPathIOMetrics_EvaluateRecovery(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	for i := 0; i < 5; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 75, ThroughputMB: 13})
+	}
+	m.Evaluate()
+
+	for i := 0; i < 5; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
+	}
+	prev, curr := m.Evaluate()
+	if prev != IOStateSlow || curr != IOStateHealthy {
+		t.Fatalf("expected slow->healthy, got %s->%s", prev, curr)
+	}
+}
+
+func TestPathIOMetrics_EvaluateIgnoresSingleSpike(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	for i := 0; i < 4; i++ {
+		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
+	}
+	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 300, ThroughputMB: 3})
+	_, curr := m.Evaluate()
+	if curr != IOStateSlow {
+		t.Fatalf("expected slow (single spike diluted), got %s", curr)
+	}
+}
+
+func TestPathIOMetrics_EvaluateFewerThanWindow(t *testing.T) {
+	m := NewPathIOMetrics(50, 200)
+	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
+	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
+	_, curr := m.Evaluate()
+	if curr != IOStateCritical {
+		t.Fatalf("expected critical with fewer than window samples, got %s", curr)
+	}
+}

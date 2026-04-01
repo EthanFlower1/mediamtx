@@ -16,6 +16,8 @@ const (
 
 const ioRingSize = 360 // 3 hours at 30s intervals
 
+const slidingWindowSize = 5
+
 // IOSample holds a single I/O benchmark measurement.
 type IOSample struct {
 	Timestamp    time.Time `json:"timestamp"`
@@ -81,4 +83,60 @@ func (m *PathIOMetrics) History() []IOSample {
 		copy(out[n:], m.samples[:m.pos])
 	}
 	return out
+}
+
+// Evaluate computes the average latency over the last slidingWindowSize samples
+// and updates the IOState. Returns (previousState, newState).
+func (m *PathIOMetrics) Evaluate() (IOState, IOState) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.count == 0 {
+		return m.State, m.State
+	}
+
+	n := slidingWindowSize
+	if m.count < n {
+		n = m.count
+	}
+
+	var sum float64
+	for i := 0; i < n; i++ {
+		idx := (m.pos - 1 - i + ioRingSize) % ioRingSize
+		sum += m.samples[idx].LatencyMs
+	}
+	avg := sum / float64(n)
+
+	prev := m.State
+	switch {
+	case avg >= m.CritMs:
+		m.State = IOStateCritical
+	case avg >= m.WarnMs:
+		m.State = IOStateSlow
+	default:
+		m.State = IOStateHealthy
+	}
+	return prev, m.State
+}
+
+// GetState returns the current IOState.
+func (m *PathIOMetrics) GetState() IOState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.State
+}
+
+// GetThresholds returns the current warn and critical thresholds.
+func (m *PathIOMetrics) GetThresholds() (float64, float64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.WarnMs, m.CritMs
+}
+
+// SetThresholds updates the warn and critical thresholds.
+func (m *PathIOMetrics) SetThresholds(warnMs, critMs float64) {
+	m.mu.Lock()
+	m.WarnMs = warnMs
+	m.CritMs = critMs
+	m.mu.Unlock()
 }

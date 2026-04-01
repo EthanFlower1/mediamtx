@@ -80,9 +80,9 @@ func TestPathIOMetrics_EvaluateHealthy(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
 	}
-	prev, curr := m.Evaluate()
-	if prev != IOStateHealthy || curr != IOStateHealthy {
-		t.Fatalf("expected healthy->healthy, got %s->%s", prev, curr)
+	r := m.Evaluate()
+	if r.Prev != IOStateHealthy || r.Curr != IOStateHealthy {
+		t.Fatalf("expected healthy->healthy, got %s->%s", r.Prev, r.Curr)
 	}
 }
 
@@ -91,11 +91,13 @@ func TestPathIOMetrics_EvaluateSlow(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 75, ThroughputMB: 13})
 	}
-	prev, curr := m.Evaluate()
-	if curr != IOStateSlow {
-		t.Fatalf("expected slow, got %s", curr)
+	r := m.Evaluate()
+	if r.Curr != IOStateSlow {
+		t.Fatalf("expected slow, got %s", r.Curr)
 	}
-	_ = prev
+	if r.AvgMs != 75.0 {
+		t.Fatalf("expected avg 75.0, got %f", r.AvgMs)
+	}
 }
 
 func TestPathIOMetrics_EvaluateCritical(t *testing.T) {
@@ -103,11 +105,10 @@ func TestPathIOMetrics_EvaluateCritical(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
 	}
-	prev, curr := m.Evaluate()
-	if curr != IOStateCritical {
-		t.Fatalf("expected critical, got %s", curr)
+	r := m.Evaluate()
+	if r.Curr != IOStateCritical {
+		t.Fatalf("expected critical, got %s", r.Curr)
 	}
-	_ = prev
 }
 
 func TestPathIOMetrics_EvaluateRecovery(t *testing.T) {
@@ -120,9 +121,9 @@ func TestPathIOMetrics_EvaluateRecovery(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
 	}
-	prev, curr := m.Evaluate()
-	if prev != IOStateSlow || curr != IOStateHealthy {
-		t.Fatalf("expected slow->healthy, got %s->%s", prev, curr)
+	r := m.Evaluate()
+	if r.Prev != IOStateSlow || r.Curr != IOStateHealthy {
+		t.Fatalf("expected slow->healthy, got %s->%s", r.Prev, r.Curr)
 	}
 }
 
@@ -132,9 +133,9 @@ func TestPathIOMetrics_EvaluateIgnoresSingleSpike(t *testing.T) {
 		m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
 	}
 	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 300, ThroughputMB: 3})
-	_, curr := m.Evaluate()
-	if curr != IOStateSlow {
-		t.Fatalf("expected slow (single spike diluted), got %s", curr)
+	r := m.Evaluate()
+	if r.Curr != IOStateSlow {
+		t.Fatalf("expected slow (single spike diluted), got %s", r.Curr)
 	}
 }
 
@@ -142,9 +143,9 @@ func TestPathIOMetrics_EvaluateFewerThanWindow(t *testing.T) {
 	m := NewPathIOMetrics(50, 200)
 	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
 	m.Add(IOSample{Timestamp: time.Now(), LatencyMs: 250, ThroughputMB: 4})
-	_, curr := m.Evaluate()
-	if curr != IOStateCritical {
-		t.Fatalf("expected critical with fewer than window samples, got %s", curr)
+	r := m.Evaluate()
+	if r.Curr != IOStateCritical {
+		t.Fatalf("expected critical with fewer than window samples, got %s", r.Curr)
 	}
 }
 

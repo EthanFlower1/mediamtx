@@ -35,17 +35,17 @@ type PathIOMetrics struct {
 	samples [ioRingSize]IOSample
 	pos     int
 	count   int
-	State   IOState
-	WarnMs  float64
-	CritMs  float64
+	state   IOState
+	warnMs  float64
+	critMs  float64
 }
 
 // NewPathIOMetrics creates a PathIOMetrics with the given thresholds.
 func NewPathIOMetrics(warnMs, critMs float64) *PathIOMetrics {
 	return &PathIOMetrics{
-		State:  IOStateHealthy,
-		WarnMs: warnMs,
-		CritMs: critMs,
+		state:  IOStateHealthy,
+		warnMs: warnMs,
+		critMs: critMs,
 	}
 }
 
@@ -88,14 +88,24 @@ func (m *PathIOMetrics) History() []IOSample {
 	return out
 }
 
+// EvalResult holds the result of an Evaluate call.
+type EvalResult struct {
+	Prev      IOState
+	Curr      IOState
+	AvgMs     float64
+	WarnMs    float64
+	CritMs    float64
+}
+
 // Evaluate computes the average latency over the last slidingWindowSize samples
-// and updates the IOState. Returns (previousState, newState).
-func (m *PathIOMetrics) Evaluate() (IOState, IOState) {
+// and updates the IOState. Returns an EvalResult with state transition and
+// the sliding window average that drove the decision.
+func (m *PathIOMetrics) Evaluate() EvalResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.count == 0 {
-		return m.State, m.State
+		return EvalResult{Prev: m.state, Curr: m.state, WarnMs: m.warnMs, CritMs: m.critMs}
 	}
 
 	n := slidingWindowSize
@@ -110,37 +120,37 @@ func (m *PathIOMetrics) Evaluate() (IOState, IOState) {
 	}
 	avg := sum / float64(n)
 
-	prev := m.State
+	prev := m.state
 	switch {
-	case avg >= m.CritMs:
-		m.State = IOStateCritical
-	case avg >= m.WarnMs:
-		m.State = IOStateSlow
+	case avg >= m.critMs:
+		m.state = IOStateCritical
+	case avg >= m.warnMs:
+		m.state = IOStateSlow
 	default:
-		m.State = IOStateHealthy
+		m.state = IOStateHealthy
 	}
-	return prev, m.State
+	return EvalResult{Prev: prev, Curr: m.state, AvgMs: avg, WarnMs: m.warnMs, CritMs: m.critMs}
 }
 
 // GetState returns the current IOState.
 func (m *PathIOMetrics) GetState() IOState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.State
+	return m.state
 }
 
 // GetThresholds returns the current warn and critical thresholds.
 func (m *PathIOMetrics) GetThresholds() (float64, float64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.WarnMs, m.CritMs
+	return m.warnMs, m.critMs
 }
 
 // SetThresholds updates the warn and critical thresholds.
 func (m *PathIOMetrics) SetThresholds(warnMs, critMs float64) {
 	m.mu.Lock()
-	m.WarnMs = warnMs
-	m.CritMs = critMs
+	m.warnMs = warnMs
+	m.critMs = critMs
 	m.mu.Unlock()
 }
 
@@ -171,8 +181,8 @@ func NewIOMonitor(defaultWarnMs, defaultCritMs float64) *IOMonitor {
 }
 
 // Record adds a sample for the given path (creating the PathIOMetrics if needed)
-// and evaluates thresholds. Returns (previousState, newState).
-func (m *IOMonitor) Record(path string, sample IOSample) (IOState, IOState) {
+// and evaluates thresholds. Returns the evaluation result.
+func (m *IOMonitor) Record(path string, sample IOSample) EvalResult {
 	m.mu.Lock()
 	pm, ok := m.paths[path]
 	if !ok {
@@ -218,22 +228,40 @@ func (m *IOMonitor) UpdateThresholds(path string, warnMs, critMs float64) error 
 
 const benchBlockSize = 1 << 20 // 1 MB
 
-// BenchmarkPath writes and removes a 1 MB test file in the given directory,
-// returning the measured I/O latency and throughput.
+// BenchmarkPath writes and syncs a 1 MB test file in the given directory,
+// returning the measured I/O latency and throughput. The write is flushed to
+// disk via fsync so the measurement reflects actual disk performance rather
+// than page-cache speed.
 func BenchmarkPath(dir string) (IOSample, error) {
 	testFile := filepath.Join(dir, ".nvr_io_bench")
 	data := make([]byte, benchBlockSize)
 
+	f, err := os.Create(testFile)
+	if err != nil {
+		return IOSample{}, err
+	}
+
 	start := time.Now()
-	if err := os.WriteFile(testFile, data, 0o644); err != nil {
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(testFile)
+		return IOSample{}, err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(testFile)
 		return IOSample{}, err
 	}
 	elapsed := time.Since(start)
 
+	f.Close()
 	os.Remove(testFile)
 
 	latencyMs := float64(elapsed.Microseconds()) / 1000.0
-	throughputMB := float64(benchBlockSize) / (1024 * 1024) / elapsed.Seconds()
+	var throughputMB float64
+	if elapsed > 0 {
+		throughputMB = float64(benchBlockSize) / (1024 * 1024) / elapsed.Seconds()
+	}
 
 	return IOSample{
 		Timestamp:    time.Now(),

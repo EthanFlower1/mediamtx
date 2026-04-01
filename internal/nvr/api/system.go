@@ -564,6 +564,9 @@ func (h *SystemHandler) DiskIO(c *gin.Context) {
 //
 //	PUT /api/nvr/system/disk-io/thresholds
 func (h *SystemHandler) UpdateDiskIOThresholds(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
 	if h.StorageMgr == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "storage manager not available"})
 		return

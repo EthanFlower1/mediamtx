@@ -104,24 +104,17 @@ func (m *Manager) GetIOMonitor() *IOMonitor {
 }
 
 // emitIOEvent publishes an SSE event when the I/O state changes for a path.
-func (m *Manager) emitIOEvent(path string, sample IOSample, prev, curr IOState) {
-	if prev == curr || m.events == nil {
+func (m *Manager) emitIOEvent(path string, sample IOSample, result EvalResult) {
+	if result.Prev == result.Curr || m.events == nil {
 		return
 	}
-	m.ioMonitor.mu.RLock()
-	pm := m.ioMonitor.paths[path]
-	m.ioMonitor.mu.RUnlock()
-	if pm == nil {
-		return
-	}
-	warnMs, critMs := pm.GetThresholds()
 	switch {
-	case curr == IOStateSlow:
-		m.events.PublishDiskSlow(path, sample.LatencyMs, sample.ThroughputMB, warnMs)
-	case curr == IOStateCritical:
-		m.events.PublishDiskCritical(path, sample.LatencyMs, sample.ThroughputMB, critMs)
-	case curr == IOStateHealthy:
-		m.events.PublishDiskRecovered(path, sample.LatencyMs, sample.ThroughputMB)
+	case result.Curr == IOStateSlow:
+		m.events.PublishDiskSlow(path, result.AvgMs, sample.ThroughputMB, result.WarnMs)
+	case result.Curr == IOStateCritical:
+		m.events.PublishDiskCritical(path, result.AvgMs, sample.ThroughputMB, result.CritMs)
+	case result.Curr == IOStateHealthy:
+		m.events.PublishDiskRecovered(path, result.AvgMs, sample.ThroughputMB)
 	}
 }
 
@@ -171,8 +164,8 @@ func (m *Manager) runHealthCheck() {
 		if err != nil {
 			log.Printf("[NVR] [storage] I/O benchmark error for default path %s: %v", m.recordingsPath, err)
 		} else {
-			prev, curr := m.ioMonitor.Record(m.recordingsPath, sample)
-			m.emitIOEvent(m.recordingsPath, sample, prev, curr)
+			result := m.ioMonitor.Record(m.recordingsPath, sample)
+			m.emitIOEvent(m.recordingsPath, sample, result)
 		}
 	}
 }
@@ -194,8 +187,8 @@ func (m *Manager) evaluateHealth(pathCameras map[string][]string) {
 			if benchErr != nil {
 				log.Printf("[NVR] [storage] I/O benchmark error for %s: %v", path, benchErr)
 			} else {
-				prev, curr := m.ioMonitor.Record(path, sample)
-				m.emitIOEvent(path, sample, prev, curr)
+				result := m.ioMonitor.Record(path, sample)
+				m.emitIOEvent(path, sample, result)
 			}
 		}
 

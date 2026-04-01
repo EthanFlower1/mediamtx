@@ -16,28 +16,29 @@
 
 ## File Structure
 
-| File | Task | Purpose |
-|------|------|---------|
-| `clients/flutter/lib/models/zone.dart` | 1 | Zone + alert rule models |
-| `clients/flutter/lib/models/recording_rule.dart` | 1 | Recording rule model |
-| `clients/flutter/lib/providers/settings_provider.dart` | 1 | System info, storage, audit providers |
-| `clients/flutter/lib/screens/cameras/camera_list_screen.dart` | 2 | Camera list with status + actions |
-| `clients/flutter/lib/screens/cameras/add_camera_screen.dart` | 2 | ONVIF discovery + manual add |
-| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` | 3 | Tabbed camera config |
-| `clients/flutter/lib/screens/cameras/recording_rules_screen.dart` | 3 | Recording rules CRUD |
-| `clients/flutter/lib/screens/cameras/zone_editor_screen.dart` | 4 | Polygon drawing on snapshot |
-| `clients/flutter/lib/screens/settings/settings_screen.dart` | 5 | Tabbed settings |
-| `clients/flutter/lib/screens/settings/storage_panel.dart` | 5 | Disk usage + per-camera |
-| `clients/flutter/lib/screens/settings/user_management_screen.dart` | 6 | User CRUD + password change |
-| `clients/flutter/lib/screens/settings/backup_panel.dart` | 5 | Backup create/list/download |
-| `clients/flutter/lib/screens/settings/audit_panel.dart` | 5 | Audit log + CSV export |
-| `clients/flutter/lib/widgets/camera_status_badge.dart` | 2 | Reusable online/offline badge |
+| File                                                               | Task | Purpose                               |
+| ------------------------------------------------------------------ | ---- | ------------------------------------- |
+| `clients/flutter/lib/models/zone.dart`                             | 1    | Zone + alert rule models              |
+| `clients/flutter/lib/models/recording_rule.dart`                   | 1    | Recording rule model                  |
+| `clients/flutter/lib/providers/settings_provider.dart`             | 1    | System info, storage, audit providers |
+| `clients/flutter/lib/screens/cameras/camera_list_screen.dart`      | 2    | Camera list with status + actions     |
+| `clients/flutter/lib/screens/cameras/add_camera_screen.dart`       | 2    | ONVIF discovery + manual add          |
+| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`    | 3    | Tabbed camera config                  |
+| `clients/flutter/lib/screens/cameras/recording_rules_screen.dart`  | 3    | Recording rules CRUD                  |
+| `clients/flutter/lib/screens/cameras/zone_editor_screen.dart`      | 4    | Polygon drawing on snapshot           |
+| `clients/flutter/lib/screens/settings/settings_screen.dart`        | 5    | Tabbed settings                       |
+| `clients/flutter/lib/screens/settings/storage_panel.dart`          | 5    | Disk usage + per-camera               |
+| `clients/flutter/lib/screens/settings/user_management_screen.dart` | 6    | User CRUD + password change           |
+| `clients/flutter/lib/screens/settings/backup_panel.dart`           | 5    | Backup create/list/download           |
+| `clients/flutter/lib/screens/settings/audit_panel.dart`            | 5    | Audit log + CSV export                |
+| `clients/flutter/lib/widgets/camera_status_badge.dart`             | 2    | Reusable online/offline badge         |
 
 ---
 
 ### Task 1: Models + Settings Provider
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/zone.dart`
 - Create: `clients/flutter/lib/models/recording_rule.dart`
 - Create: `clients/flutter/lib/providers/settings_provider.dart`
@@ -320,6 +321,7 @@ git commit -m "feat(flutter): add zone, recording rule models and settings provi
 ### Task 2: Camera List Screen + Add Camera
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/cameras/camera_list_screen.dart`
 - Create: `clients/flutter/lib/screens/cameras/add_camera_screen.dart`
 - Create: `clients/flutter/lib/widgets/camera_status_badge.dart`
@@ -674,9 +676,11 @@ class _AddCameraScreenState extends ConsumerState<AddCameraScreen> with SingleTi
 - [ ] **Step 4: Update router**
 
 Replace `/cameras` route with `CameraListScreen`:
+
 ```dart
 GoRoute(path: '/cameras', builder: (_, __) => const CameraListScreen()),
 ```
+
 Import: `import '../screens/cameras/camera_list_screen.dart';`
 
 - [ ] **Step 5: Verify + commit**
@@ -692,6 +696,7 @@ git commit -m "feat(flutter): add camera list with discovery and manual add"
 ### Task 3: Camera Detail + Recording Rules
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 - Create: `clients/flutter/lib/screens/cameras/recording_rules_screen.dart`
 
@@ -700,6 +705,7 @@ git commit -m "feat(flutter): add camera list with discovery and manual add"
 Tabbed view: General, Recording, AI, Zones, Advanced.
 
 The implementer should:
+
 - Read the camera by ID from the API on init
 - Show tabs using `DefaultTabController` + `TabBarView`
 - **General tab:** Edit name, RTSP URL, ONVIF endpoint (save button)
@@ -713,6 +719,7 @@ Each tab uses `apiFetch` via the `apiClientProvider` for saves (`PUT /cameras/:i
 - [ ] **Step 2: Create recording rules screen**
 
 List of recording rules for a camera with add/edit/delete:
+
 - Fetch via `GET /cameras/:id/recording-rules`
 - Each rule shows mode (continuous/motion/schedule) + enabled toggle
 - Add dialog: mode dropdown, start/end time pickers (for schedule), days of week chips
@@ -732,11 +739,13 @@ git commit -m "feat(flutter): add camera detail with tabbed config and recording
 ### Task 4: Zone Editor
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/cameras/zone_editor_screen.dart`
 
 - [ ] **Step 1: Create zone editor with polygon drawing**
 
 The zone editor screen:
+
 1. Fetches camera snapshot from `GET /cameras/:id/snapshot` and displays as background image
 2. Fetches existing zones from `GET /cameras/:id/zones`
 3. Draws existing zones as semi-transparent colored polygon overlays using `CustomPainter`
@@ -747,6 +756,7 @@ The zone editor screen:
 8. Save zone config via `PUT /zones/:id`
 
 Key implementation notes:
+
 - Use `GestureDetector` wrapping `CustomPaint` for the drawing canvas
 - Store drawing points as `List<Offset>` in normalized 0-1 coords (divide by image size)
 - Colors: cycle through `[blue, green, amber, red, purple, pink]` for different zones
@@ -777,6 +787,7 @@ git commit -m "feat(flutter): add zone editor with polygon drawing on camera sna
 ### Task 5: Settings Screen (System, Storage, Backups, Audit)
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/settings/settings_screen.dart`
 - Create: `clients/flutter/lib/screens/settings/storage_panel.dart`
 - Create: `clients/flutter/lib/screens/settings/backup_panel.dart`
@@ -835,11 +846,13 @@ git commit -m "feat(flutter): add settings with system info, storage, backups, a
 ### Task 6: User Management
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/settings/user_management_screen.dart`
 
 - [ ] **Step 1: Create user management screen**
 
 Admin-only screen (check `user.role == 'admin'` from auth provider):
+
 - List of users from `usersProvider`
 - Each shows: avatar initials, username, role badge
 - Create user dialog: username, password, role dropdown (admin/viewer), camera permissions
@@ -874,6 +887,7 @@ cd clients/flutter && flutter analyze
 - [ ] **Step 2: Verify all routes work**
 
 Check `app_router.dart` has all 5 tabs pointing to real screens:
+
 - `/live` → `LiveViewScreen`
 - `/playback` → `PlaybackScreen`
 - `/search` → `ClipSearchScreen`

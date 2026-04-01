@@ -3,6 +3,7 @@
 ## Problem
 
 The playback page has two core issues:
+
 1. The timeline doesn't accurately show where recordings exist or display events in a useful way
 2. The VCR controls don't work — they update local state but aren't wired to the actual video player
 
@@ -17,6 +18,7 @@ Replace the monolithic `CustomPaint` timeline with composable layers sharing a v
 A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifierProvider` scoped to `PlaybackScreen`.
 
 **State:**
+
 - `position` (Duration) — synced from player's position stream
 - `isPlaying` (bool)
 - `speed` (double)
@@ -24,6 +26,7 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 - `selectedCameraIds` (List<String>)
 
 **Methods:**
+
 - `seek(Duration position)` — seeks player, updates position
 - `play()` / `pause()` / `togglePlayPause()`
 - `setSpeed(double speed)` — sets playback rate on the player
@@ -32,11 +35,13 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 - `skipToNextGap()` / `skipToPreviousGap()` — find nearest recording gap, seek to gap boundary
 
 **Position sync:**
+
 - Subscribes to `player.stream.position`, throttled to ~15fps (~66ms)
 - Sets `_isSeeking = true` during seeks to prevent playhead jitter from stale stream updates
 - Resumes listening after player confirms seek complete
 
 **Multi-player management:**
+
 - The controller owns a `Map<String, Player>` keyed by camera ID
 - `position` on the controller is the "master" position — all players are kept in sync to this
 - When `seek()` is called, all players seek to the same position
@@ -44,6 +49,7 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 - Position stream is read from the first active player; others follow
 
 **Edge cases:**
+
 - Seeking into a gap: controller has the full recording segments list, so before seeking, check if target falls within any segment. If it falls in a gap, immediately seek to the next segment's start. This is deterministic and instant — no timeout heuristic.
 - End of recordings: auto-pause at last segment's end time
 - Position clamped to 0–86400s (one day), no date wrapping
@@ -55,6 +61,7 @@ A `ChangeNotifier` wrapping `media_kit`'s `Player`, provided via `ChangeNotifier
 ### TimelineViewport
 
 Manages the visible time window within 0–24h:
+
 - `visibleStart` / `visibleEnd` (Duration)
 - `zoomLevel` (1.0 = full 24h, max ~60x = ~24min visible)
 - `panOffset` — scroll position within zoom
@@ -86,6 +93,7 @@ Manages the visible time window within 0–24h:
 ### MiniOverviewBar
 
 A 32px-tall bar always visible above the main timeline:
+
 - Shows full 24h with tiny recording bars and event markers
 - Highlighted rectangle shows currently visible range
 - Drag the highlighted rectangle to pan the main view proportionally
@@ -103,21 +111,22 @@ Horizontal only. Eliminates the dual vertical/horizontal complexity of the curre
 
 A row of icon buttons (left to right):
 
-| Button | Icon | Action |
-|--------|------|--------|
-| Previous gap | `skip_previous` | `controller.skipToPreviousGap()` |
-| Previous event | `arrow_back` | `controller.skipToPreviousEvent()` |
-| Frame back | `chevron_left` | `controller.stepFrame(-1)` |
-| Play/Pause | `play_arrow`/`pause` | `controller.togglePlayPause()` |
-| Frame forward | `chevron_right` | `controller.stepFrame(1)` |
-| Next event | `arrow_forward` | `controller.skipToNextEvent()` |
-| Next gap | `skip_next` | `controller.skipToNextGap()` |
+| Button         | Icon                 | Action                             |
+| -------------- | -------------------- | ---------------------------------- |
+| Previous gap   | `skip_previous`      | `controller.skipToPreviousGap()`   |
+| Previous event | `arrow_back`         | `controller.skipToPreviousEvent()` |
+| Frame back     | `chevron_left`       | `controller.stepFrame(-1)`         |
+| Play/Pause     | `play_arrow`/`pause` | `controller.togglePlayPause()`     |
+| Frame forward  | `chevron_right`      | `controller.stepFrame(1)`          |
+| Next event     | `arrow_forward`      | `controller.skipToNextEvent()`     |
+| Next gap       | `skip_next`          | `controller.skipToNextGap()`       |
 
 Frame step buttons auto-pause if playing. Tooltips on each button.
 
 ### JogSlider
 
 Horizontal slider for variable-speed scrubbing:
+
 - Range: -2.0x to +2.0x
 - Center (0.0) = paused
 - Right = forward at proportional speed, left = reverse. Try `player.setRate(-x)` for native reverse first; if unsupported, fall back to timer-based backward seeks (every 100ms, seek backward by `jog_position * 200ms` — so at full -2x, it seeks back 400ms every 100ms)
@@ -129,6 +138,7 @@ Horizontal slider for variable-speed scrubbing:
 ### Layout
 
 **Narrow screen (< 720px):**
+
 ```
 [ Video (single camera)              ]
 [ MiniOverviewBar                    ]
@@ -139,6 +149,7 @@ Horizontal slider for variable-speed scrubbing:
 ```
 
 **Wide screen (>= 720px):**
+
 ```
 [ Video Grid (1-4 cameras)           ]
 [ MiniOverviewBar                    ]
@@ -155,6 +166,7 @@ Timeline is always horizontal below the video in both layouts. The current verti
 Triggered by long-press on an event marker in the timeline.
 
 **Content:**
+
 - Thumbnail (120x80px) from event's `thumbnailPath`, placeholder if none
 - Event type label (e.g. "Person detected")
 - Object class + confidence (e.g. "person (92%)")
@@ -173,6 +185,7 @@ Triggered by long-press on an event marker in the timeline.
 **Problem:** Flutter `RecordingSegment` only parses `start`. Backend already returns `startTime`, `endTime`, `durationMs`.
 
 **Fix:** Update model to match backend JSON keys:
+
 ```dart
 class RecordingSegment {
   final int id;
@@ -200,6 +213,7 @@ class RecordingSegment {
 Eliminates the guesswork of estimating duration from the next segment or hardcoding +15min.
 
 **Provider fixes (pre-existing bugs):**
+
 - `recordingSegmentsProvider` — timestamps must include timezone for RFC3339 compliance. Change `'${key.date}T00:00:00'` to `'${key.date}T00:00:00Z'` (and same for end time). Parse full response fields. Note: `/recordings` returns a flat JSON array, not `{"segments": [...]}` — the existing `data is List` check handles this correctly.
 - `motionEventsProvider` — backend expects a `date` query param (YYYY-MM-DD), not `start`/`end`. Change to send `queryParameters: {'date': key.date}`. Remove the now-dead `start`/`end` variable construction.
 - Both passed into `PlaybackController` for skip-to-event and skip-to-gap logic
@@ -211,6 +225,7 @@ Eliminates the guesswork of estimating duration from the next segment or hardcod
 ## 6. Playhead-Player Sync
 
 **Seek flow:**
+
 1. User interacts (drag playhead, tap timeline, jog slider, skip button)
 2. Widget calls `controller.seek(duration)`
 3. Controller sets `_isSeeking = true`, ignores position stream
@@ -226,6 +241,7 @@ Eliminates the guesswork of estimating duration from the next segment or hardcod
 ## Files Affected
 
 ### New files:
+
 - `lib/screens/playback/playback_controller.dart` — PlaybackController
 - `lib/screens/playback/timeline/timeline_viewport.dart` — viewport transform
 - `lib/screens/playback/timeline/grid_layer.dart`
@@ -240,11 +256,13 @@ Eliminates the guesswork of estimating duration from the next segment or hardcod
 - `lib/screens/playback/event_detail_popup.dart`
 
 ### Modified files:
+
 - `lib/models/recording.dart` — update RecordingSegment model
 - `lib/screens/playback/playback_screen.dart` — rewire to use PlaybackController
 - `lib/screens/playback/camera_player.dart` — receive controller instead of raw state
 - `lib/providers/recordings_provider.dart` — parse full recording response
 
 ### Deleted files:
+
 - `lib/screens/playback/timeline_widget.dart` — replaced by composable timeline
 - `lib/screens/playback/playback_controls.dart` — replaced by transport controls + jog slider

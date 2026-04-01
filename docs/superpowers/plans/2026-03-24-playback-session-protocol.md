@@ -28,33 +28,34 @@
 
 ### New Go files:
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/playback/fmp4_reader.go` | Read fMP4 segment files: parse moov for track info, iterate moof+mdat for samples. Reimplements MediaMTX's unexported `segmentFMP4*` functions using `go-mp4`. |
-| `internal/nvr/playback/fmp4_reader_test.go` | Unit tests for fMP4 reader |
-| `internal/nvr/playback/splice_muxer.go` | fMP4 writer that maintains sequence number and DTS continuity across splices. Writes init segment once, then fragments. Supports seek (splice), speed change, keyframe decimation, frame step, reverse. |
-| `internal/nvr/playback/splice_muxer_test.go` | Unit tests for splice muxer |
-| `internal/nvr/playback/session.go` | `PlaybackSession` — owns per-camera muxers, handles commands, tracks position, manages playback goroutines |
-| `internal/nvr/playback/session_test.go` | Unit tests for session state machine |
-| `internal/nvr/playback/manager.go` | `SessionManager` — creates/resumes/disposes sessions, handles timeouts, resolves camera IDs to paths. Constructs `*conf.Path` for `recordstore.FindSegments()` using the RecordPath pattern from MediaMTX config. |
-| `internal/nvr/playback/ws.go` | WebSocket handler — command parsing, JSON envelope with seq/ack_seq, event broadcasting |
-| `internal/nvr/playback/stream.go` | HTTP handler for `/api/nvr/playback/stream/:session/:camera` — chunked response writer reading from a channel, keep-alive during pause |
-| `internal/nvr/playback/protocol.go` | Shared types: Command, Event, SessionState enums, JSON message structs |
+| File                                         | Responsibility                                                                                                                                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/nvr/playback/fmp4_reader.go`       | Read fMP4 segment files: parse moov for track info, iterate moof+mdat for samples. Reimplements MediaMTX's unexported `segmentFMP4*` functions using `go-mp4`.                                                    |
+| `internal/nvr/playback/fmp4_reader_test.go`  | Unit tests for fMP4 reader                                                                                                                                                                                        |
+| `internal/nvr/playback/splice_muxer.go`      | fMP4 writer that maintains sequence number and DTS continuity across splices. Writes init segment once, then fragments. Supports seek (splice), speed change, keyframe decimation, frame step, reverse.           |
+| `internal/nvr/playback/splice_muxer_test.go` | Unit tests for splice muxer                                                                                                                                                                                       |
+| `internal/nvr/playback/session.go`           | `PlaybackSession` — owns per-camera muxers, handles commands, tracks position, manages playback goroutines                                                                                                        |
+| `internal/nvr/playback/session_test.go`      | Unit tests for session state machine                                                                                                                                                                              |
+| `internal/nvr/playback/manager.go`           | `SessionManager` — creates/resumes/disposes sessions, handles timeouts, resolves camera IDs to paths. Constructs `*conf.Path` for `recordstore.FindSegments()` using the RecordPath pattern from MediaMTX config. |
+| `internal/nvr/playback/ws.go`                | WebSocket handler — command parsing, JSON envelope with seq/ack_seq, event broadcasting                                                                                                                           |
+| `internal/nvr/playback/stream.go`            | HTTP handler for `/api/nvr/playback/stream/:session/:camera` — chunked response writer reading from a channel, keep-alive during pause                                                                            |
+| `internal/nvr/playback/protocol.go`          | Shared types: Command, Event, SessionState enums, JSON message structs                                                                                                                                            |
 
 ### Modified files:
 
-| File | Changes |
-|------|---------|
-| `internal/nvr/api/router.go` | Register WebSocket and stream endpoints |
-| `internal/nvr/nvr.go` | Create SessionManager with DB + recordingsPath, pass to router |
-| `clients/flutter/lib/screens/playback/playback_controller.dart` | Rewrite internals to use WebSocket commands |
-| `clients/flutter/lib/services/playback_service.dart` | Add WebSocket URL construction |
+| File                                                            | Changes                                                        |
+| --------------------------------------------------------------- | -------------------------------------------------------------- |
+| `internal/nvr/api/router.go`                                    | Register WebSocket and stream endpoints                        |
+| `internal/nvr/nvr.go`                                           | Create SessionManager with DB + recordingsPath, pass to router |
+| `clients/flutter/lib/screens/playback/playback_controller.dart` | Rewrite internals to use WebSocket commands                    |
+| `clients/flutter/lib/services/playback_service.dart`            | Add WebSocket URL construction                                 |
 
 ---
 
 ## Task 1: Protocol types and message structs
 
 **Files:**
+
 - Create: `internal/nvr/playback/protocol.go`
 - Test: `internal/nvr/playback/protocol_test.go`
 
@@ -201,6 +202,7 @@ git commit -m "feat(playback): add protocol types for session commands and event
 ## Task 2: fMP4 segment reader
 
 **Files:**
+
 - Create: `internal/nvr/playback/fmp4_reader.go`
 - Create: `internal/nvr/playback/fmp4_reader_test.go`
 
@@ -531,6 +533,7 @@ func FindKeyframeBefore(path string, targetDTS uint64) (uint64, error) {
 ```
 
 **Note:** The sample data reading from mdat is complex and depends on the trun data_offset + moof position. The implementer should reference `internal/playback/segment_fmp4.go:418-532` for the exact offset calculation pattern. The core pattern is:
+
 1. Record moof box offset
 2. Use trun.DataOffset (relative to moof start) to find mdat sample position
 3. Read sample data of `SampleSize` bytes from that position
@@ -552,6 +555,7 @@ git commit -m "feat(playback): add fMP4 segment reader using go-mp4"
 ## Task 3: Splice muxer
 
 **Files:**
+
 - Create: `internal/nvr/playback/splice_muxer.go`
 - Create: `internal/nvr/playback/splice_muxer_test.go`
 
@@ -872,6 +876,7 @@ git commit -m "feat(playback): add splice muxer with DTS/sequence continuity"
 ## Task 4: Session state machine
 
 **Files:**
+
 - Create: `internal/nvr/playback/session.go`
 - Create: `internal/nvr/playback/session_test.go`
 
@@ -1208,6 +1213,7 @@ func (e *PlaybackError) Error() string { return e.Message }
 ```
 
 **Implementation note:** The `playbackLoop` and `readAndWriteNextFragment` methods are simplified. The real implementation needs to:
+
 1. Track which segment file is currently being read (avoid re-scanning recordstore every second)
 2. Keep a file reader open across fragments for the same segment
 3. Handle segment boundaries (transition to next segment file)
@@ -1233,6 +1239,7 @@ git commit -m "feat(playback): add PlaybackSession with state machine and camera
 ## Task 5: Session manager
 
 **Files:**
+
 - Create: `internal/nvr/playback/manager.go`
 
 - [ ] **Step 1: Implement session manager**
@@ -1381,6 +1388,7 @@ git commit -m "feat(playback): add SessionManager with UUID sessions and cleanup
 ## Task 6: WebSocket handler
 
 **Files:**
+
 - Create: `internal/nvr/playback/ws.go`
 
 - [ ] **Step 1: Implement WebSocket handler**
@@ -1611,6 +1619,7 @@ git commit -m "feat(playback): add WebSocket handler for session commands"
 ## Task 7: HTTP stream handler
 
 **Files:**
+
 - Create: `internal/nvr/playback/stream.go`
 
 - [ ] **Step 1: Implement HTTP stream handler**
@@ -1695,6 +1704,7 @@ git commit -m "feat(playback): add HTTP chunked stream handler with keep-alive"
 ## Task 8: Register routes and wire to NVR
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go`
 - Modify: `internal/nvr/nvr.go`
 
@@ -1765,6 +1775,7 @@ git commit -m "feat(playback): wire SessionManager to NVR and register routes"
 ## Task 9: Flutter PlaybackController rewrite
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_controller.dart`
 - Modify: `clients/flutter/lib/services/playback_service.dart`
 
@@ -1789,6 +1800,7 @@ String streamBaseUrl() {
 Replace the internals of `clients/flutter/lib/screens/playback/playback_controller.dart`. The public API stays the same — only the implementation changes from HTTP-per-seek to WebSocket commands.
 
 Key changes:
+
 - Add `WebSocketChannel` connection
 - `seek()` sends `{"cmd": "seek", "position": X}` instead of opening new HTTP streams
 - `play()`/`pause()` send WebSocket commands
@@ -1867,6 +1879,7 @@ git commit -m "feat(flutter): rewrite PlaybackController to use WebSocket sessio
 ## Task 10: Integration smoke test
 
 **Files:**
+
 - Various — fix any issues found
 
 - [ ] **Step 1: Build Go backend**

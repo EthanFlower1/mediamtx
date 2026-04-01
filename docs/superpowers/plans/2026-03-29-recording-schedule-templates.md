@@ -48,6 +48,7 @@ clients/flutter/lib/
 ### Task 1: DB Migration and ScheduleTemplate CRUD
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Create: `internal/nvr/db/schedule_templates.go`
 - Modify: `internal/nvr/db/recording_rules.go`
@@ -250,6 +251,7 @@ git commit -m "feat(db): add schedule_templates table, seed defaults, template_i
 ### Task 2: Schedule Templates API
 
 **Files:**
+
 - Create: `internal/nvr/api/schedule_templates.go`
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
@@ -468,11 +470,13 @@ func (h *CameraHandler) AssignStreamSchedule(c *gin.Context) {
 Add to `internal/nvr/api/router.go` in the `RegisterRoutes` function:
 
 After the existing handler setup section, add:
+
 ```go
 templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 ```
 
 In the route registration section, add:
+
 ```go
 // Schedule templates.
 protected.GET("/schedule-templates", templateHandler.List)
@@ -482,6 +486,7 @@ protected.DELETE("/schedule-templates/:id", templateHandler.Delete)
 ```
 
 And add the stream-schedule assignment route near the recording rules section:
+
 ```go
 protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule)
 ```
@@ -489,6 +494,7 @@ protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule
 - [ ] **Step 4: Seed templates on NVR init**
 
 In `internal/nvr/nvr.go`, in the `Initialize()` function, after the database is opened, add:
+
 ```go
 if err := n.database.SeedDefaultTemplates(); err != nil {
     log.Printf("nvr: failed to seed default templates: %v", err)
@@ -513,6 +519,7 @@ git commit -m "feat(api): add schedule template CRUD and stream-schedule assignm
 ### Task 3: Flutter ScheduleTemplate Model and Provider
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/schedule_template.dart`
 - Create: `clients/flutter/lib/providers/schedule_templates_provider.dart`
 
@@ -636,6 +643,7 @@ git commit -m "feat(flutter): add ScheduleTemplate model and provider"
 ### Task 4: Schedules Screen
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/schedules/schedules_screen.dart`
 
 - [ ] **Step 1: Create the screen**
@@ -643,6 +651,7 @@ git commit -m "feat(flutter): add ScheduleTemplate model and provider"
 Create the file at `clients/flutter/lib/screens/schedules/schedules_screen.dart`. This is a list page showing all schedule templates with create/edit/delete functionality.
 
 The screen should:
+
 - Be a `ConsumerStatefulWidget`
 - Fetch templates via `ref.watch(scheduleTemplatesProvider)`
 - Show a header row with "RECORDING SCHEDULES" title and "+ NEW TEMPLATE" HudButton
@@ -672,6 +681,7 @@ git commit -m "feat(flutter): add Schedules screen with template CRUD"
 ### Task 5: Add Schedules to Navigation
 
 **Files:**
+
 - Modify: `clients/flutter/lib/router/app_router.dart`
 - Modify: `clients/flutter/lib/widgets/shell/icon_rail.dart`
 - Modify: `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart`
@@ -684,6 +694,7 @@ In `app_router.dart`:
 1. Add import: `import '../screens/schedules/schedules_screen.dart';`
 
 2. Update `_indexFromPath()` to add index 5 for schedules:
+
 ```dart
 int _indexFromPath(String path) {
   if (path.startsWith('/live')) return 0;
@@ -697,11 +708,13 @@ int _indexFromPath(String path) {
 ```
 
 3. Update `_navigateToIndex()` paths array:
+
 ```dart
 const paths = ['/live', '/playback', '/search', '/devices', '/settings', '/schedules'];
 ```
 
 4. Add the route inside the ShellRoute's `routes` list, after the settings route:
+
 ```dart
 GoRoute(
   path: '/schedules',
@@ -732,6 +745,7 @@ Actually, the rail items map directly to router indices. Since Schedules is inde
 - [ ] **Step 3: Add to mobile_bottom_nav.dart**
 
 Add Schedules to the mobile items:
+
 ```dart
 static const _items = [
   (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'LIVE'),
@@ -765,6 +779,7 @@ git commit -m "feat(flutter): add Schedules to navigation (sidebar, mobile nav, 
 ### Task 6: Replace Camera Detail Recording Section
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 - [ ] **Step 1: Add imports**
@@ -777,12 +792,14 @@ import '../../providers/schedule_templates_provider.dart';
 - [ ] **Step 2: Add template state and fetch**
 
 Add state variable:
+
 ```dart
 List<ScheduleTemplate> _templates = [];
 Map<String, String> _streamTemplateMap = {}; // streamID → templateID
 ```
 
 In `_fetchCamera()`, after the streams fetch, add:
+
 ```dart
 // Fetch templates and current assignments.
 try {

@@ -15,34 +15,37 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/media2.go` | Media2 service: GetProfiles2, GetStreamUri2, GetSnapshotUri2, auto-fallback to Media1 |
-| `internal/nvr/onvif/analytics.go` | Analytics service: rules CRUD, supported modules query |
-| `internal/nvr/onvif/metadata.go` | Metadata stream XML parsing types (Frame, Object, BoundingBox) |
-| `ui/src/components/DetectionZoneEditor.tsx` | Draw motion detection zones on camera snapshot |
+
+| File                                        | Responsibility                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `internal/nvr/onvif/media2.go`              | Media2 service: GetProfiles2, GetStreamUri2, GetSnapshotUri2, auto-fallback to Media1 |
+| `internal/nvr/onvif/analytics.go`           | Analytics service: rules CRUD, supported modules query                                |
+| `internal/nvr/onvif/metadata.go`            | Metadata stream XML parsing types (Frame, Object, BoundingBox)                        |
+| `ui/src/components/DetectionZoneEditor.tsx` | Draw motion detection zones on camera snapshot                                        |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `internal/nvr/onvif/client.go` | Add Media2 and Analytics to Capabilities |
-| `internal/nvr/onvif/device.go` | ProbeDeviceFull uses Media2 when available |
-| `internal/nvr/onvif/events.go` | Extend parseMotionEvents to detect tampering events, return event type |
-| `internal/nvr/db/migrations.go` | Migration v10: supports_media2, supports_analytics columns |
-| `internal/nvr/db/cameras.go` | Add new capability fields |
-| `internal/nvr/api/cameras.go` | Add analytics rule endpoints |
-| `internal/nvr/api/router.go` | Register analytics routes |
-| `internal/nvr/api/events.go` | Add tampering event type to Event struct |
-| `internal/nvr/scheduler/scheduler.go` | Publish tampering events alongside motion |
-| `ui/src/pages/CameraManagement.tsx` | Add "Motion Zones" section in camera detail |
-| `ui/src/components/Timeline.tsx` | Add tampering event icon |
-| `ui/src/hooks/useCameras.ts` | Add new capability fields |
+
+| File                                  | Change                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `internal/nvr/onvif/client.go`        | Add Media2 and Analytics to Capabilities                               |
+| `internal/nvr/onvif/device.go`        | ProbeDeviceFull uses Media2 when available                             |
+| `internal/nvr/onvif/events.go`        | Extend parseMotionEvents to detect tampering events, return event type |
+| `internal/nvr/db/migrations.go`       | Migration v10: supports_media2, supports_analytics columns             |
+| `internal/nvr/db/cameras.go`          | Add new capability fields                                              |
+| `internal/nvr/api/cameras.go`         | Add analytics rule endpoints                                           |
+| `internal/nvr/api/router.go`          | Register analytics routes                                              |
+| `internal/nvr/api/events.go`          | Add tampering event type to Event struct                               |
+| `internal/nvr/scheduler/scheduler.go` | Publish tampering events alongside motion                              |
+| `ui/src/pages/CameraManagement.tsx`   | Add "Motion Zones" section in camera detail                            |
+| `ui/src/components/Timeline.tsx`      | Add tampering event icon                                               |
+| `ui/src/hooks/useCameras.ts`          | Add new capability fields                                              |
 
 ---
 
 ### Task 1: Create Media2 service client
 
 **Files:**
+
 - Create: `internal/nvr/onvif/media2.go`
 - Modify: `internal/nvr/onvif/client.go`
 - Modify: `internal/nvr/onvif/device.go`
@@ -150,6 +153,7 @@ git commit -m "feat(nvr): add ONVIF Media2 service client with auto-fallback to 
 ### Task 2: Add tampering detection events
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events.go`
 - Modify: `internal/nvr/api/events.go`
 - Modify: `internal/nvr/scheduler/scheduler.go`
@@ -211,6 +215,7 @@ if event.Type == EventTampering && event.Active && s.eventPub != nil {
 - [ ] **Step 4: Add tampering icon to Timeline**
 
 In `ui/src/components/Timeline.tsx`, update the MotionEvent interface and rendering:
+
 - If event type is "tampering", show a shield icon (🛡️) instead of runner (🏃)
 - Add `event_type` field to MotionEvent interface
 
@@ -227,6 +232,7 @@ git commit -m "feat(nvr): add tampering detection events with timeline markers"
 ### Task 3: Implement analytics rule configuration
 
 **Files:**
+
 - Create: `internal/nvr/onvif/analytics.go`
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
@@ -311,6 +317,7 @@ git commit -m "feat(nvr): add ONVIF analytics rule configuration API"
 ### Task 4: Create motion detection zone editor UI
 
 **Files:**
+
 - Create: `ui/src/components/DetectionZoneEditor.tsx`
 - Modify: `ui/src/pages/CameraManagement.tsx`
 
@@ -320,19 +327,20 @@ A canvas overlay component for drawing motion detection zones:
 
 ```typescript
 interface Zone {
-  name: string
-  points: { x: number; y: number }[] // Normalized 0-1 coordinates
+  name: string;
+  points: { x: number; y: number }[]; // Normalized 0-1 coordinates
 }
 
 interface Props {
-  cameraId: string
-  snapshotUrl?: string // Background image from camera snapshot
-  existingZones: Zone[]
-  onSave: (zones: Zone[]) => void
+  cameraId: string;
+  snapshotUrl?: string; // Background image from camera snapshot
+  existingZones: Zone[];
+  onSave: (zones: Zone[]) => void;
 }
 ```
 
 Features:
+
 - Display camera snapshot as background
 - Draw rectangles by click-drag
 - Show existing zones as colored overlays with labels
@@ -345,6 +353,7 @@ Features:
 - [ ] **Step 2: Integrate into CameraManagement**
 
 Add a "Motion Zones" tab/section in the camera detail panel:
+
 - Visible when `camera.supports_analytics` is true
 - Loads existing rules from GET `/analytics/rules`
 - Shows DetectionZoneEditor with current zones
@@ -363,6 +372,7 @@ git commit -m "feat(nvr): add motion detection zone editor with canvas overlay"
 ### Task 5: Define metadata stream parsing types
 
 **Files:**
+
 - Create: `internal/nvr/onvif/metadata.go`
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/cameras.go`
@@ -421,6 +431,7 @@ func ParseMetadataFrame(data []byte) (*MetadataFrame, error) {
 - [ ] **Step 2: Add supports_media2 and supports_analytics to DB**
 
 Add migration v10:
+
 ```sql
 ALTER TABLE cameras ADD COLUMN supports_media2 INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE cameras ADD COLUMN supports_analytics INTEGER NOT NULL DEFAULT 0;
@@ -446,6 +457,7 @@ git commit -m "feat(nvr): add metadata stream parsing types and analytics capabi
 ### Task 6: Integration test and cleanup
 
 **Files:**
+
 - Various
 
 - [ ] **Step 1: Run all tests**

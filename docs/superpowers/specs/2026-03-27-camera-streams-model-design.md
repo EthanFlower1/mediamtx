@@ -47,16 +47,17 @@ When `stream_id` is empty, the rule uses the camera's stream tagged with the `re
 
 ### Predefined roles
 
-| Role | System behavior |
-|------|----------------|
-| `live_view` | Desktop/tablet live view uses this stream's MediaMTX path |
-| `recording` | Default target for recording rules without explicit stream_id |
-| `mobile` | Mobile live view uses this stream (falls back to `live_view` if absent) |
-| `ai_detection` | AI pipeline reads frames from this stream |
+| Role           | System behavior                                                         |
+| -------------- | ----------------------------------------------------------------------- |
+| `live_view`    | Desktop/tablet live view uses this stream's MediaMTX path               |
+| `recording`    | Default target for recording rules without explicit stream_id           |
+| `mobile`       | Mobile live view uses this stream (falls back to `live_view` if absent) |
+| `ai_detection` | AI pipeline reads frames from this stream                               |
 
 ### Deprecated fields on `cameras`
 
 `rtsp_url` and `sub_stream_url` become legacy. A migration creates `camera_streams` records from existing data:
+
 - If `rtsp_url` is set → create stream with roles `live_view,recording,ai_detection`
 - If `sub_stream_url` is also set → move `recording,ai_detection,mobile` roles to the sub stream
 
@@ -65,6 +66,7 @@ After migration, all code reads from `camera_streams`. The old columns remain in
 ## Auto-Population
 
 When a camera is added with ONVIF profiles (from discovery or probe):
+
 1. Create a `camera_streams` record for each profile
 2. Sort streams by resolution (width × height) descending
 3. Highest resolution stream gets `live_view`
@@ -97,6 +99,7 @@ When a camera is added with ONVIF profiles (from discovery or probe):
 ### Stream resolution helper
 
 New function `ResolveStreamURL(cameraID, role)` in the DB layer:
+
 1. Query `camera_streams` where `camera_id = ?` and `roles LIKE '%role%'`
 2. Return the first match's `rtsp_url`
 3. If no match, fall back to the camera's legacy `rtsp_url`
@@ -104,6 +107,7 @@ New function `ResolveStreamURL(cameraID, role)` in the DB layer:
 ### MediaMTX YAML writer
 
 Currently writes one path per camera (`nvr/{camera_id}/main`). Changes:
+
 - Write a path for each stream that has the `recording` role: `nvr/{camera_id}/{stream_id}`
 - The `source` for each path is the stream's `rtsp_url`
 - Recording path pattern: `./recordings/nvr/{camera_id}/{stream_id}/...`
@@ -111,12 +115,14 @@ Currently writes one path per camera (`nvr/{camera_id}/main`). Changes:
 ### AI pipeline
 
 Currently reads from `sub_stream_url` or falls back to `rtsp_url`. Change to:
+
 - Resolve the `ai_detection`-role stream URL for the camera
 - Fall back to `recording`, then `live_view` if no `ai_detection` stream is set
 
 ### Recording scheduler
 
 Currently creates one recording config per camera. Change to:
+
 - For each recording rule, resolve the target stream (explicit `stream_id` or `recording`-role default)
 - Generate MediaMTX path entries per-stream, not per-camera
 - Multiple rules on different streams → multiple concurrent recordings
@@ -124,6 +130,7 @@ Currently creates one recording config per camera. Change to:
 ### Camera creation flow
 
 When `POST /cameras` includes ONVIF profile data (from discovery probe):
+
 1. Create the camera record
 2. Create `camera_streams` records from profiles with auto-assigned roles
 3. Write MediaMTX YAML paths for streams with recording roles
@@ -133,6 +140,7 @@ When `POST /cameras` includes ONVIF profile data (from discovery probe):
 ### Camera detail/settings screen
 
 Add a "Streams" section showing each stream as a card:
+
 - Stream name, resolution, codec
 - RTSP URL (muted text)
 - Role chips as toggles (live_view, recording, mobile, ai_detection) — tap to toggle on/off
@@ -141,6 +149,7 @@ Add a "Streams" section showing each stream as a card:
 ### Recording rules UI
 
 When creating/editing a recording rule, add a stream selector dropdown:
+
 - Lists all streams for the camera
 - Default: "Auto (recording stream)"
 - Selecting a specific stream sets the `stream_id`

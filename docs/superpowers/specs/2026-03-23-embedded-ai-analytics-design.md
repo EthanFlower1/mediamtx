@@ -6,17 +6,18 @@ Add embedded AI object detection and semantic search to the NVR. Models are bund
 
 ## Models (all bundled via go:embed)
 
-| Model | Size | Format | Purpose |
-|-------|------|--------|---------|
-| YOLOv8n (nano) | ~6MB | ONNX | Real-time detection on every sub-stream frame |
-| YOLOv8m (medium) | ~50MB | ONNX | Tier 2 refinement after event ends |
-| CLIP ViT-B/32 | ~350MB | ONNX | Visual embeddings for semantic search |
+| Model            | Size   | Format | Purpose                                       |
+| ---------------- | ------ | ------ | --------------------------------------------- |
+| YOLOv8n (nano)   | ~6MB   | ONNX   | Real-time detection on every sub-stream frame |
+| YOLOv8m (medium) | ~50MB  | ONNX   | Tier 2 refinement after event ends            |
+| CLIP ViT-B/32    | ~350MB | ONNX   | Visual embeddings for semantic search         |
 
 Total binary size increase: ~406MB. Trade-off: works offline with zero setup.
 
 ## Runtime
 
 **ONNX Runtime Go** (`yalue/onnxruntime_go`) for model inference. Supports:
+
 - CPU (all platforms, default)
 - CoreML (Apple Silicon, auto-detected)
 - CUDA (NVIDIA GPUs, auto-detected)
@@ -99,6 +100,7 @@ CREATE INDEX idx_detections_class ON detections(class);
 ```
 
 ### Updated motion_events columns (already exist):
+
 - `object_class` — set by Tier 1, refined by Tier 2
 - `confidence` — set by Tier 1, refined by Tier 2
 - `embedding` — CLIP vector for the event's primary detection (new column, BLOB)
@@ -121,6 +123,7 @@ GET /api/nvr/search?q=woman+in+red+shirt&camera_id=...&start=...&end=...&limit=2
 ### Cosine Similarity in SQLite
 
 SQLite doesn't have native vector operations. Two options:
+
 - **Option A**: Load embeddings in Go, compute similarity in-memory. Simple, works for <100K events.
 - **Option B**: Use SQLite's `sqlite-vec` extension for vector search. More scalable but adds dependency.
 
@@ -173,22 +176,26 @@ The NVR starts an AIPipeline for each camera that has `ai_enabled=true` and `sub
 ## UI Changes
 
 ### Camera Management
+
 - Sub stream selector during camera setup (show all profiles, recommend MJPEG)
 - AI toggle per camera (enable/disable)
 - AI status indicator (processing, idle, error)
 
 ### Clips Page
+
 - Free-text search bar: "red car", "person at door", "large brown dog"
 - Results ranked by CLIP similarity with percentage match
 - Each result shows the matched detection crop
 
 ### Live View
+
 - Real-time bounding box overlay from Tier 1 detections
 - Class labels with confidence: "Person 87%"
 - Color-coded by class (blue=person, green=vehicle, amber=animal)
 - Toggle on/off per camera
 
 ### Settings
+
 - Global AI settings: enable/disable, confidence threshold
 - Model info: show which models are loaded, inference device (CPU/CoreML/CUDA)
 - Detection statistics: frames/sec processed, average inference time
@@ -196,11 +203,13 @@ The NVR starts an AIPipeline for each camera that has `ai_enabled=true` and `sub
 ## Performance Targets
 
 On Apple Silicon (M1/M2/M3) with CoreML:
+
 - YOLOv8n: ~10ms/frame → 100 FPS capacity
 - CLIP: ~20ms/crop → 50 embeddings/sec
 - Sub stream at 5fps: uses ~5% of inference capacity per camera
 
 On modern x86 CPU:
+
 - YOLOv8n: ~30ms/frame → 33 FPS capacity
 - CLIP: ~50ms/crop → 20 embeddings/sec
 - Sub stream at 5fps: uses ~15% of inference capacity per camera
@@ -210,9 +219,11 @@ Target: 10+ cameras with AI on a single modern machine.
 ## Configuration
 
 No complex configuration. Per camera:
+
 - `ai_enabled`: boolean toggle
 - `sub_stream_url`: RTSP URL for the detection stream
 
 Global (in Settings):
+
 - AI confidence threshold (default 0.5)
 - Whether to run CLIP embeddings (default: on)

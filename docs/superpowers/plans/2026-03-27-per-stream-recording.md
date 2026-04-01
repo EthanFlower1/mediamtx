@@ -42,6 +42,7 @@ clients/flutter/lib/
 ### Task 1: Remove Per-Camera Recording Stream (Backend)
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -54,6 +55,7 @@ Also remove the `"net/url"` import if it was only used by `configureRecordingPat
 - [ ] **Step 2: Remove the route**
 
 In `internal/nvr/api/router.go`, remove:
+
 ```go
 	protected.PUT("/cameras/:id/recording-stream", cameraHandler.UpdateRecordingStream)
 ```
@@ -75,6 +77,7 @@ git commit -m "refactor: remove per-camera recording stream endpoint (superseded
 ### Task 2: Add QueryRecordingsBestQuality to DB
 
 **Files:**
+
 - Modify: `internal/nvr/db/recordings.go`
 
 - [ ] **Step 1: Add the function**
@@ -184,6 +187,7 @@ git commit -m "feat(db): add QueryRecordingsBestQuality for multi-stream playbac
 ### Task 3: Add best_quality Param to Recordings API
 
 **Files:**
+
 - Modify: `internal/nvr/api/recordings.go`
 
 - [ ] **Step 1: Update the Query handler**
@@ -218,6 +222,7 @@ git commit -m "feat(api): add best_quality param to GET /recordings"
 ### Task 4: Refactor Scheduler for Per-Stream Rule Grouping
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 
 This is the most complex task. The scheduler's `evaluate()` currently groups rules by camera ID and resolves one effective mode per camera. It needs to group by **(camera ID, stream ID)** and manage per-stream paths and MotionSMs.
@@ -460,6 +465,7 @@ git commit -m "feat(scheduler): per-stream rule grouping with independent path m
 ### Task 5: Add Stream Dropdown to Recording Rules UI
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/recording_rule.dart`
 - Modify: `clients/flutter/lib/screens/cameras/recording_rules_screen.dart`
 
@@ -529,16 +535,19 @@ In `clients/flutter/lib/screens/cameras/recording_rules_screen.dart`, the `_show
 3. Add a `DropdownButtonFormField` before the mode selector
 
 Add import at top:
+
 ```dart
 import '../../models/camera_stream.dart';
 ```
 
 In the dialog's `StatefulBuilder`, add a stream ID state variable:
+
 ```dart
 String selectedStreamId = '';
 ```
 
 Add the dropdown widget before the mode selector in the dialog content column:
+
 ```dart
 DropdownButtonFormField<String>(
   value: selectedStreamId,
@@ -580,7 +589,7 @@ const SizedBox(height: 12),
 
 Pass `selectedStreamId` to `_saveNewRule()` as a `streamId` parameter.
 
-- [ ] **Step 3: Update _saveNewRule to include stream_id**
+- [ ] **Step 3: Update \_saveNewRule to include stream_id**
 
 Add `String streamId = ''` parameter to `_saveNewRule()` and include it in the POST body:
 
@@ -667,6 +676,7 @@ git commit -m "feat(flutter): add stream selector to recording rules UI"
 ### Task 6: Update Flutter Recordings Provider
 
 **Files:**
+
 - Modify: `clients/flutter/lib/providers/recordings_provider.dart`
 
 - [ ] **Step 1: Pass best_quality=true**
@@ -699,6 +709,7 @@ git commit -m "feat(flutter): use best_quality=true for timeline recordings"
 ### Task 7: Remove Recording Stream Dropdown from Camera Detail
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 - Modify: `clients/flutter/lib/models/camera.dart`
 - Regenerate: `clients/flutter/lib/models/camera.freezed.dart`
@@ -707,6 +718,7 @@ git commit -m "feat(flutter): use best_quality=true for timeline recordings"
 - [ ] **Step 1: Remove recordingStreamId from Camera model**
 
 In `clients/flutter/lib/models/camera.dart`, remove the line:
+
 ```dart
     @JsonKey(name: 'recording_stream_id') @Default('') String recordingStreamId,
 ```

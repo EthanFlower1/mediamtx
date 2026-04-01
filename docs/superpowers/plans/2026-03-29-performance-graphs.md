@@ -38,6 +38,7 @@ clients/flutter/
 ### Task 1: Metrics Collector (Ring Buffer)
 
 **Files:**
+
 - Create: `internal/nvr/metrics/collector.go`
 - Create: `internal/nvr/metrics/collector_test.go`
 
@@ -355,6 +356,7 @@ git commit -m "feat(metrics): add ring buffer collector with CPU and memory samp
 ### Task 2: Enhance Metrics API Endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/system.go`
 - Modify: `internal/nvr/api/router.go`
 - Modify: `internal/nvr/nvr.go`
@@ -422,6 +424,7 @@ func (h *SystemHandler) Metrics(c *gin.Context) {
 In `internal/nvr/api/router.go`:
 
 Add to `RouterConfig` struct:
+
 ```go
 Collector *metrics.Collector
 ```
@@ -429,6 +432,7 @@ Collector *metrics.Collector
 Add import: `"github.com/bluenviron/mediamtx/internal/nvr/metrics"`
 
 In the `systemHandler` instantiation, add:
+
 ```go
 Collector: cfg.Collector,
 ```
@@ -438,6 +442,7 @@ Collector: cfg.Collector,
 In `internal/nvr/nvr.go`:
 
 Add field to NVR struct:
+
 ```go
 metricsCollector *metrics.Collector
 ```
@@ -445,6 +450,7 @@ metricsCollector *metrics.Collector
 Add import: `"github.com/bluenviron/mediamtx/internal/nvr/metrics"`
 
 In `Initialize()`, after database setup (before the WebSocket server start), add:
+
 ```go
 // Start metrics collector (1 hour of history at 10-second intervals).
 n.metricsCollector = metrics.New(360, 10*time.Second)
@@ -452,6 +458,7 @@ n.metricsCollector.Start()
 ```
 
 In `Close()`, add before other cleanup:
+
 ```go
 if n.metricsCollector != nil {
     n.metricsCollector.Stop()
@@ -459,6 +466,7 @@ if n.metricsCollector != nil {
 ```
 
 In `RegisterRoutes()` (the function that builds the RouterConfig), add the collector:
+
 ```go
 Collector: n.metricsCollector,
 ```
@@ -483,6 +491,7 @@ git commit -m "feat(api): enhance /system/metrics with ring buffer history"
 ### Task 3: Add fl_chart and Performance Panel
 
 **Files:**
+
 - Modify: `clients/flutter/pubspec.yaml`
 - Create: `clients/flutter/lib/screens/settings/performance_panel.dart`
 
@@ -491,7 +500,7 @@ git commit -m "feat(api): enhance /system/metrics with ring buffer history"
 In `clients/flutter/pubspec.yaml`, add to the `dependencies` section:
 
 ```yaml
-  fl_chart: ^0.69.2
+fl_chart: ^0.69.2
 ```
 
 Run: `cd /Users/ethanflower/personal_projects/mediamtx/clients/flutter && flutter pub get`
@@ -503,6 +512,7 @@ Create `clients/flutter/lib/screens/settings/performance_panel.dart`.
 This is a `ConsumerStatefulWidget` called `PerformancePanel` that:
 
 **State:**
+
 ```dart
 Map<String, dynamic>? _current;
 List<dynamic> _history = [];
@@ -514,7 +524,8 @@ bool _loading = true;
 
 **dispose:** Cancel the timer.
 
-**_fetchMetrics:**
+**\_fetchMetrics:**
+
 ```dart
 Future<void> _fetchMetrics() async {
   final api = ref.read(apiClientProvider);
@@ -554,6 +565,7 @@ Future<void> _fetchMetrics() async {
    - Key-value rows: CPU USAGE, MEMORY USAGE, GO HEAP, GOROUTINES
 
 **Chart styling (fl_chart):**
+
 ```dart
 LineChartData(
   backgroundColor: NvrColors.bgSecondary,
@@ -632,6 +644,7 @@ LineChartData(
 Use `_SectionCard` pattern from the settings screen (Container with bgSecondary, border, 8px radius, 12px padding, header text).
 
 **Imports:**
+
 ```dart
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -659,6 +672,7 @@ git commit -m "feat(flutter): add Performance panel with CPU and memory charts"
 ### Task 4: Add Performance Tab to Settings Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/settings/settings_screen.dart`
 
 - [ ] **Step 1: Add import**
@@ -667,18 +681,21 @@ git commit -m "feat(flutter): add Performance panel with CPU and memory charts"
 import 'performance_panel.dart';
 ```
 
-- [ ] **Step 2: Add tab to _sections**
+- [ ] **Step 2: Add tab to \_sections**
 
 Change the `_sections` list from:
+
 ```dart
 static const _sections = ['System', 'Storage', 'Users', 'Backups', 'Audit Log'];
 ```
+
 to:
+
 ```dart
 static const _sections = ['System', 'Storage', 'Performance', 'Users', 'Backups', 'Audit Log'];
 ```
 
-- [ ] **Step 3: Add case to _buildContent switch**
+- [ ] **Step 3: Add case to \_buildContent switch**
 
 Update the switch in `_buildContent()`. Insert the new case and shift existing indices:
 

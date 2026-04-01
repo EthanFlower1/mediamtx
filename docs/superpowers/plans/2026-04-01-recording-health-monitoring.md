@@ -13,6 +13,7 @@
 ### Task 1: Add RecordingHealth struct and scheduler fields
 
 **Files:**
+
 - Create: `internal/nvr/scheduler/health.go`
 - Modify: `internal/nvr/scheduler/scheduler.go:68-109`
 - Test: `internal/nvr/scheduler/health_test.go`
@@ -181,6 +182,7 @@ git commit -m "feat(scheduler): add RecordingHealth struct and scheduler fields 
 ### Task 2: Add stall detection to the scheduler evaluation loop
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go:320-519` (the `evaluate()` method)
 - Modify: `internal/nvr/scheduler/health.go`
 - Test: `internal/nvr/scheduler/health_test.go`
@@ -294,6 +296,7 @@ git commit -m "feat(scheduler): add stall detection to RecordingHealth (KAI-9)"
 ### Task 3: Add recovery logic with exponential backoff
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/health.go`
 - Test: `internal/nvr/scheduler/health_test.go`
 
@@ -425,6 +428,7 @@ git commit -m "feat(scheduler): add recovery logic with exponential backoff (KAI
 ### Task 4: Wire segment notifications and stall checks into the scheduler
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 - Modify: `internal/nvr/scheduler/health.go`
 
@@ -677,6 +681,7 @@ git commit -m "feat(scheduler): wire stall detection and recovery into evaluatio
 ### Task 5: Add health event methods to EventBroadcaster
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go`
 
 - [ ] **Step 1: Add the three new Publish methods**
@@ -729,6 +734,7 @@ git commit -m "feat(api): add recording health SSE event methods (KAI-9)"
 ### Task 6: Add GetRecordingHealth method to the scheduler
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 - Test: `internal/nvr/scheduler/health_test.go`
 
@@ -828,6 +834,7 @@ git commit -m "feat(scheduler): add GetRecordingHealth and GetAllRecordingHealth
 ### Task 7: Add recording health API endpoint
 
 **Files:**
+
 - Create: `internal/nvr/api/recording_health.go`
 - Test: `internal/nvr/api/recording_health_test.go`
 - Modify: `internal/nvr/api/router.go`
@@ -1063,6 +1070,7 @@ git commit -m "feat(api): add GET /recordings/health endpoint (KAI-9)"
 ### Task 8: Add recording_health field to camera responses
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Test: `internal/nvr/api/cameras_test.go`
 
@@ -1167,6 +1175,7 @@ git commit -m "feat(api): add recording_health field to camera responses (KAI-9)
 ### Task 9: Wire OnSegmentComplete callback to scheduler
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go` (or wherever OnSegmentComplete is wired)
 
 - [ ] **Step 1: Find and read the OnSegmentComplete wiring**
@@ -1204,6 +1213,7 @@ git commit -m "feat(nvr): notify scheduler on segment completion for health trac
 ### Task 10: Make Scheduler implement HealthProvider interface
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 
 - [ ] **Step 1: Verify the Scheduler already satisfies HealthProvider**
@@ -1264,6 +1274,7 @@ git commit -m "feat(api): guard recording health handler against nil scheduler (
 ### Task 11: Final integration test and cleanup
 
 **Files:**
+
 - Test: `internal/nvr/scheduler/health_test.go`
 
 - [ ] **Step 1: Write integration-style test for full stall → recovery cycle**

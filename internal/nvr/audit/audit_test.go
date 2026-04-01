@@ -157,3 +157,25 @@ func dirFiles(dir string) ([]string, error) {
 	})
 	return paths, err
 }
+
+// TestGenerateReport runs last (alphabetically after all other tests) and writes
+// the accumulated findings to JSON and Markdown files.
+func TestGenerateReport(t *testing.T) {
+	if len(testReport.Findings) == 0 {
+		t.Skip("no findings to report — run other audit tests first")
+	}
+
+	root := findModuleRoot(t)
+
+	jsonPath := filepath.Join(root, "internal", "nvr", "audit", "testdata", "audit_findings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(jsonPath), 0o755))
+	err := testReport.WriteJSON(jsonPath)
+	require.NoError(t, err)
+	t.Logf("JSON report written to %s (%d findings)", jsonPath, len(testReport.Findings))
+
+	mdPath := filepath.Join(root, "docs", "recording-audit-report.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(mdPath), 0o755))
+	err = testReport.WriteMarkdown(mdPath)
+	require.NoError(t, err)
+	t.Logf("Markdown report written to %s", mdPath)
+}

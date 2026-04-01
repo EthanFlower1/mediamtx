@@ -167,3 +167,30 @@ func (b *EventBroadcaster) PublishRecordingStopped(cameraName string) {
 		Message: fmt.Sprintf("Recording stopped on %s", cameraName),
 	})
 }
+
+// PublishRecordingStalled publishes a recording-stalled event.
+func (b *EventBroadcaster) PublishRecordingStalled(cameraName string) {
+	b.Publish(Event{
+		Type:    "recording_stalled",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Recording stalled on %s", cameraName),
+	})
+}
+
+// PublishRecordingRecovered publishes a recording-recovered event.
+func (b *EventBroadcaster) PublishRecordingRecovered(cameraName string) {
+	b.Publish(Event{
+		Type:    "recording_recovered",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Recording recovered on %s", cameraName),
+	})
+}
+
+// PublishRecordingFailed publishes a recording-failed event.
+func (b *EventBroadcaster) PublishRecordingFailed(cameraName string) {
+	b.Publish(Event{
+		Type:    "recording_failed",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Recording failed on %s", cameraName),
+	})
+}

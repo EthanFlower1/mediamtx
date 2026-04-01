@@ -18,7 +18,8 @@ func TestRecordingHealth_RecordSegment(t *testing.T) {
 	h := NewRecordingHealth()
 	h.Status = HealthHealthy
 	now := time.Now()
-	h.RecordSegment(now)
+	prev := h.RecordSegment(now)
+	require.Equal(t, HealthHealthy, prev)
 	require.Equal(t, HealthHealthy, h.Status)
 	require.Equal(t, now, h.LastSegmentTime)
 	require.Equal(t, 0, h.RestartAttempts)
@@ -30,7 +31,8 @@ func TestRecordingHealth_RecordSegmentClearsStall(t *testing.T) {
 	h.RestartAttempts = 2
 	h.StallDetectedAt = time.Now().Add(-time.Minute)
 	now := time.Now()
-	h.RecordSegment(now)
+	prev := h.RecordSegment(now)
+	require.Equal(t, HealthStalled, prev)
 	require.Equal(t, HealthHealthy, h.Status)
 	require.Equal(t, now, h.LastSegmentTime)
 	require.Equal(t, 0, h.RestartAttempts)
@@ -42,7 +44,8 @@ func TestRecordingHealth_RecordSegmentClearsFailed(t *testing.T) {
 	h.Status = HealthFailed
 	h.RestartAttempts = 3
 	now := time.Now()
-	h.RecordSegment(now)
+	prev := h.RecordSegment(now)
+	require.Equal(t, HealthFailed, prev)
 	require.Equal(t, HealthHealthy, h.Status)
 	require.Equal(t, 0, h.RestartAttempts)
 }

@@ -82,15 +82,18 @@ func (h *RecordingHealth) CheckStall(now time.Time) bool {
 }
 
 // RecordSegment updates health when a new segment is received.
-// Clears any stall/failed state and resets restart attempts.
-func (h *RecordingHealth) RecordSegment(t time.Time) {
+// Returns the previous status so callers can detect recovery transitions.
+func (h *RecordingHealth) RecordSegment(t time.Time) (prevStatus string) {
+	prevStatus = h.Status
 	h.LastSegmentTime = t
 	h.RestartAttempts = 0
 	h.StallDetectedAt = time.Time{}
+	h.LastRestartAt = time.Time{}
 	h.LastError = ""
 	if h.Status == HealthStalled || h.Status == HealthFailed || h.Status == HealthHealthy {
 		h.Status = HealthHealthy
 	}
+	return prevStatus
 }
 
 // ShouldRestart returns true if a restart attempt should be made now.

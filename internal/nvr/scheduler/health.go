@@ -48,6 +48,36 @@ func NewRecordingHealth() *RecordingHealth {
 	}
 }
 
+// CheckStall checks whether the recording has stalled. Returns true if a
+// new stall was detected (transition from healthy to stalled). Does nothing
+// for inactive or already-failed cameras.
+func (h *RecordingHealth) CheckStall(now time.Time) bool {
+	if h.Status != HealthHealthy && h.Status != HealthStalled {
+		return false
+	}
+	if h.LastSegmentTime.IsZero() {
+		return false
+	}
+	if now.Sub(h.LastSegmentTime) <= StallThreshold {
+		if h.Status == HealthStalled {
+			// Recovered via time check (shouldn't happen normally — RecordSegment handles this)
+			h.Status = HealthHealthy
+			h.StallDetectedAt = time.Time{}
+			h.LastError = ""
+		}
+		return false
+	}
+
+	// Stalled.
+	if h.Status == HealthHealthy {
+		h.Status = HealthStalled
+		h.StallDetectedAt = now
+		h.LastError = "no segment received for 30s"
+		return true // new stall
+	}
+	return true // still stalled
+}
+
 // RecordSegment updates health when a new segment is received.
 // Clears any stall/failed state and resets restart attempts.
 func (h *RecordingHealth) RecordSegment(t time.Time) {

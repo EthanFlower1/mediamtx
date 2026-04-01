@@ -446,7 +446,7 @@ nvr: false
 # Path to the NVR SQLite database.
 nvrDatabase: ~/.mediamtx/nvr.db
 # Secret key for encrypting stored credentials. Auto-generated on first run if empty.
-nvrJWTSecret: "9f0d5d697e5ec9d7666c11f97ba421dfe52ea7aa0238150b454871b0052bc42d"
+nvrJWTSecret: ""
 
 ###############################################
 # Default path settings

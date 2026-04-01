@@ -78,8 +78,8 @@ linters:
       - stringsbuilder
       - testingcontext
 
-exclusions:
-  paths:
+run:
+  skip-dirs:
     - internal/nvr
     - cmd/backfill
 

@@ -63,7 +63,7 @@ After each sample is recorded, evaluate the sliding window of the last 5 samples
 - Compute the average latency over the window
 - Compare against configurable thresholds:
   - `healthy`: avg < `warn_ms` (default 50ms)
-  - `slow`: avg >= `warn_ms` and avg < `critical_ms`  
+  - `slow`: avg >= `warn_ms` and avg < `critical_ms`
   - `critical`: avg >= `critical_ms` (default 200ms)
 - The 5-sample window (2.5 minutes) prevents single-spike false alarms
 
@@ -73,11 +73,11 @@ State transitions trigger SSE events. Thresholds are stored in memory with defau
 
 Publish through the existing `EventBroadcaster` on state transitions:
 
-| Event | Trigger | Payload |
-|-------|---------|---------|
-| `disk_slow` | healthy -> slow | `{ path, avg_latency_ms, throughput_mbps, warn_threshold_ms }` |
-| `disk_critical` | any -> critical | `{ path, avg_latency_ms, throughput_mbps, critical_threshold_ms }` |
-| `disk_recovered` | slow/critical -> healthy | `{ path, avg_latency_ms, throughput_mbps }` |
+| Event            | Trigger                  | Payload                                                            |
+| ---------------- | ------------------------ | ------------------------------------------------------------------ |
+| `disk_slow`      | healthy -> slow          | `{ path, avg_latency_ms, throughput_mbps, warn_threshold_ms }`     |
+| `disk_critical`  | any -> critical          | `{ path, avg_latency_ms, throughput_mbps, critical_threshold_ms }` |
+| `disk_recovered` | slow/critical -> healthy | `{ path, avg_latency_ms, throughput_mbps }`                        |
 
 ### 5. API Endpoints
 
@@ -127,19 +127,19 @@ Returns 200 with updated thresholds, or 404 if path not found.
 
 ### 6. Integration Points
 
-| Component | Change |
-|-----------|--------|
+| Component                         | Change                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------ |
 | `internal/nvr/storage/manager.go` | Add IO benchmark to health check loop, ring buffer, threshold evaluation |
-| `internal/nvr/api/router.go` | Register new endpoints |
-| `internal/nvr/api/system.go` | Implement `disk-io` and `thresholds` handlers |
-| `internal/nvr/api/events.go` | Add `disk_slow`, `disk_critical`, `disk_recovered` event types |
+| `internal/nvr/api/router.go`      | Register new endpoints                                                   |
+| `internal/nvr/api/system.go`      | Implement `disk-io` and `thresholds` handlers                            |
+| `internal/nvr/api/events.go`      | Add `disk_slow`, `disk_critical`, `disk_recovered` event types           |
 
 ### 7. New Files
 
-| File | Purpose |
-|------|---------|
-| `internal/nvr/storage/io_monitor.go` | `PathIOMetrics` ring buffer, `IOSample` struct, threshold evaluation logic |
-| `internal/nvr/storage/io_monitor_test.go` | Unit tests for ring buffer, threshold evaluation, state transitions |
+| File                                      | Purpose                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| `internal/nvr/storage/io_monitor.go`      | `PathIOMetrics` ring buffer, `IOSample` struct, threshold evaluation logic |
+| `internal/nvr/storage/io_monitor_test.go` | Unit tests for ring buffer, threshold evaluation, state transitions        |
 
 ## Testing Strategy
 

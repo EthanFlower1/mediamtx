@@ -185,6 +185,57 @@ func TestScheduler_GetAllRecordingHealth(t *testing.T) {
 	require.Equal(t, HealthHealthy, h.Status)
 }
 
+func TestRecordingHealth_FullStallRecoveryCycle(t *testing.T) {
+	h := NewRecordingHealth()
+
+	// Start recording — set to healthy.
+	h.Status = HealthHealthy
+	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
+	h.RecordSegment(now)
+	require.Equal(t, HealthHealthy, h.Status)
+
+	// 35 seconds pass, no segment — stall detected.
+	stallTime := now.Add(35 * time.Second)
+	stalled := h.CheckStall(stallTime)
+	require.True(t, stalled)
+	require.Equal(t, HealthStalled, h.Status)
+
+	// First restart attempt.
+	require.True(t, h.ShouldRestart(stallTime))
+	h.MarkRestarted(stallTime)
+	require.Equal(t, 1, h.RestartAttempts)
+
+	// 3 seconds later — backoff not elapsed (need 5s).
+	require.False(t, h.ShouldRestart(stallTime.Add(3*time.Second)))
+
+	// 6 seconds later — backoff elapsed, second attempt.
+	t2 := stallTime.Add(6 * time.Second)
+	require.True(t, h.ShouldRestart(t2))
+	h.MarkRestarted(t2)
+	require.Equal(t, 2, h.RestartAttempts)
+
+	// 20 seconds later — third attempt (need 15s backoff).
+	t3 := t2.Add(20 * time.Second)
+	require.True(t, h.ShouldRestart(t3))
+	h.MarkRestarted(t3)
+	require.Equal(t, 3, h.RestartAttempts)
+
+	// Max attempts reached — should not restart.
+	require.False(t, h.ShouldRestart(t3.Add(time.Minute)))
+
+	// Mark failed.
+	h.MarkFailed()
+	require.Equal(t, HealthFailed, h.Status)
+
+	// Segment arrives — recovery!
+	recoveryTime := t3.Add(2 * time.Minute)
+	prev := h.RecordSegment(recoveryTime)
+	require.Equal(t, HealthFailed, prev)
+	require.Equal(t, HealthHealthy, h.Status)
+	require.Equal(t, 0, h.RestartAttempts)
+	require.True(t, h.StallDetectedAt.IsZero())
+}
+
 func TestBackoffDuration(t *testing.T) {
 	require.Equal(t, 5*time.Second, backoffDuration(0))
 	require.Equal(t, 15*time.Second, backoffDuration(1))

@@ -12,19 +12,20 @@
 
 ## File Structure
 
-| Action | File | Responsibility |
-|--------|------|----------------|
-| Create | `internal/nvr/db/stats.go` | `RecordingStats` and `Gap` types, `GetRecordingStats()` and `GetRecordingGaps()` DB methods |
-| Create | `internal/nvr/db/stats_test.go` | Unit tests for the DB stats methods |
-| Create | `internal/nvr/api/stats.go` | `StatsHandler` struct with `GetStats` and `GetGaps` HTTP handlers |
-| Create | `internal/nvr/api/stats_test.go` | Unit tests for the API handlers |
-| Modify | `internal/nvr/api/router.go:244` | Register the two new routes on the protected group |
+| Action | File                             | Responsibility                                                                              |
+| ------ | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| Create | `internal/nvr/db/stats.go`       | `RecordingStats` and `Gap` types, `GetRecordingStats()` and `GetRecordingGaps()` DB methods |
+| Create | `internal/nvr/db/stats_test.go`  | Unit tests for the DB stats methods                                                         |
+| Create | `internal/nvr/api/stats.go`      | `StatsHandler` struct with `GetStats` and `GetGaps` HTTP handlers                           |
+| Create | `internal/nvr/api/stats_test.go` | Unit tests for the API handlers                                                             |
+| Modify | `internal/nvr/api/router.go:244` | Register the two new routes on the protected group                                          |
 
 ---
 
 ### Task 1: DB Stats Types and GetRecordingStats Query
 
 **Files:**
+
 - Create: `internal/nvr/db/stats.go`
 - Test: `internal/nvr/db/stats_test.go`
 
@@ -187,6 +188,7 @@ git commit -m "feat(kai-14): add GetRecordingStats DB method with aggregate per-
 ### Task 2: DB Gap Detection Query
 
 **Files:**
+
 - Modify: `internal/nvr/db/stats.go`
 - Modify: `internal/nvr/db/stats_test.go`
 
@@ -341,6 +343,7 @@ git commit -m "feat(kai-14): add GetRecordingGaps DB method with window function
 ### Task 3: Stats API Handler
 
 **Files:**
+
 - Create: `internal/nvr/api/stats.go`
 - Create: `internal/nvr/api/stats_test.go`
 
@@ -640,6 +643,7 @@ git commit -m "feat(kai-14): add StatsHandler with GetStats and GetGaps API endp
 ### Task 4: Register Routes
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go:72-74` (add handler init) and `internal/nvr/api/router.go:244` (add routes)
 
 - [ ] **Step 1: Add StatsHandler initialization in RegisterRoutes**

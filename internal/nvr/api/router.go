@@ -73,6 +73,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	var healthHandler *RecordingHealthHandler
+	if cfg.Scheduler != nil {
+		healthHandler = &RecordingHealthHandler{
+			DB:             cfg.DB,
+			HealthProvider: cfg.Scheduler,
+		}
+	}
+
 	userHandler := &UserHandler{
 		DB:    cfg.DB,
 		Audit: audit,
@@ -255,6 +263,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Recording health.
+	if healthHandler != nil {
+		protected.GET("/recordings/health", healthHandler.List)
+	}
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)

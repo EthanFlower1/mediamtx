@@ -31,6 +31,9 @@ type EventPublisher interface {
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)
 	PublishRecordingStopped(cameraName string)
+	PublishRecordingStalled(cameraName string)
+	PublishRecordingRecovered(cameraName string)
+	PublishRecordingFailed(cameraName string)
 }
 
 // EffectiveMode represents the resolved recording mode for a camera after
@@ -89,6 +92,8 @@ type Scheduler struct {
 	writeTimer      *time.Timer
 
 	lastRetentionCheck time.Time // timestamp of last retention cleanup run
+
+	healthStates map[string]*RecordingHealth // camera ID -> recording health
 }
 
 // New creates a new Scheduler.
@@ -105,6 +110,7 @@ func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr 
 		motionSMs:     make(map[string]*MotionSM),
 		eventSubs:     make(map[string]*onvif.EventSubscriber),
 		motionTimers:  make(map[string]*time.Timer),
+		healthStates: make(map[string]*RecordingHealth),
 	}
 }
 
@@ -173,6 +179,31 @@ func (s *Scheduler) RemoveCamera(cameraID string) {
 			delete(s.states, sk)
 		}
 	}
+	delete(s.healthStates, cameraID)
+}
+
+// NotifySegmentForCamera is called when a recording segment completes for the
+// given camera. It updates the recording health state and publishes a recovery
+// event if the camera was previously stalled or failed.
+func (s *Scheduler) NotifySegmentForCamera(cameraID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	h, ok := s.healthStates[cameraID]
+	if !ok {
+		h = NewRecordingHealth()
+		s.healthStates[cameraID] = h
+	}
+	prev := h.RecordSegment(time.Now())
+
+	if (prev == HealthStalled || prev == HealthFailed) && h.Status == HealthHealthy {
+		if s.eventPub != nil {
+			cam, err := s.db.GetCamera(cameraID)
+			if err == nil {
+				s.eventPub.PublishRecordingRecovered(cam.Name)
+			}
+		}
+	}
 }
 
 // GetCameraState returns a copy of the current state for a camera, or nil.
@@ -188,6 +219,31 @@ func (s *Scheduler) GetCameraState(cameraID string) *CameraState {
 	cp.ActiveRules = make([]string, len(st.ActiveRules))
 	copy(cp.ActiveRules, st.ActiveRules)
 	return &cp
+}
+
+// GetRecordingHealth returns a copy of the recording health for the given camera.
+// Returns nil if no health state exists.
+func (s *Scheduler) GetRecordingHealth(cameraID string) *RecordingHealth {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h, ok := s.healthStates[cameraID]
+	if !ok {
+		return nil
+	}
+	cp := *h
+	return &cp
+}
+
+// GetAllRecordingHealth returns a copy of all recording health states.
+func (s *Scheduler) GetAllRecordingHealth() map[string]*RecordingHealth {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make(map[string]*RecordingHealth, len(s.healthStates))
+	for k, v := range s.healthStates {
+		cp := *v
+		result[k] = &cp
+	}
+	return result
 }
 
 // run is the main scheduler loop.
@@ -399,6 +455,7 @@ func (s *Scheduler) evaluate() {
 				}
 			}
 		}
+
 		s.mu.Unlock()
 
 		for streamID, streamRules := range rulesByStream {
@@ -454,6 +511,15 @@ func (s *Scheduler) evaluate() {
 				s.states[sk].MotionState = prev.MotionState
 			}
 
+			// Initialize recording health when recording starts.
+			if desiredRecording {
+				if _, hasHealth := s.healthStates[camID]; !hasHealth {
+					s.healthStates[camID] = NewRecordingHealth()
+					s.healthStates[camID].Status = HealthHealthy
+					s.healthStates[camID].LastSegmentTime = now
+				}
+			}
+
 			if changed {
 				prevMode := ModeOff
 				if exists {
@@ -506,6 +572,64 @@ func (s *Scheduler) evaluate() {
 			if !activeSubPaths[p] {
 				log.Printf("scheduler: removing orphaned sub-stream path %q from YAML", p)
 				s.yamlWriter.RemovePath(p)
+			}
+		}
+	}
+
+	// Check recording health for stalls. Collect stalled camera IDs under
+	// the lock, then handle recovery outside the lock to avoid holding the
+	// mutex during DB calls and goroutine spawning.
+	type stalledEntry struct {
+		camID       string
+		shouldRestart bool
+		shouldFail    bool
+	}
+	var stalledCameras []stalledEntry
+
+	s.mu.Lock()
+	for camID, h := range s.healthStates {
+		st := s.states[camID]
+		if st == nil || !st.Recording {
+			if h.Status != HealthInactive {
+				h.Status = HealthInactive
+			}
+			continue
+		}
+		if h.Status == HealthInactive {
+			h.Status = HealthHealthy
+		}
+		if h.CheckStall(now) && h.Status == HealthStalled {
+			if h.ShouldRestart(now) {
+				h.MarkRestarted(now)
+				stalledCameras = append(stalledCameras, stalledEntry{camID: camID, shouldRestart: true})
+			} else if h.RestartAttempts >= MaxRestartAttempts {
+				h.MarkFailed()
+				stalledCameras = append(stalledCameras, stalledEntry{camID: camID, shouldFail: true})
+			}
+		}
+	}
+	s.mu.Unlock()
+
+	// Handle recovery actions outside the mutex.
+	for _, entry := range stalledCameras {
+		cam, err := s.db.GetCamera(entry.camID)
+		if err != nil {
+			continue
+		}
+		if entry.shouldRestart {
+			log.Printf("scheduler: recording stalled for %s, attempting restart", cam.Name)
+			go func(p string) {
+				_ = s.yamlWriter.SetPathValue(p, "record", false)
+				time.Sleep(2 * time.Second)
+				_ = s.yamlWriter.SetPathValue(p, "record", true)
+			}(cam.MediaMTXPath)
+			if s.eventPub != nil {
+				s.eventPub.PublishRecordingStalled(cam.Name)
+			}
+		} else if entry.shouldFail {
+			log.Printf("scheduler: recording recovery failed for %s after %d attempts", cam.Name, MaxRestartAttempts)
+			if s.eventPub != nil {
+				s.eventPub.PublishRecordingFailed(cam.Name)
 			}
 		}
 	}

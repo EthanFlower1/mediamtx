@@ -1,0 +1,129 @@
+package scheduler
+
+import (
+	"fmt"
+	"time"
+)
+
+// Health status constants.
+const (
+	HealthInactive = "inactive"
+	HealthHealthy  = "healthy"
+	HealthStalled  = "stalled"
+	HealthFailed   = "failed"
+)
+
+const (
+	// StallThreshold is how long without a segment before a recording is stalled.
+	StallThreshold = 30 * time.Second
+
+	// MaxRestartAttempts is the number of recovery attempts before giving up.
+	MaxRestartAttempts = 3
+)
+
+// backoffDuration returns the backoff delay for the given attempt (0-indexed).
+// Attempts: 5s, 15s, 45s.
+func backoffDuration(attempt int) time.Duration {
+	switch attempt {
+	case 0:
+		return 5 * time.Second
+	case 1:
+		return 15 * time.Second
+	default:
+		return 45 * time.Second
+	}
+}
+
+// RecordingHealth tracks the health of a camera's recording pipeline.
+type RecordingHealth struct {
+	Status          string
+	LastSegmentTime time.Time
+	StallDetectedAt time.Time
+	RestartAttempts int
+	LastRestartAt   time.Time
+	LastError       string
+}
+
+// NewRecordingHealth returns a RecordingHealth in the inactive state.
+func NewRecordingHealth() *RecordingHealth {
+	return &RecordingHealth{
+		Status: HealthInactive,
+	}
+}
+
+// CheckStall checks whether the recording has stalled. Returns true if the
+// recording is currently stalled (either newly detected or ongoing). Does
+// nothing for inactive or already-failed cameras.
+func (h *RecordingHealth) CheckStall(now time.Time) bool {
+	if h.Status != HealthHealthy && h.Status != HealthStalled {
+		return false
+	}
+	if h.LastSegmentTime.IsZero() {
+		return false
+	}
+	if now.Sub(h.LastSegmentTime) <= StallThreshold {
+		if h.Status == HealthStalled {
+			// Recovered via time check (shouldn't happen normally — RecordSegment handles this)
+			h.Status = HealthHealthy
+			h.StallDetectedAt = time.Time{}
+			h.LastError = ""
+		}
+		return false
+	}
+
+	// Stalled.
+	if h.Status == HealthHealthy {
+		h.Status = HealthStalled
+		h.StallDetectedAt = now
+		h.LastError = "no segment received for 30s"
+		return true // new stall
+	}
+	return true // still stalled
+}
+
+// RecordSegment updates health when a new segment is received.
+// Returns the previous status so callers can detect recovery transitions.
+// If status is HealthInactive, timestamps are updated but status is not
+// changed — the evaluate() loop handles the inactive→healthy transition.
+func (h *RecordingHealth) RecordSegment(t time.Time) (prevStatus string) {
+	prevStatus = h.Status
+	h.LastSegmentTime = t
+	h.RestartAttempts = 0
+	h.StallDetectedAt = time.Time{}
+	h.LastRestartAt = time.Time{}
+	h.LastError = ""
+	if h.Status == HealthStalled || h.Status == HealthFailed || h.Status == HealthHealthy {
+		h.Status = HealthHealthy
+	}
+	return prevStatus
+}
+
+// ShouldRestart returns true if a restart attempt should be made now.
+// Returns false if max attempts reached or backoff period hasn't elapsed.
+func (h *RecordingHealth) ShouldRestart(now time.Time) bool {
+	if h.Status != HealthStalled {
+		return false
+	}
+	if h.RestartAttempts >= MaxRestartAttempts {
+		return false
+	}
+	if h.RestartAttempts > 0 {
+		backoff := backoffDuration(h.RestartAttempts - 1)
+		if now.Sub(h.LastRestartAt) < backoff {
+			return false
+		}
+	}
+	return true
+}
+
+// MarkRestarted records that a restart attempt was made.
+func (h *RecordingHealth) MarkRestarted(now time.Time) {
+	h.RestartAttempts++
+	h.LastRestartAt = now
+}
+
+// MarkFailed transitions the health to failed state.
+func (h *RecordingHealth) MarkFailed() {
+	h.Status = HealthFailed
+	h.LastError = fmt.Sprintf("recovery failed after %d attempts", MaxRestartAttempts)
+}

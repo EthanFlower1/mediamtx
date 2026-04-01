@@ -45,9 +45,10 @@ func newTestRecordDir(t *testing.T) string {
 	return t.TempDir()
 }
 
-// newTestStream creates a Stream with H264 video and MPEG-4 audio medias,
-// initializes it, and returns the stream, sub-stream, and session description.
-func newTestStream(t *testing.T) (*stream.Stream, *stream.SubStream, *description.Session) {
+// makeTestStream creates a Stream with H264 video and MPEG-4 audio medias.
+// The caller is responsible for calling strm.Close() — no cleanup is registered.
+// Use this when you need to control stream close timing (e.g., disconnect tests).
+func makeTestStream(t *testing.T) (*stream.Stream, *stream.SubStream, *description.Session) {
 	t.Helper()
 
 	desc := &description.Session{
@@ -65,7 +66,6 @@ func newTestStream(t *testing.T) (*stream.Stream, *stream.SubStream, *descriptio
 	}
 	err := strm.Initialize()
 	require.NoError(t, err)
-	t.Cleanup(strm.Close)
 
 	sub := &stream.SubStream{
 		Stream:        strm,
@@ -74,6 +74,16 @@ func newTestStream(t *testing.T) (*stream.Stream, *stream.SubStream, *descriptio
 	err = sub.Initialize()
 	require.NoError(t, err)
 
+	return strm, sub, desc
+}
+
+// newTestStream creates a Stream and registers t.Cleanup to close it.
+// Do NOT call strm.Close() manually — use makeTestStream instead if you need
+// to control stream close timing.
+func newTestStream(t *testing.T) (*stream.Stream, *stream.SubStream, *description.Session) {
+	t.Helper()
+	strm, sub, desc := makeTestStream(t)
+	t.Cleanup(strm.Close)
 	return strm, sub, desc
 }
 
@@ -99,9 +109,10 @@ func writeH264Frames(sub *stream.SubStream, desc *description.Session, n int, st
 	}
 }
 
-// startRecorder creates and starts a Recorder writing fMP4 segments.
-// It returns the recorder (caller must defer Close) and the record path pattern.
-func startRecorder(
+// makeRecorder creates and initializes a Recorder writing fMP4 segments.
+// The caller is responsible for calling rec.Close() — no cleanup is registered.
+// Use this when you need to control the Close timing (e.g., graceful shutdown tests).
+func makeRecorder(
 	t *testing.T,
 	strm *stream.Stream,
 	recordDir string,
@@ -123,8 +134,23 @@ func startRecorder(
 		Parent:            testLogger{},
 	}
 	rec.Initialize()
-	t.Cleanup(rec.Close)
 
+	return rec
+}
+
+// startRecorder creates and starts a Recorder writing fMP4 segments.
+// It registers t.Cleanup to close the recorder automatically.
+// Do NOT call rec.Close() manually — use makeRecorder instead if you need
+// to control the shutdown timing.
+func startRecorder(
+	t *testing.T,
+	strm *stream.Stream,
+	recordDir string,
+	onSegmentComplete recorder.OnSegmentCompleteFunc,
+) *recorder.Recorder {
+	t.Helper()
+	rec := makeRecorder(t, strm, recordDir, onSegmentComplete)
+	t.Cleanup(rec.Close)
 	return rec
 }
 

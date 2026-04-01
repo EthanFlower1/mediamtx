@@ -95,7 +95,7 @@ func TestGracefulShutdown(t *testing.T) {
 	var mu sync.Mutex
 	var completedSegments []string
 
-	rec := startRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
+	rec := makeRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
 		mu.Lock()
 		defer mu.Unlock()
 		completedSegments = append(completedSegments, path)
@@ -267,7 +267,7 @@ func TestRestartRecovery(t *testing.T) {
 		duration time.Duration
 	}
 
-	rec := startRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
+	rec := makeRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
 		mu.Lock()
 		defer mu.Unlock()
 		segments = append(segments, struct {

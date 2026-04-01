@@ -15,13 +15,12 @@ import (
 // stream abruptly. It verifies that at least one recording file exists on disk.
 func TestStreamDisconnect(t *testing.T) {
 	recordDir := newTestRecordDir(t)
-	strm, sub, desc := newTestStream(t)
+	strm, sub, desc := makeTestStream(t)
 
 	var completedSegments []string
-	rec := startRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
+	rec := makeRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
 		completedSegments = append(completedSegments, path)
 	})
-	_ = rec
 
 	// Write 2s of frames at 30fps = 60 frames.
 	startNTP := time.Now()
@@ -30,7 +29,8 @@ func TestStreamDisconnect(t *testing.T) {
 	// Let the recorder flush parts/segments.
 	time.Sleep(2 * time.Second)
 
-	// Abruptly close the stream.
+	// Abruptly close the stream (also closes the recorder implicitly).
+	rec.Close()
 	strm.Close()
 
 	// Give recorder time to handle the error (supervisor restarts with 2s pause).
@@ -120,13 +120,12 @@ func TestStreamStall(t *testing.T) {
 // creates a new stream, writes 2s more, and documents the gap and segment count.
 func TestStreamReconnect(t *testing.T) {
 	recordDir := newTestRecordDir(t)
-	strm, sub, desc := newTestStream(t)
+	strm, sub, desc := makeTestStream(t)
 
 	var completedSegments []string
-	rec := startRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
+	rec := makeRecorder(t, strm, recordDir, func(path string, duration time.Duration) {
 		completedSegments = append(completedSegments, path)
 	})
-	_ = rec
 
 	// Phase 1: Write 2s of frames at 30fps = 60 frames.
 	startNTP := time.Now()
@@ -139,8 +138,9 @@ func TestStreamReconnect(t *testing.T) {
 	require.NoError(t, err)
 	preDisconnectCount := len(preDisconnectFiles)
 
-	// Close the stream to simulate camera disconnect.
+	// Close the recorder and stream to simulate camera disconnect.
 	disconnectTime := time.Now()
+	rec.Close()
 	strm.Close()
 
 	// Wait for recorder to handle the error (supervisor restarts with 2s pause).

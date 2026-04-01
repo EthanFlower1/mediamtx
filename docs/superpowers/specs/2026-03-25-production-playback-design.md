@@ -13,6 +13,7 @@ Audit of the current playback implementation revealed that the primary issues (s
 **Server-side root cause:** `hls.go` hard-codes `#EXTINF:1.0` for every fragment. The `scanFragments()` function reads byte offsets but never extracts timing from fMP4 `trun`/`tfhd` boxes. This means the HLS player builds a wrong internal timeline, and all client-side position mapping operates on incorrect data.
 
 **Client-side cascading bugs:**
+
 - `_isSeeking` flag never reset on error → UI freeze
 - Position stream race condition after seek → snap-back
 - Gap snapping off-by-one → wrong segment boundary behavior
@@ -55,12 +56,14 @@ New column on `recordings` table: `init_size INTEGER` (ftyp + moov byte size).
 With the fragment index, playlist generation becomes a pure database query with no file I/O.
 
 **New flow:**
+
 1. Client requests `/api/nvr/vod/{cameraId}/playlist.m3u8?date=2026-03-25`
 2. Server queries `recordings` joined with `recording_fragments` for that camera+date
 3. Builds m3u8 directly from DB rows with real durations, exact byte ranges, correct init sizes
 4. No `scanFragments()` call, no file opens
 
 **Fixes applied:**
+
 - `#EXTINF:{actual_duration}` from `duration_ms` instead of hard-coded `1.0`
 - `#EXT-X-TARGETDURATION` set to `ceil(max(duration_ms))` across all fragments
 - `#EXT-X-MAP` byte range uses stored `init_size` per recording file
@@ -74,26 +77,31 @@ With the fragment index, playlist generation becomes a pure database query with 
 
 ### 3. Client-Side Bug Fixes (PlaybackController)
 
-**Fix 1: _isSeeking race condition + error safety**
+**Fix 1: \_isSeeking race condition + error safety**
+
 - Wrap `seek()` body in try/finally — `_isSeeking = false` always executes
 - After setting `_isSeeking = false`, ignore position stream updates for 100ms debounce window to prevent stale buffered events from causing snap-back
 
 **Fix 2: Position stream validation**
+
 - When position update arrives, compare against last known seek target
 - Discard position updates that jump backward >2 seconds from current `_position` without user-initiated seek
 - Eliminates snap-back from delayed events after discontinuity crossings
 
 **Fix 3: Gap snapping boundary fix**
+
 - Change containment check from `posTime < seg.endTime` to `posTime <= seg.endTime` (inclusive end)
 - Snap to nearest segment boundary (prev end or next start) instead of always snapping forward
 - Clamp to last segment's end time when seeking past all segments
 
-**Fix 4: _openPlayers() error handling**
+**Fix 4: \_openPlayers() error handling**
+
 - Wrap `player.open()` in try/catch per camera
 - If a camera fails, log error, skip, continue with remaining cameras
 - If all cameras fail, set `_error` and return gracefully
 
 **Fix 5: Discontinuity-aware position mapping**
+
 - With accurate EXTINF durations, player's internal position matches cumulative duration in segment index
 - Rebuild segment index using actual recording durations from the API
 
@@ -102,12 +110,14 @@ With the fragment index, playlist generation becomes a pure database query with 
 New features added as CustomPainter layers on the existing ComposableTimeline architecture.
 
 **Motion intensity layer:**
+
 - Heatmap-style intensity graph behind recording bars
 - Motion event counts bucketed by time interval (adapts to zoom: 1 min at high zoom, 15 min at low zoom)
 - Semi-transparent filled area chart, color intensity proportional to event density
 - New endpoint: `GET /api/nvr/timeline/intensity?camera_id=X&date=Y&bucket_seconds=Z`
 
 **Bookmarks:**
+
 - New `bookmarks` table:
   ```sql
   CREATE TABLE bookmarks (
@@ -128,11 +138,13 @@ New features added as CustomPainter layers on the existing ComposableTimeline ar
 - Transport control button to skip between bookmarks
 
 **Cross-day continuous playback:**
+
 - When playback reaches end of current date's last segment, auto-fetch next day's playlist
 - Timeline stays single-day view with forward/back date buttons
 - `_continuousMode` flag on PlaybackController: segment end triggers `setSelectedDate(nextDay)` + `seek(Duration.zero)`
 
 **Thumbnail preview:**
+
 - Server endpoint: `GET /api/nvr/thumbnail?camera_id=X&time=RFC3339`
 - Uses fragment index to find nearest keyframe, reads the fMP4 fragment via byte-range, decodes single frame using FFmpeg subprocess (`ffmpeg -ss 0 -i pipe:0 -frames:v 1 -f mjpeg pipe:1`)
 - Tooltip above timeline at hovered position (desktop) or long-press (mobile)
@@ -141,18 +153,19 @@ New features added as CustomPainter layers on the existing ComposableTimeline ar
 
 ### 5. Performance Targets
 
-| Metric | Target | Current |
-|--------|--------|---------|
-| Playlist generation | <50ms | Unbounded (file scanning) |
-| Seek-to-first-frame | <500ms | Several seconds |
-| Timeline render (10K+ events) | 60fps | Unknown at scale |
-| Thumbnail preview | <200ms | N/A |
+| Metric                        | Target | Current                   |
+| ----------------------------- | ------ | ------------------------- |
+| Playlist generation           | <50ms  | Unbounded (file scanning) |
+| Seek-to-first-frame           | <500ms | Several seconds           |
+| Timeline render (10K+ events) | 60fps  | Unknown at scale          |
+| Thumbnail preview             | <200ms | N/A                       |
 
 ### 6. Migration Strategy
 
 **Schema migration:** Adds `recording_fragments` table and `init_size` column on `recordings`.
 
 **Background backfill:**
+
 - Goroutine starts on server boot
 - Queries recordings with no fragments
 - Scans in reverse chronological order (newest first — recent playback benefits immediately)
@@ -174,6 +187,7 @@ Steps 1-3 are server-only, deployable without Flutter changes. Step 4 is client-
 ## Files Affected
 
 **Server (Go):**
+
 - `internal/nvr/db/recordings.go` — new fragment table, queries, migration
 - `internal/nvr/db/bookmarks.go` — new file for bookmark CRUD
 - `internal/nvr/nvr.go` — OnSegmentComplete: scan + index fragments
@@ -183,6 +197,7 @@ Steps 1-3 are server-only, deployable without Flutter changes. Step 4 is client-
 - `internal/nvr/api/router.go` — new routes
 
 **Client (Flutter):**
+
 - `lib/screens/playback/playback_controller.dart` — bug fixes (seeking, error handling, gap snapping, position validation)
 - `lib/screens/playback/timeline/composable_timeline.dart` — new layers (intensity, bookmarks)
 - `lib/screens/playback/timeline/intensity_layer.dart` — new file

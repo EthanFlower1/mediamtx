@@ -13,10 +13,12 @@
 ## File Map
 
 **Create:**
+
 - `internal/nvr/db/retention.go` — consolidation, event-aware deletion, DB stats
 - `internal/nvr/db/retention_test.go` — tests for all retention logic
 
 **Modify:**
+
 - `internal/nvr/db/migrations.go` — Migration 27: new columns
 - `internal/nvr/db/cameras.go` — Camera struct + CRUD for new retention fields
 - `internal/nvr/db/motion_events.go` — MotionEvent struct (add Embedding, DetectionSummary)
@@ -32,6 +34,7 @@
 ### Task 1: Schema Migration + Camera Model Updates
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go` (append migration 27)
 - Modify: `internal/nvr/db/cameras.go` (Camera struct + all CRUD)
 - Modify: `internal/nvr/db/db_test.go:53` (version assertion)
@@ -79,6 +82,7 @@ DetectionRetentionDays int `json:"detection_retention_days"`
 In `internal/nvr/db/cameras.go`, update `CreateCamera` INSERT statement to include the new columns. Add `event_retention_days, detection_retention_days` to the column list and `cam.EventRetentionDays, cam.DetectionRetentionDays` to the values.
 
 The full column list becomes:
+
 ```go
 _, err := d.Exec(`
     INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
@@ -107,6 +111,7 @@ _, err := d.Exec(`
 All three methods share the same column pattern. Add `event_retention_days, detection_retention_days` to each SELECT immediately after `retention_days`, and add `&cam.EventRetentionDays, &cam.DetectionRetentionDays` to each Scan immediately after `&cam.RetentionDays`.
 
 For `GetCamera`, the SELECT becomes:
+
 ```go
 err := d.QueryRow(`
     SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
@@ -138,6 +143,7 @@ Apply the identical pattern to `GetCameraByPath` and `ListCameras`.
 - [ ] **Step 7: Update UpdateCamera SET clause**
 
 In `internal/nvr/db/cameras.go`, add to `UpdateCamera`'s SET clause:
+
 ```go
 res, err := d.Exec(`
     UPDATE cameras SET name = ?, onvif_endpoint = ?, onvif_username = ?,
@@ -207,6 +213,7 @@ git commit -m "feat: add migration 27 with event-aware retention columns and cam
 ### Task 2: Detection Consolidation
 
 **Files:**
+
 - Create: `internal/nvr/db/retention.go`
 - Create: `internal/nvr/db/retention_test.go`
 
@@ -515,6 +522,7 @@ git commit -m "feat: add detection consolidation into compact event summaries"
 ### Task 3: Event-Aware Recording Deletion + Motion Event Cleanup
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention.go`
 - Modify: `internal/nvr/db/retention_test.go`
 
@@ -822,6 +830,7 @@ git commit -m "feat: add event-aware recording deletion and motion event cleanup
 ### Task 4: Database Stats + Search Adaptation
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention.go`
 - Modify: `internal/nvr/db/retention_test.go`
 - Modify: `internal/nvr/db/motion_events.go`
@@ -1134,6 +1143,7 @@ git commit -m "feat: add database stats, searchable events, and merge search sou
 ### Task 5: Scheduler Retention Overhaul
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 
 - [ ] **Step 1: Add removeFiles helper**
@@ -1249,6 +1259,7 @@ git commit -m "feat: scheduler uses event-aware retention with detection consoli
 ### Task 6: API Endpoints — Retention Policy, Storage Dashboard, Manual Purge
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/system.go`
 - Modify: `internal/nvr/api/router.go`
@@ -1402,6 +1413,7 @@ git commit -m "feat: extended retention API, storage dashboard with DB stats, ma
 ### Task 7: Integration Tests
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention_test.go`
 
 - [ ] **Step 1: Write end-to-end retention flow test**
@@ -1570,12 +1582,12 @@ git commit -m "test: add integration tests for event-aware retention and consoli
 
 ## Summary of Behavior
 
-| Camera Setting | Effect |
-|---|---|
-| `retention_days=3` only | **Legacy mode**: all recordings deleted after 3 days (unchanged behavior) |
+| Camera Setting                                  | Effect                                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `retention_days=3` only                         | **Legacy mode**: all recordings deleted after 3 days (unchanged behavior)                 |
 | `retention_days=3` + `event_retention_days=365` | **Smart mode**: no-event recordings deleted after 3 days, event recordings after 365 days |
-| `detection_retention_days=365` | Motion events + consolidated summaries deleted after 365 days |
-| All zero (default) | No automatic cleanup |
+| `detection_retention_days=365`                  | Motion events + consolidated summaries deleted after 365 days                             |
+| All zero (default)                              | No automatic cleanup                                                                      |
 
 **Consolidation** runs every hour during the scheduler's retention cycle, compacting closed events older than 1 hour. This reduces per-event storage from ~129KB to ~5KB (~96% reduction).
 

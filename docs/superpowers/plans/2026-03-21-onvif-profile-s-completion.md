@@ -15,36 +15,39 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/client.go` | Shared ONVIF device client with service discovery, capability checks |
-| `internal/nvr/onvif/client_test.go` | Client unit tests |
-| `internal/nvr/onvif/relay.go` | Relay output discovery and control |
-| `internal/nvr/onvif/audio.go` | Audio backchannel discovery and URI retrieval |
-| `ui/src/components/RelayControls.tsx` | Relay output toggle UI |
-| `ui/src/components/AudioIntercom.tsx` | Push-to-talk audio backchannel UI |
+
+| File                                  | Responsibility                                                       |
+| ------------------------------------- | -------------------------------------------------------------------- |
+| `internal/nvr/onvif/client.go`        | Shared ONVIF device client with service discovery, capability checks |
+| `internal/nvr/onvif/client_test.go`   | Client unit tests                                                    |
+| `internal/nvr/onvif/relay.go`         | Relay output discovery and control                                   |
+| `internal/nvr/onvif/audio.go`         | Audio backchannel discovery and URI retrieval                        |
+| `ui/src/components/RelayControls.tsx` | Relay output toggle UI                                               |
+| `ui/src/components/AudioIntercom.tsx` | Push-to-talk audio backchannel UI                                    |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `internal/nvr/onvif/snapshot.go` | Replace URL guessing with GetSnapshotURI, fall back to guessing |
-| `internal/nvr/onvif/ptz.go` | Add GetNodes, GetConfigurations for capability discovery |
-| `internal/nvr/onvif/discovery.go` | Use shared client, populate capability flags |
-| `internal/nvr/onvif/imaging.go` | Use shared client instead of inline connectDevice |
-| `internal/nvr/onvif/events.go` | Use shared client instead of inline connectDevice |
-| `internal/nvr/api/cameras.go` | Add relay and audio endpoints |
-| `internal/nvr/api/router.go` | Register new routes |
-| `internal/nvr/db/migrations.go` | Add v9 migration for capability flags on cameras |
-| `internal/nvr/db/cameras.go` | Add capability flag fields to Camera struct |
-| `ui/src/pages/CameraManagement.tsx` | Add relay controls and audio intercom to camera detail |
-| `ui/src/pages/LiveView.tsx` | Add audio intercom button to camera modal |
-| `ui/src/hooks/useCameras.ts` | Add capability fields to Camera interface |
+
+| File                                | Change                                                          |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `internal/nvr/onvif/snapshot.go`    | Replace URL guessing with GetSnapshotURI, fall back to guessing |
+| `internal/nvr/onvif/ptz.go`         | Add GetNodes, GetConfigurations for capability discovery        |
+| `internal/nvr/onvif/discovery.go`   | Use shared client, populate capability flags                    |
+| `internal/nvr/onvif/imaging.go`     | Use shared client instead of inline connectDevice               |
+| `internal/nvr/onvif/events.go`      | Use shared client instead of inline connectDevice               |
+| `internal/nvr/api/cameras.go`       | Add relay and audio endpoints                                   |
+| `internal/nvr/api/router.go`        | Register new routes                                             |
+| `internal/nvr/db/migrations.go`     | Add v9 migration for capability flags on cameras                |
+| `internal/nvr/db/cameras.go`        | Add capability flag fields to Camera struct                     |
+| `ui/src/pages/CameraManagement.tsx` | Add relay controls and audio intercom to camera detail          |
+| `ui/src/pages/LiveView.tsx`         | Add audio intercom button to camera modal                       |
+| `ui/src/hooks/useCameras.ts`        | Add capability fields to Camera interface                       |
 
 ---
 
 ### Task 1: Extract shared ONVIF client
 
 **Files:**
+
 - Create: `internal/nvr/onvif/client.go`
 - Modify: `internal/nvr/onvif/imaging.go`
 - Modify: `internal/nvr/onvif/device.go`
@@ -152,6 +155,7 @@ git commit -m "refactor(nvr): extract shared ONVIF client with service discovery
 ### Task 2: Add capability flags to camera database
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/cameras.go`
 - Modify: `internal/nvr/db/db_test.go`
@@ -217,6 +221,7 @@ Commit: `git commit -m "feat(nvr): add ONVIF capability flags and snapshot URI t
 ### Task 3: Implement GetSnapshotURI
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/snapshot.go`
 - Modify: `internal/nvr/onvif/device.go`
 
@@ -258,6 +263,7 @@ func GetSnapshotURI(xaddr, username, password, profileToken string) (string, err
 - [ ] **Step 2: Update CaptureSnapshot to try ONVIF first**
 
 Refactor `CaptureSnapshot` to:
+
 1. If `snapshotURI` is provided (from DB), use it directly
 2. Otherwise, try `GetSnapshotURI` via ONVIF
 3. Fall back to guessing common URLs (existing behavior)
@@ -291,6 +297,7 @@ Commit: `git commit -m "feat(nvr): implement ONVIF GetSnapshotURI for reliable t
 ### Task 4: Implement relay output control
 
 **Files:**
+
 - Create: `internal/nvr/onvif/relay.go`
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
@@ -365,6 +372,7 @@ Register in `router.go`.
 - [ ] **Step 3: Create RelayControls.tsx**
 
 A component that:
+
 - Fetches relay outputs from API
 - Shows each output as a card with name, mode, and a toggle switch
 - Toggle calls the state endpoint
@@ -386,6 +394,7 @@ Commit: `git commit -m "feat(nvr): add ONVIF relay output discovery and control"
 ### Task 5: Implement PTZ configuration queries
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/ptz.go`
 - Modify: `ui/src/components/PTZControls.tsx`
 
@@ -428,6 +437,7 @@ Returns PTZ node info including speed ranges and supported features.
 - [ ] **Step 3: Update PTZControls.tsx**
 
 Fetch capabilities on mount. Use speed ranges to scale the joystick sensitivity:
+
 - If maxPanSpeed is 0.5, scale the UI joystick value from [-1,1] to [-0.5, 0.5]
 - Show/hide Home button based on `homePosSupport`
 - Show max preset count
@@ -441,6 +451,7 @@ Commit: `git commit -m "feat(nvr): add PTZ capability queries and smart speed sc
 ### Task 6: Implement audio backchannel discovery
 
 **Files:**
+
 - Create: `internal/nvr/onvif/audio.go`
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
@@ -500,6 +511,7 @@ func GetAudioCapabilities(xaddr, username, password string) (*AudioCapabilities,
 - [ ] **Step 3: Create AudioIntercom.tsx**
 
 Push-to-talk component:
+
 - Microphone button (press-and-hold to talk)
 - Uses `navigator.mediaDevices.getUserMedia({ audio: true })` to capture microphone
 - Visual feedback: pulsing ring while transmitting
@@ -520,6 +532,7 @@ Commit: `git commit -m "feat(nvr): add audio backchannel discovery and intercom 
 ### Task 7: Populate capabilities during camera probing
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/device.go`
 - Modify: `internal/nvr/api/cameras.go`
 
@@ -555,6 +568,7 @@ Commit: `git commit -m "feat(nvr): populate ONVIF capabilities during camera dis
 ### Task 8: Integration test and cleanup
 
 **Files:**
+
 - Various test files
 
 - [ ] **Step 1: Verify all tests pass**
@@ -572,6 +586,7 @@ cd ui && npm run build
 - [ ] **Step 3: End-to-end verification**
 
 Start the server and verify:
+
 1. Camera probe returns capability flags
 2. Snapshot capture uses ONVIF URI when available
 3. Relay outputs show (if camera supports)

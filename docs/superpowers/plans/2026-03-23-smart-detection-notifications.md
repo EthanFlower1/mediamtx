@@ -14,35 +14,36 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `internal/nvr/ai/kalman.go` | Create | 2D Kalman filter for bounding box prediction |
-| `internal/nvr/ai/tracker.go` | Create | ByteTrack multi-object tracker |
-| `internal/nvr/ai/tracker_test.go` | Create | Tracker unit tests |
-| `internal/nvr/ai/zone.go` | Create | Zone model + PointInPolygon |
-| `internal/nvr/ai/zone_test.go` | Create | Zone geometry tests |
-| `internal/nvr/ai/state.go` | Create | Per-track per-zone state machine |
-| `internal/nvr/ai/state_test.go` | Create | State transition tests |
-| `internal/nvr/ai/cooldown.go` | Create | Per-zone per-class cooldown manager |
-| `internal/nvr/ai/cooldown_test.go` | Create | Cooldown tests |
-| `internal/nvr/ai/pipeline.go` | Modify | Integrate tracker, zones, state, cooldowns |
-| `internal/nvr/db/zones.go` | Create | Zone + alert rule CRUD |
-| `internal/nvr/db/migrations.go` | Modify | Add v15 migration |
-| `internal/nvr/api/events.go` | Modify | Structured Event fields, PublishTrackedDetection |
-| `internal/nvr/api/zones.go` | Create | Zone REST endpoints + snapshot proxy |
-| `internal/nvr/api/router.go` | Modify | Register zone routes |
-| `internal/nvr/nvr.go` | Modify | Pass DB to pipelines for zone loading |
-| `internal/nvr/ai/snapshot.go` | Create | Shared snapshot capture with digest auth |
-| `ui/src/components/ZoneEditor.tsx` | Create | Polygon drawing + zone config UI |
-| `ui/src/components/AnalyticsOverlay.tsx` | Modify | Track IDs, zone overlays, loiter color |
-| `ui/src/hooks/useNotifications.ts` | Modify | Structured AI fields, action-based titles |
-| `ui/src/pages/CameraManagement.tsx` | Modify | Add "Zones" button per camera |
+| File                                     | Action | Responsibility                                   |
+| ---------------------------------------- | ------ | ------------------------------------------------ |
+| `internal/nvr/ai/kalman.go`              | Create | 2D Kalman filter for bounding box prediction     |
+| `internal/nvr/ai/tracker.go`             | Create | ByteTrack multi-object tracker                   |
+| `internal/nvr/ai/tracker_test.go`        | Create | Tracker unit tests                               |
+| `internal/nvr/ai/zone.go`                | Create | Zone model + PointInPolygon                      |
+| `internal/nvr/ai/zone_test.go`           | Create | Zone geometry tests                              |
+| `internal/nvr/ai/state.go`               | Create | Per-track per-zone state machine                 |
+| `internal/nvr/ai/state_test.go`          | Create | State transition tests                           |
+| `internal/nvr/ai/cooldown.go`            | Create | Per-zone per-class cooldown manager              |
+| `internal/nvr/ai/cooldown_test.go`       | Create | Cooldown tests                                   |
+| `internal/nvr/ai/pipeline.go`            | Modify | Integrate tracker, zones, state, cooldowns       |
+| `internal/nvr/db/zones.go`               | Create | Zone + alert rule CRUD                           |
+| `internal/nvr/db/migrations.go`          | Modify | Add v15 migration                                |
+| `internal/nvr/api/events.go`             | Modify | Structured Event fields, PublishTrackedDetection |
+| `internal/nvr/api/zones.go`              | Create | Zone REST endpoints + snapshot proxy             |
+| `internal/nvr/api/router.go`             | Modify | Register zone routes                             |
+| `internal/nvr/nvr.go`                    | Modify | Pass DB to pipelines for zone loading            |
+| `internal/nvr/ai/snapshot.go`            | Create | Shared snapshot capture with digest auth         |
+| `ui/src/components/ZoneEditor.tsx`       | Create | Polygon drawing + zone config UI                 |
+| `ui/src/components/AnalyticsOverlay.tsx` | Modify | Track IDs, zone overlays, loiter color           |
+| `ui/src/hooks/useNotifications.ts`       | Modify | Structured AI fields, action-based titles        |
+| `ui/src/pages/CameraManagement.tsx`      | Modify | Add "Zones" button per camera                    |
 
 ---
 
 ### Task 1: Kalman Filter
 
 **Files:**
+
 - Create: `internal/nvr/ai/kalman.go`
 
 This is a pure-math module with no external dependencies. It implements a 2D constant-velocity Kalman filter for bounding box tracking. The state vector is `[cx, cy, area, aspect, dx, dy, da]` (center x, center y, area, aspect ratio, and their velocities).
@@ -285,6 +286,7 @@ git commit -m "feat(ai): add Kalman filter for bounding box tracking"
 ### Task 2: ByteTrack Tracker
 
 **Files:**
+
 - Create: `internal/nvr/ai/tracker.go`
 - Create: `internal/nvr/ai/tracker_test.go`
 
@@ -658,6 +660,7 @@ git commit -m "feat(ai): add ByteTrack multi-object tracker with greedy matching
 ### Task 3: Zone Model + Point-in-Polygon
 
 **Files:**
+
 - Create: `internal/nvr/ai/zone.go`
 - Create: `internal/nvr/ai/zone_test.go`
 
@@ -835,6 +838,7 @@ git commit -m "feat(ai): add Zone model with point-in-polygon ray casting"
 ### Task 4: State Machine
 
 **Files:**
+
 - Create: `internal/nvr/ai/state.go`
 - Create: `internal/nvr/ai/state_test.go`
 
@@ -1069,6 +1073,7 @@ git commit -m "feat(ai): add per-track per-zone state machine with enter/loiter/
 ### Task 5: Cooldown Manager
 
 **Files:**
+
 - Create: `internal/nvr/ai/cooldown.go`
 - Create: `internal/nvr/ai/cooldown_test.go`
 
@@ -1257,6 +1262,7 @@ git commit -m "feat(ai): add per-zone per-class cooldown manager"
 ### Task 6: DB Migration v15 + Zone CRUD
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Create: `internal/nvr/db/zones.go`
 - Modify: `internal/nvr/db/detections.go`
@@ -1457,7 +1463,8 @@ func boolToInt(b bool) int {
 - [ ] **Step 3: Add track_id to Detection struct and InsertDetection**
 
 In `internal/nvr/db/detections.go`:
-1. Add `TrackID int `json:"track_id"`` field to the `Detection` struct
+
+1. Add `TrackID int `json:"track_id"``field to the`Detection` struct
 2. Update the `InsertDetection` SQL to include `track_id` in the INSERT column list and VALUES
 3. Update `GetRecentDetections` to include `track_id` in its SELECT and Scan (this feeds the live overlay which needs track IDs)
 4. Other read queries (`ListDetectionsByEvent`, `ListDetectionsWithEmbeddings`) do NOT need changes — `track_id` has DEFAULT 0 and those queries don't need the field
@@ -1479,6 +1486,7 @@ git commit -m "feat(db): add v15 migration for detection zones, alert rules, and
 ### Task 7: Event Model Updates
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go`
 
 - [ ] **Step 1: Add structured fields to Event struct and PublishTrackedDetection**
@@ -1486,6 +1494,7 @@ git commit -m "feat(db): add v15 migration for detection zones, alert rules, and
 In `internal/nvr/api/events.go`:
 
 1. Add new fields to `Event` struct:
+
 ```go
 type Event struct {
 	Type       string  `json:"type"`
@@ -1501,6 +1510,7 @@ type Event struct {
 ```
 
 2. Add `PublishTrackedDetection` method:
+
 ```go
 func (b *EventBroadcaster) PublishTrackedDetection(camera, zone, class, action string, trackID int, confidence float32) {
 	label := strings.ToUpper(class[:1]) + class[1:]
@@ -1552,6 +1562,7 @@ git commit -m "feat(api): add structured Event fields and PublishTrackedDetectio
 ### Task 8: Zone API Endpoints
 
 **Files:**
+
 - Create: `internal/nvr/api/zones.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -1791,6 +1802,7 @@ git commit -m "feat(api): add zone CRUD endpoints and snapshot proxy"
 ### Task 9: Pipeline Integration
 
 **Files:**
+
 - Modify: `internal/nvr/ai/pipeline.go`
 
 This is the core integration task. Replace the `prevClassCounts`/`ensureMotionEvent` notification logic with tracker → zones → state machine → cooldowns.
@@ -2017,6 +2029,7 @@ func (p *AIPipeline) ProcessFrame(img image.Image, timestamp time.Time) error {
 - [ ] **Step 5: Add helper methods to ByteTracker and AIPipeline**
 
 In `tracker.go`:
+
 ```go
 func (bt *ByteTracker) findTrack(id int) *Track {
 	for _, t := range bt.tracks {
@@ -2029,6 +2042,7 @@ func (bt *ByteTracker) findTrack(id int) *Track {
 ```
 
 In `pipeline.go`:
+
 ```go
 func (p *AIPipeline) findZone(id int64) *Zone {
 	for i := range p.zones {
@@ -2083,6 +2097,7 @@ git commit -m "feat(ai): integrate ByteTrack, zones, state machine, and cooldown
 ### Task 10: Frontend — Updated Notifications
 
 **Files:**
+
 - Modify: `ui/src/hooks/useNotifications.ts`
 - Modify: `ui/src/components/Toast.tsx`
 
@@ -2091,23 +2106,31 @@ git commit -m "feat(ai): integrate ByteTrack, zones, state machine, and cooldown
 In `ui/src/hooks/useNotifications.ts`:
 
 1. Update the `Notification` interface to add structured fields:
+
 ```typescript
 export interface Notification {
-  id: string
-  type: 'motion' | 'ai_detection' | 'camera_offline' | 'camera_online' | 'recording_started' | 'recording_stopped'
-  camera: string
-  message: string
-  time: Date
-  read: boolean
-  zone?: string
-  className?: string
-  action?: string
-  trackId?: number
-  confidence?: number
+  id: string;
+  type:
+    | "motion"
+    | "ai_detection"
+    | "camera_offline"
+    | "camera_online"
+    | "recording_started"
+    | "recording_stopped";
+  camera: string;
+  message: string;
+  time: Date;
+  read: boolean;
+  zone?: string;
+  className?: string;
+  action?: string;
+  trackId?: number;
+  confidence?: number;
 }
 ```
 
 2. Update the WebSocket `onmessage` handler to parse the new fields:
+
 ```typescript
 const notif: Notification = {
   id: crypto.randomUUID(),
@@ -2121,18 +2144,27 @@ const notif: Notification = {
   action: data.action,
   trackId: data.track_id,
   confidence: data.confidence,
-}
+};
 ```
 
 3. Update `eventTypeToTitle` to handle structured AI events:
+
 ```typescript
-function eventTypeToTitle(eventType: string, message: string, action?: string, className?: string): string {
-  if (eventType === 'ai_detection' && action && className) {
-    const label = className.charAt(0).toUpperCase() + className.slice(1)
+function eventTypeToTitle(
+  eventType: string,
+  message: string,
+  action?: string,
+  className?: string,
+): string {
+  if (eventType === "ai_detection" && action && className) {
+    const label = className.charAt(0).toUpperCase() + className.slice(1);
     switch (action) {
-      case 'entered': return `${label} Entered`
-      case 'loitering': return `${label} Loitering`
-      case 'left': return `${label} Left`
+      case "entered":
+        return `${label} Entered`;
+      case "loitering":
+        return `${label} Loitering`;
+      case "left":
+        return `${label} Left`;
     }
   }
   // ... existing switch for other event types
@@ -2140,13 +2172,20 @@ function eventTypeToTitle(eventType: string, message: string, action?: string, c
 ```
 
 4. Update `eventTypeToToastType` for action-based severity:
+
 ```typescript
-function eventTypeToToastType(eventType: string, action?: string): ToastMessage['type'] {
-  if (eventType === 'ai_detection') {
+function eventTypeToToastType(
+  eventType: string,
+  action?: string,
+): ToastMessage["type"] {
+  if (eventType === "ai_detection") {
     switch (action) {
-      case 'loitering': return 'error'
-      case 'left': return 'info'
-      default: return 'warning'
+      case "loitering":
+        return "error";
+      case "left":
+        return "info";
+      default:
+        return "warning";
     }
   }
   // ... existing switch
@@ -2154,14 +2193,20 @@ function eventTypeToToastType(eventType: string, action?: string): ToastMessage[
 ```
 
 5. Update the `pushToast` call in `addNotification` to pass the new parameters:
+
 ```typescript
 pushToast({
   id: notif.id,
   type: eventTypeToToastType(notif.type, notif.action),
-  title: eventTypeToTitle(notif.type, notif.message, notif.action, notif.className),
+  title: eventTypeToTitle(
+    notif.type,
+    notif.message,
+    notif.action,
+    notif.className,
+  ),
   message: notif.zone ? `${notif.zone} — ${notif.camera}` : notif.message,
   timestamp: notif.time,
-})
+});
 ```
 
 - [ ] **Step 2: Verify frontend builds**
@@ -2181,30 +2226,33 @@ git commit -m "feat(ui): update notifications with structured AI fields and acti
 ### Task 11: Frontend — AnalyticsOverlay Updates
 
 **Files:**
+
 - Modify: `ui/src/components/AnalyticsOverlay.tsx`
 
 - [ ] **Step 1: Update Detection interface and rendering**
 
 1. Add `track_id` to the `Detection` interface:
+
 ```typescript
 export interface Detection {
-  id: number
-  class: string
-  confidence: number
-  box_x: number
-  box_y: number
-  box_w: number
-  box_h: number
-  frame_time: string
-  track_id?: number
+  id: number;
+  class: string;
+  confidence: number;
+  box_x: number;
+  box_y: number;
+  box_w: number;
+  box_h: number;
+  frame_time: string;
+  track_id?: number;
 }
 ```
 
 2. Update the label rendering in the `draw` callback to show track ID:
+
 ```typescript
 const label = det.track_id
   ? `${displayLabel(det.class)} #${det.track_id} ${Math.round(det.confidence * 100)}%`
-  : formatLabel(det.class, det.confidence)
+  : formatLabel(det.class, det.confidence);
 ```
 
 3. Add zone polygon overlay rendering. Fetch zones from `/cameras/:id/zones` and draw them as semi-transparent polygons on the canvas. Add a new `useEffect` that loads zones when `cameraId` changes and draws them in the `draw` callback.
@@ -2226,12 +2274,14 @@ git commit -m "feat(ui): show track IDs and zone overlays in analytics overlay"
 ### Task 12: Frontend — Zone Editor Component
 
 **Files:**
+
 - Create: `ui/src/components/ZoneEditor.tsx`
 - Modify: `ui/src/pages/CameraManagement.tsx`
 
 - [ ] **Step 1: Create ZoneEditor.tsx**
 
 Build a component that:
+
 1. Fetches a snapshot from `GET /cameras/:id/snapshot` and renders it as the canvas background
 2. Renders existing zones from `GET /cameras/:id/zones` as colored polygons
 3. Allows clicking to add polygon points, double-click to close
@@ -2248,17 +2298,20 @@ The component should accept props: `{ cameraId: string }`.
 In the expanded camera section of `CameraManagement.tsx`, add a "Detection Zones" section with a button that opens the ZoneEditor in a modal or inline panel. Place it near the existing "AI Detection Settings" section.
 
 ```tsx
-{expandedCamera.ai_enabled && (
-  <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
-    <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-2">
-      AI Detection Zones
-    </h4>
-    <p className="text-xs text-nvr-text-muted mb-3">
-      Draw zones on the camera view to control where and how detections trigger notifications
-    </p>
-    <ZoneEditor cameraId={expandedCamera.id} />
-  </div>
-)}
+{
+  expandedCamera.ai_enabled && (
+    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
+      <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-2">
+        AI Detection Zones
+      </h4>
+      <p className="text-xs text-nvr-text-muted mb-3">
+        Draw zones on the camera view to control where and how detections
+        trigger notifications
+      </p>
+      <ZoneEditor cameraId={expandedCamera.id} />
+    </div>
+  );
+}
 ```
 
 - [ ] **Step 3: Verify frontend builds**
@@ -2310,6 +2363,7 @@ DYLD_LIBRARY_PATH=$HOME/lib ./mediamtx
 ```
 
 Verify in the logs:
+
 - AI pipeline starts with tracker
 - Zones are loaded (or implicit full-frame zone used)
 - Notifications fire with "entered"/"left" actions instead of generic "motion"
@@ -2317,6 +2371,7 @@ Verify in the logs:
 - [ ] **Step 5: Remove debug console.log statements**
 
 Clean up the `console.log('[NVR WS]...')` and `console.log('[NVR Toast]...')` debug statements added during earlier debugging from:
+
 - `ui/src/hooks/useNotifications.ts`
 - `ui/src/components/Toast.tsx`
 

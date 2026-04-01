@@ -17,45 +17,47 @@
 ## File Structure
 
 ### New Files
-| File | Responsibility |
-|---|---|
-| `clients/flutter/lib/screens/live_view/live_view_screen.dart` | Rebuilt — configurable NxN grid with drag-drop targets |
-| `clients/flutter/lib/screens/live_view/camera_tile.dart` | Rebuilt — HUD camera tile with corner brackets and overlays |
-| `clients/flutter/lib/screens/live_view/fullscreen_view.dart` | Rebuilt — fullscreen with auto-hiding overlays, PTZ, AI detection |
-| `clients/flutter/lib/screens/live_view/ptz_controls.dart` | Rebuilt — d-pad + vertical zoom slider, HUD styling |
-| `clients/flutter/lib/screens/live_view/analytics_overlay.dart` | Rebuilt — accent-colored bounding boxes with confidence labels |
-| `clients/flutter/lib/screens/playback/playback_screen.dart` | Rebuilt — fixed-center playhead timeline with transport controls |
-| `clients/flutter/lib/screens/playback/camera_player.dart` | Rebuilt — HUD-styled video player with corner brackets |
-| `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart` | New — complete rewrite of timeline with fixed-center playhead model |
-| `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart` | New — combined CustomPainter for recording, event, bookmark layers |
-| `clients/flutter/lib/screens/playback/timeline/mini_overview_bar.dart` | Rebuilt — 24h overview with draggable viewport window |
-| `clients/flutter/lib/screens/playback/controls/transport_bar.dart` | New — play/pause, step, skip, speed knob, jog, zoom selector |
-| `clients/flutter/lib/screens/search/clip_search_screen.dart` | Rebuilt — HUD search input, filter pills, result grid |
-| `clients/flutter/lib/screens/search/search_result_card.dart` | Rebuilt — thumbnail with bounding box preview, confidence badge |
-| `clients/flutter/lib/screens/search/clip_player_sheet.dart` | Rebuilt — bottom sheet player with HUD styling |
-| `clients/flutter/lib/screens/cameras/camera_list_screen.dart` | Rebuilt — device cards with thumbnails, status, capability badges |
-| `clients/flutter/lib/screens/cameras/add_camera_screen.dart` | Rebuilt — discover/manual tabs with HUD styling |
-| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` | Rebuilt — progressive disclosure, quick settings + advanced behind gear |
-| `clients/flutter/lib/screens/settings/settings_screen.dart` | Rebuilt — left sidebar nav, system/storage/users/backups/audit |
-| `clients/flutter/lib/screens/settings/storage_panel.dart` | Rebuilt — disk usage bar, per-camera breakdown with HUD styling |
-| `clients/flutter/lib/widgets/alerts_panel.dart` | New — slide-out alerts panel (desktop) / bottom sheet (mobile) |
+
+| File                                                                         | Responsibility                                                          |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `clients/flutter/lib/screens/live_view/live_view_screen.dart`                | Rebuilt — configurable NxN grid with drag-drop targets                  |
+| `clients/flutter/lib/screens/live_view/camera_tile.dart`                     | Rebuilt — HUD camera tile with corner brackets and overlays             |
+| `clients/flutter/lib/screens/live_view/fullscreen_view.dart`                 | Rebuilt — fullscreen with auto-hiding overlays, PTZ, AI detection       |
+| `clients/flutter/lib/screens/live_view/ptz_controls.dart`                    | Rebuilt — d-pad + vertical zoom slider, HUD styling                     |
+| `clients/flutter/lib/screens/live_view/analytics_overlay.dart`               | Rebuilt — accent-colored bounding boxes with confidence labels          |
+| `clients/flutter/lib/screens/playback/playback_screen.dart`                  | Rebuilt — fixed-center playhead timeline with transport controls        |
+| `clients/flutter/lib/screens/playback/camera_player.dart`                    | Rebuilt — HUD-styled video player with corner brackets                  |
+| `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart` | New — complete rewrite of timeline with fixed-center playhead model     |
+| `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart`        | New — combined CustomPainter for recording, event, bookmark layers      |
+| `clients/flutter/lib/screens/playback/timeline/mini_overview_bar.dart`       | Rebuilt — 24h overview with draggable viewport window                   |
+| `clients/flutter/lib/screens/playback/controls/transport_bar.dart`           | New — play/pause, step, skip, speed knob, jog, zoom selector            |
+| `clients/flutter/lib/screens/search/clip_search_screen.dart`                 | Rebuilt — HUD search input, filter pills, result grid                   |
+| `clients/flutter/lib/screens/search/search_result_card.dart`                 | Rebuilt — thumbnail with bounding box preview, confidence badge         |
+| `clients/flutter/lib/screens/search/clip_player_sheet.dart`                  | Rebuilt — bottom sheet player with HUD styling                          |
+| `clients/flutter/lib/screens/cameras/camera_list_screen.dart`                | Rebuilt — device cards with thumbnails, status, capability badges       |
+| `clients/flutter/lib/screens/cameras/add_camera_screen.dart`                 | Rebuilt — discover/manual tabs with HUD styling                         |
+| `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`              | Rebuilt — progressive disclosure, quick settings + advanced behind gear |
+| `clients/flutter/lib/screens/settings/settings_screen.dart`                  | Rebuilt — left sidebar nav, system/storage/users/backups/audit          |
+| `clients/flutter/lib/screens/settings/storage_panel.dart`                    | Rebuilt — disk usage bar, per-camera breakdown with HUD styling         |
+| `clients/flutter/lib/widgets/alerts_panel.dart`                              | New — slide-out alerts panel (desktop) / bottom sheet (mobile)          |
 
 ### Files to Delete (replaced by new versions)
-| File | Reason |
-|---|---|
+
+| File                                                                     | Reason                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------ |
 | `clients/flutter/lib/screens/playback/timeline/composable_timeline.dart` | Replaced by `fixed_playhead_timeline.dart` |
-| `clients/flutter/lib/screens/playback/timeline/timeline_viewport.dart` | Logic absorbed into new timeline |
-| `clients/flutter/lib/screens/playback/timeline/recording_layer.dart` | Merged into `timeline_painter.dart` |
-| `clients/flutter/lib/screens/playback/timeline/event_layer.dart` | Merged into `timeline_painter.dart` |
-| `clients/flutter/lib/screens/playback/timeline/bookmark_layer.dart` | Merged into `timeline_painter.dart` |
-| `clients/flutter/lib/screens/playback/timeline/intensity_layer.dart` | Merged into `timeline_painter.dart` |
-| `clients/flutter/lib/screens/playback/timeline/grid_layer.dart` | Merged into `timeline_painter.dart` |
-| `clients/flutter/lib/screens/playback/timeline/playhead_layer.dart` | Absorbed into fixed playhead |
-| `clients/flutter/lib/screens/playback/timeline/interaction_layer.dart` | Absorbed into new timeline |
-| `clients/flutter/lib/screens/playback/controls/transport_controls.dart` | Replaced by `transport_bar.dart` |
-| `clients/flutter/lib/screens/playback/controls/jog_slider.dart` | Replaced by analog slider in transport bar |
-| `clients/flutter/lib/widgets/adaptive_layout.dart` | Replaced by `NavigationShell` in Plan 1 |
-| `clients/flutter/lib/widgets/camera_status_badge.dart` | Replaced by `StatusBadge` from HUD library |
+| `clients/flutter/lib/screens/playback/timeline/timeline_viewport.dart`   | Logic absorbed into new timeline           |
+| `clients/flutter/lib/screens/playback/timeline/recording_layer.dart`     | Merged into `timeline_painter.dart`        |
+| `clients/flutter/lib/screens/playback/timeline/event_layer.dart`         | Merged into `timeline_painter.dart`        |
+| `clients/flutter/lib/screens/playback/timeline/bookmark_layer.dart`      | Merged into `timeline_painter.dart`        |
+| `clients/flutter/lib/screens/playback/timeline/intensity_layer.dart`     | Merged into `timeline_painter.dart`        |
+| `clients/flutter/lib/screens/playback/timeline/grid_layer.dart`          | Merged into `timeline_painter.dart`        |
+| `clients/flutter/lib/screens/playback/timeline/playhead_layer.dart`      | Absorbed into fixed playhead               |
+| `clients/flutter/lib/screens/playback/timeline/interaction_layer.dart`   | Absorbed into new timeline                 |
+| `clients/flutter/lib/screens/playback/controls/transport_controls.dart`  | Replaced by `transport_bar.dart`           |
+| `clients/flutter/lib/screens/playback/controls/jog_slider.dart`          | Replaced by analog slider in transport bar |
+| `clients/flutter/lib/widgets/adaptive_layout.dart`                       | Replaced by `NavigationShell` in Plan 1    |
+| `clients/flutter/lib/widgets/camera_status_badge.dart`                   | Replaced by `StatusBadge` from HUD library |
 
 ---
 
@@ -64,6 +66,7 @@
 ### Task 1: Rebuild Live View Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/live_view_screen.dart`
 
 - [ ] **Step 1: Rebuild LiveViewScreen**
@@ -89,6 +92,7 @@ git commit -m "feat(ui): rebuild LiveViewScreen with HUD grid and segmented cont
 ### Task 2: Rebuild Camera Tile
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/camera_tile.dart`
 
 - [ ] **Step 1: Rebuild CameraTile with HUD styling**
@@ -116,6 +120,7 @@ git commit -m "feat(ui): rebuild CameraTile with corner brackets and HUD overlay
 ### Task 3: Rebuild Fullscreen View
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/fullscreen_view.dart`
 - Modify: `clients/flutter/lib/screens/live_view/ptz_controls.dart`
 - Modify: `clients/flutter/lib/screens/live_view/analytics_overlay.dart`
@@ -133,6 +138,7 @@ Preserve WebRTC connection, auto-hide timer logic, system chrome management. Rep
 - [ ] **Step 2: Rebuild PTZ Controls with HUD styling**
 
 Replace button layout with:
+
 - D-pad: 4 directional arrows + center home button. Semi-transparent backgrounds with `border` outline, rounded 6px. Centered amber dot for home.
 - Vertical zoom slider: `AnalogSlider` rotated 90°, or custom vertical implementation with `ZOOM` label and value readout.
 - All controls have `backdrop-filter` blur effect (use `ClipRRect` + `BackdropFilter`)
@@ -140,6 +146,7 @@ Replace button layout with:
 - [ ] **Step 3: Rebuild AnalyticsOverlay**
 
 Preserve polling/WebSocket detection logic. Change bounding box rendering:
+
 - Box color: `NvrColors.accent` (amber) instead of class-based colors
 - Label: class name + confidence % on `accent` background pill above box
 - Font: JetBrains Mono, 8px, bold
@@ -158,6 +165,7 @@ git commit -m "feat(ui): rebuild fullscreen view, PTZ controls, analytics overla
 This is the most complex component. Build and test it independently before integrating into the playback screen.
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart`
 - Create: `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart`
 
@@ -166,12 +174,14 @@ This is the most complex component. Build and test it independently before integ
 Create `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart`:
 
 This painter renders all timeline layers in a single paint call:
+
 1. Time grid (tick marks + labels)
 2. Recording segments (amber at 20% opacity bars)
 3. Motion/event intensity (red at varying opacity)
 4. Bookmarks (amber bookmark icons)
 
 Interface:
+
 ```dart
 class TimelinePainter extends CustomPainter {
   TimelinePainter({
@@ -188,6 +198,7 @@ class TimelinePainter extends CustomPainter {
 ```
 
 Key methods:
+
 - `_drawTickMarks(Canvas, Size)` — major ticks every 5min with labels, minor ticks every 1min
 - `_drawRecordings(Canvas, Size)` — amber bars for recording periods, hash pattern for gaps
 - `_drawEvents(Canvas, Size)` — red intensity heat map
@@ -200,18 +211,21 @@ Use `shouldRepaint` with data equality checks.
 Create `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart`:
 
 Core state:
+
 - `_scrollOffset` (double) — pixels of timeline scroll. The time at center = `_scrollOffset / pixelsPerSecond`
 - `_pixelsPerSecond` (double) — zoom level. Zoom presets: 1H → small pps, 5M → large pps
 - `_isDragging` (bool) — whether playhead is being dragged
 - `_zoomLevel` enum — `oneHour`, `thirtyMin`, `tenMin`, `fiveMin`
 
 Interaction model:
+
 1. **At rest / playing:** `_scrollOffset` auto-increments via `AnimationController` at playback speed
 2. **Grab playhead:** Stop auto-scroll, track `GestureDetector.onHorizontalDragUpdate` → adjust `_scrollOffset`
 3. **Tap to seek:** Animate `_scrollOffset` to put tapped point at center (300ms, easeInOut)
 4. **Pinch zoom / scroll wheel:** Scale `_pixelsPerSecond`, recalculate `_scrollOffset` to keep center time fixed
 
 Widget tree:
+
 ```
 Column(
   MiniOverviewBar(...)         // 24h overview with viewport window
@@ -228,11 +242,13 @@ Column(
 ```
 
 The playhead renders:
+
 - 2px vertical line in `accent` with glow shadow
 - 16px circular handle (grows to 20px when dragging) with `accent` fill, `bgPrimary` border
 - Time badge above: `accent` background, `bgPrimary` text, JetBrains Mono
 
 Callbacks:
+
 - `onPositionChanged(Duration position)` — emitted whenever the time under the playhead changes
 - `onDragStart()` / `onDragEnd()` — for pausing/resuming playback
 - `onZoomChanged(Duration visibleRange)` — for adjusting data fetching granularity
@@ -240,6 +256,7 @@ Callbacks:
 - [ ] **Step 3: Test timeline renders and scrolls correctly**
 
 Build the timeline in isolation with mock data. Verify:
+
 - Tick marks render at correct intervals for each zoom level
 - Recording bars align with time positions
 - Playhead stays centered during auto-scroll
@@ -260,11 +277,13 @@ git commit -m "feat(ui): add fixed-center playhead timeline component"
 ### Task 5: Rebuild Mini Overview Bar
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/timeline/mini_overview_bar.dart`
 
 - [ ] **Step 1: Rebuild MiniOverviewBar**
 
 Preserve the painting logic but update styling:
+
 - Container: 10px height, `bgSecondary` background, 4px radius, `border` outline
 - Recording bars: `accent` at 13% opacity
 - Viewport window: rectangle with `accent` border (1.5px), `accent` fill at 13% opacity, grabbable cursor
@@ -283,6 +302,7 @@ git commit -m "feat(ui): rebuild MiniOverviewBar with HUD styling"
 ### Task 6: Build Transport Bar
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/playback/controls/transport_bar.dart`
 
 - [ ] **Step 1: Create TransportBar**
@@ -308,6 +328,7 @@ class TransportBar extends StatelessWidget {
 ```
 
 Layout (left to right):
+
 1. Skip back, Step back, Play/Pause (36px, `accent` fill), Step forward, Skip forward — all 28px `bgSecondary` buttons
 2. Speed `RotaryKnob` (28px, values: 0.25, 0.5, 1, 2, 4, 8)
 3. Divider (1px `border`)
@@ -329,6 +350,7 @@ git commit -m "feat(ui): add TransportBar with analog controls"
 ### Task 7: Rebuild Playback Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_screen.dart`
 - Modify: `clients/flutter/lib/screens/playback/camera_player.dart`
 
@@ -345,6 +367,7 @@ Preserve `PlaybackController` usage, segment/event/bookmark provider connections
 - [ ] **Step 2: Rebuild CameraPlayer**
 
 Replace styling while preserving `VideoPlayer` integration:
+
 - `CornerBrackets` around video
 - Camera name top-left, timestamp top-right (JetBrains Mono, `accent`)
 - Detection event marker at bottom (amber pill with event details)
@@ -377,6 +400,7 @@ git commit -m "feat(ui): rebuild playback screen with fixed-center playhead time
 ### Task 8: Rebuild Search Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/search/clip_search_screen.dart`
 - Modify: `clients/flutter/lib/screens/search/search_result_card.dart`
 - Modify: `clients/flutter/lib/screens/search/clip_player_sheet.dart`
@@ -416,6 +440,7 @@ git commit -m "feat(ui): rebuild search screen with HUD filter pills and result 
 ### Task 9: Rebuild Devices Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_list_screen.dart`
 
 - [ ] **Step 1: Rebuild CameraListScreen as device list**
@@ -442,19 +467,22 @@ git commit -m "feat(ui): rebuild Devices list with HUD device cards"
 ### Task 10: Rebuild Camera Detail Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 - [ ] **Step 1: Rebuild CameraDetailScreen with progressive disclosure**
 
-Preserve all API call logic (_fetchCamera, _save methods, ONVIF probe). Major UI restructure:
+Preserve all API call logic (\_fetchCamera, \_save methods, ONVIF probe). Major UI restructure:
 
 **Default view (no tabs):**
+
 - Header: back button, camera name, status badge, gear icon (advanced toggle)
 - Two columns (desktop) / single column (mobile):
   - Left: live preview with `CornerBrackets`, quick stat tiles (uptime, storage, events, retention — `bgSecondary` cards with JetBrains Mono large values)
   - Right: Recording mode (`HudToggle` + `HudSegmentedControl`: Continuous/Events/Schedule), AI Detection (`HudToggle` + `AnalogSlider` for confidence), Retention (`AnalogSlider` with tick labels 7D-90D), Connection info (key-value pairs)
 
 **Advanced view (behind gear icon):**
+
 - Collapsible `ExpansionTile`-style sections with JetBrains Mono section headers
 - Each section: ONVIF Config, Stream Settings, Imaging (3 `AnalogSlider`s), Detection Zones, Recording Rules, Analytics, Relay Outputs, Edge Recordings, Audio
 
@@ -470,6 +498,7 @@ git commit -m "feat(ui): rebuild Camera Detail with progressive disclosure"
 ### Task 11: Rebuild Add Camera Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/add_camera_screen.dart`
 
 - [ ] **Step 1: Rebuild AddCameraScreen**
@@ -492,6 +521,7 @@ git commit -m "feat(ui): rebuild Add Camera screen with HUD styling"
 ### Task 12: Rebuild Settings Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/settings/settings_screen.dart`
 - Modify: `clients/flutter/lib/screens/settings/storage_panel.dart`
 - Modify: `clients/flutter/lib/screens/settings/user_management_screen.dart`
@@ -523,6 +553,7 @@ Replace TabBar with left sidebar navigation (180px) on desktop, horizontal scrol
 - [ ] **Step 4: Rebuild other panels (Users, Backups, Audit)**
 
 Apply HUD styling to each:
+
 - Users: list with role badges, CRUD dialogs with HUD buttons
 - Backups: export/import buttons (primary/secondary)
 - Audit: table with JetBrains Mono timestamp/IP columns
@@ -539,6 +570,7 @@ git commit -m "feat(ui): rebuild Settings with sidebar nav and HUD panels"
 ### Task 13: Build Alerts Panel
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/alerts_panel.dart`
 - Modify: `clients/flutter/lib/models/notification_event.dart`
 - Modify: `clients/flutter/lib/providers/notifications_provider.dart`
@@ -567,6 +599,7 @@ NotificationEvent copyWith({bool? isRead}) {
 - [ ] **Step 2: Update NotificationsNotifier for per-event read state**
 
 In `clients/flutter/lib/providers/notifications_provider.dart`:
+
 - Change `markAllRead()` to set `isRead = true` on all events in history
 - Add `markRead(int index)` for individual event read
 - Recompute `unreadCount` from the list

@@ -14,20 +14,22 @@ Four sub-projects in dependency order. Each produces independently testable, shi
 
 **New features:**
 
-| Feature | ONVIF Service | Description |
-|---------|--------------|-------------|
-| GetSnapshotURI | Media | Query the camera's actual snapshot endpoint instead of guessing common URLs. Use for event thumbnails and live preview stills. |
-| Audio backchannel | Media/Device | Send audio TO the camera for two-way communication (doorbells, intercoms). Requires discovering the backchannel audio profile and streaming audio via RTSP backchannel or HTTP POST. |
-| Relay outputs | Device | Trigger physical relay outputs on the camera (sirens, lights, door locks). GetRelayOutputs to discover available outputs, SetRelayOutputState to trigger. |
-| PTZ configuration | PTZ | GetNodes to discover PTZ capabilities (pan/tilt/zoom ranges, speed limits, supported spaces). GetConfigurations to get current PTZ config. Use to build smarter UI controls with proper speed scaling and range limits. |
+| Feature           | ONVIF Service | Description                                                                                                                                                                                                             |
+| ----------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GetSnapshotURI    | Media         | Query the camera's actual snapshot endpoint instead of guessing common URLs. Use for event thumbnails and live preview stills.                                                                                          |
+| Audio backchannel | Media/Device  | Send audio TO the camera for two-way communication (doorbells, intercoms). Requires discovering the backchannel audio profile and streaming audio via RTSP backchannel or HTTP POST.                                    |
+| Relay outputs     | Device        | Trigger physical relay outputs on the camera (sirens, lights, door locks). GetRelayOutputs to discover available outputs, SetRelayOutputState to trigger.                                                               |
+| PTZ configuration | PTZ           | GetNodes to discover PTZ capabilities (pan/tilt/zoom ranges, speed limits, supported spaces). GetConfigurations to get current PTZ config. Use to build smarter UI controls with proper speed scaling and range limits. |
 
 **Architecture:**
+
 - `media.go`: Add `GetSnapshotURI(profileToken)` returning the snapshot URL.
 - `audio.go`: New file. `GetAudioOutputs()`, `GetAudioBackchannelURI()`, audio streaming via RTSP backchannel.
 - `relay.go`: New file. `GetRelayOutputs()`, `SetRelayOutputState(token, state)`.
 - `ptz.go`: Extend with `GetNodes()`, `GetConfigurations()`. Return capability structs.
 
 **UI changes:**
+
 - Thumbnail capture: use `GetSnapshotURI` instead of guessing common URLs in `snapshot.go`.
 - Audio intercom: push-to-talk button in live view camera modal (uses `getUserMedia` for microphone, streams to camera).
 - Relay panel: list of available relay outputs with toggle buttons in camera settings.
@@ -39,26 +41,29 @@ Four sub-projects in dependency order. Each produces independently testable, shi
 
 **New features:**
 
-| Feature | ONVIF Service | Description |
-|---------|--------------|-------------|
-| Media2 service | Media2 | Modern replacement for Media1. `GetProfiles`, `GetStreamUri`, `GetSnapshotUri` via the Media2 WSDL. Better H.265 negotiation and more detailed stream configuration. Auto-detect whether camera supports Media2 and prefer it over Media1. |
-| Motion region configuration | Analytics/Media2 | Query and modify motion detection regions on the camera. `GetSupportedAnalyticsModules`, `GetAnalyticsModuleOptions`, `CreateAnalyticsModule` / `ModifyAnalyticsModule`. Users draw detection zones on a video still in the UI. |
-| Tampering detection events | Events | Subscribe to tampering-related event topics: `tns1:VideoSource/GlobalSceneChange/ImagingService` (camera covered/defocused), `tns1:Device/Trigger/DigitalInput` (physical tampering). Display as distinct event type with specific icon. |
-| Metadata streaming | Media2 | Subscribe to the camera's metadata stream (track type "Metadata") which carries structured analytics data (object bounding boxes, classification). Parse the ONVIF metadata XML schema into usable structs. This is the foundation for Profile M analytics display. |
+| Feature                     | ONVIF Service    | Description                                                                                                                                                                                                                                                         |
+| --------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Media2 service              | Media2           | Modern replacement for Media1. `GetProfiles`, `GetStreamUri`, `GetSnapshotUri` via the Media2 WSDL. Better H.265 negotiation and more detailed stream configuration. Auto-detect whether camera supports Media2 and prefer it over Media1.                          |
+| Motion region configuration | Analytics/Media2 | Query and modify motion detection regions on the camera. `GetSupportedAnalyticsModules`, `GetAnalyticsModuleOptions`, `CreateAnalyticsModule` / `ModifyAnalyticsModule`. Users draw detection zones on a video still in the UI.                                     |
+| Tampering detection events  | Events           | Subscribe to tampering-related event topics: `tns1:VideoSource/GlobalSceneChange/ImagingService` (camera covered/defocused), `tns1:Device/Trigger/DigitalInput` (physical tampering). Display as distinct event type with specific icon.                            |
+| Metadata streaming          | Media2           | Subscribe to the camera's metadata stream (track type "Metadata") which carries structured analytics data (object bounding boxes, classification). Parse the ONVIF metadata XML schema into usable structs. This is the foundation for Profile M analytics display. |
 
 **Architecture:**
+
 - `media2.go`: New file. Full Media2 service client: `GetProfiles2`, `GetStreamUri2`, `GetSnapshotUri2`, `GetVideoEncoderConfigurations`. Auto-detection: try Media2 first, fall back to Media1.
 - `analytics.go`: New file (partial — analytics configuration). `GetSupportedAnalyticsModules`, `GetAnalyticsModuleOptions`, `ModifyAnalyticsModule` for motion region config.
 - `events.go`: Extend topic matching to detect tampering events and classify them separately from motion.
 - `types.go`: Add metadata stream XML parsing types (ONVIF metadata schema for objects, frames, shapes).
 
 **UI changes:**
+
 - `DetectionZoneEditor.tsx`: New component. Canvas overlay on a camera snapshot/still. Users draw rectangles or polygons defining detection zones. Saves zone coordinates via ONVIF analytics module configuration.
 - Camera settings: "Motion Zones" tab showing current zones, add/edit/delete with visual editor.
 - Timeline: tampering events shown with a distinct icon (shield with exclamation).
 - Stream selection: when camera supports Media2, show H.265/H.264 profile options.
 
 **Media2 auto-detection logic:**
+
 ```
 On device connection:
   1. Check services map for "media2" endpoint
@@ -73,15 +78,16 @@ On device connection:
 
 **New features:**
 
-| Feature | ONVIF Service | Description |
-|---------|--------------|-------------|
-| Recording search | Recording Search | `FindRecordings` to discover recording sources on the camera. `GetRecordingSearchResults` to list recordings by time range. `FindEvents` to search for events stored on the camera. |
-| Playback control | Replay | `GetReplayUri` to get an RTSP URI for playing back recorded footage from the camera. Standard RTSP PLAY with Range header for seeking. PAUSE, speed control via Scale header. |
-| Recording list | Recording Search | `GetRecordingSummary` for overview (total recordings, time span). `GetRecordingInformation` for details on each recording (tracks, source, time range). |
-| Track management | Recording Search | `GetTrackList` for discovering what tracks exist (video, audio, metadata) and their configurations. |
-| Import to NVR | Custom (not ONVIF) | Download recordings from camera storage to NVR disk. Uses RTSP replay to stream the recording, re-muxes to fMP4, and saves as a local recording with proper metadata in the NVR database. |
+| Feature          | ONVIF Service      | Description                                                                                                                                                                               |
+| ---------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recording search | Recording Search   | `FindRecordings` to discover recording sources on the camera. `GetRecordingSearchResults` to list recordings by time range. `FindEvents` to search for events stored on the camera.       |
+| Playback control | Replay             | `GetReplayUri` to get an RTSP URI for playing back recorded footage from the camera. Standard RTSP PLAY with Range header for seeking. PAUSE, speed control via Scale header.             |
+| Recording list   | Recording Search   | `GetRecordingSummary` for overview (total recordings, time span). `GetRecordingInformation` for details on each recording (tracks, source, time range).                                   |
+| Track management | Recording Search   | `GetTrackList` for discovering what tracks exist (video, audio, metadata) and their configurations.                                                                                       |
+| Import to NVR    | Custom (not ONVIF) | Download recordings from camera storage to NVR disk. Uses RTSP replay to stream the recording, re-muxes to fMP4, and saves as a local recording with proper metadata in the NVR database. |
 
 **Architecture:**
+
 - `recording.go`: New file. Recording Search service client: `FindRecordings`, `GetRecordingSearchResults`, `GetRecordingSummary`, `GetRecordingInformation`, `GetMediaAttributes`.
 - `replay.go`: New file. Replay service client: `GetReplayUri`, `SetReplayConfiguration`. RTSP connection management for playback.
 - API: New endpoints:
@@ -90,11 +96,13 @@ On device connection:
   - `POST /api/nvr/cameras/:id/edge-import` — import recording from camera to NVR
 
 **UI changes:**
+
 - `CameraStorageBrowser.tsx`: New component in the Recordings page. Toggle between "NVR Recordings" and "Camera Storage". Shows a timeline of what's on the SD card.
 - Playback: clicking a camera-side recording plays it via the RTSP replay URI through WebRTC (MediaMTX can proxy the RTSP replay stream).
 - Import: "Save to NVR" button on camera-side recordings. Shows progress during download/import.
 
 **Playback flow:**
+
 ```
 User selects camera-side recording
   → NVR queries GetReplayUri(recordingToken)
@@ -110,16 +118,17 @@ User selects camera-side recording
 
 **New features:**
 
-| Feature | ONVIF Service | Description |
-|---------|--------------|-------------|
-| Receive analytics metadata | Media2/Metadata | Parse the metadata stream established in Profile T. Extract object detection results: bounding boxes, object class (human, vehicle, animal, face), confidence score, tracking ID. |
-| Display bounding boxes | UI only | Canvas overlay on live video rendering detection boxes with labels and confidence. Updates in real-time from the metadata stream. |
-| Filter events by object type | Events + DB | Store object classification alongside motion events in the database. UI filter chips: All, Person, Vehicle, Animal. Timeline markers change icon based on what was detected. |
-| Configure analytics rules | Analytics | Full analytics module configuration: `GetSupportedRules`, `GetRuleOptions`, `CreateRules`, `ModifyRules`, `DeleteRules`. Rule types: CellMotionDetection, LineDetection (line crossing), FieldDetection (intrusion zone), TamperDetection, LoiteringDetection. |
-| Manage analytics modules | Analytics | `GetAnalyticsModules`, `CreateAnalyticsModule`, `DeleteAnalyticsModule`. Enable/disable specific analytics features on the camera. |
-| Scene description | Metadata | Parse scene description metadata: total object count per class, movement direction, dwell time. Display as a real-time overlay or dashboard widget. |
+| Feature                      | ONVIF Service   | Description                                                                                                                                                                                                                                                    |
+| ---------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receive analytics metadata   | Media2/Metadata | Parse the metadata stream established in Profile T. Extract object detection results: bounding boxes, object class (human, vehicle, animal, face), confidence score, tracking ID.                                                                              |
+| Display bounding boxes       | UI only         | Canvas overlay on live video rendering detection boxes with labels and confidence. Updates in real-time from the metadata stream.                                                                                                                              |
+| Filter events by object type | Events + DB     | Store object classification alongside motion events in the database. UI filter chips: All, Person, Vehicle, Animal. Timeline markers change icon based on what was detected.                                                                                   |
+| Configure analytics rules    | Analytics       | Full analytics module configuration: `GetSupportedRules`, `GetRuleOptions`, `CreateRules`, `ModifyRules`, `DeleteRules`. Rule types: CellMotionDetection, LineDetection (line crossing), FieldDetection (intrusion zone), TamperDetection, LoiteringDetection. |
+| Manage analytics modules     | Analytics       | `GetAnalyticsModules`, `CreateAnalyticsModule`, `DeleteAnalyticsModule`. Enable/disable specific analytics features on the camera.                                                                                                                             |
+| Scene description            | Metadata        | Parse scene description metadata: total object count per class, movement direction, dwell time. Display as a real-time overlay or dashboard widget.                                                                                                            |
 
 **Architecture:**
+
 - `analytics.go`: Extend with full rule management: `GetSupportedRules`, `GetRuleOptions`, `CreateRules`, `ModifyRules`, `DeleteRules`, `GetRules`.
 - `types.go`: Extend with ONVIF analytics metadata XML schema types: `Frame`, `Object`, `Shape`, `Appearance`, `Class`, `BoundingBox`.
 - DB: Add `object_class` and `confidence` columns to `motion_events` table. New migration.
@@ -132,6 +141,7 @@ User selects camera-side recording
   - `WS /api/nvr/cameras/:id/analytics/stream` — WebSocket stream of real-time detection results
 
 **UI changes:**
+
 - `AnalyticsOverlay.tsx`: New component. HTML5 Canvas overlay positioned on top of the live video. Receives detection data via WebSocket. Renders:
   - Bounding boxes with class labels and confidence (e.g., "Person 94%")
   - Color-coded by class: blue=person, green=vehicle, amber=animal, red=unknown
@@ -147,6 +157,7 @@ User selects camera-side recording
 - Live view: small badge showing active detection count ("3 people, 1 vehicle").
 
 **Metadata streaming flow:**
+
 ```
 Camera → RTSP metadata track → MediaMTX → NVR metadata parser
   → Parsed detections sent to:
@@ -181,6 +192,7 @@ internal/nvr/onvif/
 
 **Shared `client.go`:**
 Extract the common device connection and SOAP helper code currently duplicated across files into a single `Client` struct:
+
 ```go
 type Client struct {
     dev      *onviflib.Device
@@ -200,6 +212,7 @@ All service files use `Client` instead of creating their own device connections.
 ## Database Changes
 
 **New migration (v9):**
+
 ```sql
 ALTER TABLE motion_events ADD COLUMN object_class TEXT DEFAULT '';
 ALTER TABLE motion_events ADD COLUMN confidence REAL DEFAULT 0;

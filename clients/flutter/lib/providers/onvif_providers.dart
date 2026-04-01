@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_provider.dart';
 import '../models/device_info.dart';
+import '../models/device_management.dart';
 import '../models/media_profile.dart';
 import '../models/ptz_status.dart';
 
@@ -116,6 +117,86 @@ final videoSourcesProvider =
     if (data is List) {
       return data
           .map((e) => VideoSourceInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+});
+
+final deviceDateTimeProvider =
+    FutureProvider.family<DateTimeInfo?, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return null;
+  try {
+    final res = await api.get('/cameras/$cameraId/device/datetime');
+    return DateTimeInfo.fromJson(res.data as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+});
+
+final deviceHostnameProvider =
+    FutureProvider.family<HostnameInfo?, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return null;
+  try {
+    final res = await api.get('/cameras/$cameraId/device/hostname');
+    return HostnameInfo.fromJson(res.data as Map<String, dynamic>);
+  } catch (_) {
+    return null;
+  }
+});
+
+final networkInterfacesProvider =
+    FutureProvider.family<List<NetworkInterfaceInfo>, String>(
+        (ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return [];
+  try {
+    final res = await api.get('/cameras/$cameraId/device/network/interfaces');
+    final data = res.data;
+    if (data is List) {
+      return data
+          .map((e) => NetworkInterfaceInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+});
+
+final networkProtocolsProvider =
+    FutureProvider.family<List<NetworkProtocolInfo>, String>(
+        (ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return [];
+  try {
+    final res = await api.get('/cameras/$cameraId/device/network/protocols');
+    final data = res.data;
+    if (data is List) {
+      return data
+          .map((e) => NetworkProtocolInfo.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } catch (_) {
+    return [];
+  }
+});
+
+final deviceUsersProvider =
+    FutureProvider.family<List<DeviceUser>, String>((ref, cameraId) async {
+  final api = ref.watch(apiClientProvider);
+  if (api == null) return [];
+  try {
+    final res = await api.get('/cameras/$cameraId/device/users');
+    final data = res.data;
+    if (data is List) {
+      return data
+          .map((e) => DeviceUser.fromJson(e as Map<String, dynamic>))
           .toList();
     }
     return [];

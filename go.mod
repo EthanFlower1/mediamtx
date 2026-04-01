@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	code.cloudfoundry.org/bytefmt v0.67.0
+	github.com/EthanFlower1/onvif-go v0.0.0-20260401050950-9dc91b4154f4
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/MicahParks/jwkset v0.11.0
 	github.com/MicahParks/keyfunc/v3 v3.8.0
@@ -38,7 +39,6 @@ require (
 	github.com/pion/transport/v4 v4.0.1
 	github.com/pion/webrtc/v4 v4.2.9
 	github.com/stretchr/testify v1.11.1
-	github.com/use-go/onvif v0.0.9
 	github.com/yalue/onnxruntime_go v1.27.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/image v0.37.0
@@ -53,7 +53,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
-	github.com/beevik/etree v1.1.0 // indirect
 	github.com/benburkert/openpgp v0.0.0-20160410205803-c2471f86866c // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
@@ -63,7 +62,6 @@ require (
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/elgs/gostrgen v0.0.0-20161222160715-9d61ae07eeae // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -72,11 +70,9 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/gofrs/uuid v3.2.0+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/juju/errors v0.0.0-20220331221717-b38fca44723b // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -98,7 +94,6 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

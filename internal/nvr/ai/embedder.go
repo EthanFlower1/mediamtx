@@ -14,7 +14,8 @@ import (
 
 // Embedder wraps CLIP visual and text ONNX sessions for generating embeddings.
 // The visual model outputs 768-dim vectors and the text model outputs 512-dim
-// vectors. Both are L2-normalized before returning.
+// vectors. A learned projection matrix maps visual embeddings into the text
+// embedding space so cosine similarity can be computed across modalities.
 type Embedder struct {
 	visualSession      *ort.AdvancedSession
 	visualInputTensor  *ort.Tensor[float32]
@@ -29,6 +30,10 @@ type Embedder struct {
 	textOutputTensor *ort.Tensor[float32]
 	textHiddenTensor *ort.Tensor[float32]
 	textDim          int
+
+	// visualProjection is a [textDim x visualDim] matrix that projects
+	// 768-dim visual embeddings into the 512-dim text embedding space.
+	visualProjection []float32
 
 	vocab map[string]int64
 }
@@ -51,10 +56,11 @@ var (
 	clipStd  = [3]float32{0.26862954, 0.26130258, 0.27577711}
 )
 
-// NewEmbedder creates a CLIP embedder from visual and text ONNX model paths
-// and a vocabulary file (clip-vocab.json).
+// NewEmbedder creates a CLIP embedder from visual and text ONNX model paths,
+// a vocabulary file (clip-vocab.json), and an optional visual projection
+// weights file that maps visual embeddings into the text embedding space.
 // InitONNXRuntime must be called before creating an embedder.
-func NewEmbedder(visualModelPath, textModelPath, vocabPath string) (*Embedder, error) {
+func NewEmbedder(visualModelPath, textModelPath, vocabPath string, projectionPath ...string) (*Embedder, error) {
 	for _, p := range []string{visualModelPath, textModelPath, vocabPath} {
 		if _, err := os.Stat(p); err != nil {
 			return nil, fmt.Errorf("file not found: %s: %w", p, err)
@@ -156,6 +162,21 @@ func NewEmbedder(visualModelPath, textModelPath, vocabPath string) (*Embedder, e
 		return nil, fmt.Errorf("creating text ONNX session: %w", err)
 	}
 
+	// Load visual projection weights if provided.
+	if len(projectionPath) > 0 && projectionPath[0] != "" {
+		projData, err := os.ReadFile(projectionPath[0])
+		if err != nil {
+			e.Close()
+			return nil, fmt.Errorf("reading visual projection: %w", err)
+		}
+		expected := e.textDim * e.visualDim * 4 // float32
+		if len(projData) != expected {
+			e.Close()
+			return nil, fmt.Errorf("visual projection size mismatch: got %d bytes, want %d", len(projData), expected)
+		}
+		e.visualProjection = bytesToFloat32Slice(projData)
+	}
+
 	return e, nil
 }
 
@@ -174,6 +195,26 @@ func (e *Embedder) EncodeImage(img image.Image) ([]float32, error) {
 
 	l2Normalize(result)
 	return result, nil
+}
+
+// ProjectVisual maps a 768-dim visual embedding into the 512-dim text
+// embedding space using the learned projection matrix. Returns nil if no
+// projection weights are loaded. The result is L2-normalized.
+func (e *Embedder) ProjectVisual(visual []float32) []float32 {
+	if e.visualProjection == nil || len(visual) != e.visualDim {
+		return nil
+	}
+	out := make([]float32, e.textDim)
+	// Matrix multiply: out[i] = sum_j(projection[i*visualDim+j] * visual[j])
+	for i := 0; i < e.textDim; i++ {
+		var sum float32
+		for j := 0; j < e.visualDim; j++ {
+			sum += e.visualProjection[i*e.visualDim+j] * visual[j]
+		}
+		out[i] = sum
+	}
+	l2Normalize(out)
+	return out
 }
 
 // EncodeText runs the CLIP text encoder on a text query and returns an

@@ -8,6 +8,7 @@ class NotificationEvent {
   final String? action;
   final String? trackId;
   final double? confidence;
+  final bool isRead;
 
   const NotificationEvent({
     required this.type,
@@ -19,6 +20,7 @@ class NotificationEvent {
     this.action,
     this.trackId,
     this.confidence,
+    this.isRead = false,
   });
 
   factory NotificationEvent.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,22 @@ class NotificationEvent {
       action: json['action'] as String?,
       trackId: json['trackId'] as String?,
       confidence: (json['confidence'] as num?)?.toDouble(),
+      isRead: json['isRead'] as bool? ?? false,
+    );
+  }
+
+  NotificationEvent copyWith({bool? isRead}) {
+    return NotificationEvent(
+      type: type,
+      camera: camera,
+      message: message,
+      time: time,
+      zone: zone,
+      className: className,
+      action: action,
+      trackId: trackId,
+      confidence: confidence,
+      isRead: isRead ?? this.isRead,
     );
   }
 

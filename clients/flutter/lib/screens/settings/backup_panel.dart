@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/hud_button.dart';
 
 class _BackupEntry {
   final String filename;
@@ -99,9 +101,12 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
       await api.post('/system/backup');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Backup created successfully'),
-            backgroundColor: NvrColors.success,
+          SnackBar(
+            content: Text(
+              'Backup created successfully',
+              style: NvrTypography.monoData.copyWith(color: NvrColors.success),
+            ),
+            backgroundColor: NvrColors.bgSecondary,
           ),
         );
       }
@@ -110,8 +115,11 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to create backup: $e'),
-            backgroundColor: NvrColors.danger,
+            content: Text(
+              'Failed to create backup: $e',
+              style: NvrTypography.monoData.copyWith(color: NvrColors.danger),
+            ),
+            backgroundColor: NvrColors.bgSecondary,
           ),
         );
       }
@@ -129,9 +137,12 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
     await Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Download URL copied to clipboard'),
-          backgroundColor: NvrColors.accent,
+        SnackBar(
+          content: Text(
+            'Download URL copied to clipboard',
+            style: NvrTypography.monoData.copyWith(color: NvrColors.accent),
+          ),
+          backgroundColor: NvrColors.bgSecondary,
         ),
       );
     }
@@ -140,22 +151,23 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
   @override
   Widget build(BuildContext context) {
     if (!_endpointAvailable) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, color: NvrColors.textMuted, size: 48),
-              SizedBox(height: 12),
+              const Icon(Icons.cloud_off,
+                  color: NvrColors.textMuted, size: 40),
+              const SizedBox(height: 12),
               Text(
-                'Backup endpoint not available',
-                style: TextStyle(color: NvrColors.textMuted, fontSize: 15),
+                'BACKUP ENDPOINT UNAVAILABLE',
+                style: NvrTypography.monoSection,
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(
                 'This feature may not be enabled on the server.',
-                style: TextStyle(color: NvrColors.textMuted, fontSize: 13),
+                style: NvrTypography.body,
                 textAlign: TextAlign.center,
               ),
             ],
@@ -165,120 +177,134 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Create backup button
-          ElevatedButton.icon(
-            onPressed: _creating ? null : _createBackup,
-            icon: _creating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.backup),
-            label: Text(_creating ? 'Creating…' : 'Create Backup'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: NvrColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
+          // ── Section header + create button ──
           Row(
             children: [
-              const Text(
-                'Existing Backups',
-                style: TextStyle(
-                  color: NvrColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
+              Text('BACKUPS', style: NvrTypography.monoSection),
+              const Spacer(),
+              HudButton(
+                label: _creating ? 'CREATING…' : 'CREATE BACKUP',
+                icon: Icons.backup,
+                onPressed: _creating ? null : _createBackup,
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Existing backups header ──
+          Row(
+            children: [
+              Text('EXISTING BACKUPS', style: NvrTypography.monoSection),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.refresh, color: NvrColors.textMuted, size: 20),
+                icon: const Icon(Icons.refresh,
+                    color: NvrColors.textMuted, size: 18),
                 tooltip: 'Refresh',
                 onPressed: _loading ? null : _loadBackups,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints(minWidth: 28, minHeight: 28),
               ),
             ],
           ),
           const SizedBox(height: 8),
+
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _error!,
-                style: const TextStyle(color: NvrColors.danger, fontSize: 13),
+                style: NvrTypography.body.copyWith(color: NvrColors.danger),
               ),
             ),
+
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child:
+                        CircularProgressIndicator(color: NvrColors.accent),
+                  )
                 : _backups.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.folder_open, color: NvrColors.textMuted, size: 48),
-                            SizedBox(height: 12),
+                            const Icon(Icons.folder_open,
+                                color: NvrColors.textMuted, size: 40),
+                            const SizedBox(height: 12),
                             Text(
-                              'No backups yet',
-                              style: TextStyle(color: NvrColors.textMuted),
+                              'NO BACKUPS YET',
+                              style: NvrTypography.monoSection,
                             ),
                           ],
                         ),
                       )
                     : ListView.separated(
                         itemCount: _backups.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final b = _backups[index];
-                          return Card(
-                            color: NvrColors.bgSecondary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              side: const BorderSide(color: NvrColors.border),
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: NvrColors.bgSecondary,
+                              border: Border.all(color: NvrColors.border),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                            child: ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0x1A3B82F6),
-                                child: Icon(Icons.archive, color: NvrColors.accent, size: 20),
-                              ),
-                              title: Text(
-                                b.filename,
-                                style: const TextStyle(
-                                  color: NvrColors.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: NvrColors.accent.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.archive,
+                                    color: NvrColors.accent,
+                                    size: 16,
+                                  ),
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              subtitle: Text(
-                                '${_formatBytes(b.sizeBytes)}  ·  ${b.createdAt}',
-                                style: const TextStyle(
-                                  color: NvrColors.textMuted,
-                                  fontSize: 12,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        b.filename,
+                                        style: NvrTypography.monoData
+                                            .copyWith(
+                                                color: NvrColors.textPrimary),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '${_formatBytes(b.sizeBytes)}  ·  ${b.createdAt}',
+                                        style: NvrTypography.monoLabel,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.download,
-                                  color: NvrColors.accent,
-                                  size: 20,
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.download,
+                                      color: NvrColors.accent, size: 18),
+                                  tooltip: 'Copy download URL',
+                                  onPressed: () => _downloadBackup(b),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                      minWidth: 28, minHeight: 28),
                                 ),
-                                tooltip: 'Copy download URL',
-                                onPressed: () => _downloadBackup(b),
-                              ),
+                              ],
                             ),
                           );
                         },

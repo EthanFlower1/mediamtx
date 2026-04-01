@@ -11,8 +11,10 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -38,9 +40,11 @@ type RouterConfig struct {
 	CallbackManager *onvif.CallbackManager
 	EncryptionKey   []byte // AES-256 key for ONVIF credential encryption
 	ConfigPath     string // path to mediamtx.yml for reading server configuration
-	Embedder        *ai.Embedder // CLIP embedder for semantic search (may be nil)
+	Embedder        *ai.Embedder        // CLIP embedder for semantic search (may be nil)
 	AIRestarter     AIPipelineRestarter // restart AI pipeline on camera settings change (may be nil)
 	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
+	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
+	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -62,6 +66,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Audit:         audit,
 		EncryptionKey: cfg.EncryptionKey,
 		AIRestarter:   cfg.AIRestarter,
+		StorageMgr:    cfg.StorageManager,
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -97,9 +102,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		ConfigDB:       cfg.DB,
 		ConfigPath:     cfg.ConfigPath,
 		APIAddress:     cfg.APIAddress,
+		Collector:      cfg.Collector,
 	}
 
 	savedClipHandler := &SavedClipHandler{
+		DB: cfg.DB,
+	}
+
+	bookmarkHandler := &BookmarkHandler{
 		DB: cfg.DB,
 	}
 
@@ -111,6 +121,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	auditHandler := &AuditHandler{
 		DB: cfg.DB,
 	}
+
+	streamHandler := &StreamHandler{DB: cfg.DB, APIAddress: cfg.APIAddress}
+
+	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
+
+	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 
 	jwksHandler := &JWKSHandler{
 		JWKSJSON: cfg.JWKSJSON,
@@ -132,6 +148,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Serve event thumbnails as static files (public route for img tags).
 	engine.Static("/thumbnails", "./thumbnails")
+	engine.Static("/screenshots", "./screenshots")
 
 	// ONVIF callback (no auth — camera POSTs notifications here).
 	if cfg.CallbackManager != nil {
@@ -157,20 +174,51 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id", cameraHandler.Update)
 	protected.DELETE("/cameras/:id", cameraHandler.Delete)
 
-	// Camera discovery.
+	// Camera discovery and refresh.
 	protected.POST("/cameras/discover", cameraHandler.Discover)
 	protected.GET("/cameras/discover/status", cameraHandler.DiscoverStatus)
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
 	protected.POST("/cameras/probe", cameraHandler.Probe)
+	protected.POST("/cameras/:id/refresh", cameraHandler.RefreshCapabilities)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)
 	protected.GET("/cameras/:id/ptz/presets", cameraHandler.PTZPresets)
 	protected.GET("/cameras/:id/ptz/capabilities", cameraHandler.PTZCapabilities)
+	protected.GET("/cameras/:id/ptz/status", cameraHandler.PTZStatus)
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
+	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
+
+	// Media configuration.
+	protected.GET("/cameras/:id/media/profiles", cameraHandler.GetMediaProfiles)
+	protected.POST("/cameras/:id/media/profiles", cameraHandler.CreateMediaProfile)
+	protected.DELETE("/cameras/:id/media/profiles/:token", cameraHandler.DeleteMediaProfile)
+	protected.GET("/cameras/:id/media/video-sources", cameraHandler.GetVideoSources)
+	protected.GET("/cameras/:id/media/video-encoder/:token", cameraHandler.GetVideoEncoder)
+	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
+	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
+
+	// Device info.
+	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
+
+	// Device management.
+	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)
+	protected.GET("/cameras/:id/device/hostname", cameraHandler.GetDeviceHostnameHandler)
+	protected.PUT("/cameras/:id/device/hostname", cameraHandler.SetDeviceHostnameHandler)
+	protected.POST("/cameras/:id/device/reboot", cameraHandler.RebootDevice)
+	protected.GET("/cameras/:id/device/scopes", cameraHandler.GetDeviceScopesHandler)
+	protected.GET("/cameras/:id/device/network/interfaces", cameraHandler.GetNetworkInterfacesHandler)
+	protected.GET("/cameras/:id/device/network/protocols", cameraHandler.GetNetworkProtocolsHandler)
+	protected.PUT("/cameras/:id/device/network/protocols", cameraHandler.SetNetworkProtocolsHandler)
+	protected.GET("/cameras/:id/device/network/dns", cameraHandler.GetDNSConfigHandler)
+	protected.GET("/cameras/:id/device/network/ntp", cameraHandler.GetNTPConfigHandler)
+	protected.GET("/cameras/:id/device/users", cameraHandler.GetDeviceUsersHandler)
+	protected.POST("/cameras/:id/device/users", cameraHandler.CreateDeviceUserHandler)
+	protected.PUT("/cameras/:id/device/users/:username", cameraHandler.UpdateDeviceUserHandler)
+	protected.DELETE("/cameras/:id/device/users/:username", cameraHandler.DeleteDeviceUserHandler)
 
 	// Relay outputs.
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
@@ -190,6 +238,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Real-time detections for live overlay.
 	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
+	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)
+	protected.GET("/cameras/:id/detections", cameraHandler.Detections)
 
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
@@ -204,6 +254,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/recordings/export", recordingHandler.Export)
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
+	protected.GET("/timeline/intensity", recordingHandler.Intensity)
 
 	// Recording health.
 	if healthHandler != nil {
@@ -212,11 +263,33 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
+	protected.DELETE("/cameras/:id/events", cameraHandler.PurgeEvents)
 
 	// Saved clips.
 	protected.GET("/saved-clips", savedClipHandler.List)
 	protected.POST("/saved-clips", savedClipHandler.Create)
 	protected.DELETE("/saved-clips/:id", savedClipHandler.Delete)
+
+	// Bookmarks.
+	protected.GET("/bookmarks", bookmarkHandler.List)
+	protected.POST("/bookmarks", bookmarkHandler.Create)
+	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
+	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)
+
+	// Screenshots.
+	protected.POST("/cameras/:id/screenshot", screenshotHandler.Capture)
+	protected.GET("/screenshots", screenshotHandler.List)
+	protected.GET("/screenshots/:id/download", screenshotHandler.Download)
+	protected.DELETE("/screenshots/:id", screenshotHandler.Delete)
+
+	// Camera streams.
+	protected.GET("/cameras/:id/streams", streamHandler.List)
+	protected.POST("/cameras/:id/streams", streamHandler.Create)
+	protected.PUT("/streams/:id", streamHandler.Update)
+	protected.PUT("/streams/:id/roles", streamHandler.UpdateRoles)
+	protected.DELETE("/streams/:id", streamHandler.Delete)
+	protected.PUT("/streams/:id/retention", streamHandler.UpdateRetention)
+	protected.GET("/cameras/:id/stream-storage", streamHandler.GetStreamStorage)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)
@@ -224,6 +297,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/recording-rules/:id", ruleHandler.Update)
 	protected.DELETE("/recording-rules/:id", ruleHandler.Delete)
 	protected.GET("/cameras/:id/recording-status", ruleHandler.Status)
+
+	// Schedule templates.
+	protected.GET("/schedule-templates", templateHandler.List)
+	protected.POST("/schedule-templates", templateHandler.Create)
+	protected.PUT("/schedule-templates/:id", templateHandler.Update)
+	protected.DELETE("/schedule-templates/:id", templateHandler.Delete)
+
+	// Stream schedule assignment.
+	protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule)
 
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)
@@ -246,15 +328,41 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
 		protected.GET("/vod/:cameraId/playlist.m3u8", cfg.HLSHandler.ServePlaylist)
+		protected.GET("/vod/thumbnail", cfg.HLSHandler.ServeThumbnail)
 		// Segment serving is public (token is in URL from playlist).
-		nvr.GET("/vod/segments/*filepath", cfg.HLSHandler.ServeSegment)
+		nvr.GET("/vod/segments/:id", cfg.HLSHandler.ServeSegment)
+	}
+
+	// Storage health and sync.
+	if cfg.StorageManager != nil {
+		storageHandler := &StorageHandler{DB: cfg.DB, Manager: cfg.StorageManager}
+		protected.GET("/storage/status", storageHandler.Status)
+		protected.GET("/storage/pending", storageHandler.Pending)
+		protected.POST("/storage/sync/:camera_id", storageHandler.TriggerSync)
 	}
 
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
+	protected.POST("/search/backfill", searchHandler.Backfill)
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
+
+	// Camera Groups.
+	groupHandler := &GroupHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/camera-groups", groupHandler.List)
+	protected.POST("/camera-groups", groupHandler.Create)
+	protected.GET("/camera-groups/:id", groupHandler.Get)
+	protected.PUT("/camera-groups/:id", groupHandler.Update)
+	protected.DELETE("/camera-groups/:id", groupHandler.Delete)
+
+	// Tours.
+	tourHandler := &TourHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/tours", tourHandler.List)
+	protected.POST("/tours", tourHandler.Create)
+	protected.GET("/tours/:id", tourHandler.Get)
+	protected.PUT("/tours/:id", tourHandler.Update)
+	protected.DELETE("/tours/:id", tourHandler.Delete)
 
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")

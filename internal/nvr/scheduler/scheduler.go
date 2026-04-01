@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -127,6 +128,7 @@ func (s *Scheduler) Start() {
 }
 
 // Stop signals the scheduler goroutine to exit and waits for it to finish.
+// After Stop returns the scheduler can be restarted with Start().
 func (s *Scheduler) Stop() {
 	close(s.stopCh)
 	s.wg.Wait()
@@ -160,15 +162,23 @@ func (s *Scheduler) Stop() {
 			log.Printf("scheduler: flush write for %s: %v", path, err)
 		}
 	}
+
+	// Reinitialize the stop channel so Start() can be called again.
+	s.stopCh = make(chan struct{})
 }
 
-// RemoveCamera removes tracked state for the given camera ID and stops
-// any active event subscriber or motion state machine.
+// RemoveCamera removes tracked state for the given camera ID (and all its
+// per-stream keys) and stops any active event subscriber or motion state machine.
 func (s *Scheduler) RemoveCamera(cameraID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stopEventPipelineLocked(cameraID)
-	delete(s.states, cameraID)
+	// Delete the camera's own state plus any stream-keyed states.
+	for sk := range s.states {
+		if sk == cameraID || strings.HasPrefix(sk, cameraID+":") {
+			delete(s.states, sk)
+		}
+	}
 	delete(s.healthStates, cameraID)
 }
 
@@ -262,6 +272,105 @@ func (s *Scheduler) run() {
 	}
 }
 
+// streamKey builds a map key for per-stream state from camera ID and stream ID.
+func streamKey(cameraID, streamID string) string {
+	if streamID == "" {
+		return cameraID
+	}
+	return cameraID + ":" + streamID
+}
+
+// streamPath returns the MediaMTX path for a stream.
+// Uses the first 8 characters of the stream ID as a stable suffix.
+// Stream names are for display only — paths use IDs so renaming a stream
+// doesn't orphan recordings or YAML entries.
+func streamPath(cam *db.Camera, streamID string) string {
+	if streamID == "" || cam.MediaMTXPath == "" {
+		return cam.MediaMTXPath
+	}
+	prefix := streamID
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	return cam.MediaMTXPath + "~" + prefix
+}
+
+// ensureStreamPath creates a MediaMTX path for a non-default stream.
+// The record parameter sets the initial recording state in the YAML.
+func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string, record bool) string {
+	if streamID == "" {
+		return cam.MediaMTXPath
+	}
+
+	stream, err := s.db.GetCameraStream(streamID)
+	if err != nil {
+		log.Printf("scheduler: stream %s not found for camera %s", streamID, cam.ID)
+		return ""
+	}
+
+	path := streamPath(cam, streamID)
+
+	streamURL := stream.RTSPURL
+	// Validate the URL is a usable RTSP source.
+	if streamURL == "" || !strings.HasPrefix(streamURL, "rtsp://") {
+		log.Printf("scheduler: stream %s has invalid RTSP URL %q for camera %s, skipping", streamID, streamURL, cam.ID)
+		return ""
+	}
+	if u, parseErr := url.Parse(streamURL); parseErr == nil && u.Host != "" && (u.User == nil || u.User.Username() == "") {
+		username := cam.ONVIFUsername
+		password := s.decryptPassword(cam.ONVIFPassword)
+		if username != "" {
+			u.User = url.UserPassword(username, password)
+			streamURL = u.String()
+		}
+	}
+
+	recordBase := "./recordings/"
+	if cam.StoragePath != "" {
+		recordBase = cam.StoragePath + "/"
+	}
+	recordPath := recordBase + "%path/%Y-%m/%d/%H-%M-%S-%f"
+
+	s.yamlWriter.AddPath(path, map[string]interface{}{
+		"source":     streamURL,
+		"record":     record,
+		"recordPath": recordPath,
+	})
+
+	return path
+}
+
+// handleStreamTransition manages the MotionSM lifecycle when a stream's
+// effective mode changes.
+func (s *Scheduler) handleStreamTransition(
+	sk, camID string,
+	cam *db.Camera,
+	path, streamID string,
+	prevMode, newMode EffectiveMode,
+	rules []*db.RecordingRule,
+) {
+	if prevMode == ModeEvents && newMode != ModeEvents {
+		if sm, ok := s.motionSMs[sk]; ok {
+			sm.Stop()
+			delete(s.motionSMs, sk)
+		}
+	}
+
+	if newMode == ModeEvents && prevMode != ModeEvents {
+		postEvent := 30 * time.Second
+		for _, r := range rules {
+			if r.PostEventSeconds > 0 {
+				postEvent = time.Duration(r.PostEventSeconds) * time.Second
+				break
+			}
+		}
+		sm := NewMotionSM(camID, path, postEvent, func(p string, record bool) {
+			s.queueWrite(p, record)
+		})
+		s.motionSMs[sk] = sm
+	}
+}
+
 // evaluate fetches all enabled rules from the DB, groups them by camera,
 // evaluates the effective mode, and queues YAML writes for any state changes.
 func (s *Scheduler) evaluate() {
@@ -301,7 +410,13 @@ func (s *Scheduler) evaluate() {
 	for _, c := range cameras {
 		evalCameras[c.ID] = struct{}{}
 	}
-	for camID := range s.states {
+	// Include cameras that have existing state (stream keys contain the camera ID
+	// before any ":" separator).
+	for sk := range s.states {
+		camID := sk
+		if idx := strings.Index(sk, ":"); idx >= 0 {
+			camID = sk[:idx]
+		}
 		evalCameras[camID] = struct{}{}
 	}
 	for _, cam := range cameras {
@@ -320,57 +435,143 @@ func (s *Scheduler) evaluate() {
 		}
 
 		camRules := rulesByCam[camID]
-		mode, activeIDs := EvaluateRules(camRules, now)
 
-		// Determine desired recording state.
-		// ModeAlways -> record: true
-		// ModeEvents -> record: false (motion trigger will handle it later)
-		// ModeOff    -> record: false
-		desiredRecording := mode == ModeAlways
+		// Group rules by stream ID.
+		rulesByStream := make(map[string][]*db.RecordingRule)
+		for _, r := range camRules {
+			rulesByStream[r.StreamID] = append(rulesByStream[r.StreamID], r)
+		}
 
+		// Also evaluate streams that previously had state but no longer have rules.
 		s.mu.Lock()
-		prev, exists := s.states[camID]
-		changed := !exists || prev.EffectiveMode != mode
-
-		s.states[camID] = &CameraState{
-			EffectiveMode: mode,
-			Recording:     desiredRecording,
-			MotionState:   "idle",
-			ActiveRules:   activeIDs,
-		}
-		// Preserve motion state from previous if it existed.
-		if exists && prev.MotionState != "" {
-			s.states[camID].MotionState = prev.MotionState
-		}
-
-		// Handle event pipeline transitions when mode changes.
-		if changed {
-			prevMode := ModeOff
-			if exists {
-				prevMode = prev.EffectiveMode
-			}
-			s.handleEventPipelineTransitionLocked(camID, cam, prevMode, mode, camRules)
-		}
-
-		// Initialize recording health when recording starts.
-		if desiredRecording {
-			if _, hasHealth := s.healthStates[camID]; !hasHealth {
-				s.healthStates[camID] = NewRecordingHealth()
-				s.healthStates[camID].Status = HealthHealthy
-				s.healthStates[camID].LastSegmentTime = now
+		for sk := range s.states {
+			if sk == camID || strings.HasPrefix(sk, camID+":") {
+				streamID := ""
+				if idx := strings.Index(sk, ":"); idx >= 0 {
+					streamID = sk[idx+1:]
+				}
+				if _, hasRules := rulesByStream[streamID]; !hasRules {
+					rulesByStream[streamID] = nil
+				}
 			}
 		}
+
 		s.mu.Unlock()
 
-		if changed && cam.MediaMTXPath != "" {
-			s.queueWrite(cam.MediaMTXPath, desiredRecording)
-			// Publish recording state change events for always-mode transitions.
-			if s.eventPub != nil {
-				if desiredRecording {
-					s.eventPub.PublishRecordingStarted(cam.Name)
-				} else if exists && prev.Recording {
-					s.eventPub.PublishRecordingStopped(cam.Name)
+		for streamID, streamRules := range rulesByStream {
+			sk := streamKey(camID, streamID)
+			mode, activeIDs := EvaluateRules(streamRules, now)
+			desiredRecording := mode == ModeAlways
+
+			path := ""
+			if streamID == "" {
+				path = cam.MediaMTXPath
+			} else {
+				path = s.ensureStreamPath(cam, streamID, desiredRecording)
+			}
+			if path == "" && streamID != "" {
+				// Stream no longer exists in DB — clean up orphaned YAML paths and state.
+				s.mu.Lock()
+				if prev, exists := s.states[sk]; exists {
+					delete(s.states, sk)
+					// Try to remove any YAML path that was created with the old naming.
+					// Check both old format (UUID prefix) and new format (stream name).
+					oldPrefix := streamID
+					if len(oldPrefix) > 8 {
+						oldPrefix = oldPrefix[:8]
+					}
+					oldPath := cam.MediaMTXPath + "~" + oldPrefix
+					s.yamlWriter.RemovePath(oldPath)
+					if prev.Recording && s.eventPub != nil {
+						s.eventPub.PublishRecordingStopped(cam.Name)
+					}
 				}
+				if sm, ok := s.motionSMs[sk]; ok {
+					sm.Stop()
+					delete(s.motionSMs, sk)
+				}
+				s.mu.Unlock()
+				continue
+			}
+			if path == "" {
+				continue
+			}
+
+			s.mu.Lock()
+			prev, exists := s.states[sk]
+			changed := !exists || prev.EffectiveMode != mode
+
+			s.states[sk] = &CameraState{
+				EffectiveMode: mode,
+				Recording:     desiredRecording,
+				MotionState:   "idle",
+				ActiveRules:   activeIDs,
+			}
+			if exists && prev.MotionState != "" {
+				s.states[sk].MotionState = prev.MotionState
+			}
+
+			// Initialize recording health when recording starts.
+			if desiredRecording {
+				if _, hasHealth := s.healthStates[camID]; !hasHealth {
+					s.healthStates[camID] = NewRecordingHealth()
+					s.healthStates[camID].Status = HealthHealthy
+					s.healthStates[camID].LastSegmentTime = now
+				}
+			}
+
+			if changed {
+				prevMode := ModeOff
+				if exists {
+					prevMode = prev.EffectiveMode
+				}
+				s.handleStreamTransition(sk, camID, cam, path, streamID, prevMode, mode, streamRules)
+			}
+			s.mu.Unlock()
+
+			if changed && path != "" {
+				s.queueWrite(path, desiredRecording)
+				if s.eventPub != nil {
+					if desiredRecording {
+						s.eventPub.PublishRecordingStarted(cam.Name)
+					} else if exists && prev.Recording {
+						s.eventPub.PublishRecordingStopped(cam.Name)
+					}
+				}
+			}
+
+			// Clean up non-default stream paths when mode is off.
+			if mode == ModeOff && streamID != "" {
+				s.yamlWriter.RemovePath(path)
+			}
+		}
+	}
+
+	// Clean up orphaned sub-stream YAML paths. These are paths containing "~"
+	// that don't correspond to any active stream state in the scheduler.
+	nvrPaths, nvrErr := s.yamlWriter.GetNVRPaths()
+	if nvrErr != nil {
+		log.Printf("scheduler: GetNVRPaths error: %v", nvrErr)
+	}
+	s.mu.Lock()
+	activeSubPaths := make(map[string]bool)
+	for sk := range s.states {
+		if idx := strings.Index(sk, ":"); idx >= 0 {
+			camID := sk[:idx]
+			if cam, ok := camByID[camID]; ok {
+				streamID := sk[idx+1:]
+				activeSubPaths[streamPath(cam, streamID)] = true
+			}
+		}
+	}
+	s.mu.Unlock()
+	log.Printf("scheduler: orphan sweep: %d YAML paths, %d active sub-paths", len(nvrPaths), len(activeSubPaths))
+	for _, p := range nvrPaths {
+		if strings.Contains(p, "~") {
+			log.Printf("scheduler: orphan check: path=%q active=%v", p, activeSubPaths[p])
+			if !activeSubPaths[p] {
+				log.Printf("scheduler: removing orphaned sub-stream path %q from YAML", p)
+				s.yamlWriter.RemovePath(p)
 			}
 		}
 	}
@@ -463,11 +664,13 @@ func (s *Scheduler) StartMotionTimer(cameraID string, timeoutSeconds int) {
 		now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 		_ = s.db.EndMotionEvent(cameraID, now)
 
-		// Also signal the recording state machine so it starts its post-buffer
-		// countdown. Without this, recording would continue indefinitely.
+		// Also signal ALL recording state machines for this camera so they start
+		// their post-buffer countdown. Without this, recording would continue indefinitely.
 		s.mu.Lock()
-		if sm, ok := s.motionSMs[cameraID]; ok {
-			sm.OnMotion(false)
+		for sk, sm := range s.motionSMs {
+			if sk == cameraID || strings.HasPrefix(sk, cameraID+":") {
+				sm.OnMotion(false)
+			}
 		}
 		s.mu.Unlock()
 
@@ -491,58 +694,124 @@ func (s *Scheduler) CancelMotionTimer(cameraID string) {
 	}
 }
 
-// runRetentionCleanup iterates over cameras with retention_days > 0 and
-// deletes recordings (both DB records and disk files) older than the
-// retention period. It also cleans up old audit log entries.
+// runRetentionCleanup consolidates old detections, applies event-aware recording
+// retention, cleans up old motion events, and prunes the audit log.
 func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 	now := time.Now().UTC()
-	for _, cam := range cameras {
-		if cam.RetentionDays <= 0 {
-			continue
-		}
-		cutoff := now.AddDate(0, 0, -cam.RetentionDays)
-		paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, cutoff)
-		if err != nil {
-			log.Printf("scheduler: retention cleanup FAILED for camera %s (id=%s): %v", cam.Name, cam.ID, err)
-			continue
-		}
-		if len(paths) == 0 {
-			continue
-		}
-		var filesRemoved int
-		for _, p := range paths {
-			if err := os.Remove(p); err == nil {
-				filesRemoved++
-			}
-		}
-		log.Printf("scheduler: retention cleanup for camera %s: deleted %d recordings (%d files removed), cutoff %s",
-			cam.Name, len(paths), filesRemoved, cutoff.Format(time.RFC3339))
+
+	// Step 1: Consolidate detections from closed events (older than 1 hour)
+	// into compact JSON summaries on the motion_event row.
+	consolidated, err := s.db.ConsolidateClosedEvents(1 * time.Hour)
+	if err != nil {
+		log.Printf("scheduler: detection consolidation failed: %v", err)
+	} else if consolidated > 0 {
+		log.Printf("scheduler: consolidated detections for %d events", consolidated)
 	}
 
-	// Clean audit log entries older than 90 days.
+	// Step 2: Per-camera/stream retention.
+	for _, cam := range cameras {
+		streams, err := s.db.ListCameraStreams(cam.ID)
+		if err != nil {
+			log.Printf("scheduler: failed to list streams for camera %s: %v", cam.Name, err)
+			continue
+		}
+
+		// Per-stream retention: iterate streams with retention configured.
+		handledByStream := false
+		for _, stream := range streams {
+			if stream.RetentionDays <= 0 {
+				continue
+			}
+			handledByStream = true
+			noEventCutoff := now.AddDate(0, 0, -stream.RetentionDays)
+
+			if stream.EventRetentionDays > 0 {
+				paths, err := s.db.DeleteStreamRecordingsWithoutEvents(cam.ID, stream.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream no-event retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream no-event retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
+
+				eventCutoff := now.AddDate(0, 0, -stream.EventRetentionDays)
+				paths, err = s.db.DeleteStreamRecordingsWithEvents(cam.ID, stream.ID, eventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream event retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream event retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
+			} else {
+				paths, err := s.db.DeleteStreamRecordingsByDateRange(cam.ID, stream.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: stream retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: stream retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
+				}
+			}
+		}
+
+		// Camera-level fallback for recordings not covered by stream retention.
+		if !handledByStream && cam.RetentionDays > 0 {
+			noEventCutoff := now.AddDate(0, 0, -cam.RetentionDays)
+
+			if cam.EventRetentionDays > 0 {
+				paths, err := s.db.DeleteRecordingsWithoutEvents(cam.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: no-event retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: no-event retention for %s: deleted %d recordings (%d files)", cam.Name, len(paths), removed)
+				}
+
+				eventCutoff := now.AddDate(0, 0, -cam.EventRetentionDays)
+				paths, err = s.db.DeleteRecordingsWithEvents(cam.ID, eventCutoff)
+				if err != nil {
+					log.Printf("scheduler: event retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: event retention for %s: deleted %d recordings (%d files)", cam.Name, len(paths), removed)
+				}
+			} else {
+				paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
+				if err != nil {
+					log.Printf("scheduler: retention FAILED for camera %s: %v", cam.Name, err)
+				} else if len(paths) > 0 {
+					removed := removeFiles(paths)
+					log.Printf("scheduler: retention for %s: deleted %d recordings (%d files), cutoff %s", cam.Name, len(paths), removed, noEventCutoff.Format(time.RFC3339))
+				}
+			}
+		}
+
+		// Step 3: Clean old motion events.
+		if cam.DetectionRetentionDays > 0 {
+			eventCutoff := now.AddDate(0, 0, -cam.DetectionRetentionDays)
+			thumbs, n, err := s.db.DeleteMotionEventsBefore(cam.ID, eventCutoff)
+			if err != nil {
+				log.Printf("scheduler: event data cleanup FAILED for camera %s: %v", cam.Name, err)
+			} else if n > 0 {
+				removeFiles(thumbs)
+				log.Printf("scheduler: event data cleanup for %s: deleted %d events", cam.Name, n)
+			}
+		}
+	}
+
+	// Step 4: Clean audit log entries older than 90 days.
 	auditCutoff := now.AddDate(0, 0, -90)
 	_ = s.db.DeleteAuditEntriesBefore(auditCutoff)
 }
 
-// handleEventPipelineTransitionLocked manages the event subscriber and motion
-// state machine lifecycle when a camera's effective mode changes.
-// Must be called with s.mu held.
-func (s *Scheduler) handleEventPipelineTransitionLocked(
-	camID string,
-	cam *db.Camera,
-	prevMode, newMode EffectiveMode,
-	activeRules []*db.RecordingRule,
-) {
-	// Transitioning away from events -> stop pipeline
-	if prevMode == ModeEvents && newMode != ModeEvents {
-		s.stopEventPipelineLocked(camID)
-		return
+// removeFiles deletes files from disk and returns the count successfully removed.
+func removeFiles(paths []string) int {
+	removed := 0
+	for _, p := range paths {
+		if err := os.Remove(p); err == nil {
+			removed++
+		}
 	}
-
-	// Transitioning to events -> start pipeline
-	if newMode == ModeEvents && prevMode != ModeEvents {
-		s.startEventPipelineLocked(camID, cam, activeRules)
-	}
+	return removed
 }
 
 // startEventPipelineLocked creates and starts an EventSubscriber and MotionSM
@@ -602,7 +871,14 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
 		switch eventType {
 		case onvif.EventMotion:
-			sm.OnMotion(active)
+			// Dispatch to ALL MotionSMs for this camera (default + per-stream).
+			s.mu.Lock()
+			for sk, msm := range s.motionSMs {
+				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
+					msm.OnMotion(active)
+				}
+			}
+			s.mu.Unlock()
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
 				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
@@ -638,7 +914,13 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), eventCallback)
 	if err != nil {
 		log.Printf("scheduler: create event subscriber for camera %s: %v", camID, err)
-		delete(s.motionSMs, camID)
+		// Clean up all MotionSMs for this camera on failure.
+		for sk, msm := range s.motionSMs {
+			if sk == camID || strings.HasPrefix(sk, camID+":") {
+				msm.Stop()
+				delete(s.motionSMs, sk)
+			}
+		}
 		return
 	}
 	s.eventSubs[camID] = sub
@@ -685,6 +967,15 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
 		switch eventType {
 		case onvif.EventMotion:
+			// Dispatch to ALL MotionSMs for this camera (default + per-stream).
+			s.mu.Lock()
+			for sk, msm := range s.motionSMs {
+				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
+					msm.OnMotion(active)
+				}
+			}
+			s.mu.Unlock()
+
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 			if active {
 				// Reset the auto-close timer on every motion=true (keeps event alive).
@@ -753,8 +1044,9 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 	go sub.Start(context.Background())
 }
 
-// stopEventPipelineLocked stops and removes the EventSubscriber and MotionSM
-// for the given camera. Must be called with s.mu held.
+// stopEventPipelineLocked stops and removes the EventSubscriber and all
+// MotionSMs for the given camera (including per-stream instances).
+// Must be called with s.mu held.
 func (s *Scheduler) stopEventPipelineLocked(camID string) {
 	if sub, ok := s.eventSubs[camID]; ok {
 		sub.Stop()
@@ -763,9 +1055,12 @@ func (s *Scheduler) stopEventPipelineLocked(camID string) {
 			s.callbackMgr.Unregister(camID)
 		}
 	}
-	if sm, ok := s.motionSMs[camID]; ok {
-		sm.Stop()
-		delete(s.motionSMs, camID)
+	// Stop all MotionSMs for this camera (default + per-stream).
+	for sk, sm := range s.motionSMs {
+		if sk == camID || strings.HasPrefix(sk, camID+":") {
+			sm.Stop()
+			delete(s.motionSMs, sk)
+		}
 	}
 }
 

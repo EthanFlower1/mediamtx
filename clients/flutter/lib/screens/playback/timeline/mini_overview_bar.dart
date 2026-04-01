@@ -24,7 +24,7 @@ class MiniOverviewBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 32,
+      height: 28,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final fullDayVp = TimelineViewport(
@@ -33,26 +33,81 @@ class MiniOverviewBar extends StatelessWidget {
             widthPx: constraints.maxWidth,
           );
 
-          return GestureDetector(
-            onTapUp: (details) {
-              final time = fullDayVp.pixelToTime(details.localPosition.dx);
-              onViewportJump(time);
-            },
-            onHorizontalDragUpdate: (details) {
-              final time = fullDayVp.pixelToTime(details.localPosition.dx);
-              onViewportJump(time);
-            },
-            child: CustomPaint(
-              size: Size(constraints.maxWidth, 32),
-              painter: _MiniOverviewPainter(
-                viewport: fullDayVp,
-                mainViewport: mainViewport,
-                segments: segments,
-                events: events,
-                dayStart: dayStart,
-                position: position,
+          return Stack(
+            children: [
+              // Outer container: bgSecondary background, 4px radius, border outline
+              Container(
+                width: constraints.maxWidth,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: NvrColors.bgSecondary,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: NvrColors.border),
+                ),
               ),
-            ),
+
+              // Painting layer: recording bars, viewport window, playhead
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: GestureDetector(
+                  onTapUp: (details) {
+                    final time =
+                        fullDayVp.pixelToTime(details.localPosition.dx);
+                    onViewportJump(time);
+                  },
+                  onHorizontalDragUpdate: (details) {
+                    final time =
+                        fullDayVp.pixelToTime(details.localPosition.dx);
+                    onViewportJump(time);
+                  },
+                  child: CustomPaint(
+                    size: Size(constraints.maxWidth, 28),
+                    painter: _MiniOverviewPainter(
+                      viewport: fullDayVp,
+                      mainViewport: mainViewport,
+                      segments: segments,
+                      events: events,
+                      dayStart: dayStart,
+                      position: position,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Time labels: "00:00" (left) and "24:00" (right)
+              Positioned(
+                left: 4,
+                top: 0,
+                bottom: 0,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '00:00',
+                    style: const TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 8,
+                      color: NvrColors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 4,
+                top: 0,
+                bottom: 0,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '24:00',
+                    style: const TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 8,
+                      color: NvrColors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -79,52 +134,42 @@ class _MiniOverviewPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Background
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = NvrColors.bgTertiary.withValues(alpha: 0.5),
-    );
+    // Bar area occupies the vertical centre (10px height at centre)
+    const barTop = 9.0;
+    const barBottom = 19.0;
 
-    // Recording segments
-    final segPaint = Paint()..color = NvrColors.accent.withValues(alpha: 0.4);
+    // Recording segments: accent at 13% opacity
+    final segPaint = Paint()
+      ..color = NvrColors.accent.withOpacity(0.13);
     for (final seg in segments) {
       final x1 = viewport.timeToPixel(seg.startTime.difference(dayStart));
       final x2 = viewport.timeToPixel(seg.endTime.difference(dayStart));
-      canvas.drawRect(Rect.fromLTRB(x1, 4, x2, size.height - 4), segPaint);
+      canvas.drawRect(Rect.fromLTRB(x1, barTop, x2, barBottom), segPaint);
     }
 
-    // Event dots
-    for (final event in events) {
-      final x = viewport.timeToPixel(event.startTime.difference(dayStart));
-      canvas.drawCircle(
-        Offset(x, size.height / 2),
-        2,
-        Paint()..color = Colors.amber.withValues(alpha: 0.7),
-      );
-    }
-
-    // Visible range highlight
+    // Viewport window: accent fill at 13% opacity + accent border 1.5px
     final rangeX1 = viewport.timeToPixel(mainViewport.visibleStart);
     final rangeX2 = viewport.timeToPixel(mainViewport.visibleEnd);
+
     canvas.drawRect(
-      Rect.fromLTRB(rangeX1, 0, rangeX2, size.height),
+      Rect.fromLTRB(rangeX1, barTop, rangeX2, barBottom),
       Paint()
-        ..color = NvrColors.accent.withValues(alpha: 0.15)
+        ..color = NvrColors.accent.withOpacity(0.13)
         ..style = PaintingStyle.fill,
     );
     canvas.drawRect(
-      Rect.fromLTRB(rangeX1, 0, rangeX2, size.height),
+      Rect.fromLTRB(rangeX1, barTop, rangeX2, barBottom),
       Paint()
-        ..color = NvrColors.accent.withValues(alpha: 0.6)
+        ..color = NvrColors.accent
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = 1.5,
     );
 
     // Playhead
     final px = viewport.timeToPixel(position);
     canvas.drawLine(
-      Offset(px, 0),
-      Offset(px, size.height),
+      Offset(px, barTop - 2),
+      Offset(px, barBottom + 2),
       Paint()
         ..color = NvrColors.accent
         ..strokeWidth = 1.5,

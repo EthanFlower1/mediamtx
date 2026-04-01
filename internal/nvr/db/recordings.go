@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -12,12 +13,117 @@ const timeFormat = "2006-01-02T15:04:05.000Z"
 type Recording struct {
 	ID         int64  `json:"id"`
 	CameraID   string `json:"camera_id"`
+	StreamID   string `json:"stream_id"`
 	StartTime  string `json:"start_time"`
 	EndTime    string `json:"end_time"`
 	DurationMs int64  `json:"duration_ms"`
 	FilePath   string `json:"file_path"`
 	FileSize   int64  `json:"file_size"`
 	Format     string `json:"format"`
+	InitSize   int64  `json:"init_size"`
+}
+
+// RecordingFragment represents a single moof+mdat fragment within an fMP4 recording.
+type RecordingFragment struct {
+	ID            int64   `json:"id"`
+	RecordingID   int64   `json:"recording_id"`
+	FragmentIndex int     `json:"fragment_index"`
+	ByteOffset    int64   `json:"byte_offset"`
+	Size          int64   `json:"size"`
+	DurationMs    float64 `json:"duration_ms"`
+	IsKeyframe    bool    `json:"is_keyframe"`
+	TimestampMs   int64   `json:"timestamp_ms"`
+}
+
+// InsertFragments bulk-inserts fragment metadata for a recording using INSERT OR IGNORE
+// to ensure idempotency.
+func (d *DB) InsertFragments(recordingID int64, fragments []RecordingFragment) error {
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+        INSERT OR IGNORE INTO recording_fragments
+        (recording_id, fragment_index, byte_offset, size, duration_ms, is_keyframe, timestamp_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, f := range fragments {
+		_, err := stmt.Exec(f.RecordingID, f.FragmentIndex, f.ByteOffset, f.Size,
+			f.DurationMs, f.IsKeyframe, f.TimestampMs)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// UpdateRecordingInitSize sets the init_size (ftyp + moov byte length) for a recording.
+func (d *DB) UpdateRecordingInitSize(recordingID int64, initSize int64) error {
+	_, err := d.Exec("UPDATE recordings SET init_size = ? WHERE id = ?", initSize, recordingID)
+	return err
+}
+
+// GetFragments returns all fragments for a recording, ordered by fragment_index.
+func (d *DB) GetFragments(recordingID int64) ([]RecordingFragment, error) {
+	rows, err := d.Query(`
+        SELECT id, recording_id, fragment_index, byte_offset, size, duration_ms, is_keyframe, timestamp_ms
+        FROM recording_fragments
+        WHERE recording_id = ?
+        ORDER BY fragment_index`, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var frags []RecordingFragment
+	for rows.Next() {
+		var f RecordingFragment
+		if err := rows.Scan(&f.ID, &f.RecordingID, &f.FragmentIndex, &f.ByteOffset,
+			&f.Size, &f.DurationMs, &f.IsKeyframe, &f.TimestampMs); err != nil {
+			return nil, err
+		}
+		frags = append(frags, f)
+	}
+	return frags, rows.Err()
+}
+
+// HasFragments checks whether a recording has been indexed (has fragment rows).
+func (d *DB) HasFragments(recordingID int64) (bool, error) {
+	var count int
+	err := d.QueryRow("SELECT COUNT(*) FROM recording_fragments WHERE recording_id = ?", recordingID).Scan(&count)
+	return count > 0, err
+}
+
+// GetUnindexedRecordings returns recording IDs that have no fragments, newest first.
+func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
+	rows, err := d.Query(`
+        SELECT r.id, r.camera_id, r.start_time, r.end_time, r.duration_ms, r.file_path, r.file_size, r.format
+        FROM recordings r
+        LEFT JOIN recording_fragments rf ON rf.recording_id = r.id
+        WHERE rf.id IS NULL
+        ORDER BY r.start_time DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var recs []*Recording
+	for rows.Next() {
+		rec := &Recording{}
+		if err := rows.Scan(&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format); err != nil {
+			return nil, err
+		}
+		recs = append(recs, rec)
+	}
+	return recs, rows.Err()
 }
 
 // TimeRange represents a contiguous time range with a start and end.
@@ -34,9 +140,9 @@ func (d *DB) InsertRecording(rec *Recording) error {
 	}
 
 	res, err := d.Exec(`
-		INSERT INTO recordings (camera_id, start_time, end_time, duration_ms, file_path, file_size, format)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		rec.CameraID, rec.StartTime, rec.EndTime, rec.DurationMs,
+		INSERT INTO recordings (camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		rec.CameraID, rec.StreamID, rec.StartTime, rec.EndTime, rec.DurationMs,
 		rec.FilePath, rec.FileSize, rec.Format,
 	)
 	if err != nil {
@@ -55,7 +161,7 @@ func (d *DB) InsertRecording(rec *Recording) error {
 // range. Overlap logic: end_time > start AND start_time < end.
 func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recording, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
 		FROM recordings
 		WHERE camera_id = ? AND end_time > ? AND start_time < ?
 		ORDER BY start_time`,
@@ -70,8 +176,8 @@ func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recordin
 	for rows.Next() {
 		rec := &Recording{}
 		if err := rows.Scan(
-			&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
-			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format,
+			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
 		); err != nil {
 			return nil, err
 		}
@@ -118,11 +224,11 @@ func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, er
 func (d *DB) GetRecording(id int64) (*Recording, error) {
 	rec := &Recording{}
 	err := d.QueryRow(`
-		SELECT id, camera_id, start_time, end_time, duration_ms, file_path, file_size, format
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size
 		FROM recordings WHERE id = ?`, id,
 	).Scan(
-		&rec.ID, &rec.CameraID, &rec.StartTime, &rec.EndTime,
-		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format,
+		&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -161,6 +267,40 @@ func (d *DB) GetStoragePerCamera() ([]CameraStorage, error) {
 			return nil, err
 		}
 		results = append(results, cs)
+	}
+	return results, rows.Err()
+}
+
+// StreamStorage holds aggregate storage statistics for a single stream.
+type StreamStorage struct {
+	StreamID     string `json:"stream_id"`
+	StreamName   string `json:"stream_name"`
+	TotalBytes   int64  `json:"total_bytes"`
+	SegmentCount int64  `json:"segment_count"`
+}
+
+// GetStoragePerStream returns total storage used and segment count per stream
+// for a given camera.
+func (d *DB) GetStoragePerStream(cameraID string) ([]StreamStorage, error) {
+	rows, err := d.Query(`
+		SELECT r.stream_id, COALESCE(cs.name, ''), COALESCE(SUM(r.file_size), 0), COUNT(*)
+		FROM recordings r
+		LEFT JOIN camera_streams cs ON cs.id = r.stream_id
+		WHERE r.camera_id = ?
+		GROUP BY r.stream_id
+		ORDER BY COALESCE(cs.name, '')`, cameraID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []StreamStorage
+	for rows.Next() {
+		var ss StreamStorage
+		if err := rows.Scan(&ss.StreamID, &ss.StreamName, &ss.TotalBytes, &ss.SegmentCount); err != nil {
+			return nil, err
+		}
+		results = append(results, ss)
 	}
 	return results, rows.Err()
 }
@@ -217,6 +357,23 @@ func (d *DB) GetTotalRecordingSize(cameraID string) (int64, error) {
 	return total, err
 }
 
+// UpdateRecordingFilePath updates the file_path column for a recording by ID.
+// Returns ErrNotFound if no matching record exists.
+func (d *DB) UpdateRecordingFilePath(id int64, filePath string) error {
+	res, err := d.Exec("UPDATE recordings SET file_path = ? WHERE id = ?", filePath, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DeleteRecordingByPath deletes a recording by its file path.
 func (d *DB) DeleteRecordingByPath(filePath string) error {
 	res, err := d.Exec("DELETE FROM recordings WHERE file_path = ?", filePath)
@@ -232,4 +389,73 @@ func (d *DB) DeleteRecordingByPath(filePath string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// QueryRecordingsBestQuality returns recordings for a camera in a time range,
+// preferring higher-resolution streams when recordings from multiple streams
+// overlap. For overlapping periods, only the recording from the stream with
+// the largest resolution (width * height) is returned.
+func (d *DB) QueryRecordingsBestQuality(cameraID string, start, end time.Time) ([]*Recording, error) {
+	all, err := d.QueryRecordings(cameraID, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(all) <= 1 {
+		return all, nil
+	}
+
+	// Build resolution lookup from camera_streams.
+	type streamRes struct {
+		width, height int
+	}
+	streamResolutions := make(map[string]streamRes)
+	rows, err := d.Query(`SELECT id, width, height FROM camera_streams WHERE camera_id = ?`, cameraID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			var w, h int
+			if rows.Scan(&id, &w, &h) == nil {
+				streamResolutions[id] = streamRes{w, h}
+			}
+		}
+	}
+
+	// Score each recording by resolution. Main stream (no ~ in path) gets
+	// max resolution; sub-streams get their actual resolution.
+	resolutionOf := func(rec *Recording) int {
+		idx := strings.LastIndex(rec.FilePath, "~")
+		if idx < 0 {
+			return 9999 * 9999 // main stream: highest priority
+		}
+		suffix := rec.FilePath[idx+1:]
+		if slashIdx := strings.Index(suffix, "/"); slashIdx > 0 {
+			suffix = suffix[:slashIdx]
+		}
+		for id, res := range streamResolutions {
+			if strings.HasPrefix(id, suffix) {
+				return res.width * res.height
+			}
+		}
+		return 0
+	}
+
+	// Filter: for overlapping recordings, keep highest resolution.
+	var result []*Recording
+	for _, rec := range all {
+		overlaps := false
+		for i, existing := range result {
+			if existing.EndTime > rec.StartTime && existing.StartTime < rec.EndTime {
+				if resolutionOf(rec) > resolutionOf(existing) {
+					result[i] = rec
+				}
+				overlaps = true
+				break
+			}
+		}
+		if !overlaps {
+			result = append(result, rec)
+		}
+	}
+	return result, nil
 }

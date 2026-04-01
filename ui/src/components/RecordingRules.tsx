@@ -91,6 +91,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
   const [startTime, setStartTime] = useState(initial?.start_time ?? '00:00')
   const [endTime, setEndTime] = useState(initial?.end_time ?? '23:59')
   const [enabled, setEnabled] = useState(initial?.enabled ?? true)
+  const [postEventSeconds, setPostEventSeconds] = useState(initial?.post_event_seconds ?? 30)
 
   const toggleDay = (d: number) => {
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort())
@@ -98,7 +99,7 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    onSave({ name, mode, days, start_time: startTime, end_time: endTime, post_event_seconds: 30, enabled })
+    onSave({ name, mode, days, start_time: startTime, end_time: endTime, post_event_seconds: postEventSeconds, enabled })
   }
 
   return (
@@ -219,10 +220,26 @@ function RuleForm({ initial, onSave, onCancel }: RuleFormProps) {
         </div>
       </div>
 
-      {/* Events mode note */}
+      {/* Post-event seconds (events mode only) */}
       {mode === 'events' && (
-        <div className="mb-4 p-3 bg-nvr-bg-input border border-nvr-border rounded-lg">
-          <p className="text-xs text-nvr-text-muted">Recording continues for the camera's motion timeout duration after motion stops. Recording duration after motion is controlled by the camera's Motion Event Timeout setting.</p>
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-nvr-text-secondary mb-1">
+            Post-event recording: {postEventSeconds}s
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={300}
+            step={5}
+            value={postEventSeconds}
+            onChange={e => setPostEventSeconds(Number(e.target.value))}
+            className="w-full accent-nvr-accent"
+          />
+          <div className="flex justify-between text-[10px] text-nvr-text-muted mt-0.5">
+            <span>0s (stop immediately)</span>
+            <span>300s (5 min)</span>
+          </div>
+          <p className="text-xs text-nvr-text-muted mt-1">How long to keep recording after motion stops.</p>
         </div>
       )}
 

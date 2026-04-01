@@ -12,7 +12,7 @@ class NvrTheme {
       surface: NvrColors.bgPrimary,
       onSurface: NvrColors.textPrimary,
       primary: NvrColors.accent,
-      onPrimary: Colors.white,
+      onPrimary: NvrColors.bgPrimary,
       secondary: NvrColors.bgTertiary,
       onSecondary: NvrColors.textPrimary,
       error: NvrColors.danger,
@@ -24,8 +24,9 @@ class NvrTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: NvrColors.bgPrimary,
+      fontFamily: 'IBMPlexSans',
       appBarTheme: const AppBarTheme(
-        backgroundColor: NvrColors.bgSecondary,
+        backgroundColor: NvrColors.bgPrimary,
         foregroundColor: NvrColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -34,69 +35,69 @@ class NvrTheme {
         color: NvrColors.bgSecondary,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           side: const BorderSide(color: NvrColors.border),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: NvrColors.bgInput,
-        hintStyle: const TextStyle(color: NvrColors.textMuted),
-        labelStyle: const TextStyle(color: NvrColors.textSecondary),
+        fillColor: NvrColors.bgTertiary,
+        hintStyle: const TextStyle(
+          fontFamily: 'IBMPlexSans',
+          color: NvrColors.textMuted,
+        ),
+        labelStyle: const TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: 10,
+          letterSpacing: 1.5,
+          color: NvrColors.textMuted,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.accent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.danger),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           borderSide: const BorderSide(color: NvrColors.danger, width: 2),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: NvrColors.accent,
-          foregroundColor: Colors.white,
+          foregroundColor: NvrColors.bgPrimary,
+          textStyle: const TextStyle(
+            fontFamily: 'IBMPlexSans',
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(4),
           ),
           elevation: 0,
+          minimumSize: const Size(0, 44),
         ),
       ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: NvrColors.bgSecondary,
-        indicatorColor: NvrColors.accent,
-        iconTheme: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Colors.white);
-          }
-          return const IconThemeData(color: NvrColors.textSecondary);
-        }),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return const TextStyle(color: NvrColors.accent);
-          }
-          return const TextStyle(color: NvrColors.textSecondary);
-        }),
-      ),
-      navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: NvrColors.bgSecondary,
-        selectedIconTheme: IconThemeData(color: Colors.white),
-        unselectedIconTheme: IconThemeData(color: NvrColors.textSecondary),
-        selectedLabelTextStyle: TextStyle(color: NvrColors.accent),
-        unselectedLabelTextStyle: TextStyle(color: NvrColors.textSecondary),
-        indicatorColor: NvrColors.accent,
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: NvrColors.textPrimary,
+          side: const BorderSide(color: NvrColors.border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          minimumSize: const Size(0, 44),
+        ),
       ),
       dividerTheme: const DividerThemeData(
         color: NvrColors.border,
@@ -105,23 +106,28 @@ class NvrTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: NvrColors.bgSecondary,
-        contentTextStyle: const TextStyle(color: NvrColors.textPrimary),
+        contentTextStyle: const TextStyle(
+          fontFamily: 'IBMPlexSans',
+          color: NvrColors.textPrimary,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           side: const BorderSide(color: NvrColors.border),
         ),
         behavior: SnackBarBehavior.floating,
       ),
       textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: NvrColors.textPrimary),
-        bodyMedium: TextStyle(color: NvrColors.textPrimary),
-        bodySmall: TextStyle(color: NvrColors.textSecondary),
-        titleLarge: TextStyle(color: NvrColors.textPrimary),
-        titleMedium: TextStyle(color: NvrColors.textPrimary),
-        titleSmall: TextStyle(color: NvrColors.textSecondary),
-        labelLarge: TextStyle(color: NvrColors.textPrimary),
-        labelMedium: TextStyle(color: NvrColors.textSecondary),
-        labelSmall: TextStyle(color: NvrColors.textMuted),
+        headlineLarge: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary),
+        headlineMedium: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary),
+        titleLarge: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary, fontWeight: FontWeight.w600),
+        titleMedium: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary),
+        titleSmall: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textSecondary),
+        bodyLarge: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary),
+        bodyMedium: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textPrimary),
+        bodySmall: TextStyle(fontFamily: 'IBMPlexSans', color: NvrColors.textSecondary),
+        labelLarge: TextStyle(fontFamily: 'JetBrainsMono', color: NvrColors.textPrimary),
+        labelMedium: TextStyle(fontFamily: 'JetBrainsMono', color: NvrColors.textSecondary),
+        labelSmall: TextStyle(fontFamily: 'JetBrainsMono', color: NvrColors.textMuted),
       ),
     );
   }

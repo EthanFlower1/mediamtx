@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../theme/nvr_colors.dart';
+import '../theme/nvr_typography.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -51,11 +54,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
-            child: Card(
-              color: NvrColors.bgSecondary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: NvrColors.border),
+            child: Container(
+              decoration: BoxDecoration(
+                color: NvrColors.bgSecondary,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: NvrColors.border),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -63,54 +66,79 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   key: _formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.videocam,
-                        size: 56,
-                        color: NvrColors.accent,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Sign In',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: NvrColors.textPrimary,
-                              fontWeight: FontWeight.bold,
+                      // Rotated diamond logo
+                      Center(
+                        child: Transform.rotate(
+                          angle: pi / 4, // 0.785398
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: NvrColors.accent,
+                                width: 2,
+                              ),
                             ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        authState.serverUrl ?? '',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: NvrColors.textMuted,
-                            ),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 12),
+                      const Center(
+                        child: Text(
+                          'MEDIAMTX NVR',
+                          style: NvrTypography.monoSection,
+                        ),
                       ),
                       const SizedBox(height: 32),
+
+                      // Username field
+                      const Text('USERNAME', style: NvrTypography.monoLabel),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: _usernameController,
                         keyboardType: TextInputType.text,
                         autocorrect: false,
                         textInputAction: TextInputAction.next,
-                        style: const TextStyle(color: NvrColors.textPrimary),
+                        style: const TextStyle(
+                          color: NvrColors.textPrimary,
+                          fontFamily: 'IBMPlexSans',
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
-                          labelText: 'Username',
-                          labelStyle: const TextStyle(color: NvrColors.textSecondary),
                           filled: true,
                           fillColor: NvrColors.bgInput,
+                          hintText: 'Enter username',
+                          hintStyle: const TextStyle(color: NvrColors.textMuted),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             borderSide: const BorderSide(color: NvrColors.border),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             borderSide: const BorderSide(color: NvrColors.border),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.accent, width: 2),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.accent, width: 2),
                           ),
-                          prefixIcon: const Icon(Icons.person_outline, color: NvrColors.textMuted),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.danger),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.danger, width: 2),
+                          ),
+                          errorStyle: NvrTypography.alert,
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -120,35 +148,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+
+                      // Password field
+                      const Text('PASSWORD', style: NvrTypography.monoLabel),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
-                        style: const TextStyle(color: NvrColors.textPrimary),
+                        style: const TextStyle(
+                          color: NvrColors.textPrimary,
+                          fontFamily: 'IBMPlexSans',
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
-                          labelText: 'Password',
-                          labelStyle: const TextStyle(color: NvrColors.textSecondary),
                           filled: true,
                           fillColor: NvrColors.bgInput,
+                          hintText: 'Enter password',
+                          hintStyle: const TextStyle(color: NvrColors.textMuted),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 14,
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             borderSide: const BorderSide(color: NvrColors.border),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(4),
                             borderSide: const BorderSide(color: NvrColors.border),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.accent, width: 2),
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.accent, width: 2),
                           ),
-                          prefixIcon: const Icon(Icons.lock_outline, color: NvrColors.textMuted),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: NvrColors.textMuted,
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.danger),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(4),
+                            borderSide:
+                                const BorderSide(color: NvrColors.danger, width: 2),
+                          ),
+                          errorStyle: NvrTypography.alert,
+                          suffixIcon: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: NvrColors.textMuted,
+                                size: 18,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _obscurePassword = !_obscurePassword),
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
                         ),
                         validator: (value) {
@@ -159,74 +218,78 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         },
                         onFieldSubmitted: (_) => _isLoading ? null : _signIn(),
                       ),
+
+                      // Error message
                       if (error != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: NvrColors.danger.withAlpha(26),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: NvrColors.danger.withAlpha(77)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: NvrColors.danger, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  error,
-                                  style: const TextStyle(color: NvrColors.danger, fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: 12),
+                        Text(error, style: NvrTypography.alert),
                       ],
+
                       const SizedBox(height: 24),
+
+                      // Sign In button
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
-                        child: FilledButton(
+                        height: 44,
+                        child: ElevatedButton(
                           onPressed: _isLoading ? null : _signIn,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: NvrColors.accent,
-                            disabledBackgroundColor: NvrColors.accent.withAlpha(128),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
                           child: _isLoading
                               ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: 18,
+                                  height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'Sign In',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
+                              : const Text('SIGN IN'),
                         ),
                       ),
+
                       const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () async {
-                          await ref.read(authServiceProvider).setServerUrl('');
-                          if (mounted) {
-                            // Reset server so router sends back to server setup.
-                            ref.invalidate(authProvider);
-                          }
-                        },
-                        child: const Text(
-                          'Change server',
-                          style: TextStyle(color: NvrColors.textMuted, fontSize: 13),
-                        ),
+
+                      // Server URL + change link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              authState.serverUrl ?? '',
+                              style: NvrTypography.monoLabel.copyWith(
+                                color: NvrColors.textMuted,
+                                letterSpacing: 0.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 44,
+                            child: TextButton(
+                              onPressed: () async {
+                                await ref
+                                    .read(authServiceProvider)
+                                    .setServerUrl('');
+                                if (mounted) {
+                                  // Reset server so router sends back to server setup.
+                                  ref.invalidate(authProvider);
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 0),
+                                minimumSize: const Size(44, 44),
+                              ),
+                              child: Text(
+                                'CHANGE',
+                                style: NvrTypography.monoLabel.copyWith(
+                                  color: NvrColors.accent,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

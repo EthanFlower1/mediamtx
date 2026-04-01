@@ -3,6 +3,7 @@ import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
 import { MotionEvent, eventEmoji } from '../components/Timeline'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
+import { pushToast } from '../components/Toast'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -20,6 +21,16 @@ function toLocalRFC3339(d: Date): string {
 
 function formatTimeHHMMSS(d: Date): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function toastError(title: string, err?: unknown) {
+  pushToast({
+    id: `${title}-${Date.now()}`,
+    type: 'error',
+    title,
+    message: err instanceof Error ? err.message : 'An unexpected error occurred',
+    timestamp: new Date(),
+  })
 }
 
 interface Segment { start: string }
@@ -495,6 +506,7 @@ export default function Playback() {
       return
     }
 
+    let cancelled = false
     const MAX_SEGMENT_MS = 65 * 60 * 1000
 
     selectedCameras.forEach(cam => {
@@ -505,6 +517,8 @@ export default function Playback() {
       fetch(`${window.location.protocol}//${window.location.hostname}:9997/v3/recordings/get/${cam.mediamtx_path}`)
         .then(res => res.ok ? res.json() : null)
         .then((data: RecordingList | null) => {
+          if (cancelled) return
+
           if (!data || !data.segments) {
             setCameraRanges(prev => {
               const exists = prev.find(cr => cr.cameraId === cam.id)
@@ -546,8 +560,10 @@ export default function Playback() {
             return [...prev, { cameraId: cam.id, ranges }]
           })
         })
-        .catch(() => {})
+        .catch(err => toastError('Failed to load recordings for camera', err))
     })
+
+    return () => { cancelled = true }
   }, [selectedCameras, date])
 
   // Clean up camera ranges when cameras are removed
@@ -563,17 +579,22 @@ export default function Playback() {
       return
     }
 
+    let cancelled = false
+
     const promises = selectedCameras.map(cam =>
       apiFetch(`/cameras/${cam.id}/motion-events?date=${date}`)
         .then(res => res.ok ? res.json() : [])
-        .catch(() => [])
+        .catch(err => { toastError('Failed to load motion events', err); return [] as MotionEvent[] })
     )
 
     Promise.all(promises).then((results: MotionEvent[][]) => {
+      if (cancelled) return
       const all = results.flat()
       all.sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
       setMotionEvents(all)
     })
+
+    return () => { cancelled = true }
   }, [selectedCameras, date])
 
   // Track the current playback wall-clock time in a ref (not state) to avoid
@@ -583,6 +604,7 @@ export default function Playback() {
   const timelineMarkerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    const currentDate = date
     if (playing && videoStartTimeRef.current) {
       const firstVideo = videoRefs.current.values().next().value
       if (firstVideo) {
@@ -592,7 +614,7 @@ export default function Playback() {
             livePlaybackTimeRef.current = wallTime
             // Update timeline marker position directly in DOM (no React re-render)
             if (timelineMarkerRef.current) {
-              const dayStart = new Date(date + 'T00:00:00')
+              const dayStart = new Date(currentDate + 'T00:00:00')
               const dayMs = 24 * 60 * 60 * 1000
               const TOTAL_HEIGHT = Math.min(960, typeof window !== 'undefined' ? window.innerHeight - 200 : 960)
               const px = ((wallTime.getTime() - dayStart.getTime()) / dayMs) * TOTAL_HEIGHT
@@ -610,7 +632,7 @@ export default function Playback() {
         timeUpdateIntervalRef.current = null
       }
     }
-  }, [playing])
+  }, [playing, date])
 
   // Callbacks
   const handleVideoRef = useCallback((cameraId: string, el: HTMLVideoElement | null) => {
@@ -681,13 +703,7 @@ export default function Playback() {
   const seekRelative = useCallback((seconds: number) => {
     setPlaybackTime(prev => {
       if (!prev) return prev
-      const newTime = new Date(prev.getTime() + seconds * 1000)
-      // Pause all videos and trigger re-sync
-      videoRefs.current.forEach(video => video.pause())
-      readyCamerasRef.current = new Set()
-      syncPendingRef.current = true
-      videoStartTimeRef.current = newTime
-      return newTime
+      return new Date(prev.getTime() + seconds * 1000)
     })
   }, [])
 

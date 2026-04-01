@@ -25,6 +25,8 @@ type Camera struct {
 	Status                   string `json:"status"`
 	Tags                     string `json:"tags"`
 	RetentionDays            int    `json:"retention_days"`
+	EventRetentionDays       int    `json:"event_retention_days"`
+	DetectionRetentionDays   int    `json:"detection_retention_days"`
 	SupportsPTZ              bool   `json:"supports_ptz"`
 	SupportsImaging          bool   `json:"supports_imaging"`
 	SupportsEvents           bool   `json:"supports_events"`
@@ -35,9 +37,14 @@ type Camera struct {
 	SupportsAnalytics        bool   `json:"supports_analytics"`
 	SupportsEdgeRecording    bool   `json:"supports_edge_recording"`
 	MotionTimeoutSeconds     int    `json:"motion_timeout_seconds"`
-	SubStreamURL             string `json:"sub_stream_url,omitempty"`
-	AIEnabled                bool   `json:"ai_enabled"`
-	AudioTranscode           bool   `json:"audio_transcode"`
+	SubStreamURL             string  `json:"sub_stream_url,omitempty"`
+	AIEnabled                bool    `json:"ai_enabled"`
+	AIStreamID               string  `json:"ai_stream_id,omitempty"`
+	AITrackTimeout           int     `json:"ai_track_timeout"`
+	AIConfidence             float64 `json:"ai_confidence"`
+	AudioTranscode           bool    `json:"audio_transcode"`
+	RecordingStreamID        string  `json:"recording_stream_id,omitempty"`
+	StoragePath              string `json:"storage_path"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -60,19 +67,21 @@ func (d *DB) CreateCamera(cam *Camera) error {
 	_, err := d.Exec(`
 		INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			retention_days, supports_ptz, supports_imaging, supports_events,
+			retention_days, event_retention_days, detection_retention_days,
+			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
-			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
+			storage_path, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
-		cam.Status, cam.Tags, cam.RetentionDays,
+		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
-		cam.CreatedAt, cam.UpdatedAt,
+		cam.StoragePath, cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
 }
@@ -83,21 +92,24 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 	err := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			retention_days, supports_ptz, supports_imaging, supports_events,
+			retention_days, event_retention_days, detection_retention_days,
+			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
-			created_at, updated_at
+			storage_path, created_at, updated_at,
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-		&cam.Status, &cam.Tags, &cam.RetentionDays,
+		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
-		&cam.CreatedAt, &cam.UpdatedAt,
+		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
+		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -114,21 +126,24 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 	err := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			retention_days, supports_ptz, supports_imaging, supports_events,
+			retention_days, event_retention_days, detection_retention_days,
+			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
-			created_at, updated_at
+			storage_path, created_at, updated_at,
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-		&cam.Status, &cam.Tags, &cam.RetentionDays,
+		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
-		&cam.CreatedAt, &cam.UpdatedAt,
+		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
+		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -144,11 +159,13 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 	rows, err := d.Query(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			retention_days, supports_ptz, supports_imaging, supports_events,
+			retention_days, event_retention_days, detection_retention_days,
+			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
-			created_at, updated_at
+			storage_path, created_at, updated_at,
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -161,12 +178,13 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 		if err := rows.Scan(
 			&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 			&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-			&cam.Status, &cam.Tags, &cam.RetentionDays,
+			&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
 			&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 			&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 			&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
 			&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
-			&cam.CreatedAt, &cam.UpdatedAt,
+			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
+			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 		); err != nil {
 			return nil, err
 		}
@@ -183,20 +201,22 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		UPDATE cameras SET name = ?, onvif_endpoint = ?, onvif_username = ?,
 			onvif_password = ?, onvif_profile_token = ?, rtsp_url = ?, ptz_capable = ?,
 			mediamtx_path = ?, status = ?, tags = ?, retention_days = ?,
+			event_retention_days = ?, detection_retention_days = ?,
 			supports_ptz = ?, supports_imaging = ?, supports_events = ?,
 			supports_relay = ?, supports_audio_backchannel = ?, snapshot_uri = ?,
 			supports_media2 = ?, supports_analytics = ?, supports_edge_recording = ?,
 			motion_timeout_seconds = ?, sub_stream_url = ?, ai_enabled = ?,
-			audio_transcode = ?, updated_at = ?
+			audio_transcode = ?, storage_path = ?, updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays,
+		cam.EventRetentionDays, cam.DetectionRetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
-		cam.UpdatedAt, cam.ID,
+		cam.StoragePath, cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {
 		return err
@@ -260,24 +280,41 @@ func (d *DB) UpdateCameraMotionTimeout(id string, seconds int) error {
 	return nil
 }
 
-// UpdateCameraAIConfig updates only the ai_enabled and sub_stream_url fields
-// of a camera. Returns ErrNotFound if no match.
-func (d *DB) UpdateCameraAIConfig(id string, aiEnabled bool, subStreamURL string) error {
-	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-
+// UpdateCameraAIConfig updates the AI pipeline configuration fields of a camera.
+// Returns ErrNotFound if no match.
+func (d *DB) UpdateCameraAIConfig(id string, aiEnabled bool, streamID string, confidence float64, trackTimeout int) error {
+	if trackTimeout <= 0 {
+		trackTimeout = 5
+	}
+	if confidence <= 0 {
+		confidence = 0.5
+	}
 	res, err := d.Exec(`
-		UPDATE cameras SET ai_enabled = ?, sub_stream_url = ?, updated_at = ?
+		UPDATE cameras
+		SET ai_enabled = ?, ai_stream_id = ?, ai_confidence = ?, ai_track_timeout = ?, updated_at = ?
 		WHERE id = ?`,
-		aiEnabled, subStreamURL, updatedAt, id,
-	)
+		aiEnabled, streamID, confidence, trackTimeout,
+		time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), id)
 	if err != nil {
 		return err
 	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
-	n, err := res.RowsAffected()
+// UpdateCameraRecordingStream updates the recording_stream_id for a camera.
+func (d *DB) UpdateCameraRecordingStream(id, streamID string) error {
+	res, err := d.Exec(`
+		UPDATE cameras SET recording_stream_id = ?, updated_at = ?
+		WHERE id = ?`,
+		streamID, time.Now().UTC().Format("2006-01-02T15:04:05.000Z"), id)
 	if err != nil {
 		return err
 	}
+	n, _ := res.RowsAffected()
 	if n == 0 {
 		return ErrNotFound
 	}
@@ -298,6 +335,28 @@ func (d *DB) UpdateCameraAudioTranscode(id string, audioTranscode bool) error {
 		return err
 	}
 
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateCameraRetentionPolicy updates all retention-related fields for a camera.
+func (d *DB) UpdateCameraRetentionPolicy(id string, retentionDays, eventRetentionDays, detectionRetentionDays int) error {
+	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	res, err := d.Exec(`
+		UPDATE cameras SET retention_days = ?, event_retention_days = ?,
+			detection_retention_days = ?, updated_at = ?
+		WHERE id = ?`,
+		retentionDays, eventRetentionDays, detectionRetentionDays, updatedAt, id,
+	)
+	if err != nil {
+		return err
+	}
 	n, err := res.RowsAffected()
 	if err != nil {
 		return err

@@ -78,7 +78,12 @@ func (h *RecordingHandler) Query(c *gin.Context) {
 		return
 	}
 
-	recordings, err := h.DB.QueryRecordings(cameraID, start, end)
+	var recordings []*db.Recording
+	if c.Query("best_quality") == "true" {
+		recordings, err = h.DB.QueryRecordingsBestQuality(cameraID, start, end)
+	} else {
+		recordings, err = h.DB.QueryRecordings(cameraID, start, end)
+	}
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to query recordings", err)
 		return
@@ -106,7 +111,7 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return
@@ -177,7 +182,7 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	}
 
 	dateStr := c.Query("date")
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
 		return
@@ -199,6 +204,49 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, events)
+}
+
+// Intensity returns motion event counts bucketed by time interval.
+func (h *RecordingHandler) Intensity(c *gin.Context) {
+	cameraID := c.Query("camera_id")
+	if cameraID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera_id is required"})
+		return
+	}
+
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	dateStr := c.Query("date")
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
+		return
+	}
+
+	bucketSeconds := 60
+	if bs := c.Query("bucket_seconds"); bs != "" {
+		if v, err := strconv.Atoi(bs); err == nil && v > 0 {
+			bucketSeconds = v
+		}
+	}
+
+	start := date
+	end := date.Add(24 * time.Hour)
+
+	buckets, err := h.DB.GetMotionIntensity(cameraID, start, end, bucketSeconds)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query intensity", err)
+		return
+	}
+
+	if buckets == nil {
+		buckets = []db.IntensityBucket{}
+	}
+
+	c.JSON(http.StatusOK, buckets)
 }
 
 // CleanupRequest is the JSON body for the Cleanup endpoint.

@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	onvifdevice "github.com/use-go/onvif/device"
-	sdkdevice "github.com/use-go/onvif/sdk/device"
-	onviftypes "github.com/use-go/onvif/xsd/onvif"
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // RelayOutput represents a single relay output on an ONVIF device.
@@ -24,19 +22,20 @@ func GetRelayOutputs(xaddr, username, password string) ([]RelayOutput, error) {
 	}
 
 	ctx := context.Background()
-	resp, err := sdkdevice.Call_GetRelayOutputs(ctx, client.Dev, onvifdevice.GetRelayOutputs{})
+	rawOutputs, err := client.Dev.GetRelayOutputs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get relay outputs: %w", err)
 	}
 
-	// The SDK returns a single RelayOutput struct. If it has a token, include it.
 	var outputs []RelayOutput
-	if string(resp.RelayOutputs.Token) != "" {
-		outputs = append(outputs, RelayOutput{
-			Token:     string(resp.RelayOutputs.Token),
-			Mode:      string(resp.RelayOutputs.Properties.Mode),
-			IdleState: string(resp.RelayOutputs.Properties.IdleState),
-		})
+	for _, o := range rawOutputs {
+		if o.Token != "" {
+			outputs = append(outputs, RelayOutput{
+				Token:     o.Token,
+				Mode:      string(o.Properties.Mode),
+				IdleState: string(o.Properties.IdleState),
+			})
+		}
 	}
 
 	return outputs, nil
@@ -49,17 +48,13 @@ func SetRelayOutputState(xaddr, username, password, token string, active bool) e
 		return err
 	}
 
-	state := onviftypes.RelayLogicalState("inactive")
+	state := onvifgo.RelayLogicalState("inactive")
 	if active {
 		state = "active"
 	}
 
 	ctx := context.Background()
-	_, err = sdkdevice.Call_SetRelayOutputState(ctx, client.Dev, onvifdevice.SetRelayOutputState{
-		RelayOutputToken: onviftypes.ReferenceToken(token),
-		LogicalState:     state,
-	})
-	if err != nil {
+	if err := client.Dev.SetRelayOutputState(ctx, token, state); err != nil {
 		return fmt.Errorf("set relay output state: %w", err)
 	}
 

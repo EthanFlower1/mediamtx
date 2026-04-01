@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -107,4 +108,35 @@ func TestCameraGetByPath(t *testing.T) {
 
 	_, err = d.GetCameraByPath("cameras/nonexistent")
 	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestCameraStoragePath(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{
+		Name:        "NAS Camera",
+		RTSPURL:     "rtsp://example.com/stream",
+		StoragePath: "/mnt/nas1/recordings",
+	}
+	require.NoError(t, d.CreateCamera(cam))
+	require.NotEmpty(t, cam.ID)
+
+	got, err := d.GetCamera(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "/mnt/nas1/recordings", got.StoragePath)
+
+	// Update storage path
+	got.StoragePath = "/mnt/nas2/recordings"
+	require.NoError(t, d.UpdateCamera(got))
+
+	got2, err := d.GetCamera(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "/mnt/nas2/recordings", got2.StoragePath)
+
+	// Empty storage path means default
+	got2.StoragePath = ""
+	require.NoError(t, d.UpdateCamera(got2))
+	got3, err := d.GetCamera(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "", got3.StoragePath)
 }

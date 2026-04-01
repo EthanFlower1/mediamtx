@@ -5,23 +5,64 @@ import 'auth_provider.dart';
 class SystemInfo {
   final String version;
   final String platform;
-  final int uptime;
+  final int uptimeSeconds;
   final bool clipSearchAvailable;
 
   const SystemInfo({
     required this.version,
     required this.platform,
-    required this.uptime,
+    required this.uptimeSeconds,
     required this.clipSearchAvailable,
   });
 
+  /// Format uptime as human-readable string (e.g., "14d 8h", "3h 20m", "45m").
+  String get uptimeFormatted {
+    final s = uptimeSeconds;
+    if (s <= 0) return '--';
+    if (s < 3600) return '${s ~/ 60}m';
+    if (s < 86400) return '${s ~/ 3600}h ${(s % 3600) ~/ 60}m';
+    return '${s ~/ 86400}d ${(s % 86400) ~/ 3600}h';
+  }
+
   factory SystemInfo.fromJson(Map<String, dynamic> json) {
+    // The API returns "uptime" as a Go duration string (e.g., "336h12m5s")
+    // and "uptime_seconds" as a number on the /system/metrics endpoint.
+    // The /system/info endpoint only sends "uptime" as a string.
+    // Parse the Go duration string to seconds.
+    int uptime = 0;
+    final raw = json['uptime'];
+    if (raw is int) {
+      uptime = raw;
+    } else if (raw is double) {
+      uptime = raw.round();
+    } else if (raw is String) {
+      uptime = _parseGoDuration(raw);
+    }
+    // Also check uptime_seconds (from /system/metrics)
+    final rawSec = json['uptime_seconds'];
+    if (rawSec is num && rawSec > 0) {
+      uptime = rawSec.round();
+    }
+
     return SystemInfo(
       version: json['version'] as String? ?? '',
       platform: json['platform'] as String? ?? '',
-      uptime: json['uptime'] as int? ?? 0,
+      uptimeSeconds: uptime,
       clipSearchAvailable: json['clip_search_available'] as bool? ?? false,
     );
+  }
+
+  /// Parse a Go duration string like "336h12m5.123s" to total seconds.
+  static int _parseGoDuration(String s) {
+    if (s.isEmpty) return 0;
+    int total = 0;
+    final hMatch = RegExp(r'(\d+)h').firstMatch(s);
+    final mMatch = RegExp(r'(\d+)m').firstMatch(s);
+    final sMatch = RegExp(r'([\d.]+)s').firstMatch(s);
+    if (hMatch != null) total += int.parse(hMatch.group(1)!) * 3600;
+    if (mMatch != null) total += int.parse(mMatch.group(1)!) * 60;
+    if (sMatch != null) total += double.parse(sMatch.group(1)!).round();
+    return total;
   }
 }
 
@@ -48,6 +89,30 @@ class CameraStorage {
   }
 }
 
+class DatabaseStats {
+  final int fileSizeBytes;
+  final Map<String, int> tableRowCounts;
+
+  const DatabaseStats({
+    required this.fileSizeBytes,
+    required this.tableRowCounts,
+  });
+
+  factory DatabaseStats.fromJson(Map<String, dynamic> json) {
+    final tables = json['tables'] as Map<String, dynamic>? ?? {};
+    final counts = <String, int>{};
+    for (final entry in tables.entries) {
+      if (entry.value is Map<String, dynamic>) {
+        counts[entry.key] = (entry.value as Map<String, dynamic>)['row_count'] as int? ?? 0;
+      }
+    }
+    return DatabaseStats(
+      fileSizeBytes: json['file_size_bytes'] as int? ?? 0,
+      tableRowCounts: counts,
+    );
+  }
+}
+
 class StorageInfo {
   final int totalBytes;
   final int usedBytes;
@@ -56,6 +121,7 @@ class StorageInfo {
   final bool warning;
   final bool critical;
   final List<CameraStorage> perCamera;
+  final DatabaseStats? database;
 
   const StorageInfo({
     required this.totalBytes,
@@ -65,6 +131,7 @@ class StorageInfo {
     required this.warning,
     required this.critical,
     required this.perCamera,
+    this.database,
   });
 
   double get usagePercent {
@@ -78,6 +145,11 @@ class StorageInfo {
         .map((e) => CameraStorage.fromJson(e as Map<String, dynamic>))
         .toList();
 
+    final rawDb = json['database'];
+    final database = rawDb is Map<String, dynamic>
+        ? DatabaseStats.fromJson(rawDb)
+        : null;
+
     return StorageInfo(
       totalBytes: json['total_bytes'] as int? ?? 0,
       usedBytes: json['used_bytes'] as int? ?? 0,
@@ -86,6 +158,7 @@ class StorageInfo {
       warning: json['warning'] as bool? ?? false,
       critical: json['critical'] as bool? ?? false,
       perCamera: perCamera,
+      database: database,
     );
   }
 }
@@ -127,7 +200,7 @@ class AuditEntry {
 
 final systemInfoProvider = FutureProvider<SystemInfo>((ref) async {
   final api = ref.watch(apiClientProvider);
-  if (api == null) return const SystemInfo(version: '', platform: '', uptime: 0, clipSearchAvailable: false);
+  if (api == null) return const SystemInfo(version: '', platform: '', uptimeSeconds: 0, clipSearchAvailable: false);
   final res = await api.get('/system/info');
   return SystemInfo.fromJson(res.data as Map<String, dynamic>);
 });
@@ -159,10 +232,6 @@ final usersProvider = FutureProvider<List<User>>((ref) async {
 final auditProvider = FutureProvider<List<AuditEntry>>((ref) async {
   final api = ref.watch(apiClientProvider);
   if (api == null) return [];
-  try {
-    final res = await api.get('/audit', queryParameters: {'limit': 100});
-    return (res.data as List).map((e) => AuditEntry.fromJson(e as Map<String, dynamic>)).toList();
-  } catch (_) {
-    return [];
-  }
+  final res = await api.get('/audit', queryParameters: {'limit': 100});
+  return (res.data as List).map((e) => AuditEntry.fromJson(e as Map<String, dynamic>)).toList();
 });

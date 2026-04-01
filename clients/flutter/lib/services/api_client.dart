@@ -21,8 +21,14 @@ class ApiClient {
     ));
   }
 
-  Future<Response<T>> get<T>(String path, {Map<String, dynamic>? queryParameters}) =>
-      dio.get<T>(path, queryParameters: queryParameters);
+  Future<Response<T>> get<T>(String path, {
+    Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
+  }) =>
+      dio.get<T>(path,
+        queryParameters: queryParameters,
+        options: receiveTimeout != null ? Options(receiveTimeout: receiveTimeout) : null,
+      );
 
   Future<Response<T>> post<T>(String path, {dynamic data}) =>
       dio.post<T>(path, data: data);

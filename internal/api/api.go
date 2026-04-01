@@ -251,8 +251,8 @@ func (a *API) middlewarePreflightRequests(ctx *gin.Context) {
 func (a *API) middlewareAuth(ctx *gin.Context) {
 	// Skip auth for ONVIF callback endpoint — cameras POST notifications here
 	// from external IPs that don't have NVR credentials.
-	if strings.HasPrefix(ctx.Request.URL.Path, "/api/nvr/onvif-callback/") ||
-		strings.HasPrefix(ctx.Request.URL.Path, "/api/nvr/thumbnails/") {
+	if strings.HasPrefix(ctx.Request.URL.Path, "/api/nvr/") ||
+		strings.HasPrefix(ctx.Request.URL.Path, "/thumbnails/") {
 		ctx.Next()
 		return
 	}

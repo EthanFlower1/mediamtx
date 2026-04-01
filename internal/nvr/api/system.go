@@ -14,6 +14,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 )
 
 // SetupChecker reports whether initial setup is required.
@@ -34,9 +35,10 @@ type SystemHandler struct {
 	RecordingsPath string
 	DB             StorageQuerier
 	Broadcaster    *EventBroadcaster
-	ConfigDB       *db.DB  // full DB access for config export/import
-	ConfigPath     string  // path to mediamtx.yml for reading server configuration
-	APIAddress     string  // MediaMTX API address for live camera status
+	ConfigDB       *db.DB           // full DB access for config export/import
+	ConfigPath     string           // path to mediamtx.yml for reading server configuration
+	APIAddress     string           // MediaMTX API address for live camera status
+	Collector      *metrics.Collector // ring-buffer metrics collector (may be nil)
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -53,6 +55,22 @@ func (h *SystemHandler) Metrics(c *gin.Context) {
 		}
 	}
 
+	current := gin.H{
+		"cpu_percent":  0.0,
+		"mem_percent":  0.0,
+		"mem_alloc_mb": float64(m.Alloc) / (1024 * 1024),
+		"mem_sys_mb":   float64(m.Sys) / (1024 * 1024),
+		"goroutines":   runtime.NumGoroutine(),
+	}
+
+	var history []metrics.Sample
+	if h.Collector != nil {
+		cur := h.Collector.Current()
+		current["cpu_percent"] = cur.CPUPercent
+		current["mem_percent"] = cur.MemPercent
+		history = h.Collector.History()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"cpu_goroutines":  runtime.NumGoroutine(),
 		"mem_alloc_bytes": m.Alloc,
@@ -60,6 +78,8 @@ func (h *SystemHandler) Metrics(c *gin.Context) {
 		"mem_gc_count":    m.NumGC,
 		"uptime_seconds":  time.Since(h.StartedAt).Seconds(),
 		"camera_count":    cameraCount,
+		"current":         current,
+		"history":         history,
 	})
 }
 
@@ -123,12 +143,19 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 		usedPercent = float64(usedBytes) / float64(totalBytes) * 100
 	}
 
+	// Database stats.
+	var dbStats *db.DatabaseStats
+	if h.ConfigDB != nil {
+		dbStats, _ = h.ConfigDB.GetDatabaseStats()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"total_bytes":      totalBytes,
 		"free_bytes":       freeBytes,
 		"used_bytes":       usedBytes,
 		"recordings_bytes": recordingsBytes,
 		"per_camera":       perCamera,
+		"database":         dbStats,
 		"warning":          usedPercent > 85,
 		"critical":         usedPercent > 95,
 	})

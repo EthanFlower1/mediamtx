@@ -8,6 +8,17 @@ import MultiCameraPlayer from '../components/MultiCameraPlayer'
 import RecordingCalendar from '../components/RecordingCalendar'
 import CameraStorageBrowser from '../components/CameraStorageBrowser'
 import { apiFetch } from '../api/client'
+import { pushToast } from '../components/Toast'
+
+function toastError(title: string, err?: unknown) {
+  pushToast({
+    id: `${title}-${Date.now()}`,
+    type: 'error',
+    title,
+    message: err instanceof Error ? err.message : 'An unexpected error occurred',
+    timestamp: new Date(),
+  })
+}
 
 interface SavedClip {
   id: string
@@ -233,7 +244,7 @@ export default function Recordings() {
         }
         return ranges
       })
-      .catch(() => [])
+      .catch(err => { toastError('Failed to load recordings', err); return [] })
   }, [])
 
   // Fetch recordings from MediaMTX when single camera or date changes
@@ -246,14 +257,20 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
     setLoadingRecordings(true)
 
     fetchCameraRecordings(mediamtxPath, date)
       .then(ranges => {
+        if (cancelled) return
         setTimelineRanges(ranges)
         setHasRecordings(ranges.length > 0)
       })
-      .finally(() => setLoadingRecordings(false))
+      .finally(() => {
+        if (!cancelled) setLoadingRecordings(false)
+      })
+
+    return () => { cancelled = true }
   }, [mediamtxPath, date, isAllCameras, fetchCameraRecordings])
 
   // Fetch motion events when single camera and date are selected
@@ -263,6 +280,7 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
     let url = `/cameras/${selectedCamera}/motion-events?date=${date}`
     if (objectClassFilter) {
       url += `&object_class=${encodeURIComponent(objectClassFilter)}`
@@ -270,8 +288,14 @@ export default function Recordings() {
 
     apiFetch(url)
       .then(res => res.ok ? res.json() : [])
-      .then((data: MotionEvent[]) => setMotionEvents(data))
-      .catch(() => setMotionEvents([]))
+      .then((data: MotionEvent[]) => {
+        if (!cancelled) setMotionEvents(data)
+      })
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load motion events', err); setMotionEvents([]) }
+      })
+
+    return () => { cancelled = true }
   }, [selectedCamera, date, isAllCameras, objectClassFilter])
 
   // Fetch all recording segments for the calendar (build date sets)
@@ -281,9 +305,12 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
+
     fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
       .then(res => res.ok ? res.json() : null)
       .then((data: RecordingList | null) => {
+        if (cancelled) return
         if (!data || !data.segments) {
           setRecordingDates(new Set())
           return
@@ -291,11 +318,18 @@ export default function Recordings() {
         const dates = new Set<string>()
         data.segments.forEach(s => {
           const d = new Date(s.start)
-          dates.add(d.toISOString().split('T')[0])
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dates.add(`${y}-${m}-${day}`)
         })
         setRecordingDates(dates)
       })
-      .catch(() => setRecordingDates(new Set()))
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load recording dates', err); setRecordingDates(new Set()) }
+      })
+
+    return () => { cancelled = true }
   }, [mediamtxPath, isAllCameras])
 
   // Fetch motion event dates for the calendar
@@ -305,17 +339,27 @@ export default function Recordings() {
       return
     }
 
+    let cancelled = false
+
     apiFetch(`/cameras/${selectedCamera}/motion-events?days=90`)
       .then(res => res.ok ? res.json() : [])
       .then((events: MotionEvent[]) => {
+        if (cancelled) return
         const dates = new Set<string>()
         events.forEach(ev => {
           const d = new Date(ev.started_at)
-          dates.add(d.toISOString().split('T')[0])
+          const y = d.getFullYear()
+          const m = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          dates.add(`${y}-${m}-${day}`)
         })
         setMotionDates(dates)
       })
-      .catch(() => setMotionDates(new Set()))
+      .catch(err => {
+        if (!cancelled) { toastError('Failed to load motion dates', err); setMotionDates(new Set()) }
+      })
+
+    return () => { cancelled = true }
   }, [selectedCamera, isAllCameras])
 
   // Fetch recordings for ALL cameras when "All Cameras" selected
@@ -324,6 +368,8 @@ export default function Recordings() {
       if (isAllCameras) setAllCameraRanges([])
       return
     }
+
+    let cancelled = false
 
     // Initialize all cameras as loading
     const initial: AllCameraRanges[] = cameras
@@ -340,6 +386,7 @@ export default function Recordings() {
     // Fetch each camera's recordings in parallel
     initial.forEach(cam => {
       fetchCameraRecordings(cam.mediamtxPath, date).then(ranges => {
+        if (cancelled) return
         setAllCameraRanges(prev =>
           prev.map(c =>
             c.cameraId === cam.cameraId
@@ -349,6 +396,8 @@ export default function Recordings() {
         )
       })
     })
+
+    return () => { cancelled = true }
   }, [isAllCameras, date, cameras, fetchCameraRecordings])
 
   // Fetch saved clips when camera changes
@@ -360,7 +409,7 @@ export default function Recordings() {
     apiFetch(`/saved-clips?camera_id=${selectedCamera}`)
       .then(res => res.ok ? res.json() : [])
       .then((data: SavedClip[]) => setSavedClips(data))
-      .catch(() => setSavedClips([]))
+      .catch(err => { toastError('Failed to load saved clips', err); setSavedClips([]) })
   }, [selectedCamera, isAllCameras])
 
   useEffect(() => {
@@ -390,8 +439,8 @@ export default function Recordings() {
         setSaveClipNotes('')
         fetchSavedClips()
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      toastError('Failed to save clip', err)
     } finally {
       setSavingClip(false)
     }
@@ -404,8 +453,8 @@ export default function Recordings() {
       if (res.ok) {
         fetchSavedClips()
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      toastError('Failed to delete clip', err)
     }
   }
 
@@ -533,44 +582,39 @@ export default function Recordings() {
 
     const clipStartMs = clipStart.getTime()
     const clipEndMs = clipEnd.getTime()
+    const GAP_THRESHOLD_MS = 30000
 
-    // Check if any recording range overlaps with the clip range
-    const overlappingRanges = timelineRanges.filter(r => {
-      const rStart = new Date(r.start).getTime()
-      const rEnd = new Date(r.end).getTime()
-      return rStart < clipEndMs && rEnd > clipStartMs
-    })
+    // Find recording ranges that overlap the clip window
+    const overlapping = timelineRanges
+      .filter(r => {
+        const rStart = new Date(r.start).getTime()
+        const rEnd = new Date(r.end).getTime()
+        return rStart < clipEndMs && rEnd > clipStartMs
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 
-    if (overlappingRanges.length === 0) {
+    if (overlapping.length === 0) {
       return { type: 'error' as const, message: 'No recordings in selected range' }
     }
 
-    // Check if there are gaps within the clip range
-    // Sort overlapping ranges and check for gaps between them
-    const sorted = [...overlappingRanges].sort((a, b) =>
-      new Date(a.start).getTime() - new Date(b.start).getTime()
-    )
-
-    let hasGaps = false
-    // Check gap at the start
-    if (new Date(sorted[0].start).getTime() > clipStartMs + 30000) {
-      hasGaps = true
-    }
-    // Check gaps between ranges
-    for (let i = 1; i < sorted.length; i++) {
-      const prevEnd = new Date(sorted[i - 1].end).getTime()
-      const curStart = new Date(sorted[i].start).getTime()
-      if (curStart - prevEnd > 30000) {
-        hasGaps = true
-        break
+    // Merge overlapping/adjacent ranges (within threshold) clipped to clip window
+    const merged: { start: number; end: number }[] = []
+    for (const r of overlapping) {
+      const rStart = Math.max(new Date(r.start).getTime(), clipStartMs)
+      const rEnd = Math.min(new Date(r.end).getTime(), clipEndMs)
+      if (merged.length > 0 && rStart - merged[merged.length - 1].end <= GAP_THRESHOLD_MS) {
+        merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, rEnd)
+      } else {
+        merged.push({ start: rStart, end: rEnd })
       }
     }
-    // Check gap at the end
-    if (new Date(sorted[sorted.length - 1].end).getTime() < clipEndMs - 30000) {
-      hasGaps = true
-    }
 
-    if (hasGaps) {
+    // Check if merged ranges cover the full clip window
+    const hasStartGap = merged[0].start - clipStartMs > GAP_THRESHOLD_MS
+    const hasEndGap = clipEndMs - merged[merged.length - 1].end > GAP_THRESHOLD_MS
+    const hasMiddleGaps = merged.length > 1
+
+    if (hasStartGap || hasEndGap || hasMiddleGaps) {
       return { type: 'warning' as const, message: 'Clip includes gaps in recording. Footage will skip missing portions.' }
     }
 

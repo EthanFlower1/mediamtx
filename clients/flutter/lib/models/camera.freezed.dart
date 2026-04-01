@@ -33,10 +33,20 @@ mixin _$Camera {
   bool get ptzCapable => throw _privateConstructorUsedError;
   @JsonKey(name: 'ai_enabled')
   bool get aiEnabled => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_stream_id')
+  String get aiStreamId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_confidence')
+  double get aiConfidence => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ai_track_timeout')
+  int get aiTrackTimeout => throw _privateConstructorUsedError;
   @JsonKey(name: 'sub_stream_url')
   String get subStreamUrl => throw _privateConstructorUsedError;
   @JsonKey(name: 'retention_days')
   int get retentionDays => throw _privateConstructorUsedError;
+  @JsonKey(name: 'event_retention_days')
+  int get eventRetentionDays => throw _privateConstructorUsedError;
+  @JsonKey(name: 'detection_retention_days')
+  int get detectionRetentionDays => throw _privateConstructorUsedError;
   @JsonKey(name: 'motion_timeout_seconds')
   int get motionTimeoutSeconds => throw _privateConstructorUsedError;
   @JsonKey(name: 'snapshot_uri')
@@ -51,6 +61,14 @@ mixin _$Camera {
   String? get createdAt => throw _privateConstructorUsedError;
   @JsonKey(name: 'updated_at')
   String? get updatedAt => throw _privateConstructorUsedError;
+  @JsonKey(name: 'storage_path')
+  String get storagePath => throw _privateConstructorUsedError;
+  @JsonKey(name: 'storage_status')
+  String get storageStatus => throw _privateConstructorUsedError;
+  @JsonKey(name: 'live_view_path')
+  String get liveViewPath => throw _privateConstructorUsedError;
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths => throw _privateConstructorUsedError;
 
   /// Serializes this Camera to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -75,15 +93,24 @@ abstract class $CameraCopyWith<$Res> {
       String status,
       @JsonKey(name: 'ptz_capable') bool ptzCapable,
       @JsonKey(name: 'ai_enabled') bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') String aiStreamId,
+      @JsonKey(name: 'ai_confidence') double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
+      @JsonKey(name: 'event_retention_days') int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') String snapshotUri,
       @JsonKey(name: 'supports_events') bool supportsEvents,
       @JsonKey(name: 'supports_analytics') bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+      @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'storage_path') String storagePath,
+      @JsonKey(name: 'storage_status') String storageStatus,
+      @JsonKey(name: 'live_view_path') String liveViewPath,
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
 }
 
 /// @nodoc
@@ -109,8 +136,13 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? status = null,
     Object? ptzCapable = null,
     Object? aiEnabled = null,
+    Object? aiStreamId = null,
+    Object? aiConfidence = null,
+    Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
+    Object? eventRetentionDays = null,
+    Object? detectionRetentionDays = null,
     Object? motionTimeoutSeconds = null,
     Object? snapshotUri = null,
     Object? supportsEvents = null,
@@ -118,6 +150,10 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? storagePath = null,
+    Object? storageStatus = null,
+    Object? liveViewPath = null,
+    Object? streamPaths = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -152,6 +188,18 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.aiEnabled
           : aiEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      aiStreamId: null == aiStreamId
+          ? _value.aiStreamId
+          : aiStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
+      aiConfidence: null == aiConfidence
+          ? _value.aiConfidence
+          : aiConfidence // ignore: cast_nullable_to_non_nullable
+              as double,
+      aiTrackTimeout: null == aiTrackTimeout
+          ? _value.aiTrackTimeout
+          : aiTrackTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
       subStreamUrl: null == subStreamUrl
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
@@ -159,6 +207,14 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      eventRetentionDays: null == eventRetentionDays
+          ? _value.eventRetentionDays
+          : eventRetentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      detectionRetentionDays: null == detectionRetentionDays
+          ? _value.detectionRetentionDays
+          : detectionRetentionDays // ignore: cast_nullable_to_non_nullable
               as int,
       motionTimeoutSeconds: null == motionTimeoutSeconds
           ? _value.motionTimeoutSeconds
@@ -188,6 +244,22 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      storagePath: null == storagePath
+          ? _value.storagePath
+          : storagePath // ignore: cast_nullable_to_non_nullable
+              as String,
+      storageStatus: null == storageStatus
+          ? _value.storageStatus
+          : storageStatus // ignore: cast_nullable_to_non_nullable
+              as String,
+      liveViewPath: null == liveViewPath
+          ? _value.liveViewPath
+          : liveViewPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      streamPaths: null == streamPaths
+          ? _value.streamPaths
+          : streamPaths // ignore: cast_nullable_to_non_nullable
+              as List<StreamPath>,
     ) as $Val);
   }
 }
@@ -208,15 +280,24 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       String status,
       @JsonKey(name: 'ptz_capable') bool ptzCapable,
       @JsonKey(name: 'ai_enabled') bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') String aiStreamId,
+      @JsonKey(name: 'ai_confidence') double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
       @JsonKey(name: 'retention_days') int retentionDays,
+      @JsonKey(name: 'event_retention_days') int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') String snapshotUri,
       @JsonKey(name: 'supports_events') bool supportsEvents,
       @JsonKey(name: 'supports_analytics') bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') bool supportsRelay,
       @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+      @JsonKey(name: 'updated_at') String? updatedAt,
+      @JsonKey(name: 'storage_path') String storagePath,
+      @JsonKey(name: 'storage_status') String storageStatus,
+      @JsonKey(name: 'live_view_path') String liveViewPath,
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
 }
 
 /// @nodoc
@@ -240,8 +321,13 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? status = null,
     Object? ptzCapable = null,
     Object? aiEnabled = null,
+    Object? aiStreamId = null,
+    Object? aiConfidence = null,
+    Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
     Object? retentionDays = null,
+    Object? eventRetentionDays = null,
+    Object? detectionRetentionDays = null,
     Object? motionTimeoutSeconds = null,
     Object? snapshotUri = null,
     Object? supportsEvents = null,
@@ -249,6 +335,10 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? supportsRelay = null,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
+    Object? storagePath = null,
+    Object? storageStatus = null,
+    Object? liveViewPath = null,
+    Object? streamPaths = null,
   }) {
     return _then(_$CameraImpl(
       id: null == id
@@ -283,6 +373,18 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.aiEnabled
           : aiEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
+      aiStreamId: null == aiStreamId
+          ? _value.aiStreamId
+          : aiStreamId // ignore: cast_nullable_to_non_nullable
+              as String,
+      aiConfidence: null == aiConfidence
+          ? _value.aiConfidence
+          : aiConfidence // ignore: cast_nullable_to_non_nullable
+              as double,
+      aiTrackTimeout: null == aiTrackTimeout
+          ? _value.aiTrackTimeout
+          : aiTrackTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
       subStreamUrl: null == subStreamUrl
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
@@ -290,6 +392,14 @@ class __$$CameraImplCopyWithImpl<$Res>
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      eventRetentionDays: null == eventRetentionDays
+          ? _value.eventRetentionDays
+          : eventRetentionDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      detectionRetentionDays: null == detectionRetentionDays
+          ? _value.detectionRetentionDays
+          : detectionRetentionDays // ignore: cast_nullable_to_non_nullable
               as int,
       motionTimeoutSeconds: null == motionTimeoutSeconds
           ? _value.motionTimeoutSeconds
@@ -319,6 +429,22 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.updatedAt
           : updatedAt // ignore: cast_nullable_to_non_nullable
               as String?,
+      storagePath: null == storagePath
+          ? _value.storagePath
+          : storagePath // ignore: cast_nullable_to_non_nullable
+              as String,
+      storageStatus: null == storageStatus
+          ? _value.storageStatus
+          : storageStatus // ignore: cast_nullable_to_non_nullable
+              as String,
+      liveViewPath: null == liveViewPath
+          ? _value.liveViewPath
+          : liveViewPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      streamPaths: null == streamPaths
+          ? _value._streamPaths
+          : streamPaths // ignore: cast_nullable_to_non_nullable
+              as List<StreamPath>,
     ));
   }
 }
@@ -335,15 +461,27 @@ class _$CameraImpl implements _Camera {
       this.status = 'disconnected',
       @JsonKey(name: 'ptz_capable') this.ptzCapable = false,
       @JsonKey(name: 'ai_enabled') this.aiEnabled = false,
+      @JsonKey(name: 'ai_stream_id') this.aiStreamId = '',
+      @JsonKey(name: 'ai_confidence') this.aiConfidence = 0.5,
+      @JsonKey(name: 'ai_track_timeout') this.aiTrackTimeout = 5,
       @JsonKey(name: 'sub_stream_url') this.subStreamUrl = '',
       @JsonKey(name: 'retention_days') this.retentionDays = 30,
+      @JsonKey(name: 'event_retention_days') this.eventRetentionDays = 0,
+      @JsonKey(name: 'detection_retention_days')
+      this.detectionRetentionDays = 0,
       @JsonKey(name: 'motion_timeout_seconds') this.motionTimeoutSeconds = 8,
       @JsonKey(name: 'snapshot_uri') this.snapshotUri = '',
       @JsonKey(name: 'supports_events') this.supportsEvents = false,
       @JsonKey(name: 'supports_analytics') this.supportsAnalytics = false,
       @JsonKey(name: 'supports_relay') this.supportsRelay = false,
       @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt});
+      @JsonKey(name: 'updated_at') this.updatedAt,
+      @JsonKey(name: 'storage_path') this.storagePath = '',
+      @JsonKey(name: 'storage_status') this.storageStatus = 'default',
+      @JsonKey(name: 'live_view_path') this.liveViewPath = '',
+      @JsonKey(name: 'stream_paths')
+      final List<StreamPath> streamPaths = const []})
+      : _streamPaths = streamPaths;
 
   factory _$CameraImpl.fromJson(Map<String, dynamic> json) =>
       _$$CameraImplFromJson(json);
@@ -371,11 +509,26 @@ class _$CameraImpl implements _Camera {
   @JsonKey(name: 'ai_enabled')
   final bool aiEnabled;
   @override
+  @JsonKey(name: 'ai_stream_id')
+  final String aiStreamId;
+  @override
+  @JsonKey(name: 'ai_confidence')
+  final double aiConfidence;
+  @override
+  @JsonKey(name: 'ai_track_timeout')
+  final int aiTrackTimeout;
+  @override
   @JsonKey(name: 'sub_stream_url')
   final String subStreamUrl;
   @override
   @JsonKey(name: 'retention_days')
   final int retentionDays;
+  @override
+  @JsonKey(name: 'event_retention_days')
+  final int eventRetentionDays;
+  @override
+  @JsonKey(name: 'detection_retention_days')
+  final int detectionRetentionDays;
   @override
   @JsonKey(name: 'motion_timeout_seconds')
   final int motionTimeoutSeconds;
@@ -397,10 +550,27 @@ class _$CameraImpl implements _Camera {
   @override
   @JsonKey(name: 'updated_at')
   final String? updatedAt;
+  @override
+  @JsonKey(name: 'storage_path')
+  final String storagePath;
+  @override
+  @JsonKey(name: 'storage_status')
+  final String storageStatus;
+  @override
+  @JsonKey(name: 'live_view_path')
+  final String liveViewPath;
+  final List<StreamPath> _streamPaths;
+  @override
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths {
+    if (_streamPaths is EqualUnmodifiableListView) return _streamPaths;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_streamPaths);
+  }
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, streamPaths: $streamPaths)';
   }
 
   @override
@@ -420,10 +590,20 @@ class _$CameraImpl implements _Camera {
                 other.ptzCapable == ptzCapable) &&
             (identical(other.aiEnabled, aiEnabled) ||
                 other.aiEnabled == aiEnabled) &&
+            (identical(other.aiStreamId, aiStreamId) ||
+                other.aiStreamId == aiStreamId) &&
+            (identical(other.aiConfidence, aiConfidence) ||
+                other.aiConfidence == aiConfidence) &&
+            (identical(other.aiTrackTimeout, aiTrackTimeout) ||
+                other.aiTrackTimeout == aiTrackTimeout) &&
             (identical(other.subStreamUrl, subStreamUrl) ||
                 other.subStreamUrl == subStreamUrl) &&
             (identical(other.retentionDays, retentionDays) ||
                 other.retentionDays == retentionDays) &&
+            (identical(other.eventRetentionDays, eventRetentionDays) ||
+                other.eventRetentionDays == eventRetentionDays) &&
+            (identical(other.detectionRetentionDays, detectionRetentionDays) ||
+                other.detectionRetentionDays == detectionRetentionDays) &&
             (identical(other.motionTimeoutSeconds, motionTimeoutSeconds) ||
                 other.motionTimeoutSeconds == motionTimeoutSeconds) &&
             (identical(other.snapshotUri, snapshotUri) ||
@@ -437,30 +617,48 @@ class _$CameraImpl implements _Camera {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
-                other.updatedAt == updatedAt));
+                other.updatedAt == updatedAt) &&
+            (identical(other.storagePath, storagePath) ||
+                other.storagePath == storagePath) &&
+            (identical(other.storageStatus, storageStatus) ||
+                other.storageStatus == storageStatus) &&
+            (identical(other.liveViewPath, liveViewPath) ||
+                other.liveViewPath == liveViewPath) &&
+            const DeepCollectionEquality()
+                .equals(other._streamPaths, _streamPaths));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      name,
-      rtspUrl,
-      onvifEndpoint,
-      mediamtxPath,
-      status,
-      ptzCapable,
-      aiEnabled,
-      subStreamUrl,
-      retentionDays,
-      motionTimeoutSeconds,
-      snapshotUri,
-      supportsEvents,
-      supportsAnalytics,
-      supportsRelay,
-      createdAt,
-      updatedAt);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        id,
+        name,
+        rtspUrl,
+        onvifEndpoint,
+        mediamtxPath,
+        status,
+        ptzCapable,
+        aiEnabled,
+        aiStreamId,
+        aiConfidence,
+        aiTrackTimeout,
+        subStreamUrl,
+        retentionDays,
+        eventRetentionDays,
+        detectionRetentionDays,
+        motionTimeoutSeconds,
+        snapshotUri,
+        supportsEvents,
+        supportsAnalytics,
+        supportsRelay,
+        createdAt,
+        updatedAt,
+        storagePath,
+        storageStatus,
+        liveViewPath,
+        const DeepCollectionEquality().hash(_streamPaths)
+      ]);
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.
@@ -488,15 +686,26 @@ abstract class _Camera implements Camera {
       final String status,
       @JsonKey(name: 'ptz_capable') final bool ptzCapable,
       @JsonKey(name: 'ai_enabled') final bool aiEnabled,
+      @JsonKey(name: 'ai_stream_id') final String aiStreamId,
+      @JsonKey(name: 'ai_confidence') final double aiConfidence,
+      @JsonKey(name: 'ai_track_timeout') final int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') final String subStreamUrl,
       @JsonKey(name: 'retention_days') final int retentionDays,
+      @JsonKey(name: 'event_retention_days') final int eventRetentionDays,
+      @JsonKey(name: 'detection_retention_days')
+      final int detectionRetentionDays,
       @JsonKey(name: 'motion_timeout_seconds') final int motionTimeoutSeconds,
       @JsonKey(name: 'snapshot_uri') final String snapshotUri,
       @JsonKey(name: 'supports_events') final bool supportsEvents,
       @JsonKey(name: 'supports_analytics') final bool supportsAnalytics,
       @JsonKey(name: 'supports_relay') final bool supportsRelay,
       @JsonKey(name: 'created_at') final String? createdAt,
-      @JsonKey(name: 'updated_at') final String? updatedAt}) = _$CameraImpl;
+      @JsonKey(name: 'updated_at') final String? updatedAt,
+      @JsonKey(name: 'storage_path') final String storagePath,
+      @JsonKey(name: 'storage_status') final String storageStatus,
+      @JsonKey(name: 'live_view_path') final String liveViewPath,
+      @JsonKey(name: 'stream_paths')
+      final List<StreamPath> streamPaths}) = _$CameraImpl;
 
   factory _Camera.fromJson(Map<String, dynamic> json) = _$CameraImpl.fromJson;
 
@@ -522,11 +731,26 @@ abstract class _Camera implements Camera {
   @JsonKey(name: 'ai_enabled')
   bool get aiEnabled;
   @override
+  @JsonKey(name: 'ai_stream_id')
+  String get aiStreamId;
+  @override
+  @JsonKey(name: 'ai_confidence')
+  double get aiConfidence;
+  @override
+  @JsonKey(name: 'ai_track_timeout')
+  int get aiTrackTimeout;
+  @override
   @JsonKey(name: 'sub_stream_url')
   String get subStreamUrl;
   @override
   @JsonKey(name: 'retention_days')
   int get retentionDays;
+  @override
+  @JsonKey(name: 'event_retention_days')
+  int get eventRetentionDays;
+  @override
+  @JsonKey(name: 'detection_retention_days')
+  int get detectionRetentionDays;
   @override
   @JsonKey(name: 'motion_timeout_seconds')
   int get motionTimeoutSeconds;
@@ -548,11 +772,212 @@ abstract class _Camera implements Camera {
   @override
   @JsonKey(name: 'updated_at')
   String? get updatedAt;
+  @override
+  @JsonKey(name: 'storage_path')
+  String get storagePath;
+  @override
+  @JsonKey(name: 'storage_status')
+  String get storageStatus;
+  @override
+  @JsonKey(name: 'live_view_path')
+  String get liveViewPath;
+  @override
+  @JsonKey(name: 'stream_paths')
+  List<StreamPath> get streamPaths;
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$CameraImplCopyWith<_$CameraImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+StreamPath _$StreamPathFromJson(Map<String, dynamic> json) {
+  return _StreamPath.fromJson(json);
+}
+
+/// @nodoc
+mixin _$StreamPath {
+  String get name => throw _privateConstructorUsedError;
+  String get path => throw _privateConstructorUsedError;
+  String get resolution => throw _privateConstructorUsedError;
+
+  /// Serializes this StreamPath to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $StreamPathCopyWith<StreamPath> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $StreamPathCopyWith<$Res> {
+  factory $StreamPathCopyWith(
+          StreamPath value, $Res Function(StreamPath) then) =
+      _$StreamPathCopyWithImpl<$Res, StreamPath>;
+  @useResult
+  $Res call({String name, String path, String resolution});
+}
+
+/// @nodoc
+class _$StreamPathCopyWithImpl<$Res, $Val extends StreamPath>
+    implements $StreamPathCopyWith<$Res> {
+  _$StreamPathCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? path = null,
+    Object? resolution = null,
+  }) {
+    return _then(_value.copyWith(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      path: null == path
+          ? _value.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      resolution: null == resolution
+          ? _value.resolution
+          : resolution // ignore: cast_nullable_to_non_nullable
+              as String,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$StreamPathImplCopyWith<$Res>
+    implements $StreamPathCopyWith<$Res> {
+  factory _$$StreamPathImplCopyWith(
+          _$StreamPathImpl value, $Res Function(_$StreamPathImpl) then) =
+      __$$StreamPathImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String name, String path, String resolution});
+}
+
+/// @nodoc
+class __$$StreamPathImplCopyWithImpl<$Res>
+    extends _$StreamPathCopyWithImpl<$Res, _$StreamPathImpl>
+    implements _$$StreamPathImplCopyWith<$Res> {
+  __$$StreamPathImplCopyWithImpl(
+      _$StreamPathImpl _value, $Res Function(_$StreamPathImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? name = null,
+    Object? path = null,
+    Object? resolution = null,
+  }) {
+    return _then(_$StreamPathImpl(
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      path: null == path
+          ? _value.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      resolution: null == resolution
+          ? _value.resolution
+          : resolution // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$StreamPathImpl implements _StreamPath {
+  const _$StreamPathImpl(
+      {this.name = '', this.path = '', this.resolution = ''});
+
+  factory _$StreamPathImpl.fromJson(Map<String, dynamic> json) =>
+      _$$StreamPathImplFromJson(json);
+
+  @override
+  @JsonKey()
+  final String name;
+  @override
+  @JsonKey()
+  final String path;
+  @override
+  @JsonKey()
+  final String resolution;
+
+  @override
+  String toString() {
+    return 'StreamPath(name: $name, path: $path, resolution: $resolution)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$StreamPathImpl &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.path, path) || other.path == path) &&
+            (identical(other.resolution, resolution) ||
+                other.resolution == resolution));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, name, path, resolution);
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$StreamPathImplCopyWith<_$StreamPathImpl> get copyWith =>
+      __$$StreamPathImplCopyWithImpl<_$StreamPathImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$StreamPathImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _StreamPath implements StreamPath {
+  const factory _StreamPath(
+      {final String name,
+      final String path,
+      final String resolution}) = _$StreamPathImpl;
+
+  factory _StreamPath.fromJson(Map<String, dynamic> json) =
+      _$StreamPathImpl.fromJson;
+
+  @override
+  String get name;
+  @override
+  String get path;
+  @override
+  String get resolution;
+
+  /// Create a copy of StreamPath
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$StreamPathImplCopyWith<_$StreamPathImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }

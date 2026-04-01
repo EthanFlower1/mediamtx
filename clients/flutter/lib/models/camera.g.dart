@@ -15,8 +15,14 @@ _$CameraImpl _$$CameraImplFromJson(Map<String, dynamic> json) => _$CameraImpl(
       status: json['status'] as String? ?? 'disconnected',
       ptzCapable: json['ptz_capable'] as bool? ?? false,
       aiEnabled: json['ai_enabled'] as bool? ?? false,
+      aiStreamId: json['ai_stream_id'] as String? ?? '',
+      aiConfidence: (json['ai_confidence'] as num?)?.toDouble() ?? 0.5,
+      aiTrackTimeout: (json['ai_track_timeout'] as num?)?.toInt() ?? 5,
       subStreamUrl: json['sub_stream_url'] as String? ?? '',
       retentionDays: (json['retention_days'] as num?)?.toInt() ?? 30,
+      eventRetentionDays: (json['event_retention_days'] as num?)?.toInt() ?? 0,
+      detectionRetentionDays:
+          (json['detection_retention_days'] as num?)?.toInt() ?? 0,
       motionTimeoutSeconds:
           (json['motion_timeout_seconds'] as num?)?.toInt() ?? 8,
       snapshotUri: json['snapshot_uri'] as String? ?? '',
@@ -25,6 +31,13 @@ _$CameraImpl _$$CameraImplFromJson(Map<String, dynamic> json) => _$CameraImpl(
       supportsRelay: json['supports_relay'] as bool? ?? false,
       createdAt: json['created_at'] as String?,
       updatedAt: json['updated_at'] as String?,
+      storagePath: json['storage_path'] as String? ?? '',
+      storageStatus: json['storage_status'] as String? ?? 'default',
+      liveViewPath: json['live_view_path'] as String? ?? '',
+      streamPaths: (json['stream_paths'] as List<dynamic>?)
+              ?.map((e) => StreamPath.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
 
 Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
@@ -37,8 +50,13 @@ Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
       'status': instance.status,
       'ptz_capable': instance.ptzCapable,
       'ai_enabled': instance.aiEnabled,
+      'ai_stream_id': instance.aiStreamId,
+      'ai_confidence': instance.aiConfidence,
+      'ai_track_timeout': instance.aiTrackTimeout,
       'sub_stream_url': instance.subStreamUrl,
       'retention_days': instance.retentionDays,
+      'event_retention_days': instance.eventRetentionDays,
+      'detection_retention_days': instance.detectionRetentionDays,
       'motion_timeout_seconds': instance.motionTimeoutSeconds,
       'snapshot_uri': instance.snapshotUri,
       'supports_events': instance.supportsEvents,
@@ -46,4 +64,22 @@ Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
       'supports_relay': instance.supportsRelay,
       'created_at': instance.createdAt,
       'updated_at': instance.updatedAt,
+      'storage_path': instance.storagePath,
+      'storage_status': instance.storageStatus,
+      'live_view_path': instance.liveViewPath,
+      'stream_paths': instance.streamPaths,
+    };
+
+_$StreamPathImpl _$$StreamPathImplFromJson(Map<String, dynamic> json) =>
+    _$StreamPathImpl(
+      name: json['name'] as String? ?? '',
+      path: json['path'] as String? ?? '',
+      resolution: json['resolution'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$$StreamPathImplToJson(_$StreamPathImpl instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'path': instance.path,
+      'resolution': instance.resolution,
     };

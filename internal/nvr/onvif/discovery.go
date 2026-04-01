@@ -11,12 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	onviflib "github.com/use-go/onvif"
-	onvifdevice "github.com/use-go/onvif/device"
-	onvifmedia "github.com/use-go/onvif/media"
-	sdkdevice "github.com/use-go/onvif/sdk/device"
-	sdkmedia "github.com/use-go/onvif/sdk/media"
-	onviftypes "github.com/use-go/onvif/xsd/onvif"
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // MediaProfile represents a media profile on an ONVIF device.
@@ -25,17 +20,20 @@ type MediaProfile struct {
 	Name       string `json:"name"`
 	StreamURI  string `json:"stream_uri"`
 	VideoCodec string `json:"video_codec,omitempty"`
+	AudioCodec string `json:"audio_codec,omitempty"`
 	Width      int    `json:"width,omitempty"`
 	Height     int    `json:"height,omitempty"`
 }
 
 // DiscoveredDevice represents an ONVIF device found during a WS-Discovery scan.
 type DiscoveredDevice struct {
-	XAddr        string         `json:"xaddr"`
-	Manufacturer string         `json:"manufacturer"`
-	Model        string         `json:"model"`
-	Firmware     string         `json:"firmware"`
-	Profiles     []MediaProfile `json:"profiles,omitempty"`
+	XAddr            string         `json:"xaddr"`
+	Manufacturer     string         `json:"manufacturer"`
+	Model            string         `json:"model"`
+	Firmware         string         `json:"firmware"`
+	AuthRequired     bool           `json:"auth_required"`
+	ExistingCameraID string         `json:"existing_camera_id,omitempty"`
+	Profiles         []MediaProfile `json:"profiles,omitempty"`
 }
 
 // ScanStatus represents the current state of a discovery scan.
@@ -178,24 +176,21 @@ func (d *Discovery) runScan(scanID string) {
 
 // enrichDevice connects to an ONVIF device and fetches its info, profiles, and stream URIs.
 func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
-	// Extract host:port from xaddr URL.
-	xaddr := xaddrToHost(dev.XAddr)
-	if xaddr == "" {
-		return
-	}
-
-	onvifDev, err := onviflib.NewDevice(onviflib.DeviceParams{
-		Xaddr: xaddr,
-	})
+	onvifDev, err := onvifgo.NewClient(dev.XAddr)
 	if err != nil {
+		dev.AuthRequired = true
 		return
 	}
 
 	ctx := context.Background()
+	if err := onvifDev.Initialize(ctx); err != nil {
+		dev.AuthRequired = true
+		return
+	}
 
 	// Fetch device info to fill in manufacturer/model/firmware if not from scopes.
-	info, err := sdkdevice.Call_GetDeviceInformation(ctx, onvifDev, onvifdevice.GetDeviceInformation{})
-	if err == nil {
+	info, err := onvifDev.GetDeviceInformation(ctx)
+	if err == nil && info != nil {
 		if dev.Manufacturer == "" {
 			dev.Manufacturer = info.Manufacturer
 		}
@@ -208,33 +203,19 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 	}
 
 	// Fetch media profiles.
-	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, onvifDev, onvifmedia.GetProfiles{})
+	rawProfiles, err := onvifDev.GetProfiles(ctx)
 	if err != nil {
+		dev.AuthRequired = true
 		return
 	}
 
-	for _, p := range profilesResp.Profiles {
-		mp := MediaProfile{
-			Token: string(p.Token),
-			Name:  string(p.Name),
-		}
-
-		// Extract video encoding info.
-		enc := p.VideoEncoderConfiguration
-		mp.VideoCodec = string(enc.Encoding)
-		mp.Width = int(enc.Resolution.Width)
-		mp.Height = int(enc.Resolution.Height)
+	for _, p := range rawProfiles {
+		mp := profileToMediaProfile(p)
 
 		// Get RTSP stream URI.
-		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, onvifDev, onvifmedia.GetStreamUri{
-			ProfileToken: p.Token,
-			StreamSetup: onviftypes.StreamSetup{
-				Stream:    "RTP-Unicast",
-				Transport: onviftypes.Transport{Protocol: "RTSP"},
-			},
-		})
-		if err == nil {
-			mp.StreamURI = string(streamResp.MediaUri.Uri)
+		streamResp, err := onvifDev.GetStreamURI(ctx, p.Token)
+		if err == nil && streamResp != nil {
+			mp.StreamURI = streamResp.URI
 		}
 
 		dev.Profiles = append(dev.Profiles, mp)

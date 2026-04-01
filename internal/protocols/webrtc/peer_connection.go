@@ -457,11 +457,16 @@ func (co *PeerConnection) run() {
 
 		co.wr.GracefulClose() //nolint:errcheck
 
-		// even if GracefulClose() should wait for any goroutine to return,
-		// we have to wait for OnConnectionStateChange to return anyway,
-		// since it is executed in an uncontrolled goroutine.
-		// https://github.com/pion/webrtc/blob/v4.2.8/peerconnection.go#L529
-		<-co.closed
+		// Wait for OnConnectionStateChange to fire PeerConnectionStateClosed,
+		// but with a timeout to prevent goroutine leaks when pion's ICE layer
+		// takes minutes to time out on ungraceful disconnects.
+		t := time.NewTimer(10 * time.Second)
+		defer t.Stop()
+		select {
+		case <-co.closed:
+		case <-t.C:
+			co.Log.Log(logger.Warn, "timed out waiting for peer connection closed state")
+		}
 	}()
 
 	for {

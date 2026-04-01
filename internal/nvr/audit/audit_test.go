@@ -143,17 +143,17 @@ func fileSize(path string) int64 {
 	return info.Size()
 }
 
-// dirFiles returns the names of regular files in dir (non-recursive).
+// dirFiles returns the full paths of all regular files under dir, recursively.
 func dirFiles(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			names = append(names, e.Name())
+	var paths []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-	}
-	return names, nil
+		if !info.IsDir() {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	return paths, err
 }

@@ -553,14 +553,21 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 	for attempt := 0; attempt < 3; attempt++ {
 		insertErr = n.database.InsertRecording(rec)
 		if insertErr == nil {
-			return
+			break
 		}
 		fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
 		if attempt < 2 {
 			time.Sleep(1 * time.Second)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+	if insertErr != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+	}
+
+	// Notify the scheduler for health tracking regardless of DB insert outcome.
+	if n.sched != nil {
+		n.sched.NotifySegmentForCamera(cam.ID)
+	}
 }
 
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.

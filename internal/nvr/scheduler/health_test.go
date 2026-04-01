@@ -150,6 +150,41 @@ func TestRecordingHealth_MarkFailed(t *testing.T) {
 	require.Equal(t, "recovery failed after 3 attempts", h.LastError)
 }
 
+func TestScheduler_GetRecordingHealth(t *testing.T) {
+	s := New(nil, nil, nil, nil, "")
+	h := s.GetRecordingHealth("cam-1")
+	require.Nil(t, h)
+
+	s.mu.Lock()
+	s.healthStates["cam-1"] = &RecordingHealth{
+		Status:          HealthHealthy,
+		LastSegmentTime: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+	}
+	s.mu.Unlock()
+
+	h = s.GetRecordingHealth("cam-1")
+	require.NotNil(t, h)
+	require.Equal(t, HealthHealthy, h.Status)
+}
+
+func TestScheduler_GetAllRecordingHealth(t *testing.T) {
+	s := New(nil, nil, nil, nil, "")
+	s.mu.Lock()
+	s.healthStates["cam-1"] = &RecordingHealth{Status: HealthHealthy}
+	s.healthStates["cam-2"] = &RecordingHealth{Status: HealthStalled}
+	s.mu.Unlock()
+
+	all := s.GetAllRecordingHealth()
+	require.Len(t, all, 2)
+	require.Equal(t, HealthHealthy, all["cam-1"].Status)
+	require.Equal(t, HealthStalled, all["cam-2"].Status)
+
+	// Verify it's a copy.
+	all["cam-1"].Status = HealthFailed
+	h := s.GetRecordingHealth("cam-1")
+	require.Equal(t, HealthHealthy, h.Status)
+}
+
 func TestBackoffDuration(t *testing.T) {
 	require.Equal(t, 5*time.Second, backoffDuration(0))
 	require.Equal(t, 15*time.Second, backoffDuration(1))

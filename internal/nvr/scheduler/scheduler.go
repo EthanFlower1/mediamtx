@@ -210,6 +210,31 @@ func (s *Scheduler) GetCameraState(cameraID string) *CameraState {
 	return &cp
 }
 
+// GetRecordingHealth returns a copy of the recording health for the given camera.
+// Returns nil if no health state exists.
+func (s *Scheduler) GetRecordingHealth(cameraID string) *RecordingHealth {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h, ok := s.healthStates[cameraID]
+	if !ok {
+		return nil
+	}
+	cp := *h
+	return &cp
+}
+
+// GetAllRecordingHealth returns a copy of all recording health states.
+func (s *Scheduler) GetAllRecordingHealth() map[string]*RecordingHealth {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make(map[string]*RecordingHealth, len(s.healthStates))
+	for k, v := range s.healthStates {
+		cp := *v
+		result[k] = &cp
+	}
+	return result
+}
+
 // run is the main scheduler loop.
 func (s *Scheduler) run() {
 	defer s.wg.Done()

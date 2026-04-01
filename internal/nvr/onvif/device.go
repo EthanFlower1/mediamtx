@@ -8,10 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	onviflib "github.com/use-go/onvif"
-	onvifmedia "github.com/use-go/onvif/media"
-	sdkmedia "github.com/use-go/onvif/sdk/media"
-	onviftypes "github.com/use-go/onvif/xsd/onvif"
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // ErrNotImplemented is returned by stub methods that are not yet implemented.
@@ -20,48 +17,25 @@ var ErrNotImplemented = errors.New("not implemented")
 // ProbeDevice connects to an ONVIF device with credentials and returns its media profiles
 // including RTSP stream URIs.
 func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
-	host := xaddrToHost(xaddr)
-	if host == "" {
-		host = xaddr
-	}
-
-	dev, err := onviflib.NewDevice(onviflib.DeviceParams{
-		Xaddr:    host,
-		Username: username,
-		Password: password,
-	})
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("connect to device: %w", err)
 	}
 
 	ctx := context.Background()
 
-	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, dev, onvifmedia.GetProfiles{})
+	rawProfiles, err := client.Dev.GetProfiles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get profiles: %w", err)
 	}
 
 	var profiles []MediaProfile
-	for _, p := range profilesResp.Profiles {
-		mp := MediaProfile{
-			Token:      string(p.Token),
-			Name:       string(p.Name),
-			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
-			AudioCodec: string(p.AudioEncoderConfiguration.Encoding),
-			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
-			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
-		}
+	for _, p := range rawProfiles {
+		mp := profileToMediaProfile(p)
 
-		streamResp, err := sdkmedia.Call_GetStreamUri(ctx, dev, onvifmedia.GetStreamUri{
-			ProfileToken: p.Token,
-			StreamSetup: onviftypes.StreamSetup{
-				Stream:    "RTP-Unicast",
-				Transport: onviftypes.Transport{Protocol: "RTSP"},
-			},
-		})
-		if err == nil {
-			uri := string(streamResp.MediaUri.Uri)
-			// Only inject credentials into valid RTSP URIs.
+		streamResp, err := client.Dev.GetStreamURI(ctx, p.Token)
+		if err == nil && streamResp != nil {
+			uri := streamResp.URI
 			if uri != "" && strings.HasPrefix(uri, "rtsp://") && username != "" {
 				if u, parseErr := url.Parse(uri); parseErr == nil {
 					u.User = url.UserPassword(username, password)
@@ -106,8 +80,6 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	profiles, usedMedia2, err := GetProfilesAuto(xaddr, username, password)
 	if err != nil {
 		log.Printf("onvif probe [%s]: GetProfilesAuto failed: %v", xaddr, err)
-		// Don't fail completely — return capabilities even if profiles fail.
-		// But log clearly so the user knows why there are no streams.
 		return result, nil
 	}
 	if len(profiles) == 0 {
@@ -131,21 +103,38 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 		// Fall back to Media1 snapshot URI.
 		if result.SnapshotURI == "" {
 			ctx := context.Background()
-			snapResp, err := sdkmedia.Call_GetSnapshotUri(ctx, client.Dev, onvifmedia.GetSnapshotUri{
-				ProfileToken: onviftypes.ReferenceToken(result.Profiles[0].Token),
-			})
-			if err == nil {
-				result.SnapshotURI = string(snapResp.MediaUri.Uri)
+			snapResp, err := client.Dev.GetSnapshotURI(ctx, result.Profiles[0].Token)
+			if err == nil && snapResp != nil {
+				result.SnapshotURI = snapResp.URI
 			}
 		}
 	}
 
 	// Check audio backchannel capability.
 	ctx := context.Background()
-	outputResp, err := sdkmedia.Call_GetAudioOutputs(ctx, client.Dev, onvifmedia.GetAudioOutputs{})
-	if err == nil && string(outputResp.AudioOutputs.Token) != "" {
+	outputs, err := client.Dev.GetAudioOutputs(ctx)
+	if err == nil && len(outputs) > 0 && outputs[0].Token != "" {
 		result.Capabilities.AudioBackchannel = true
 	}
 
 	return result, nil
+}
+
+// profileToMediaProfile converts a library Profile to our MediaProfile type.
+func profileToMediaProfile(p *onvifgo.Profile) MediaProfile {
+	mp := MediaProfile{
+		Token: p.Token,
+		Name:  p.Name,
+	}
+	if p.VideoEncoderConfiguration != nil {
+		mp.VideoCodec = p.VideoEncoderConfiguration.Encoding
+		if p.VideoEncoderConfiguration.Resolution != nil {
+			mp.Width = p.VideoEncoderConfiguration.Resolution.Width
+			mp.Height = p.VideoEncoderConfiguration.Resolution.Height
+		}
+	}
+	if p.AudioEncoderConfiguration != nil {
+		mp.AudioCodec = p.AudioEncoderConfiguration.Encoding
+	}
+	return mp
 }

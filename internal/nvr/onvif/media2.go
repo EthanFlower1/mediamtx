@@ -9,10 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	onvifmedia "github.com/use-go/onvif/media"
-	sdkmedia "github.com/use-go/onvif/sdk/media"
-	onviftypes "github.com/use-go/onvif/xsd/onvif"
 )
 
 // --- Media2 SOAP response types ---
@@ -38,9 +34,9 @@ type getProfiles2Response struct {
 }
 
 type media2Profile struct {
-	Token         string                    `xml:"token,attr"`
-	Name          string                    `xml:"Name"`
-	Configurations media2Configurations     `xml:"Configurations"`
+	Token          string               `xml:"token,attr"`
+	Name           string               `xml:"Name"`
+	Configurations media2Configurations `xml:"Configurations"`
 }
 
 type media2Configurations struct {
@@ -244,33 +240,20 @@ func GetProfilesAuto(xaddr, username, password string) ([]MediaProfile, bool, er
 		log.Printf("onvif media2 [%s]: Media2 GetProfiles failed (%v), falling back to Media1", xaddr, err)
 	}
 
-	// Fall back to Media1.
+	// Fall back to Media1 via the new library.
 	ctx := context.Background()
-	profilesResp, err := sdkmedia.Call_GetProfiles(ctx, client.Dev, onvifmedia.GetProfiles{})
+	rawProfiles, err := client.Dev.GetProfiles(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("media1 GetProfiles: %w", err)
 	}
 
 	var profiles []MediaProfile
-	for _, p := range profilesResp.Profiles {
-		mp := MediaProfile{
-			Token:      string(p.Token),
-			Name:       string(p.Name),
-			VideoCodec: string(p.VideoEncoderConfiguration.Encoding),
-			AudioCodec: string(p.AudioEncoderConfiguration.Encoding),
-			Width:      int(p.VideoEncoderConfiguration.Resolution.Width),
-			Height:     int(p.VideoEncoderConfiguration.Resolution.Height),
-		}
+	for _, p := range rawProfiles {
+		mp := profileToMediaProfile(p)
 
-		streamResp, sErr := sdkmedia.Call_GetStreamUri(ctx, client.Dev, onvifmedia.GetStreamUri{
-			ProfileToken: p.Token,
-			StreamSetup: onviftypes.StreamSetup{
-				Stream:    "RTP-Unicast",
-				Transport: onviftypes.Transport{Protocol: "RTSP"},
-			},
-		})
-		if sErr == nil {
-			uri := string(streamResp.MediaUri.Uri)
+		streamResp, sErr := client.Dev.GetStreamURI(ctx, p.Token)
+		if sErr == nil && streamResp != nil {
+			uri := streamResp.URI
 			if uri != "" && strings.HasPrefix(uri, "rtsp://") && username != "" {
 				if u, parseErr := url.Parse(uri); parseErr == nil {
 					u.User = url.UserPassword(username, password)

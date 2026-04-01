@@ -364,8 +364,8 @@ class _EncoderEditor extends ConsumerWidget {
                 style: TextStyle(color: NvrColors.textMuted, fontSize: 11));
           }
 
-          final encodings = options.encodings;
-          final resolutions = options.resolutions;
+          final encodings = options.encodings.toSet().toList();
+          final resolutions = options.resolutions.toSet().toList();
           final frRange = options.frameRateRange;
           final qRange = options.qualityRange;
 

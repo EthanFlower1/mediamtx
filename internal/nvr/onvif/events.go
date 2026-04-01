@@ -61,17 +61,16 @@ func NewEventSubscriber(xaddr, username, password, callbackURL string, cb EventC
 		return nil, fmt.Errorf("onvif events: callback is required")
 	}
 
-	dev, err := connectDevice(xaddr, username, password)
+	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("onvif events: connect to device: %w", err)
 	}
 
-	services := dev.GetServices()
-	eventURL, ok := services["events"]
-	if !ok {
-		eventURL, ok = services["event"]
+	eventURL := client.ServiceURL("events")
+	if eventURL == "" {
+		eventURL = client.ServiceURL("event")
 	}
-	if !ok || eventURL == "" {
+	if eventURL == "" {
 		return nil, fmt.Errorf("onvif events: camera does not expose an event service")
 	}
 

@@ -327,6 +327,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		protected.POST("/storage/sync/:camera_id", storageHandler.TriggerSync)
 	}
 
+	// Storage quotas.
+	quotaHandler := &QuotaHandler{DB: cfg.DB}
+	protected.GET("/quotas", quotaHandler.ListQuotas)
+	protected.PUT("/quotas/global", quotaHandler.SetGlobalQuota)
+	protected.GET("/quotas/status", quotaHandler.QuotaStatus)
+	protected.PUT("/cameras/:id/quota", quotaHandler.SetCameraQuota)
+
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)

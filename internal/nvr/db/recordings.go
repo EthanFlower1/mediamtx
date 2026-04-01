@@ -474,6 +474,59 @@ func (d *DB) UpdateRecordingStatus(id int64, status string, statusDetail *string
 	return err
 }
 
+// GetAllRecordingPaths returns a map of file_path → recording ID for all recordings.
+// Used by the recovery scanner to identify orphaned files on disk.
+func (d *DB) GetAllRecordingPaths() (map[string]int64, error) {
+	rows, err := d.Query("SELECT id, file_path FROM recordings")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]int64)
+	for rows.Next() {
+		var id int64
+		var path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return nil, err
+		}
+		paths[path] = id
+	}
+	return paths, rows.Err()
+}
+
+// GetUnindexedRecordingPaths returns a map of file_path → recording ID for recordings
+// that have no fragment rows and are not quarantined. Used by recovery to find
+// recordings that were inserted but never indexed (crash between insert and fragment scan).
+func (d *DB) GetUnindexedRecordingPaths() (map[string]int64, error) {
+	rows, err := d.Query(`
+		SELECT r.id, r.file_path
+		FROM recordings r
+		LEFT JOIN recording_fragments rf ON rf.recording_id = r.id
+		WHERE rf.id IS NULL AND r.status != 'quarantined'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]int64)
+	for rows.Next() {
+		var id int64
+		var path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return nil, err
+		}
+		paths[path] = id
+	}
+	return paths, rows.Err()
+}
+
+// UpdateRecordingFileSize updates the file_size for a recording after repair.
+func (d *DB) UpdateRecordingFileSize(id int64, fileSize int64) error {
+	_, err := d.Exec("UPDATE recordings SET file_size = ? WHERE id = ?", fileSize, id)
+	return err
+}
+
 // GetRecordingsNeedingVerification returns recordings that need verification: either status='unverified'
 // or verified_at older than the given cutoff. Results are ordered newest-first, limited to batchSize.
 func (d *DB) GetRecordingsNeedingVerification(cutoff time.Time, batchSize int) ([]*Recording, error) {

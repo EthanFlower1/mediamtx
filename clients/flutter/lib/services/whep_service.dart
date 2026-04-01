@@ -35,6 +35,18 @@ class WhepConnection {
 
   RTCVideoRenderer? get renderer => _renderer;
 
+  /// Enables or disables the audio track on the peer connection.
+  Future<void> setAudioEnabled(bool enabled) async {
+    final receivers = await _pc?.getReceivers();
+    if (receivers == null) return;
+    for (final receiver in receivers) {
+      final track = receiver.track;
+      if (track != null && track.kind == 'audio') {
+        track.enabled = enabled;
+      }
+    }
+  }
+
   void _setState(WhepConnectionState newState) {
     if (_disposed) return;
     _state = newState;

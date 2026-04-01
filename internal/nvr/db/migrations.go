@@ -215,4 +215,212 @@ CREATE INDEX idx_detections_class ON detections(class);
 		version: 15,
 		sql:     `ALTER TABLE cameras ADD COLUMN audio_transcode INTEGER NOT NULL DEFAULT 0;`,
 	},
+	{
+		version: 16,
+		sql: `
+CREATE TABLE recording_fragments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recording_id INTEGER NOT NULL,
+    fragment_index INTEGER NOT NULL,
+    byte_offset INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    duration_ms REAL NOT NULL,
+    is_keyframe INTEGER NOT NULL DEFAULT 1,
+    timestamp_ms INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE,
+    UNIQUE(recording_id, fragment_index)
+);
+CREATE INDEX idx_fragments_recording ON recording_fragments(recording_id, fragment_index);
+ALTER TABLE recordings ADD COLUMN init_size INTEGER NOT NULL DEFAULT 0;
+`,
+	},
+	{
+		version: 17,
+		sql: `
+CREATE TABLE bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_bookmarks_camera_time ON bookmarks(camera_id, timestamp);
+CREATE INDEX idx_bookmarks_timestamp ON bookmarks(timestamp);
+`,
+	},
+	{
+		version: 18,
+		sql: `
+ALTER TABLE cameras ADD COLUMN storage_path TEXT NOT NULL DEFAULT '';
+CREATE TABLE pending_syncs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recording_id INTEGER NOT NULL,
+    camera_id TEXT NOT NULL,
+    local_path TEXT NOT NULL,
+    target_path TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    last_attempt_at TEXT,
+    FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE,
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_pending_syncs_status ON pending_syncs(status);
+CREATE INDEX idx_pending_syncs_camera ON pending_syncs(camera_id);
+`,
+	},
+	{
+		version: 19,
+		sql: `
+        CREATE TABLE IF NOT EXISTS camera_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS camera_group_members (
+            group_id TEXT NOT NULL REFERENCES camera_groups(id) ON DELETE CASCADE,
+            camera_id TEXT NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (group_id, camera_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_group_members_group ON camera_group_members(group_id);
+        CREATE INDEX IF NOT EXISTS idx_group_members_camera ON camera_group_members(camera_id);
+    `,
+	},
+	{
+		version: 20,
+		sql: `
+        CREATE TABLE IF NOT EXISTS tours (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            camera_ids TEXT NOT NULL DEFAULT '[]',
+            dwell_seconds INTEGER NOT NULL DEFAULT 10,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    `,
+	},
+	{
+		version: 21,
+		sql: `
+CREATE TABLE camera_streams (
+    id TEXT PRIMARY KEY,
+    camera_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    rtsp_url TEXT NOT NULL,
+    profile_token TEXT NOT NULL DEFAULT '',
+    video_codec TEXT NOT NULL DEFAULT '',
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    roles TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_camera_streams_camera ON camera_streams(camera_id);
+
+ALTER TABLE recording_rules ADD COLUMN stream_id TEXT NOT NULL DEFAULT '';
+
+INSERT INTO camera_streams (id, camera_id, name, rtsp_url, profile_token, roles)
+SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+    id,
+    'Main Stream',
+    rtsp_url,
+    COALESCE(onvif_profile_token, ''),
+    CASE WHEN sub_stream_url IS NOT NULL AND sub_stream_url != '' THEN 'live_view' ELSE 'live_view,recording,ai_detection,mobile' END
+FROM cameras
+WHERE rtsp_url IS NOT NULL AND rtsp_url != '';
+
+INSERT INTO camera_streams (id, camera_id, name, rtsp_url, profile_token, roles)
+SELECT
+    lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+    id,
+    'Sub Stream',
+    sub_stream_url,
+    '',
+    'recording,ai_detection,mobile'
+FROM cameras
+WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
+`,
+	},
+	// Migration 22: Add AI pipeline stream selection and track timeout.
+	{
+		version: 22,
+		sql: `
+        ALTER TABLE cameras ADD COLUMN ai_stream_id TEXT DEFAULT '';
+        ALTER TABLE cameras ADD COLUMN ai_track_timeout INTEGER DEFAULT 5;
+        ALTER TABLE cameras ADD COLUMN ai_confidence REAL DEFAULT 0.5;
+    `,
+	},
+	// Migration 23: Add recording stream selection.
+	{
+		version: 23,
+		sql: `
+        ALTER TABLE cameras ADD COLUMN recording_stream_id TEXT DEFAULT '';
+    `,
+	},
+	// Migration 24: Schedule templates and template_id on recording rules.
+	{
+		version: 24,
+		sql: `
+        CREATE TABLE schedule_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            mode TEXT NOT NULL CHECK(mode IN ('always', 'events')),
+            days TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            post_event_seconds INTEGER NOT NULL DEFAULT 30,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+        ALTER TABLE recording_rules ADD COLUMN template_id TEXT DEFAULT '';
+    `,
+	},
+	// Migration 25: Screenshots table.
+	{
+		version: 25,
+		sql: `
+        CREATE TABLE screenshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            camera_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+        );
+        CREATE INDEX idx_screenshots_camera ON screenshots(camera_id);
+        CREATE INDEX idx_screenshots_created ON screenshots(created_at);
+    `,
+	},
+	// Migration 26: Add audio_codec column to camera_streams.
+	{
+		version: 26,
+		sql:     `ALTER TABLE camera_streams ADD COLUMN audio_codec TEXT NOT NULL DEFAULT '';`,
+	},
+	// Migration 27: Event-aware retention and detection consolidation.
+	{
+		version: 27,
+		sql: `
+		ALTER TABLE cameras ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE cameras ADD COLUMN detection_retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE motion_events ADD COLUMN detection_summary TEXT DEFAULT '';
+		`,
+	},
+	// Migration 28: Per-stream retention and recording-to-stream association.
+	{
+		version: 28,
+		sql: `
+		ALTER TABLE recordings ADD COLUMN stream_id TEXT DEFAULT '';
+		CREATE INDEX IF NOT EXISTS idx_recordings_stream ON recordings(stream_id);
+		ALTER TABLE camera_streams ADD COLUMN retention_days INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE camera_streams ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
+		`,
+	},
 }

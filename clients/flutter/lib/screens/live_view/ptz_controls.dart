@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
 
 class PtzControls extends StatelessWidget {
   final ApiClient apiClient;
@@ -26,106 +29,146 @@ class PtzControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Up
-          _PtzButton(
-            icon: Icons.keyboard_arrow_up,
-            tooltip: 'Up',
-            onPressed: () => _sendPtz('up'),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // ── D-pad ──────────────────────────────────────────────────────────
+        _DpadUp(onTap: () => _sendPtz('up')),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _DpadButton(
+              icon: Icons.keyboard_arrow_left,
+              onTap: () => _sendPtz('left'),
+            ),
+            const SizedBox(width: 2),
+            _DpadHome(onTap: () => _sendPtz('stop')),
+            const SizedBox(width: 2),
+            _DpadButton(
+              icon: Icons.keyboard_arrow_right,
+              onTap: () => _sendPtz('right'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        _DpadDown(onTap: () => _sendPtz('down')),
+
+        const SizedBox(height: 12),
+
+        // ── Zoom control ───────────────────────────────────────────────────
+        const Text('ZOOM', style: NvrTypography.monoControl),
+        const SizedBox(height: 6),
+        _DpadButton(
+          icon: Icons.add,
+          onTap: () => _sendPtz('zoom_in'),
+        ),
+        const SizedBox(height: 2),
+        _DpadButton(
+          icon: Icons.remove,
+          onTap: () => _sendPtz('zoom_out'),
+        ),
+      ],
+    );
+  }
+}
+
+// ── D-pad directional button ──────────────────────────────────────────────────
+
+class _DpadButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _DpadButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: NvrColors.bgSecondary.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: NvrColors.border,
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 16,
+                color: NvrColors.textPrimary,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          // Left / Stop / Right row
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PtzButton(
-                icon: Icons.keyboard_arrow_left,
-                tooltip: 'Left',
-                onPressed: () => _sendPtz('left'),
-              ),
-              const SizedBox(width: 4),
-              _PtzButton(
-                icon: Icons.stop,
-                tooltip: 'Stop',
-                onPressed: () => _sendPtz('stop'),
-                small: true,
-              ),
-              const SizedBox(width: 4),
-              _PtzButton(
-                icon: Icons.keyboard_arrow_right,
-                tooltip: 'Right',
-                onPressed: () => _sendPtz('right'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // Down
-          _PtzButton(
-            icon: Icons.keyboard_arrow_down,
-            tooltip: 'Down',
-            onPressed: () => _sendPtz('down'),
-          ),
-          const SizedBox(height: 8),
-          // Zoom row
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _PtzButton(
-                icon: Icons.zoom_in,
-                tooltip: 'Zoom In',
-                onPressed: () => _sendPtz('zoom_in'),
-              ),
-              const SizedBox(width: 8),
-              _PtzButton(
-                icon: Icons.zoom_out,
-                tooltip: 'Zoom Out',
-                onPressed: () => _sendPtz('zoom_out'),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _PtzButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-  final bool small;
+// ── Dedicated up/down wrappers (same as _DpadButton, kept for clarity) ────────
 
-  const _PtzButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-    this.small = false,
-  });
+class _DpadUp extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DpadUp({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) =>
+      _DpadButton(icon: Icons.keyboard_arrow_up, onTap: onTap);
+}
+
+class _DpadDown extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DpadDown({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) =>
+      _DpadButton(icon: Icons.keyboard_arrow_down, onTap: onTap);
+}
+
+// ── Home / stop button (center circle) ────────────────────────────────────────
+
+class _DpadHome extends StatelessWidget {
+  final VoidCallback onTap;
+  const _DpadHome({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final size = small ? 36.0 : 44.0;
-    final iconSize = small ? 18.0 : 22.0;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: NvrColors.bgTertiary.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Icon(icon, color: NvrColors.textPrimary, size: iconSize),
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: NvrColors.bgSecondary.withValues(alpha: 0.8),
+              border: Border.all(
+                color: NvrColors.accent,
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: NvrColors.accent,
+                ),
+              ),
+            ),
           ),
         ),
       ),

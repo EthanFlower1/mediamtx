@@ -2,10 +2,12 @@
 package nvr
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -24,8 +26,10 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -47,15 +51,27 @@ type NVR struct {
 	callbackMgr *onvif.CallbackManager
 	wsServer    *http.Server // separate WebSocket server for notifications
 
+	ctx       context.Context
+	ctxCancel context.CancelFunc
+
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
-	aiPipelines     map[string]*ai.AIPipeline // camera ID -> pipeline
+	aiPipelines     map[string]*ai.Pipeline // camera ID -> pipeline
+
+	hlsHandler *api.HLSHandler
+	storageMgr *storage.Manager
+
+	metricsCollector *metrics.Collector
+
+	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
 // creates the DB directory, opens the database, creates the YAML writer,
 // and loads or generates RSA keys.
 func (n *NVR) Initialize() error {
+	n.ctx, n.ctxCancel = context.WithCancel(context.Background())
+
 	if n.JWTSecret == "" {
 		secret := make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
@@ -98,7 +114,12 @@ func (n *NVR) Initialize() error {
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
 
+	if err := n.database.SeedDefaultTemplates(); err != nil {
+		log.Printf("nvr: failed to seed default templates: %v", err)
+	}
+
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
+	n.migrateMediaMTXPaths()
 	n.discovery = onvif.NewDiscovery()
 	n.events = api.NewEventBroadcaster()
 	n.callbackMgr = onvif.NewCallbackManager()
@@ -108,9 +129,19 @@ func (n *NVR) Initialize() error {
 	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
 
+	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
+	n.storageMgr.Start()
+
+	n.metricsCollector = metrics.New(360, 10*time.Second)
+	n.metricsCollector.Start()
+
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
 	n.startNotificationServer()
+
+	// Monitor camera online/offline state transitions and publish events.
+	n.cameraStatusDone = make(chan struct{})
+	go n.runCameraStatusMonitor(n.cameraStatusDone)
 
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
@@ -118,7 +149,7 @@ func (n *NVR) Initialize() error {
 	}
 
 	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
-	n.aiPipelines = make(map[string]*ai.AIPipeline)
+	n.aiPipelines = make(map[string]*ai.Pipeline)
 	if err := ai.InitONNXRuntime(); err != nil {
 		log.Printf("AI: ONNX Runtime not available: %v", err)
 	} else {
@@ -140,15 +171,16 @@ func (n *NVR) Initialize() error {
 		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
 		textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
 		vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
+		projPath := filepath.Join(modelsDir, "clip-visual-projection.bin")
 		if _, err := os.Stat(visualPath); err == nil {
 			if _, err := os.Stat(textPath); err == nil {
 				if _, err := os.Stat(vocabPath); err == nil {
-					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath)
+					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath, projPath)
 					if err != nil {
 						log.Printf("AI: failed to load CLIP embedder: %v", err)
 					} else {
 						n.aiEmbedder = emb
-						log.Printf("AI: CLIP embedder loaded")
+						log.Printf("AI: CLIP embedder loaded (with visual projection)")
 					}
 				}
 			}
@@ -161,7 +193,133 @@ func (n *NVR) Initialize() error {
 	// in the YAML but the DB doesn't know about it, update the DB.
 	n.syncAudioTranscodeState()
 
+	// Start background migration for recordings that predate fragment indexing.
+	n.startFragmentBackfill()
+
 	return nil
+}
+
+// runCameraStatusMonitor polls the MediaMTX /v3/paths/list endpoint every 5
+// seconds and publishes camera_online/camera_offline events on transitions.
+func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Map of MediaMTX path name → ready state from the previous poll.
+	prevReady := make(map[string]bool)
+	firstPoll := true
+
+	addr := n.APIAddress
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	listURL := fmt.Sprintf("http://%s/v3/paths/list", addr)
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			resp, err := client.Get(listURL)
+			if err != nil {
+				// MediaMTX not yet ready — skip this tick.
+				continue
+			}
+
+			var result struct {
+				Items []struct {
+					Name  string `json:"name"`
+					Ready bool   `json:"ready"`
+				} `json:"items"`
+			}
+			decodeErr := func() error {
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("status %d", resp.StatusCode)
+				}
+				return json.NewDecoder(resp.Body).Decode(&result)
+			}()
+			if decodeErr != nil {
+				continue
+			}
+
+			// Build a name → ready map for this tick.
+			currReady := make(map[string]bool, len(result.Items))
+			for _, item := range result.Items {
+				currReady[item.Name] = item.Ready
+			}
+
+			if firstPoll {
+				// On the first successful poll, seed state without firing events.
+				prevReady = currReady
+				firstPoll = false
+				continue
+			}
+
+			// Detect transitions and look up camera names from the DB.
+			cameras, dbErr := n.database.ListCameras()
+			if dbErr != nil {
+				prevReady = currReady
+				continue
+			}
+
+			// Build a MediaMTX path → camera name index.
+			pathToName := make(map[string]string, len(cameras))
+			for _, cam := range cameras {
+				if cam.MediaMTXPath != "" {
+					pathToName[cam.MediaMTXPath] = cam.Name
+				}
+			}
+
+			for path, ready := range currReady {
+				wasReady, known := prevReady[path]
+				if !known {
+					wasReady = false
+				}
+				if ready == wasReady {
+					continue
+				}
+				cameraName, ok := pathToName[path]
+				if !ok {
+					continue // not a NVR-managed path
+				}
+				if ready {
+					n.events.PublishCameraOnline(cameraName)
+					log.Printf("[NVR] camera online: %s (%s)", cameraName, path)
+				} else {
+					n.events.PublishCameraOffline(cameraName)
+					log.Printf("[NVR] camera offline: %s (%s)", cameraName, path)
+				}
+			}
+
+			// Check sub-stream paths (format: <main_path>~<prefix>)
+			for _, cam := range cameras {
+				if cam.MediaMTXPath == "" {
+					continue
+				}
+				subPrefix := cam.MediaMTXPath + "~"
+				for pathName, ready := range currReady {
+					if !strings.HasPrefix(pathName, subPrefix) {
+						continue
+					}
+					prevReady2, existed := prevReady[pathName]
+					if !existed {
+						continue // first observation, skip event
+					}
+					if prevReady2 && !ready {
+						log.Printf("[NVR] sub-stream offline: %s (camera %s)", pathName, cam.Name)
+						n.events.PublishCameraOffline(cam.Name + " (" + strings.TrimPrefix(pathName, subPrefix) + ")")
+					} else if !prevReady2 && ready {
+						log.Printf("[NVR] sub-stream online: %s (camera %s)", pathName, cam.Name)
+						n.events.PublishCameraOnline(cam.Name + " (" + strings.TrimPrefix(pathName, subPrefix) + ")")
+					}
+				}
+			}
+
+			prevReady = currReady
+		}
+	}
 }
 
 // startNotificationServer starts a WebSocket server on port 9998.
@@ -201,18 +359,9 @@ func (n *NVR) startNotificationServer() {
 
 		conn.WriteJSON(map[string]string{"type": "connected"})
 
-		// Replay any active AI detection events so the client doesn't miss
-		// notifications that fired before it connected.
-		for _, p := range n.aiPipelines {
-			if p.HasActiveEvent() {
-				conn.WriteJSON(api.Event{
-					Type:    "ai_detection",
-					Camera:  p.CameraName(),
-					Message: fmt.Sprintf("Activity detected on %s", p.CameraName()),
-					Time:    time.Now().UTC().Format(time.RFC3339),
-				})
-			}
-		}
+		// Active-event replay removed: the new modular ai.Pipeline does not
+		// expose HasActiveEvent/CameraName. Clients will receive new events
+		// via the event broadcaster as they occur.
 
 		ch := n.events.Subscribe()
 		defer n.events.Unsubscribe(ch)
@@ -276,6 +425,15 @@ func (n *NVR) wsPort() string {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	if n.metricsCollector != nil {
+		n.metricsCollector.Stop()
+	}
+
+	// Cancel the NVR lifecycle context so all pipeline goroutines exit.
+	if n.ctxCancel != nil {
+		n.ctxCancel()
+	}
+
 	// Stop AI pipelines first so they don't write to the DB after it's closed.
 	for id, p := range n.aiPipelines {
 		p.Stop()
@@ -288,8 +446,14 @@ func (n *NVR) Close() {
 		n.aiEmbedder.Close()
 	}
 
+	if n.cameraStatusDone != nil {
+		close(n.cameraStatusDone)
+	}
 	if n.wsServer != nil {
 		n.wsServer.Close()
+	}
+	if n.storageMgr != nil {
+		n.storageMgr.Stop()
 	}
 	if n.sched != nil {
 		n.sched.Stop()
@@ -338,90 +502,178 @@ func (n *NVR) syncAudioTranscodeState() {
 	}
 }
 
+// migrateMediaMTXPaths updates camera MediaMTX paths from the old naming
+// convention (nvr/<sanitized-name>) to the new convention (nvr/<camera-id>/main).
+// It also verifies that every camera's MediaMTX path exists in the YAML config.
+func (n *NVR) migrateMediaMTXPaths() {
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		log.Printf("[NVR] [migration] failed to list cameras: %v", err)
+		return
+	}
+
+	for _, cam := range cameras {
+		expectedPath := "nvr/" + cam.ID + "/main"
+		if cam.MediaMTXPath == expectedPath {
+			continue // Already migrated.
+		}
+
+		oldPath := cam.MediaMTXPath
+		cam.MediaMTXPath = expectedPath
+
+		if err := n.database.UpdateCamera(cam); err != nil {
+			log.Printf("[NVR] [migration] failed to update path for camera %s: %v", cam.ID, err)
+			continue
+		}
+
+		// Resolve recording stream URL (prefer camera_streams, fall back to legacy rtsp_url).
+		sourceURL, err := n.database.ResolveStreamURL(cam.ID, db.StreamRoleRecording)
+		if err != nil || sourceURL == "" {
+			sourceURL = cam.RTSPURL
+		}
+
+		yamlConfig := map[string]interface{}{
+			"source": sourceURL,
+			"record": true,
+		}
+		storagePath := cam.StoragePath
+		if storagePath == "" {
+			storagePath = n.RecordingsPath
+		}
+		yamlConfig["recordPath"] = storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+
+		if err := n.yamlWriter.AddPath(expectedPath, yamlConfig); err != nil {
+			log.Printf("[NVR] [migration] failed to add new path for camera %s: %v", cam.ID, err)
+			continue
+		}
+
+		if oldPath != "" {
+			_ = n.yamlWriter.RemovePath(oldPath)
+		}
+
+		log.Printf("[NVR] [migration] migrated camera %s path: %s -> %s", cam.ID, oldPath, expectedPath)
+	}
+}
+
 // startAIPipelines starts AI detection pipelines for all cameras that have
-// ai_enabled set and a snapshot_uri configured. Each pipeline runs in its
-// own goroutine, capturing snapshots at 2 FPS and running YOLO detection.
+// ai_enabled set. Each pipeline decodes an RTSP stream and runs YOLO detection.
 func (n *NVR) startAIPipelines() {
 	if n.aiDetector == nil {
 		return
 	}
+	n.aiPipelines = make(map[string]*ai.Pipeline)
 
 	cameras, err := n.database.ListCameras()
 	if err != nil {
-		log.Printf("AI: failed to list cameras: %v", err)
+		log.Printf("ai: failed to list cameras: %v", err)
 		return
 	}
-
-	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
 	for _, cam := range cameras {
 		if !cam.AIEnabled {
 			continue
 		}
-		if cam.SnapshotURI == "" {
-			log.Printf("AI: camera %s (%s) has AI enabled but no snapshot URI, skipping", cam.Name, cam.ID)
-			continue
-		}
-
-		pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
-		n.aiPipelines[cam.ID] = pipeline
-
-		username := cam.ONVIFUsername
-		password := n.decryptPassword(encKey, cam.ONVIFPassword)
-		// Fall back to credentials embedded in the RTSP URL if ONVIF creds are empty.
-		if username == "" && cam.RTSPURL != "" {
-			if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
-				username = u.User.Username()
-				if p, ok := u.User.Password(); ok {
-					password = p
-				}
-			}
-		}
-		go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
-		log.Printf("AI: started pipeline for camera %s (%s) at 2 FPS", cam.Name, cam.ID)
+		n.startSinglePipeline(cam)
 	}
+
+	log.Printf("ai: started %d pipelines", len(n.aiPipelines))
+}
+
+// startSinglePipeline resolves the best stream URL for a camera and starts
+// an ai.Pipeline for it.
+func (n *NVR) startSinglePipeline(cam *db.Camera) {
+	// Resolve stream URL: explicit ai_stream_id > ai_detection role > legacy sub_stream_url > main rtsp_url
+	streamURL := ""
+	var streamWidth, streamHeight int
+
+	if cam.AIStreamID != "" {
+		stream, err := n.database.GetCameraStream(cam.AIStreamID)
+		if err == nil {
+			streamURL = stream.RTSPURL
+			streamWidth = stream.Width
+			streamHeight = stream.Height
+		}
+	}
+	if streamURL == "" {
+		resolved, err := n.database.ResolveStreamURL(cam.ID, db.StreamRoleAIDetection)
+		if err == nil && resolved != "" {
+			streamURL = resolved
+		}
+	}
+	if streamURL == "" && cam.SubStreamURL != "" {
+		streamURL = cam.SubStreamURL
+	}
+	if streamURL == "" && cam.RTSPURL != "" {
+		streamURL = cam.RTSPURL
+	}
+	if streamURL == "" {
+		log.Printf("ai: camera %s (%s) has no stream URL for AI", cam.ID, cam.Name)
+		return
+	}
+
+	// Embed credentials into RTSP URL if needed.
+	streamURL = n.embedCredentials(cam, streamURL)
+
+	config := ai.PipelineConfig{
+		CameraID:         cam.ID,
+		CameraName:       cam.Name,
+		StreamURL:        streamURL,
+		StreamWidth:      streamWidth,
+		StreamHeight:     streamHeight,
+		ConfidenceThresh: float32(cam.AIConfidence),
+		TrackTimeout:     cam.AITrackTimeout,
+	}
+
+	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	pipeline.Start(n.ctx)
+	n.aiPipelines[cam.ID] = pipeline
+}
+
+// embedCredentials embeds ONVIF credentials into an RTSP URL if they are not
+// already present. The stored password is decrypted before embedding.
+func (n *NVR) embedCredentials(cam *db.Camera, rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if u.User != nil && u.User.Username() != "" {
+		return rawURL // already has credentials
+	}
+	username := cam.ONVIFUsername
+	password := cam.ONVIFPassword
+	if password != "" {
+		encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+		password = n.decryptPassword(encKey, password)
+	}
+	if username != "" {
+		u.User = url.UserPassword(username, password)
+	}
+	return u.String()
 }
 
 // RestartAIPipeline stops and restarts the AI pipeline for the given camera ID.
 // Called by the API after camera settings change (credentials, AI toggle, etc.).
 func (n *NVR) RestartAIPipeline(cameraID string) {
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+	}
+
 	if n.aiDetector == nil {
 		return
 	}
 
-	// Stop existing pipeline if running.
-	if p, ok := n.aiPipelines[cameraID]; ok {
-		p.Stop()
-		delete(n.aiPipelines, cameraID)
-		log.Printf("AI: stopped pipeline for camera %s", cameraID)
-	}
-
 	cam, err := n.database.GetCamera(cameraID)
 	if err != nil {
-		log.Printf("AI: failed to get camera %s for pipeline restart: %v", cameraID, err)
+		log.Printf("ai: restart pipeline: get camera %s: %v", cameraID, err)
 		return
 	}
 
-	if !cam.AIEnabled || cam.SnapshotURI == "" {
+	if !cam.AIEnabled {
 		return
 	}
 
-	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
-	username := cam.ONVIFUsername
-	password := n.decryptPassword(encKey, cam.ONVIFPassword)
-	if username == "" && cam.RTSPURL != "" {
-		if u, err := url.Parse(cam.RTSPURL); err == nil && u.User != nil {
-			username = u.User.Username()
-			if p, ok := u.User.Password(); ok {
-				password = p
-			}
-		}
-	}
-
-	pipeline := ai.NewAIPipeline(cam.ID, cam.Name, n.aiDetector, n.aiEmbedder, n.database, n.events)
-	n.aiPipelines[cam.ID] = pipeline
-	go pipeline.Run(cam.SnapshotURI, username, password, 2.0)
-	log.Printf("AI: restarted pipeline for camera %s (%s)", cam.Name, cam.ID)
+	n.startSinglePipeline(cam)
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted
@@ -479,6 +731,13 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 
 	credKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
+	if n.hlsHandler == nil {
+		n.hlsHandler = &api.HLSHandler{
+			DB:             n.database,
+			RecordingsPath: recordingsPath,
+		}
+	}
+
 	api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
@@ -496,29 +755,88 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		ConfigPath:      n.ConfigPath,
 		Embedder:        n.aiEmbedder,
 		AIRestarter:     n,
-		HLSHandler: &api.HLSHandler{
-			DB:             n.database,
-			RecordingsPath: recordingsPath,
-		},
+		HLSHandler:      n.hlsHandler,
+		StorageManager:  n.storageMgr,
+		Collector:       n.metricsCollector,
 	})
+}
+
+// buildDBFragments converts scanned fragment info into DB fragment records.
+func buildDBFragments(recordingID int64, fragments []api.FragmentInfo) []db.RecordingFragment {
+	dbFrags := make([]db.RecordingFragment, len(fragments))
+	var cumulativeMs float64
+	for i, f := range fragments {
+		dbFrags[i] = db.RecordingFragment{
+			RecordingID:   recordingID,
+			FragmentIndex: i,
+			ByteOffset:    f.Offset,
+			Size:          f.Size,
+			DurationMs:    f.DurationMs,
+			IsKeyframe:    true,
+			TimestampMs:   int64(cumulativeMs),
+		}
+		cumulativeMs += f.DurationMs
+	}
+	return dbFrags
+}
+
+// indexRecordingFragments scans an fMP4 file and stores fragment metadata in the DB.
+func (n *NVR) indexRecordingFragments(rec *db.Recording) {
+	initSize, fragments, err := api.ScanFragments(rec.FilePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to scan fragments for %s: %v\n", rec.FilePath, err)
+		return
+	}
+
+	if err := n.database.UpdateRecordingInitSize(rec.ID, initSize); err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to update init_size for recording %d: %v\n", rec.ID, err)
+	}
+
+	dbFrags := buildDBFragments(rec.ID, fragments)
+
+	if err := n.database.InsertFragments(rec.ID, dbFrags); err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert fragments for recording %d: %v\n", rec.ID, err)
+	}
 }
 
 // OnSegmentComplete is called when a recording segment finishes writing.
 // It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
 func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
-	// Find camera by checking if any camera's mediamtx_path is in the file path.
-	cameras, err := n.database.ListCameras()
-	if err != nil {
-		return
-	}
-
 	var cam *db.Camera
-	for _, c := range cameras {
-		if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
-			cam = c
-			break
+	var streamPrefix string
+
+	// Try to extract camera ID from path convention: .../nvr/<camera-id>/main/...
+	// Non-default stream paths use: .../nvr/<camera-id>~<stream-prefix>/...
+	if idx := strings.Index(filePath, "nvr/"); idx >= 0 {
+		rest := filePath[idx+4:] // after "nvr/"
+		parts := strings.SplitN(rest, "/", 2)
+		if len(parts) >= 1 {
+			candidate := parts[0]
+			// Capture ~streamID prefix if present (per-stream recording paths).
+			if tildeIdx := strings.Index(candidate, "~"); tildeIdx > 0 {
+				streamPrefix = candidate[tildeIdx+1:]
+				candidate = candidate[:tildeIdx]
+			}
+			if c, err := n.database.GetCamera(candidate); err == nil {
+				cam = c
+			}
 		}
 	}
+
+	// Fallback: legacy substring match for pre-migration recordings.
+	if cam == nil {
+		cameras, err := n.database.ListCameras()
+		if err != nil {
+			return
+		}
+		for _, c := range cameras {
+			if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
+				cam = c
+				break
+			}
+		}
+	}
+
 	if cam == nil {
 		return
 	}
@@ -548,24 +866,79 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		Format:     format,
 	}
 
+	// Resolve stream ID from path prefix.
+	if streamPrefix != "" {
+		if sid, err := n.database.ResolveStreamByPathPrefix(cam.ID, streamPrefix); err == nil {
+			rec.StreamID = sid
+		}
+	}
+
 	// Retry up to 3 times with 1-second delay on failure.
 	var insertErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		insertErr = n.database.InsertRecording(rec)
 		if insertErr == nil {
-			return
+			break
 		}
 		fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
 		if attempt < 2 {
 			time.Sleep(1 * time.Second)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+	if insertErr != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+		return
+	}
+
+	detectAndInsertPendingSync(n.database, rec, cam)
+
+	if n.hlsHandler != nil {
+		dateStr := start.Format("2006-01-02")
+		n.hlsHandler.InvalidateCache(cam.ID, dateStr)
+	}
+
+	// Index fragments for fMP4 files.
+	if format == "fmp4" {
+		go n.indexRecordingFragments(rec)
+	}
 }
 
 // OnSegmentDelete is called when a recording segment is deleted by the cleaner.
 func (n *NVR) OnSegmentDelete(filePath string) {
 	n.database.DeleteRecordingByPath(filePath)
+}
+
+// detectAndInsertPendingSync checks if a recording landed in local fallback
+// storage instead of the camera's configured storage path, and if so inserts
+// a pending_syncs record.
+func detectAndInsertPendingSync(database *db.DB, rec *db.Recording, cam *db.Camera) {
+	if cam.StoragePath == "" {
+		return // No custom storage, nothing to sync.
+	}
+
+	// If the file is already under the camera's storage path, no sync needed.
+	if strings.HasPrefix(rec.FilePath, cam.StoragePath) {
+		return
+	}
+
+	// Build target path by replacing the local prefix with the NAS path.
+	// Local: ./recordings/nvr/<id>/main/2026-03/25/file.mp4
+	// Target: /mnt/nas1/recordings/nvr/<id>/main/2026-03/25/file.mp4
+	relPath := rec.FilePath
+	if idx := strings.Index(relPath, "nvr/"); idx >= 0 {
+		relPath = relPath[idx:]
+	}
+	targetPath := filepath.Join(cam.StoragePath, relPath)
+
+	ps := &db.PendingSync{
+		RecordingID: rec.ID,
+		CameraID:    cam.ID,
+		LocalPath:   rec.FilePath,
+		TargetPath:  targetPath,
+	}
+	if err := database.InsertPendingSync(ps); err != nil {
+		log.Printf("[NVR] [storage] failed to create pending sync for recording %d: %v", rec.ID, err)
+	}
 }
 
 // loadOrGenerateKeys derives an encryption key, then loads or generates

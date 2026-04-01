@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/status_badge.dart';
 
 class StoragePanel extends ConsumerWidget {
   const StoragePanel({super.key});
@@ -19,9 +21,9 @@ class StoragePanel extends ConsumerWidget {
     return '${val.toStringAsFixed(i == 0 ? 0 : 1)} ${units[i]}';
   }
 
-  Color _progressColor(double percent) {
-    if (percent > 95) return NvrColors.danger;
-    if (percent > 85) return NvrColors.warning;
+  Color _healthColor(StorageInfo info) {
+    if (info.critical) return NvrColors.danger;
+    if (info.warning) return NvrColors.warning;
     return NvrColors.success;
   }
 
@@ -30,198 +32,288 @@ class StoragePanel extends ConsumerWidget {
     final storageAsync = ref.watch(storageInfoProvider);
 
     return storageAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: NvrColors.accent),
+      ),
       error: (e, _) => Center(
         child: Text(
           'Failed to load storage info: $e',
-          style: const TextStyle(color: NvrColors.danger),
+          style: NvrTypography.body.copyWith(color: NvrColors.danger),
         ),
       ),
       data: (info) {
         final percent = info.usagePercent;
-        final barColor = _progressColor(percent);
+        final usedFraction =
+            info.totalBytes > 0 ? info.usedBytes / info.totalBytes : 0.0;
+        final healthColor = _healthColor(info);
+        final healthLabel = info.critical
+            ? 'CRITICAL'
+            : info.warning
+                ? 'WARNING'
+                : 'HEALTHY';
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
-            // Disk usage card
-            Card(
-              color: NvrColors.bgSecondary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: NvrColors.border),
+            // ── Section header ──
+            Text('STORAGE OVERVIEW', style: NvrTypography.monoSection),
+            const SizedBox(height: 12),
+
+            // ── Primary disk card ──
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: NvrColors.bgSecondary,
+                border: Border.all(color: NvrColors.border),
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Padding(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row: disk name + health badge
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'PRIMARY DISK',
+                          style: NvrTypography.monoLabel,
+                        ),
+                      ),
+                      StatusBadge(label: healthLabel, color: healthColor),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Used / Total
+                  Text(
+                    '${_formatBytes(info.usedBytes)} / ${_formatBytes(info.totalBytes)}',
+                    style: NvrTypography.monoData.copyWith(
+                      color: NvrColors.accent,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${percent.toStringAsFixed(1)}% used',
+                    style: NvrTypography.monoLabel,
+                  ),
+                  const SizedBox(height: 12),
+                  // Usage bar
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: NvrColors.bgTertiary,
+                      border: Border.all(color: NvrColors.border),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: usedFraction.clamp(0.0, 1.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                NvrColors.accent,
+                                NvrColors.accent.withOpacity(0.7),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Legend row
+                  Row(
+                    children: [
+                      _LegendDot(color: NvrColors.accent),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Recordings ${_formatBytes(info.recordingsBytes)}',
+                        style: NvrTypography.monoData,
+                      ),
+                      const SizedBox(width: 16),
+                      _LegendDot(color: const Color(0xFF3B82F6)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'System',
+                        style: NvrTypography.monoData,
+                      ),
+                      const SizedBox(width: 16),
+                      _LegendDot(color: NvrColors.textSecondary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Free ${_formatBytes(info.freeBytes)}',
+                        style: NvrTypography.monoData,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Per-camera breakdown ──
+            if (info.perCamera.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('PER-CAMERA STORAGE', style: NvrTypography.monoSection),
+              const SizedBox(height: 12),
+              ...info.perCamera.map((cam) {
+                final camFraction = info.totalBytes > 0
+                    ? (cam.totalBytes / info.totalBytes).clamp(0.0, 1.0)
+                    : 0.0;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: NvrColors.bgSecondary,
+                      border: Border.all(color: NvrColors.border),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cam.cameraName.isNotEmpty
+                                    ? cam.cameraName
+                                    : cam.cameraId,
+                                style: NvrTypography.monoData.copyWith(
+                                  color: NvrColors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              // Mini usage bar (4px)
+                              Container(
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: NvrColors.bgTertiary,
+                                  border: Border.all(color: NvrColors.border),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: FractionallySizedBox(
+                                    alignment: Alignment.centerLeft,
+                                    widthFactor: camFraction,
+                                    child: Container(
+                                      color: NvrColors.accent,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          _formatBytes(cam.totalBytes),
+                          style: NvrTypography.monoData.copyWith(
+                            color: NvrColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ] else ...[
+              const SizedBox(height: 24),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'No per-camera data available',
+                    style: NvrTypography.body,
+                  ),
+                ),
+              ),
+            ],
+
+            // ── Database stats ──
+            if (info.database != null) ...[
+              const SizedBox(height: 24),
+              Text('DATABASE', style: NvrTypography.monoSection),
+              const SizedBox(height: 12),
+              Container(
                 padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: NvrColors.bgSecondary,
+                  border: Border.all(color: NvrColors.border),
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.storage, color: NvrColors.accent, size: 20),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Disk Usage',
-                          style: TextStyle(
-                            color: NvrColors.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Expanded(
+                          child: Text('DB SIZE', style: NvrTypography.monoLabel),
                         ),
-                        const Spacer(),
                         Text(
-                          '${percent.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: barColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          _formatBytes(info.database!.fileSizeBytes),
+                          style: NvrTypography.monoData.copyWith(color: NvrColors.accent),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: info.totalBytes > 0 ? info.usedBytes / info.totalBytes : 0,
-                        backgroundColor: NvrColors.bgTertiary,
-                        valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                        minHeight: 8,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _StatChip(
-                          label: 'Total',
-                          value: _formatBytes(info.totalBytes),
-                          color: NvrColors.textSecondary,
+                    ...info.database!.tableRowCounts.entries.map((entry) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.key.toUpperCase().replaceAll('_', ' '),
+                                style: NvrTypography.monoData,
+                              ),
+                            ),
+                            Text(
+                              _formatCount(entry.value),
+                              style: NvrTypography.monoData.copyWith(
+                                color: NvrColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        _StatChip(
-                          label: 'Used',
-                          value: _formatBytes(info.usedBytes),
-                          color: barColor,
-                        ),
-                        const SizedBox(width: 12),
-                        _StatChip(
-                          label: 'Free',
-                          value: _formatBytes(info.freeBytes),
-                          color: NvrColors.success,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.videocam, color: NvrColors.textMuted, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Recordings: ${_formatBytes(info.recordingsBytes)}',
-                          style: const TextStyle(
-                            color: NvrColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    }),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            // Per-camera breakdown
-            if (info.perCamera.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Per-Camera Storage',
-                  style: TextStyle(
-                    color: NvrColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              ...info.perCamera.map((cam) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Card(
-                  color: NvrColors.bgSecondary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: NvrColors.border),
-                  ),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0x1A3B82F6),
-                      child: Icon(Icons.videocam, color: NvrColors.accent, size: 20),
-                    ),
-                    title: Text(
-                      cam.cameraName.isNotEmpty ? cam.cameraName : cam.cameraId,
-                      style: const TextStyle(
-                        color: NvrColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${cam.segmentCount} segment${cam.segmentCount == 1 ? '' : 's'}',
-                      style: const TextStyle(color: NvrColors.textMuted, fontSize: 12),
-                    ),
-                    trailing: Text(
-                      _formatBytes(cam.totalBytes),
-                      style: const TextStyle(
-                        color: NvrColors.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              )),
-            ] else
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'No per-camera data available',
-                    style: TextStyle(color: NvrColors.textMuted),
-                  ),
-                ),
-              ),
+            ],
           ],
         );
       },
     );
   }
+
+  String _formatCount(int count) {
+    if (count < 1000) return '$count';
+    if (count < 1000000) return '${(count / 1000).toStringAsFixed(1)}K';
+    return '${(count / 1000000).toStringAsFixed(1)}M';
+  }
 }
 
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
+class _LegendDot extends StatelessWidget {
   final Color color;
-
-  const _StatChip({required this.label, required this.value, required this.color});
+  const _LegendDot({required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: NvrColors.textMuted, fontSize: 11),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }

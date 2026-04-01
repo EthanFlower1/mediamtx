@@ -31,6 +31,7 @@ type recordingRuleRequest struct {
 	EndTime          string `json:"end_time" binding:"required"`
 	PostEventSeconds int    `json:"post_event_seconds"`
 	Enabled          *bool  `json:"enabled"`
+	StreamID         string `json:"stream_id"`
 }
 
 // validateRuleRequest performs field-level validation on a recording rule request.
@@ -131,6 +132,7 @@ func (h *RecordingRuleHandler) Create(c *gin.Context) {
 
 	rule := &db.RecordingRule{
 		CameraID:         cameraID,
+		StreamID:         req.StreamID,
 		Name:             req.Name,
 		Mode:             req.Mode,
 		Days:             string(daysJSON),
@@ -196,6 +198,7 @@ func (h *RecordingRuleHandler) Update(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 
+	existing.StreamID = req.StreamID
 	existing.Name = req.Name
 	existing.Mode = req.Mode
 	existing.Days = string(daysJSON)

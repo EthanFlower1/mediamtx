@@ -64,7 +64,24 @@ class NotificationsNotifier extends StateNotifier<NotificationState> {
   }
 
   void markAllRead() {
-    state = state.copyWith(unreadCount: 0);
+    state = NotificationState(
+      history: state.history.map((e) => e.copyWith(isRead: true)).toList(),
+      unreadCount: 0,
+      wsConnected: state.wsConnected,
+    );
+  }
+
+  void markRead(int index) {
+    if (index < 0 || index >= state.history.length) return;
+    final event = state.history[index];
+    if (event.isRead) return;
+    final updated = List<NotificationEvent>.from(state.history);
+    updated[index] = event.copyWith(isRead: true);
+    state = NotificationState(
+      history: updated,
+      unreadCount: (state.unreadCount - 1).clamp(0, state.unreadCount),
+      wsConnected: state.wsConnected,
+    );
   }
 
   void _cleanup() {

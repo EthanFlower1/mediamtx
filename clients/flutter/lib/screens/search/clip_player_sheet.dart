@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/corner_brackets.dart';
 
 class ClipPlayerSheet extends StatefulWidget {
   final String url;
@@ -24,7 +27,7 @@ class ClipPlayerSheet extends StatefulWidget {
       isScrollControlled: true,
       backgroundColor: NvrColors.bgSecondary,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
       ),
       builder: (_) => ClipPlayerSheet(url: url, title: title),
     );
@@ -54,56 +57,104 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: NvrColors.bgTertiary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          // Title bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      color: NvrColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+    return Container(
+      color: NvrColors.bgSecondary,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: NvrColors.bgTertiary,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: NvrColors.textSecondary),
-                  onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+            // Title bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: NvrTypography.monoSection,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close,
+                        color: NvrColors.textSecondary, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                        minWidth: 32, minHeight: 32),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: NvrColors.border, height: 1),
+            // Video player wrapped in CornerBrackets (16:9)
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 12),
+              child: CornerBrackets(
+                bracketSize: 14,
+                strokeWidth: 1.5,
+                color: NvrColors.accent.withValues(alpha: 0.6),
+                padding: 4,
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ColoredBox(
+                    color: Colors.black,
+                    child: Video(controller: _controller),
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
-          const Divider(color: NvrColors.border, height: 1),
-          // Video player  (16:9 ratio)
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: ColoredBox(
-              color: Colors.black,
-              child: Video(controller: _controller),
+            // Actions row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.go('/playback');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: NvrColors.accent,
+                        foregroundColor: NvrColors.bgPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'JUMP TO PLAYBACK',
+                        style: TextStyle(
+                          fontFamily: 'JetBrainsMono',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+          ],
+        ),
       ),
     );
   }

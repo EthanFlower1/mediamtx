@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvr_client/models/recording.dart';
 import 'package:nvr_client/screens/playback/playback_controller.dart';
+import 'package:nvr_client/models/detection_frame.dart';
+import 'package:nvr_client/services/playback_service.dart';
 
 void main() {
   group('PlaybackController segment helpers', () {
@@ -126,6 +128,74 @@ void main() {
       final pos = const Duration(hours: 10, minutes: 30);
       final result = PlaybackController.findPreviousGapStart(segments, dayStart, pos);
       expect(result, const Duration(hours: 9));
+    });
+  });
+
+  group('PlaybackController.getDetectionsAtTime (static test)', () {
+    // We test the binary search logic by constructing a cache and calling
+    // the method. Since getDetectionsAtTime is an instance method, we
+    // create a minimal controller. The playbackService won't be called.
+    late PlaybackController controller;
+
+    setUp(() {
+      controller = PlaybackController(
+        playbackService: PlaybackService(serverUrl: 'http://localhost'),
+        getAccessToken: () async => null,
+      );
+    });
+
+    test('returns detections within tolerance window', () {
+      // Manually populate the cache.
+      controller.detectionCache['cam1'] = [
+        PlaybackDetection(
+          frameTime: DateTime.utc(2026, 3, 24, 10, 0, 0),
+          className: 'person', confidence: 0.9,
+          x: 0.1, y: 0.2, w: 0.3, h: 0.4,
+        ),
+        PlaybackDetection(
+          frameTime: DateTime.utc(2026, 3, 24, 10, 0, 1),
+          className: 'vehicle', confidence: 0.8,
+          x: 0.5, y: 0.6, w: 0.1, h: 0.2,
+        ),
+        PlaybackDetection(
+          frameTime: DateTime.utc(2026, 3, 24, 10, 0, 5),
+          className: 'person', confidence: 0.7,
+          x: 0.2, y: 0.3, w: 0.4, h: 0.5,
+        ),
+      ];
+
+      // Query at 10:00:00.500 with 500ms tolerance → should match first two.
+      final results = controller.getDetectionsAtTime(
+        'cam1',
+        DateTime.utc(2026, 3, 24, 10, 0, 0, 500),
+      );
+      expect(results.length, 2);
+      expect(results[0].className, 'person');
+      expect(results[1].className, 'vehicle');
+    });
+
+    test('returns empty when no detections in window', () {
+      controller.detectionCache['cam1'] = [
+        PlaybackDetection(
+          frameTime: DateTime.utc(2026, 3, 24, 10, 0, 0),
+          className: 'person', confidence: 0.9,
+          x: 0.1, y: 0.2, w: 0.3, h: 0.4,
+        ),
+      ];
+
+      final results = controller.getDetectionsAtTime(
+        'cam1',
+        DateTime.utc(2026, 3, 24, 10, 0, 5),
+      );
+      expect(results, isEmpty);
+    });
+
+    test('returns empty for unknown camera', () {
+      final results = controller.getDetectionsAtTime(
+        'unknown',
+        DateTime.utc(2026, 3, 24, 10, 0, 0),
+      );
+      expect(results, isEmpty);
     });
   });
 }

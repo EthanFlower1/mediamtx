@@ -41,7 +41,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
   SearchNotifier(this._ref) : super(const SearchState());
 
-  Future<void> search(String query) async {
+  Future<void> search(String query, {DateTime? start, DateTime? end}) async {
     if (query.trim().isEmpty) return;
 
     state = state.copyWith(
@@ -62,10 +62,17 @@ class SearchNotifier extends StateNotifier<SearchState> {
         return;
       }
 
-      final res = await api.get<dynamic>('/search', queryParameters: {
+      final params = <String, dynamic>{
         'q': query.trim(),
-        'limit': 20,
-      });
+        'limit': 100,
+      };
+      if (start != null) params['start'] = start.toUtc().toIso8601String();
+      if (end != null) params['end'] = end.toUtc().toIso8601String();
+
+      final res = await api.get<dynamic>('/search',
+        queryParameters: params,
+        receiveTimeout: const Duration(seconds: 60),
+      );
 
       final data = res.data;
       List<dynamic> items = [];

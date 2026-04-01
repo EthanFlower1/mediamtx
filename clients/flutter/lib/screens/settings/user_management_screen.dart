@@ -5,12 +5,15 @@ import '../../models/user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
+import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/hud_button.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
   const UserManagementScreen({super.key});
 
   @override
-  ConsumerState<UserManagementScreen> createState() => _UserManagementScreenState();
+  ConsumerState<UserManagementScreen> createState() =>
+      _UserManagementScreenState();
 }
 
 class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
@@ -110,35 +113,39 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: NvrColors.bgSecondary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text('Add User', style: TextStyle(color: NvrColors.textPrimary)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: NvrColors.border),
+          ),
+          title: Text('ADD USER', style: NvrTypography.monoSection),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _DialogTextField(controller: usernameCtrl, label: 'Username'),
+              _HudTextField(controller: usernameCtrl, label: 'USERNAME'),
               const SizedBox(height: 12),
-              _DialogTextField(
+              _HudTextField(
                 controller: passwordCtrl,
-                label: 'Password',
+                label: 'PASSWORD',
                 obscure: true,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
                 dropdownColor: NvrColors.bgTertiary,
-                style: const TextStyle(color: NvrColors.textPrimary),
-                decoration: _inputDecoration('Role'),
+                style: NvrTypography.monoData,
+                decoration: _hudInputDecoration('ROLE'),
                 items: const [
-                  DropdownMenuItem(value: 'viewer', child: Text('Viewer')),
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  DropdownMenuItem(value: 'viewer', child: Text('VIEWER')),
+                  DropdownMenuItem(value: 'admin', child: Text('ADMIN')),
                 ],
-                onChanged: (v) => setDialogState(() => selectedRole = v ?? 'viewer'),
+                onChanged: (v) =>
+                    setDialogState(() => selectedRole = v ?? 'viewer'),
               ),
               if (dialogError != null) ...[
                 const SizedBox(height: 10),
                 Text(
                   dialogError!,
-                  style: const TextStyle(color: NvrColors.danger, fontSize: 13),
+                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
                 ),
               ],
             ],
@@ -146,16 +153,22 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: NvrColors.textMuted)),
+              child: Text(
+                'CANCEL',
+                style: NvrTypography.monoLabel
+                    .copyWith(color: NvrColors.textSecondary),
+              ),
             ),
-            ElevatedButton(
+            HudButton(
+              label: saving ? 'CREATING…' : 'CREATE',
               onPressed: saving
                   ? null
                   : () async {
                       final uname = usernameCtrl.text.trim();
                       final pw = passwordCtrl.text;
                       if (uname.isEmpty || pw.isEmpty) {
-                        setDialogState(() => dialogError = 'All fields required');
+                        setDialogState(
+                            () => dialogError = 'All fields required');
                         return;
                       }
                       setDialogState(() => saving = true);
@@ -175,20 +188,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                         });
                       }
                     },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NvrColors.accent,
-                foregroundColor: Colors.white,
-              ),
-              child: saving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Create'),
             ),
           ],
         ),
@@ -206,10 +205,13 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: NvrColors.bgSecondary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: const BorderSide(color: NvrColors.border),
+          ),
           title: Text(
-            'Edit ${user.username}',
-            style: const TextStyle(color: NvrColors.textPrimary),
+            'EDIT ${user.username.toUpperCase()}',
+            style: NvrTypography.monoSection,
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -217,19 +219,20 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
                 dropdownColor: NvrColors.bgTertiary,
-                style: const TextStyle(color: NvrColors.textPrimary),
-                decoration: _inputDecoration('Role'),
+                style: NvrTypography.monoData,
+                decoration: _hudInputDecoration('ROLE'),
                 items: const [
-                  DropdownMenuItem(value: 'viewer', child: Text('Viewer')),
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  DropdownMenuItem(value: 'viewer', child: Text('VIEWER')),
+                  DropdownMenuItem(value: 'admin', child: Text('ADMIN')),
                 ],
-                onChanged: (v) => setDialogState(() => selectedRole = v ?? user.role),
+                onChanged: (v) =>
+                    setDialogState(() => selectedRole = v ?? user.role),
               ),
               if (dialogError != null) ...[
                 const SizedBox(height: 10),
                 Text(
                   dialogError!,
-                  style: const TextStyle(color: NvrColors.danger, fontSize: 13),
+                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
                 ),
               ],
             ],
@@ -237,18 +240,22 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: NvrColors.textMuted)),
+              child: Text(
+                'CANCEL',
+                style: NvrTypography.monoLabel
+                    .copyWith(color: NvrColors.textSecondary),
+              ),
             ),
-            ElevatedButton(
+            HudButton(
+              label: saving ? 'SAVING…' : 'SAVE',
               onPressed: saving
                   ? null
                   : () async {
                       setDialogState(() => saving = true);
                       final api = ref.read(apiClientProvider);
                       try {
-                        await api?.put('/users/${user.id}', data: {
-                          'role': selectedRole,
-                        });
+                        await api?.put('/users/${user.id}',
+                            data: {'role': selectedRole});
                         ref.invalidate(usersProvider);
                         if (ctx.mounted) Navigator.pop(ctx);
                       } catch (e) {
@@ -258,11 +265,6 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                         });
                       }
                     },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NvrColors.accent,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Save'),
             ),
           ],
         ),
@@ -275,24 +277,28 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: NvrColors.bgSecondary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Delete User', style: TextStyle(color: NvrColors.textPrimary)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: NvrColors.border),
+        ),
+        title: Text('DELETE USER', style: NvrTypography.monoSection),
         content: Text(
-          'Are you sure you want to delete "${user.username}"?',
-          style: const TextStyle(color: NvrColors.textSecondary),
+          'Delete "${user.username}"? This cannot be undone.',
+          style: NvrTypography.body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: NvrColors.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: NvrColors.danger,
-              foregroundColor: Colors.white,
+            child: Text(
+              'CANCEL',
+              style:
+                  NvrTypography.monoLabel.copyWith(color: NvrColors.textMuted),
             ),
-            child: const Text('Delete'),
+          ),
+          HudButton(
+            label: 'DELETE',
+            style: HudButtonStyle.danger,
+            onPressed: () => Navigator.pop(ctx, true),
           ),
         ],
       ),
@@ -307,17 +313,23 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User "${user.username}" deleted'),
-            backgroundColor: NvrColors.success,
+            content: Text(
+              'User "${user.username}" deleted',
+              style: NvrTypography.monoData,
+            ),
+            backgroundColor: NvrColors.bgSecondary,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to delete user'),
-            backgroundColor: NvrColors.danger,
+          SnackBar(
+            content: Text(
+              'Failed to delete user',
+              style: NvrTypography.monoData.copyWith(color: NvrColors.danger),
+            ),
+            backgroundColor: NvrColors.bgSecondary,
           ),
         );
       }
@@ -333,114 +345,118 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
-            // --- Change Password section ---
-            const _SectionHeader(title: 'Change Password', icon: Icons.lock_outline),
+            // ── Change Password ──
+            Text('CHANGE PASSWORD', style: NvrTypography.monoSection),
             const SizedBox(height: 12),
-            Card(
-              color: NvrColors.bgSecondary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: NvrColors.border),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: NvrColors.bgSecondary,
+                border: Border.all(color: NvrColors.border),
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _PasswordField(
-                      controller: _currentPasswordCtrl,
-                      label: 'Current Password',
-                      show: _showCurrentPw,
-                      onToggle: () => setState(() => _showCurrentPw = !_showCurrentPw),
-                    ),
-                    const SizedBox(height: 12),
-                    _PasswordField(
-                      controller: _newPasswordCtrl,
-                      label: 'New Password',
-                      show: _showNewPw,
-                      onToggle: () => setState(() => _showNewPw = !_showNewPw),
-                    ),
-                    const SizedBox(height: 12),
-                    _PasswordField(
-                      controller: _confirmPasswordCtrl,
-                      label: 'Confirm New Password',
-                      show: _showConfirmPw,
-                      onToggle: () => setState(() => _showConfirmPw = !_showConfirmPw),
-                    ),
-                    if (_passwordError != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _passwordError!,
-                        style: const TextStyle(color: NvrColors.danger, fontSize: 13),
-                      ),
-                    ],
-                    if (_passwordSuccess) ...[
-                      const SizedBox(height: 8),
-                      const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: NvrColors.success, size: 16),
-                          SizedBox(width: 6),
-                          Text(
-                            'Password changed successfully',
-                            style: TextStyle(color: NvrColors.success, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _changingPassword ? null : _changePassword,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: NvrColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: _changingPassword
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Save Password'),
-                      ),
+              child: Column(
+                children: [
+                  _PasswordField(
+                    controller: _currentPasswordCtrl,
+                    label: 'CURRENT PASSWORD',
+                    show: _showCurrentPw,
+                    onToggle: () =>
+                        setState(() => _showCurrentPw = !_showCurrentPw),
+                  ),
+                  const SizedBox(height: 12),
+                  _PasswordField(
+                    controller: _newPasswordCtrl,
+                    label: 'NEW PASSWORD',
+                    show: _showNewPw,
+                    onToggle: () => setState(() => _showNewPw = !_showNewPw),
+                  ),
+                  const SizedBox(height: 12),
+                  _PasswordField(
+                    controller: _confirmPasswordCtrl,
+                    label: 'CONFIRM NEW PASSWORD',
+                    show: _showConfirmPw,
+                    onToggle: () =>
+                        setState(() => _showConfirmPw = !_showConfirmPw),
+                  ),
+                  if (_passwordError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _passwordError!,
+                      style:
+                          NvrTypography.body.copyWith(color: NvrColors.danger),
                     ),
                   ],
-                ),
+                  if (_passwordSuccess) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle,
+                            color: NvrColors.success, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Password changed successfully',
+                          style: NvrTypography.monoData.copyWith(
+                            color: NvrColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _changingPassword
+                        ? const Center(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: NvrColors.accent,
+                              ),
+                            ),
+                          )
+                        : HudButton(
+                            label: 'SAVE PASSWORD',
+                            onPressed: _changePassword,
+                          ),
+                  ),
+                ],
               ),
             ),
-            // --- User list (admin only) ---
+
+            // ── User list (admin only) ──
             if (isAdmin) ...[
-              const SizedBox(height: 24),
-              const _SectionHeader(title: 'Users', icon: Icons.group_outlined),
+              const SizedBox(height: 28),
+              Text('USERS', style: NvrTypography.monoSection),
               const SizedBox(height: 12),
               usersAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(
+                  child:
+                      CircularProgressIndicator(color: NvrColors.accent),
+                ),
                 error: (e, _) => Text(
                   'Failed to load users: $e',
-                  style: const TextStyle(color: NvrColors.danger),
+                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
                 ),
                 data: (users) => users.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'No users found',
-                          style: TextStyle(color: NvrColors.textMuted),
+                          style: NvrTypography.body,
                         ),
                       )
                     : Column(
-                        children: users.map((u) => _UserTile(
-                          user: u,
-                          onEdit: () => _showEditUserDialog(u),
-                          onDelete: () => _deleteUser(u),
-                        )).toList(),
+                        children: users
+                            .map((u) => _UserTile(
+                                  user: u,
+                                  onEdit: () => _showEditUserDialog(u),
+                                  onDelete: () => _deleteUser(u),
+                                ))
+                            .toList(),
                       ),
               ),
               const SizedBox(height: 80), // FAB clearance
@@ -452,12 +468,10 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           Positioned(
             bottom: 16,
             right: 16,
-            child: FloatingActionButton.extended(
+            child: HudButton(
+              label: 'ADD USER',
+              icon: Icons.person_add,
               onPressed: _showAddUserDialog,
-              backgroundColor: NvrColors.accent,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Add User'),
             ),
           ),
       ],
@@ -465,35 +479,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // Helper widgets
-// ────────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _SectionHeader({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: NvrColors.accent, size: 18),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: NvrColors.textSecondary,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    );
-  }
-}
+// ─────────────────────────────────────────────
 
 class _PasswordField extends StatelessWidget {
   final TextEditingController controller;
@@ -513,33 +501,16 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: !show,
-      style: const TextStyle(color: NvrColors.textPrimary, fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: NvrColors.textMuted, fontSize: 13),
-        filled: true,
-        fillColor: NvrColors.bgInput,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: NvrColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: NvrColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: NvrColors.accent),
-        ),
+      style: NvrTypography.monoData,
+      decoration: _hudInputDecoration(label).copyWith(
         suffixIcon: IconButton(
           icon: Icon(
             show ? Icons.visibility_off : Icons.visibility,
             color: NvrColors.textMuted,
-            size: 18,
+            size: 16,
           ),
           onPressed: onToggle,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }
@@ -550,7 +521,8 @@ class _UserTile extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _UserTile({required this.user, required this.onEdit, required this.onDelete});
+  const _UserTile(
+      {required this.user, required this.onEdit, required this.onDelete});
 
   String _initials(String username) {
     if (username.isEmpty) return '?';
@@ -558,14 +530,14 @@ class _UserTile extends StatelessWidget {
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return username.substring(0, username.length >= 2 ? 2 : 1).toUpperCase();
+    return username
+        .substring(0, username.length >= 2 ? 2 : 1)
+        .toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     final isAdmin = user.role == 'admin';
-    final badgeColor = isAdmin ? NvrColors.accent : NvrColors.bgTertiary;
-    final badgeTextColor = isAdmin ? Colors.white : NvrColors.textSecondary;
 
     return Dismissible(
       key: ValueKey(user.id),
@@ -574,86 +546,104 @@ class _UserTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: NvrColors.danger.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(10),
+          color: NvrColors.danger.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(4),
         ),
-        child: const Icon(Icons.delete, color: NvrColors.danger),
+        child: const Icon(Icons.delete, color: NvrColors.danger, size: 18),
       ),
       confirmDismiss: (direction) async {
         onDelete();
-        return false; // deletion handled in callback
+        return false;
       },
-      child: Card(
-        color: NvrColors.bgSecondary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: NvrColors.border),
-        ),
+      child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: NvrColors.accent.withValues(alpha: 0.2),
-            child: Text(
-              _initials(user.username),
-              style: const TextStyle(
-                color: NvrColors.accent,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: NvrColors.bgSecondary,
+          border: Border.all(color: NvrColors.border),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: NvrColors.accent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _initials(user.username),
+                style: NvrTypography.monoData.copyWith(
+                  color: NvrColors.accent,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-          title: Text(
-            user.username,
-            style: const TextStyle(
-              color: NvrColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          subtitle: user.cameraPermissions != '*'
-              ? Text(
-                  'Cameras: ${user.cameraPermissions}',
-                  style: const TextStyle(color: NvrColors.textMuted, fontSize: 12),
-                )
-              : null,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  user.role.toUpperCase(),
-                  style: TextStyle(
-                    color: badgeTextColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.username,
+                    style: NvrTypography.monoData.copyWith(
+                      color: NvrColors.textPrimary,
+                    ),
                   ),
+                  if (user.cameraPermissions != '*')
+                    Text(
+                      'Cameras: ${user.cameraPermissions}',
+                      style: NvrTypography.monoLabel,
+                    ),
+                ],
+              ),
+            ),
+            // Role badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isAdmin
+                    ? NvrColors.accent.withOpacity(0.12)
+                    : NvrColors.bgTertiary,
+                border: Border.all(
+                  color: isAdmin
+                      ? NvrColors.accent.withOpacity(0.3)
+                      : NvrColors.border,
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                user.role.toUpperCase(),
+                style: NvrTypography.monoLabel.copyWith(
+                  color: isAdmin ? NvrColors.accent : NvrColors.textSecondary,
                 ),
               ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: NvrColors.textMuted, size: 18),
-                onPressed: onEdit,
-                tooltip: 'Edit',
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined,
+                  color: NvrColors.textMuted, size: 16),
+              onPressed: onEdit,
+              tooltip: 'Edit',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _DialogTextField extends StatelessWidget {
+class _HudTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final bool obscure;
 
-  const _DialogTextField({
+  const _HudTextField({
     required this.controller,
     required this.label,
     this.obscure = false,
@@ -664,28 +654,28 @@ class _DialogTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
-      style: const TextStyle(color: NvrColors.textPrimary, fontSize: 14),
-      decoration: _inputDecoration(label),
+      style: NvrTypography.monoData,
+      decoration: _hudInputDecoration(label),
     );
   }
 }
 
-InputDecoration _inputDecoration(String label) {
+InputDecoration _hudInputDecoration(String label) {
   return InputDecoration(
     labelText: label,
-    labelStyle: const TextStyle(color: NvrColors.textMuted, fontSize: 13),
+    labelStyle: NvrTypography.monoLabel,
     filled: true,
     fillColor: NvrColors.bgTertiary,
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(4),
       borderSide: const BorderSide(color: NvrColors.border),
     ),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(4),
       borderSide: const BorderSide(color: NvrColors.border),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(4),
       borderSide: const BorderSide(color: NvrColors.accent),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

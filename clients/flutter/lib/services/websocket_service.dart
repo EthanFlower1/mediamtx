@@ -50,12 +50,21 @@ class WebSocketService {
 
     try {
       _channel = WebSocketChannel.connect(wsUri);
-      _connectionStateController.add(true);
-      _reconnectDelay = 3;
+
+      // Wait for the connection handshake to complete before declaring success.
+      _channel!.ready.then((_) {
+        if (_disposed) return;
+        _connectionStateController.add(true);
+        _reconnectDelay = 3;
+      }).catchError((_) {
+        if (_disposed) return;
+        _connectionStateController.add(false);
+        _scheduleReconnect();
+      });
 
       _subscription = _channel!.stream.listen(
         _onMessage,
-        onError: (error) {
+        onError: (_) {
           _connectionStateController.add(false);
           _scheduleReconnect();
         },

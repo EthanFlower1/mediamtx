@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 
@@ -45,7 +46,8 @@ class AuthService {
       final res = await _dio.get('$url/api/nvr/system/health',
           options: Options(receiveTimeout: const Duration(seconds: 5)));
       return res.statusCode == 200;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AuthService] validateServer failed: $e');
       return false;
     }
   }
@@ -90,7 +92,8 @@ class AuthService {
         expiresIn: (data['expires_in'] as num?)?.toInt() ?? 900,
         user: User.fromJson(Map<String, dynamic>.from(data['user'] as Map)),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AuthService] token refresh failed: $e');
       return null;
     }
   }
@@ -104,7 +107,9 @@ class AuthService {
             data: {'refresh_token': refreshToken},
             options: Options(headers: {'Authorization': 'Bearer $accessToken'}));
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[AuthService] logout revoke failed: $e');
+    }
     await _delete(_accessTokenKey);
     await _delete(_refreshTokenKey);
   }

@@ -73,6 +73,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	statsHandler := &StatsHandler{
+		DB: cfg.DB,
+	}
+
 	var healthHandler *RecordingHealthHandler
 	if cfg.Scheduler != nil {
 		healthHandler = &RecordingHealthHandler{
@@ -263,6 +267,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Recording statistics.
+	protected.GET("/recordings/stats", statsHandler.GetStats)
+	protected.GET("/recordings/stats/:camera_id/gaps", statsHandler.GetGaps)
 
 	// Recording health.
 	if healthHandler != nil {

@@ -180,6 +180,14 @@ class Resolution {
 
   @override
   String toString() => '${width}x$height';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Resolution && other.width == width && other.height == height;
+
+  @override
+  int get hashCode => Object.hash(width, height);
 }
 
 class RangeInt {

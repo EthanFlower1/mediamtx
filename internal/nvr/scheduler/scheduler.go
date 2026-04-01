@@ -619,7 +619,7 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 					log.Printf("scheduler: stream event retention for %s/%s: deleted %d recordings (%d files)", cam.Name, stream.Name, len(paths), removed)
 				}
 			} else {
-				paths, err := s.db.DeleteRecordingsByDateRange(cam.ID, noEventCutoff)
+				paths, err := s.db.DeleteStreamRecordingsByDateRange(cam.ID, stream.ID, noEventCutoff)
 				if err != nil {
 					log.Printf("scheduler: stream retention FAILED for %s/%s: %v", cam.Name, stream.Name, err)
 				} else if len(paths) > 0 {

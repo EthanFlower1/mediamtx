@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	onvifgo "github.com/0x524a/onvif-go"
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // DateTimeInfo holds system date/time information from a device.

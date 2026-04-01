@@ -75,7 +75,6 @@ func (b *EventBroadcaster) Publish(event Event) {
 	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	log.Printf("events: broadcasting %s to %d clients: %s", event.Type, len(b.clients), event.Message)
 	for ch := range b.clients {
 		select {
 		case ch <- event:

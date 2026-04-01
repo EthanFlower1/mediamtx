@@ -12,10 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	onvifmedia "github.com/use-go/onvif/media"
-	sdkmedia "github.com/use-go/onvif/sdk/media"
-	onviftypes "github.com/use-go/onvif/xsd/onvif"
 )
 
 // GetSnapshotURI queries the camera's Media service for its snapshot URI.
@@ -28,17 +24,14 @@ func GetSnapshotURI(xaddr, username, password, profileToken string) (string, err
 		return "", fmt.Errorf("camera does not support media service")
 	}
 	ctx := context.Background()
-	resp, err := sdkmedia.Call_GetSnapshotUri(ctx, client.Dev, onvifmedia.GetSnapshotUri{
-		ProfileToken: onviftypes.ReferenceToken(profileToken),
-	})
+	resp, err := client.Dev.GetSnapshotURI(ctx, profileToken)
 	if err != nil {
 		return "", fmt.Errorf("get snapshot URI: %w", err)
 	}
-	uri := string(resp.MediaUri.Uri)
-	if uri == "" {
+	if resp == nil || resp.URI == "" {
 		return "", fmt.Errorf("camera returned empty snapshot URI")
 	}
-	return uri, nil
+	return resp.URI, nil
 }
 
 // CaptureSnapshot fetches a JPEG snapshot from a camera's snapshot URI.

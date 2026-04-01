@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	onvifgo "github.com/0x524a/onvif-go"
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // ProfileInfo holds full profile details including configurations.

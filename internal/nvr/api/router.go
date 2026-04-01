@@ -284,6 +284,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/streams/:id/roles", streamHandler.UpdateRoles)
 	protected.DELETE("/streams/:id", streamHandler.Delete)
 	protected.PUT("/streams/:id/retention", streamHandler.UpdateRetention)
+	protected.GET("/cameras/:id/stream-storage", streamHandler.GetStreamStorage)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)

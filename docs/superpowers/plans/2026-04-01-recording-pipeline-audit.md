@@ -13,6 +13,7 @@
 ### Task 1: Set Up Worktree and Package Scaffold
 
 **Files:**
+
 - Create: `internal/nvr/audit/findings.go`
 - Create: `internal/nvr/audit/audit_test.go`
 
@@ -322,9 +323,11 @@ func dirFiles(dir string) ([]string, error) {
 - [ ] **Step 5: Verify the package compiles**
 
 Run from `.worktrees/kai-5/`:
+
 ```bash
 go build -tags=integration ./internal/nvr/audit/
 ```
+
 Expected: No errors.
 
 - [ ] **Step 6: Commit**
@@ -339,6 +342,7 @@ git commit -m "feat(audit): add package scaffold with findings types and test he
 ### Task 2: Stream Layer Tests — Camera-Side Network Failures
 
 **Files:**
+
 - Create: `internal/nvr/audit/stream_test.go`
 
 - [ ] **Step 1: Write `TestStreamDisconnect`**
@@ -527,6 +531,7 @@ func TestStreamReconnect(t *testing.T) {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestStream" -timeout 60s ./internal/nvr/audit/
 ```
+
 Expected: Tests run (may pass or fail — this is an audit, findings are recorded either way).
 
 - [ ] **Step 3: Fix any compilation errors**
@@ -545,6 +550,7 @@ git commit -m "feat(audit): add stream layer tests (disconnect, stall, reconnect
 ### Task 3: Storage Layer Tests — Disk and I/O Failures
 
 **Files:**
+
 - Create: `internal/nvr/audit/storage_test.go`
 
 - [ ] **Step 1: Write storage layer tests**
@@ -749,6 +755,7 @@ func TestStoragePermissionDenied(t *testing.T) {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestStorage|TestDisk" -timeout 60s ./internal/nvr/audit/
 ```
+
 Expected: Tests execute. `TestDiskFull` may skip if filesystem is too large.
 
 - [ ] **Step 3: Commit**
@@ -763,6 +770,7 @@ git commit -m "feat(audit): add storage layer tests (disk full, path unavailable
 ### Task 4: Database Layer Tests — SQLite Failures
 
 **Files:**
+
 - Create: `internal/nvr/audit/database_test.go`
 
 - [ ] **Step 1: Write database layer tests**
@@ -937,14 +945,17 @@ func TestDBLocked(t *testing.T) {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestDB" -timeout 30s ./internal/nvr/audit/
 ```
+
 Expected: Tests execute. `TestDBLocked` behavior depends on SQLite WAL mode busy timeout configuration.
 
 - [ ] **Step 3: Fix compilation issues**
 
 The `database.BeginTx()` method may not exist on the `db.DB` type. Check the actual API:
+
 ```bash
 cd .worktrees/kai-5 && grep -n "func.*DB.*Begin\|func.*DB.*Exec\|func.*DB.*Lock" internal/nvr/db/db.go
 ```
+
 If `BeginTx` doesn't exist, use a second `db.Open()` on the same file to create lock contention, or use the underlying `*sql.DB` directly.
 
 - [ ] **Step 4: Commit**
@@ -959,6 +970,7 @@ git commit -m "feat(audit): add database layer tests (insert failure, indexing, 
 ### Task 5: Recorder Layer Tests — Format and Memory Pressure
 
 **Files:**
+
 - Create: `internal/nvr/audit/recorder_test.go`
 
 - [ ] **Step 1: Write recorder layer tests**
@@ -1202,6 +1214,7 @@ func TestOOMPressure(t *testing.T) {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestSegment|TestLargePart|TestOOM" -timeout 60s ./internal/nvr/audit/
 ```
+
 Expected: Tests execute and record findings.
 
 - [ ] **Step 3: Commit**
@@ -1216,6 +1229,7 @@ git commit -m "feat(audit): add recorder layer tests (segment boundary, part siz
 ### Task 6: Lifecycle Tests — Process Signals and Recovery
 
 **Files:**
+
 - Create: `internal/nvr/audit/lifecycle_test.go`
 - Create: `internal/nvr/audit/cmd/auditrecord/main.go` (subprocess for SIGKILL test)
 
@@ -1560,6 +1574,7 @@ func findModuleRoot(t *testing.T) string {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestGraceful|TestSIGKILL|TestRestart" -timeout 120s ./internal/nvr/audit/
 ```
+
 Expected: `TestGracefulShutdown` and `TestRestartRecovery` run normally. `TestSIGKILL` builds and runs the subprocess.
 
 - [ ] **Step 4: Commit**
@@ -1574,6 +1589,7 @@ git commit -m "feat(audit): add lifecycle tests (graceful shutdown, SIGKILL, res
 ### Task 7: End-to-End Scenario Tests
 
 **Files:**
+
 - Create: `internal/nvr/audit/scenario_test.go`
 
 - [ ] **Step 1: Write E2E scenario tests**
@@ -1829,6 +1845,7 @@ func TestScenarioStorageFailover(t *testing.T) {
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -run "TestScenario" -timeout 180s ./internal/nvr/audit/
 ```
+
 Expected: Tests execute (some may take up to 30s each due to sleep durations).
 
 - [ ] **Step 3: Commit**
@@ -1843,6 +1860,7 @@ git commit -m "feat(audit): add E2E scenario tests (network drop, power loss, st
 ### Task 8: Report Generation Test
 
 **Files:**
+
 - Modify: `internal/nvr/audit/audit_test.go` (add TestGenerateReport)
 
 - [ ] **Step 1: Add `TestGenerateReport` to `audit_test.go`**
@@ -1886,6 +1904,7 @@ mkdir -p .worktrees/kai-5/internal/nvr/audit/testdata
 ```bash
 cd .worktrees/kai-5 && go test -tags=integration -v -timeout 300s ./internal/nvr/audit/
 ```
+
 Expected: All tests run, findings are collected, JSON + markdown reports are written.
 
 - [ ] **Step 4: Commit**
@@ -1906,6 +1925,7 @@ cd .worktrees/kai-5 && go build -tags=integration ./internal/nvr/audit/
 ```
 
 Common issues to check:
+
 - `stream.New` signature may differ — read `internal/stream/stream.go` for exact params
 - `conf.RecordFormatFMP4` constant name — check `internal/conf/conf.go`
 - `conf.StringSize` type for MaxPartSize — verify in `internal/conf/`
@@ -1945,7 +1965,7 @@ cd .worktrees/kai-5 && git push -u origin feat/kai-5-recording-audit
 
 - [ ] **Step 2: Create the PR**
 
-```bash
+````bash
 gh pr create --title "KAI-5: Audit recording pipeline for data loss" --body "$(cat <<'EOF'
 ## Summary
 
@@ -1981,7 +2001,7 @@ gh pr create --title "KAI-5: Audit recording pipeline for data loss" --body "$(c
 
 ```bash
 go test -tags=integration -v -timeout 300s ./internal/nvr/audit/
-```
+````
 
 ## Test Plan
 
@@ -1995,10 +2015,11 @@ Closes KAI-5
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
-```
+
+````
 
 - [ ] **Step 3: Verify the PR was created**
 
 ```bash
 gh pr view --web
-```
+````

@@ -45,33 +45,33 @@ Session IDs are cryptographically random (UUID v4). The stream endpoint `/api/nv
 
 All commands include `"seq": N` (client-assigned integer).
 
-| Command | Payload | Effect |
-|---------|---------|--------|
-| `create` | `camera_ids`, `start` | Create session |
-| `resume` | `session_id` | Reconnect to existing session after WebSocket drop |
-| `play` | — | Resume writing fragments |
-| `pause` | — | Stop writing fragments |
-| `seek` | `position` (float, seconds since midnight on the session's selected date, in local time) | Splice to new position. Server coalesces rapid seeks — only the latest is processed. |
-| `speed` | `rate` (0.5, 1.0, 2.0, etc.) | Change fragment output rate |
-| `step` | `direction` (1 or -1) | Write single frame, stay paused. Forward = next frame. Backward = previous keyframe (GOP boundary, ~2-5s back). |
-| `add_camera` | `camera_id` | Add camera to session |
-| `remove_camera` | `camera_id` | Remove camera from session |
-| `close` | — | Tear down session |
+| Command         | Payload                                                                                  | Effect                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `create`        | `camera_ids`, `start`                                                                    | Create session                                                                                                  |
+| `resume`        | `session_id`                                                                             | Reconnect to existing session after WebSocket drop                                                              |
+| `play`          | —                                                                                        | Resume writing fragments                                                                                        |
+| `pause`         | —                                                                                        | Stop writing fragments                                                                                          |
+| `seek`          | `position` (float, seconds since midnight on the session's selected date, in local time) | Splice to new position. Server coalesces rapid seeks — only the latest is processed.                            |
+| `speed`         | `rate` (0.5, 1.0, 2.0, etc.)                                                             | Change fragment output rate                                                                                     |
+| `step`          | `direction` (1 or -1)                                                                    | Write single frame, stay paused. Forward = next frame. Backward = previous keyframe (GOP boundary, ~2-5s back). |
+| `add_camera`    | `camera_id`                                                                              | Add camera to session                                                                                           |
+| `remove_camera` | `camera_id`                                                                              | Remove camera from session                                                                                      |
+| `close`         | —                                                                                        | Tear down session                                                                                               |
 
 ### Events (server → client)
 
-| Event | Payload | When |
-|-------|---------|------|
-| `created` | `session_id`, `streams` | Session ready |
-| `position` | `time` (RFC3339) | Every ~500ms during playback |
-| `state` | `playing`, `speed`, `position` | After any state change |
-| `buffering` | `camera_id`, `buffering` (bool) | Stream buffer state |
-| `segment_gap` | `gap_start` (float secs), `next_start` (float secs) | Playback hit a recording gap, auto-skipping to next segment |
-| `stream_restart` | `camera_id`, `new_url` | Codec changed, client must reconnect this stream |
-| `stream_added` | `camera_id`, `url` | New camera's stream is ready (response to `add_camera`) |
-| `stream_removed` | `camera_id` | Camera removed, server closed its HTTP stream |
-| `end` | — | Reached end of recordings |
-| `error` | `message` | Something went wrong |
+| Event            | Payload                                             | When                                                        |
+| ---------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| `created`        | `session_id`, `streams`                             | Session ready                                               |
+| `position`       | `time` (RFC3339)                                    | Every ~500ms during playback                                |
+| `state`          | `playing`, `speed`, `position`                      | After any state change                                      |
+| `buffering`      | `camera_id`, `buffering` (bool)                     | Stream buffer state                                         |
+| `segment_gap`    | `gap_start` (float secs), `next_start` (float secs) | Playback hit a recording gap, auto-skipping to next segment |
+| `stream_restart` | `camera_id`, `new_url`                              | Codec changed, client must reconnect this stream            |
+| `stream_added`   | `camera_id`, `url`                                  | New camera's stream is ready (response to `add_camera`)     |
+| `stream_removed` | `camera_id`                                         | Camera removed, server closed its HTTP stream               |
+| `end`            | —                                                   | Reached end of recordings                                   |
+| `error`          | `message`                                           | Something went wrong                                        |
 
 Events that respond to a command include `"ack_seq": N` matching the command's `seq`.
 
@@ -116,6 +116,7 @@ If a camera's codec changes between segments (rare but possible after reconfigur
 ### Gap Handling
 
 When playback reaches a recording gap:
+
 1. Server sends `segment_gap` event with gap boundaries
 2. Server automatically skips to the next segment's first keyframe
 3. Adjusts timestamps so the player sees no pause — the gap is invisible in the stream, only visible on the timeline via the event
@@ -126,13 +127,13 @@ When playback reaches a recording gap:
 
 ### New Go Files in `internal/nvr/playback/`
 
-| File | Responsibility |
-|------|---------------|
-| `session.go` | `PlaybackSession` struct — owns muxer state, segment reader, position tracking per camera |
-| `muxer.go` | Wraps MediaMTX's `segmentFMP4` reading + custom fMP4 writer that handles splice logic (sequence continuity, timestamp remapping) |
-| `stream.go` | HTTP handler for `/api/nvr/playback/stream/:session/:camera` — chunked response writer, blocks on a channel fed by the muxer |
-| `ws.go` | WebSocket handler for `/api/nvr/playback/ws` — command parsing, session dispatch, event broadcasting |
-| `manager.go` | `SessionManager` — session lifecycle, cleanup on disconnect, timeout for orphaned sessions |
+| File         | Responsibility                                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `session.go` | `PlaybackSession` struct — owns muxer state, segment reader, position tracking per camera                                        |
+| `muxer.go`   | Wraps MediaMTX's `segmentFMP4` reading + custom fMP4 writer that handles splice logic (sequence continuity, timestamp remapping) |
+| `stream.go`  | HTTP handler for `/api/nvr/playback/stream/:session/:camera` — chunked response writer, blocks on a channel fed by the muxer     |
+| `ws.go`      | WebSocket handler for `/api/nvr/playback/ws` — command parsing, session dispatch, event broadcasting                             |
+| `manager.go` | `SessionManager` — session lifecycle, cleanup on disconnect, timeout for orphaned sessions                                       |
 
 ### Data Flow
 
@@ -160,6 +161,7 @@ Client WebSocket ──cmd──> ws.go ──> SessionManager ──> PlaybackS
 Uses `internal/recordstore` (public API) to discover segment files on disk via `FindSegments()`. The `SessionManager` is initialized with the `recordPath` pattern from MediaMTX config.
 
 MediaMTX's fMP4 parsing functions (`segmentFMP4ReadHeader`, `segmentFMP4MuxParts`, etc.) are unexported in `internal/playback/`. Rather than modifying MediaMTX's package, the NVR playback muxer implements its own fMP4 reader using the `github.com/abema/go-mp4` library (already a dependency of MediaMTX). This is straightforward — fMP4 parsing is well-defined by ISO 14496-12, and we only need to:
+
 - Read `moov` box for codec info and track definitions
 - Iterate `moof+mdat` pairs for samples
 - Extract keyframe flags, DTS values, and sample data
@@ -256,6 +258,7 @@ All timeline widgets, transport controls, jog slider, event popup — they talk 
 ## Files Affected
 
 ### New files (Go backend):
+
 - `internal/nvr/playback/session.go`
 - `internal/nvr/playback/muxer.go`
 - `internal/nvr/playback/stream.go`
@@ -263,12 +266,15 @@ All timeline widgets, transport controls, jog slider, event popup — they talk 
 - `internal/nvr/playback/manager.go`
 
 ### Modified files (Go backend):
+
 - `internal/nvr/api/router.go` — register new playback endpoints
 
 ### Modified files (Flutter client):
+
 - `lib/screens/playback/playback_controller.dart` — rewrite internals to use WebSocket
 - `lib/services/playback_service.dart` — WebSocket URL construction
 
 ### Unchanged files:
+
 - All timeline layers, controls, event popup — public API unchanged
 - MediaMTX's built-in playback server — not modified

@@ -17,38 +17,42 @@
 ## File Structure
 
 ### New Go Backend Files
-| File | Responsibility |
-|---|---|
-| `internal/nvr/db/groups.go` | Database CRUD for camera_groups and camera_group_members tables |
-| `internal/nvr/db/tours.go` | Database CRUD for tours table |
-| `internal/nvr/api/groups.go` | HTTP handlers for `/camera-groups` endpoints |
-| `internal/nvr/api/tours.go` | HTTP handlers for `/tours` endpoints |
+
+| File                         | Responsibility                                                  |
+| ---------------------------- | --------------------------------------------------------------- |
+| `internal/nvr/db/groups.go`  | Database CRUD for camera_groups and camera_group_members tables |
+| `internal/nvr/db/tours.go`   | Database CRUD for tours table                                   |
+| `internal/nvr/api/groups.go` | HTTP handlers for `/camera-groups` endpoints                    |
+| `internal/nvr/api/tours.go`  | HTTP handlers for `/tours` endpoints                            |
 
 ### Modified Go Backend Files
-| File | Changes |
-|---|---|
+
+| File                            | Changes                                                 |
+| ------------------------------- | ------------------------------------------------------- |
 | `internal/nvr/db/migrations.go` | Add migration v19 (groups tables) and v20 (tours table) |
-| `internal/nvr/api/router.go` | Register group and tour routes on protected group |
+| `internal/nvr/api/router.go`    | Register group and tour routes on protected group       |
 
 ### New Flutter Files
-| File | Responsibility |
-|---|---|
-| `clients/flutter/lib/models/camera_group.dart` | CameraGroup Freezed model |
-| `clients/flutter/lib/models/tour.dart` | Tour Freezed model |
-| `clients/flutter/lib/providers/groups_provider.dart` | Camera groups CRUD provider |
-| `clients/flutter/lib/providers/tours_provider.dart` | Tours CRUD + active tour state |
-| `clients/flutter/lib/providers/grid_layout_provider.dart` | Grid slot assignments (SharedPreferences) |
-| `clients/flutter/lib/widgets/shell/camera_panel_groups.dart` | Groups section in camera panel |
-| `clients/flutter/lib/widgets/shell/camera_panel_tours.dart` | Tours section in camera panel |
-| `clients/flutter/lib/widgets/shell/tour_active_pill.dart` | Floating tour-active indicator pill |
+
+| File                                                         | Responsibility                            |
+| ------------------------------------------------------------ | ----------------------------------------- |
+| `clients/flutter/lib/models/camera_group.dart`               | CameraGroup Freezed model                 |
+| `clients/flutter/lib/models/tour.dart`                       | Tour Freezed model                        |
+| `clients/flutter/lib/providers/groups_provider.dart`         | Camera groups CRUD provider               |
+| `clients/flutter/lib/providers/tours_provider.dart`          | Tours CRUD + active tour state            |
+| `clients/flutter/lib/providers/grid_layout_provider.dart`    | Grid slot assignments (SharedPreferences) |
+| `clients/flutter/lib/widgets/shell/camera_panel_groups.dart` | Groups section in camera panel            |
+| `clients/flutter/lib/widgets/shell/camera_panel_tours.dart`  | Tours section in camera panel             |
+| `clients/flutter/lib/widgets/shell/tour_active_pill.dart`    | Floating tour-active indicator pill       |
 
 ### Modified Flutter Files
-| File | Changes |
-|---|---|
-| `clients/flutter/lib/widgets/shell/camera_panel.dart` | Integrate groups + tours sections |
+
+| File                                                          | Changes                                   |
+| ------------------------------------------------------------- | ----------------------------------------- |
+| `clients/flutter/lib/widgets/shell/camera_panel.dart`         | Integrate groups + tours sections         |
 | `clients/flutter/lib/screens/live_view/live_view_screen.dart` | Add DragTarget grid slots, use GridLayout |
-| `clients/flutter/lib/screens/live_view/camera_tile.dart` | Add LongPressDraggable wrapper |
-| `clients/flutter/lib/widgets/shell/navigation_shell.dart` | Add tour active pill overlay |
+| `clients/flutter/lib/screens/live_view/camera_tile.dart`      | Add LongPressDraggable wrapper            |
+| `clients/flutter/lib/widgets/shell/navigation_shell.dart`     | Add tour active pill overlay              |
 
 ---
 
@@ -57,6 +61,7 @@
 ### Task 1: SQLite Migration — Camera Groups
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 
 - [ ] **Step 1: Add migration v19 for camera groups**
@@ -99,6 +104,7 @@ git commit -m "feat(db): add migration v19 — camera_groups and camera_group_me
 ### Task 2: SQLite Migration — Tours
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 
 - [ ] **Step 1: Add migration v20 for tours**
@@ -133,6 +139,7 @@ git commit -m "feat(db): add migration v20 — tours table"
 ### Task 3: Go Database Layer — Camera Groups
 
 **Files:**
+
 - Create: `internal/nvr/db/groups.go`
 
 - [ ] **Step 1: Create groups.go with CRUD operations**
@@ -322,6 +329,7 @@ git commit -m "feat(db): add camera groups CRUD operations"
 ### Task 4: Go Database Layer — Tours
 
 **Files:**
+
 - Create: `internal/nvr/db/tours.go`
 
 - [ ] **Step 1: Create tours.go with CRUD operations**
@@ -445,6 +453,7 @@ git commit -m "feat(db): add tours CRUD operations"
 ### Task 5: Go API Handlers — Groups
 
 **Files:**
+
 - Create: `internal/nvr/api/groups.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -568,6 +577,7 @@ git commit -m "feat(api): add camera groups endpoints — CRUD on /camera-groups
 ### Task 6: Go API Handlers — Tours
 
 **Files:**
+
 - Create: `internal/nvr/api/tours.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -699,6 +709,7 @@ git commit -m "feat(api): add tours endpoints — CRUD on /tours"
 ### Task 7: Flutter Models — CameraGroup & Tour
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/camera_group.dart`
 - Create: `clients/flutter/lib/models/tour.dart`
 
@@ -771,6 +782,7 @@ git commit -m "feat(models): add CameraGroup and Tour Freezed models"
 ### Task 8: Flutter Providers — Groups & Tours
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/groups_provider.dart`
 - Create: `clients/flutter/lib/providers/tours_provider.dart`
 
@@ -889,6 +901,7 @@ git commit -m "feat(providers): add groups and tours providers with active tour 
 ### Task 9: Grid Layout Provider
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/grid_layout_provider.dart`
 
 - [ ] **Step 1: Create grid layout provider**
@@ -1011,6 +1024,7 @@ git commit -m "feat(providers): add GridLayout provider with per-user persistenc
 ### Task 10: Integrate Groups & Tours into Camera Panel
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/shell/camera_panel_groups.dart`
 - Create: `clients/flutter/lib/widgets/shell/camera_panel_tours.dart`
 - Modify: `clients/flutter/lib/widgets/shell/camera_panel.dart`
@@ -1026,6 +1040,7 @@ Create `clients/flutter/lib/widgets/shell/camera_panel_tours.dart` — tour list
 - [ ] **Step 3: Integrate into CameraPanel**
 
 Update `clients/flutter/lib/widgets/shell/camera_panel.dart`:
+
 - Replace flat camera list with grouped view from `CameraPanelGroups`
 - Add Tours section at bottom from `CameraPanelTours`
 
@@ -1041,12 +1056,14 @@ git commit -m "feat(ui): integrate camera groups and tours into camera panel"
 ### Task 11: Integrate Drag-and-Drop into Live View
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/live_view_screen.dart`
 - Modify: `clients/flutter/lib/screens/live_view/camera_tile.dart`
 
 - [ ] **Step 1: Add DragTarget to grid slots**
 
 In `LiveViewScreen`, wrap each grid slot with `DragTarget<String>`:
+
 - `onWillAcceptWithDetails`: return true if slot is empty or different camera
 - `onAcceptWithDetails`: call `gridLayoutProvider.assignCamera(slotIndex, cameraId)`
 - Empty slots: show dashed border with "DROP HERE" when not being dragged over, highlight with `accent` border when drag hovers
@@ -1054,6 +1071,7 @@ In `LiveViewScreen`, wrap each grid slot with `DragTarget<String>`:
 - [ ] **Step 2: Add LongPressDraggable to CameraTile**
 
 Wrap `CameraTile` with `LongPressDraggable<String>`:
+
 - `data`: camera ID
 - `feedback`: semi-transparent version of the tile at 80% opacity with `accent` border
 - `childWhenDragging`: empty slot placeholder
@@ -1062,6 +1080,7 @@ Wrap `CameraTile` with `LongPressDraggable<String>`:
 - [ ] **Step 3: Use GridLayout provider in LiveViewScreen**
 
 Replace the fixed camera list with `gridLayoutProvider`:
+
 ```dart
 final gridLayout = ref.watch(gridLayoutProvider);
 // Build grid from gridLayout.slots
@@ -1079,6 +1098,7 @@ git commit -m "feat(ui): add drag-and-drop camera assignment to live view grid"
 ### Task 12: Tour Active Pill & Lifecycle
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/shell/tour_active_pill.dart`
 - Modify: `clients/flutter/lib/widgets/shell/navigation_shell.dart`
 

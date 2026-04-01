@@ -13,6 +13,7 @@
 ## Key Discovery
 
 MediaMTX's built-in endpoint at `http://host:9996/get?path=CAMERA_PATH&start=RFC3339&duration=SECONDS` already does everything our custom playback session was trying to do:
+
 - Finds recording segments via `recordstore.FindSegments`
 - Reads fMP4 headers and concatenates segments with DTS offset handling
 - Checks track compatibility across segment boundaries
@@ -28,18 +29,19 @@ MediaMTX's built-in endpoint at `http://host:9996/get?path=CAMERA_PATH&start=RFC
 
 ### How each control works:
 
-| Control | Implementation |
-|---------|---------------|
-| **Play** | `player.open(Media(vodUrl), play: true)` — media_kit plays the HTTP fMP4 stream |
-| **Pause** | `player.pause()` — native, instant, no server call |
-| **Resume** | `player.play()` — native, instant |
-| **Seek** | Close player, build new URL with new `start` time, reopen |
-| **Speed** | `player.setRate(2.0)` — native, instant, no server call |
-| **Step** | Seek ±33ms (1 frame at 30fps) |
-| **Skip to event** | Calculate target time from event list, seek |
-| **Jog slider** | Accumulate delta while dragging, seek on release |
+| Control           | Implementation                                                                  |
+| ----------------- | ------------------------------------------------------------------------------- |
+| **Play**          | `player.open(Media(vodUrl), play: true)` — media_kit plays the HTTP fMP4 stream |
+| **Pause**         | `player.pause()` — native, instant, no server call                              |
+| **Resume**        | `player.play()` — native, instant                                               |
+| **Seek**          | Close player, build new URL with new `start` time, reopen                       |
+| **Speed**         | `player.setRate(2.0)` — native, instant, no server call                         |
+| **Step**          | Seek ±33ms (1 frame at 30fps)                                                   |
+| **Skip to event** | Calculate target time from event list, seek                                     |
+| **Jog slider**    | Accumulate delta while dragging, seek on release                                |
 
 ### What gets deleted:
+
 All custom NVR playback code (~1500 lines) — session state machine, WebSocket protocol handler, splice muxer, HTTP stream handler, session manager. Plus their tests.
 
 ---
@@ -48,50 +50,50 @@ All custom NVR playback code (~1500 lines) — session state machine, WebSocket 
 
 ### Server (Go) — Delete
 
-| File | Reason |
-|------|--------|
-| `internal/nvr/playback/session.go` | Replaced by MediaMTX built-in |
-| `internal/nvr/playback/session_test.go` | Tests for removed code |
-| `internal/nvr/playback/ws.go` | WebSocket protocol no longer needed |
-| `internal/nvr/playback/stream.go` | Session stream handler no longer needed |
-| `internal/nvr/playback/manager.go` | Session manager no longer needed |
-| `internal/nvr/playback/splice_muxer.go` | Muxer no longer needed |
-| `internal/nvr/playback/splice_muxer_test.go` | Tests for removed code |
-| `internal/nvr/playback/protocol.go` | WS protocol types no longer needed |
-| `internal/nvr/playback/protocol_test.go` | Tests for removed code |
-| `internal/nvr/playback/fmp4_reader.go` | Replaced by MediaMTX core playback |
-| `internal/nvr/playback/fmp4_reader_test.go` | Tests for removed code |
-| `internal/nvr/playback/vod.go` | VoD handler not needed (use MediaMTX built-in) |
-| `internal/nvr/playback/vod_test.go` | Tests for removed code |
+| File                                         | Reason                                         |
+| -------------------------------------------- | ---------------------------------------------- |
+| `internal/nvr/playback/session.go`           | Replaced by MediaMTX built-in                  |
+| `internal/nvr/playback/session_test.go`      | Tests for removed code                         |
+| `internal/nvr/playback/ws.go`                | WebSocket protocol no longer needed            |
+| `internal/nvr/playback/stream.go`            | Session stream handler no longer needed        |
+| `internal/nvr/playback/manager.go`           | Session manager no longer needed               |
+| `internal/nvr/playback/splice_muxer.go`      | Muxer no longer needed                         |
+| `internal/nvr/playback/splice_muxer_test.go` | Tests for removed code                         |
+| `internal/nvr/playback/protocol.go`          | WS protocol types no longer needed             |
+| `internal/nvr/playback/protocol_test.go`     | Tests for removed code                         |
+| `internal/nvr/playback/fmp4_reader.go`       | Replaced by MediaMTX core playback             |
+| `internal/nvr/playback/fmp4_reader_test.go`  | Tests for removed code                         |
+| `internal/nvr/playback/vod.go`               | VoD handler not needed (use MediaMTX built-in) |
+| `internal/nvr/playback/vod_test.go`          | Tests for removed code                         |
 
 ### Server (Go) — Modify
 
-| File | Action | Change |
-|------|--------|--------|
-| `internal/nvr/api/router.go` | Modify | Remove PlaybackManager from RouterConfig, remove WS+stream routes |
-| `internal/nvr/nvr.go` | Modify | Remove playbackManager field, remove SessionManager/VoDHandler initialization |
+| File                         | Action | Change                                                                        |
+| ---------------------------- | ------ | ----------------------------------------------------------------------------- |
+| `internal/nvr/api/router.go` | Modify | Remove PlaybackManager from RouterConfig, remove WS+stream routes             |
+| `internal/nvr/nvr.go`        | Modify | Remove playbackManager field, remove SessionManager/VoDHandler initialization |
 
 ### Client (Flutter) — Rewrite
 
-| File | Action | Responsibility |
-|------|--------|---------------|
-| `lib/screens/playback/playback_controller.dart` | **Rewrite** | Direct media_kit control via MediaMTX `/get` URL |
-| `lib/services/playback_service.dart` | **Rewrite** | Build `/get` URL with camera path, start, duration, JWT |
-| `lib/screens/playback/playback_screen.dart` | **Modify** | Remove postFrameCallback hacks, simplify controller wiring |
-| `lib/screens/playback/controls/jog_slider.dart` | **Modify** | Seek-on-release instead of timer flood |
-| `lib/screens/playback/timeline/interaction_layer.dart` | **Modify** | Larger drag target |
+| File                                                   | Action      | Responsibility                                             |
+| ------------------------------------------------------ | ----------- | ---------------------------------------------------------- |
+| `lib/screens/playback/playback_controller.dart`        | **Rewrite** | Direct media_kit control via MediaMTX `/get` URL           |
+| `lib/services/playback_service.dart`                   | **Rewrite** | Build `/get` URL with camera path, start, duration, JWT    |
+| `lib/screens/playback/playback_screen.dart`            | **Modify**  | Remove postFrameCallback hacks, simplify controller wiring |
+| `lib/screens/playback/controls/jog_slider.dart`        | **Modify**  | Seek-on-release instead of timer flood                     |
+| `lib/screens/playback/timeline/interaction_layer.dart` | **Modify**  | Larger drag target                                         |
 
 ### Client (Flutter) — Keep Unchanged
 
-| File | Why |
-|------|-----|
-| `lib/screens/playback/camera_player.dart` | Renders media_kit Video widget |
-| `lib/screens/playback/controls/transport_controls.dart` | Button layout unchanged |
-| `lib/screens/playback/timeline/composable_timeline.dart` | Auto-zoom + viewport |
-| `lib/screens/playback/timeline/timeline_viewport.dart` | Math correct |
-| `lib/screens/playback/timeline/*.dart` | All visual layers unchanged |
-| `lib/models/recording.dart` | RecordingSegment model unchanged |
-| `lib/providers/recordings_provider.dart` | Data fetching unchanged |
+| File                                                     | Why                              |
+| -------------------------------------------------------- | -------------------------------- |
+| `lib/screens/playback/camera_player.dart`                | Renders media_kit Video widget   |
+| `lib/screens/playback/controls/transport_controls.dart`  | Button layout unchanged          |
+| `lib/screens/playback/timeline/composable_timeline.dart` | Auto-zoom + viewport             |
+| `lib/screens/playback/timeline/timeline_viewport.dart`   | Math correct                     |
+| `lib/screens/playback/timeline/*.dart`                   | All visual layers unchanged      |
+| `lib/models/recording.dart`                              | RecordingSegment model unchanged |
+| `lib/providers/recordings_provider.dart`                 | Data fetching unchanged          |
 
 ---
 
@@ -100,6 +102,7 @@ All custom NVR playback code (~1500 lines) — session state machine, WebSocket 
 ### Task 1: Remove custom playback code from server
 
 **Files:**
+
 - Delete: All files in `internal/nvr/playback/`
 - Modify: `internal/nvr/api/router.go`
 - Modify: `internal/nvr/nvr.go`
@@ -122,6 +125,7 @@ Also remove the `playback` import.
 - [ ] **Step 2: Remove playbackManager from NVR struct and initialization**
 
 In `internal/nvr/nvr.go`:
+
 - Remove `playbackManager` field from the NVR struct
 - Remove the `playback.NewSessionManager(...)` call in `Initialize()`
 - Remove the `PlaybackManager: n.playbackManager` line in `RegisterRoutes()`
@@ -156,6 +160,7 @@ git commit -m "refactor: remove custom playback session system, use MediaMTX bui
 ### Task 2: Rewrite PlaybackService and PlaybackController (Client)
 
 **Files:**
+
 - Rewrite: `clients/flutter/lib/services/playback_service.dart`
 - Rewrite: `clients/flutter/lib/screens/playback/playback_controller.dart`
 
@@ -568,6 +573,7 @@ git commit -m "feat(flutter): rewrite playback for stateless VoD via MediaMTX bu
 ### Task 3: Update PlaybackScreen to work with new controller (Client)
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_screen.dart`
 
 - [ ] **Step 1: Remove postFrameCallback hacks, simplify controller wiring**
@@ -605,6 +611,7 @@ git commit -m "fix(flutter): simplify PlaybackScreen, remove postFrameCallback w
 ### Task 4: Fix JogSlider — seek on release instead of timer flood (Client)
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/controls/jog_slider.dart`
 - Modify: `clients/flutter/lib/screens/playback/playback_screen.dart` (wiring)
 
@@ -644,6 +651,7 @@ git commit -m "fix(flutter): rewrite JogSlider to seek-on-release"
 ### Task 5: Improve timeline interaction (Client)
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/timeline/interaction_layer.dart`
 
 - [ ] **Step 1: Increase playhead drag hit radius from 20px to 40px**
@@ -707,21 +715,21 @@ Wait for recordings to accumulate (or use existing ones), then in the Flutter ap
 
 ## What This Eliminates
 
-| Removed | Lines | Bugs it had |
-|---------|-------|-------------|
-| PlaybackSession state machine | ~400 | Race conditions, incorrect gap detection, hardcoded timescale |
-| WebSocket protocol handler | ~200 | No command ACK, session disposal race, event buffer overflow |
-| SpliceMuxer | ~200 | Send-on-closed-channel panic, DTS desync across tracks |
-| HTTP stream handler | ~60 | No backpressure, silent write errors |
-| SessionManager | ~120 | Returns success with zero cameras |
-| Protocol types | ~50 | N/A |
-| fMP4 reader (ours) | ~400 | Replaced by MediaMTX's battle-tested implementation |
-| **Total removed** | **~1430** | **12+ critical bugs** |
+| Removed                       | Lines     | Bugs it had                                                   |
+| ----------------------------- | --------- | ------------------------------------------------------------- |
+| PlaybackSession state machine | ~400      | Race conditions, incorrect gap detection, hardcoded timescale |
+| WebSocket protocol handler    | ~200      | No command ACK, session disposal race, event buffer overflow  |
+| SpliceMuxer                   | ~200      | Send-on-closed-channel panic, DTS desync across tracks        |
+| HTTP stream handler           | ~60       | No backpressure, silent write errors                          |
+| SessionManager                | ~120      | Returns success with zero cameras                             |
+| Protocol types                | ~50       | N/A                                                           |
+| fMP4 reader (ours)            | ~400      | Replaced by MediaMTX's battle-tested implementation           |
+| **Total removed**             | **~1430** | **12+ critical bugs**                                         |
 
 ## What's Added
 
-| Added | Lines | Purpose |
-|-------|-------|---------|
-| PlaybackController (new) | ~180 | Direct media_kit control, no protocol |
-| PlaybackService (new) | ~30 | URL builder for `/get` endpoint |
-| **Total added** | **~210** | **Zero custom protocol, zero server state** |
+| Added                    | Lines    | Purpose                                     |
+| ------------------------ | -------- | ------------------------------------------- |
+| PlaybackController (new) | ~180     | Direct media_kit control, no protocol       |
+| PlaybackService (new)    | ~30      | URL builder for `/get` endpoint             |
+| **Total added**          | **~210** | **Zero custom protocol, zero server state** |

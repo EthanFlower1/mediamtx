@@ -13,6 +13,7 @@
 ### Task 1: Add recording_fragments DB migration and model
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go:214-218` (add migration version 16)
 - Modify: `internal/nvr/db/recordings.go` (add RecordingFragment struct and DB methods)
 
@@ -168,6 +169,7 @@ type Recording struct {
 ```
 
 Update all existing `Scan` calls in `recordings.go` that read from `recordings` to also scan `init_size`:
+
 - `QueryRecordings` (line 72): add `&rec.InitSize` to Scan
 - `GetRecording` (line 122): add `&rec.InitSize` to Scan
 - `GetUnindexedRecordings`: already includes it above
@@ -190,6 +192,7 @@ git commit -m "feat: add recording_fragments table and DB methods for fragment i
 ### Task 2: Extract real fragment durations from fMP4 trun boxes
 
 **Files:**
+
 - Modify: `internal/nvr/api/hls.go:24-28,193-283` (enhance scanFragments to extract timing)
 
 - [ ] **Step 1: Update fragmentInfo to include duration**
@@ -521,6 +524,7 @@ git commit -m "feat: extract real fragment durations from fMP4 trun/tfhd boxes"
 ### Task 3: Index fragments on segment complete
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go:506-564` (add indexing after recording insert)
 
 - [ ] **Step 1: Add fragment indexing to OnSegmentComplete**
@@ -672,6 +676,7 @@ git commit -m "feat: index fMP4 fragments on segment complete"
 ### Task 4: Background migration for existing recordings
 
 **Files:**
+
 - Create: `internal/nvr/fragment_backfill.go`
 - Modify: `internal/nvr/nvr.go` (start backfill goroutine on init)
 
@@ -777,6 +782,7 @@ git commit -m "feat: add background fragment backfill for existing recordings"
 ### Task 5: Rewrite HLS playlist generation to use fragment index
 
 **Files:**
+
 - Modify: `internal/nvr/api/hls.go:35-121` (rewrite ServePlaylist)
 
 - [ ] **Step 1: Rewrite ServePlaylist to use DB-backed fragments**
@@ -928,6 +934,7 @@ git commit -m "feat: rewrite HLS playlist to use fragment index with real durati
 ### Task 6: Fix timeline endpoint timezone bug
 
 **Files:**
+
 - Modify: `internal/nvr/api/recordings.go:108-109` (fix timezone parsing)
 
 - [ ] **Step 1: Fix Timeline endpoint to use local timezone**
@@ -975,6 +982,7 @@ git commit -m "fix: use local timezone for Timeline and MotionEvents endpoints"
 ### Task 7: Fix PlaybackController seeking race condition and error handling
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_controller.dart:189-211,269-317`
 
 - [ ] **Step 1: Fix seek() with try/finally and debounce**
@@ -1044,7 +1052,7 @@ _positionSub = primary.stream.position.listen((playerPos) {
   });
 ```
 
-- [ ] **Step 3: Fix _openPlayers() error handling**
+- [ ] **Step 3: Fix \_openPlayers() error handling**
 
 Replace `_openPlayers()` (lines 269-317):
 
@@ -1135,9 +1143,10 @@ git commit -m "fix: seek race condition, error handling, and snap-back protectio
 ### Task 8: Fix gap snapping boundary logic
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_controller.dart:319-333`
 
-- [ ] **Step 1: Fix _snapToSegment**
+- [ ] **Step 1: Fix \_snapToSegment**
 
 Replace `_snapToSegment` (lines 319-333):
 
@@ -1174,7 +1183,7 @@ Duration _snapToSegment(Duration position) {
   }
 ```
 
-- [ ] **Step 2: Fix _wallClockToPlayer inclusive boundary**
+- [ ] **Step 2: Fix \_wallClockToPlayer inclusive boundary**
 
 In `_wallClockToPlayer` (line 120), change:
 
@@ -1205,6 +1214,7 @@ git commit -m "fix: gap snapping boundary logic with inclusive end and nearest-s
 ### Task 9: Add playlist caching
 
 **Files:**
+
 - Modify: `internal/nvr/api/hls.go` (add LRU cache)
 
 - [ ] **Step 1: Add a simple cache to HLSHandler**
@@ -1290,6 +1300,7 @@ func (h *HLSHandler) InvalidateCache(cameraID, date string) {
 ```
 
 **Important:** The `NVR` struct currently has no `hlsHandler` field. You must:
+
 1. Add `hlsHandler *api.HLSHandler` field to the `NVR` struct in `nvr.go`
 2. Store the reference when creating `HLSHandler` in the NVR initialization (where `RegisterRoutes` is called — the handler is currently created inline at ~line 499)
 
@@ -1319,6 +1330,7 @@ git commit -m "feat: add LRU playlist cache with TTL and invalidation"
 ### Task 10: Add motion intensity timeline endpoint
 
 **Files:**
+
 - Create: `internal/nvr/db/motion_events_intensity.go`
 - Modify: `internal/nvr/api/recordings.go` (add Intensity handler)
 - Modify: `internal/nvr/api/router.go` (add route)
@@ -1451,6 +1463,7 @@ git commit -m "feat: add motion intensity timeline endpoint with configurable bu
 ### Task 11: Add bookmarks CRUD (server)
 
 **Files:**
+
 - Create: `internal/nvr/db/bookmarks.go`
 - Create: `internal/nvr/api/bookmarks.go`
 - Modify: `internal/nvr/db/migrations.go` (add migration 17)
@@ -1756,6 +1769,7 @@ git commit -m "feat: add bookmarks CRUD API and database layer"
 ### Task 12: Add Flutter bookmark model, provider, and timeline layer
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/bookmark.dart`
 - Create: `clients/flutter/lib/providers/bookmarks_provider.dart`
 - Create: `clients/flutter/lib/screens/playback/timeline/bookmark_layer.dart`
@@ -1969,6 +1983,7 @@ git commit -m "feat: add bookmark timeline layer with navigation"
 ### Task 13: Add Flutter motion intensity layer
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/timeline_intensity_provider.dart`
 - Create: `clients/flutter/lib/screens/playback/timeline/intensity_layer.dart`
 - Modify: `clients/flutter/lib/screens/playback/timeline/composable_timeline.dart` (add layer)
@@ -2140,6 +2155,7 @@ git commit -m "feat: add motion intensity heatmap layer to timeline"
 ### Task 14: Add cross-day continuous playback
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_controller.dart` (add continuous mode)
 
 - [ ] **Step 1: Add continuous playback support**
@@ -2222,6 +2238,7 @@ git commit -m "feat: add cross-day continuous playback with date navigation"
 ### Task 15: Add thumbnail preview endpoint (server)
 
 **Files:**
+
 - Modify: `internal/nvr/api/hls.go` (add thumbnail handler)
 - Modify: `internal/nvr/api/router.go` (add route)
 

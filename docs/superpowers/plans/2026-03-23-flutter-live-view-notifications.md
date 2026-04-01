@@ -16,41 +16,44 @@
 
 ## File Structure
 
-| File | Task | Purpose |
-|------|------|---------|
-| `clients/flutter/pubspec.yaml` | 1 | Add flutter_webrtc dependency |
-| `clients/flutter/lib/services/whep_service.dart` | 1 | WebRTC WHEP handshake |
-| `clients/flutter/lib/services/websocket_service.dart` | 2 | Persistent WebSocket connection |
-| `clients/flutter/lib/models/notification_event.dart` | 2 | Notification event model |
-| `clients/flutter/lib/models/detection_frame.dart` | 2 | Detection frame model |
-| `clients/flutter/lib/providers/notifications_provider.dart` | 3 | Notification state + history |
-| `clients/flutter/lib/providers/detection_stream_provider.dart` | 3 | Detection frame stream per camera |
-| `clients/flutter/lib/screens/live_view/live_view_screen.dart` | 4 | Adaptive camera grid |
-| `clients/flutter/lib/screens/live_view/camera_tile.dart` | 4 | Single camera WebRTC tile |
-| `clients/flutter/lib/screens/live_view/fullscreen_view.dart` | 5 | Fullscreen video + controls |
-| `clients/flutter/lib/screens/live_view/ptz_controls.dart` | 5 | PTZ d-pad overlay |
-| `clients/flutter/lib/screens/live_view/analytics_overlay.dart` | 6 | Bounding box CustomPainter |
-| `clients/flutter/lib/widgets/notification_bell.dart` | 7 | App bar bell + badge + dropdown |
-| `clients/flutter/lib/widgets/notification_toast.dart` | 7 | Snackbar helper for events |
-| `internal/nvr/ai/pipeline.go` | 8 | Backend: broadcast detection_frame |
-| `internal/nvr/api/events.go` | 8 | Backend: Detections field on Event |
+| File                                                           | Task | Purpose                            |
+| -------------------------------------------------------------- | ---- | ---------------------------------- |
+| `clients/flutter/pubspec.yaml`                                 | 1    | Add flutter_webrtc dependency      |
+| `clients/flutter/lib/services/whep_service.dart`               | 1    | WebRTC WHEP handshake              |
+| `clients/flutter/lib/services/websocket_service.dart`          | 2    | Persistent WebSocket connection    |
+| `clients/flutter/lib/models/notification_event.dart`           | 2    | Notification event model           |
+| `clients/flutter/lib/models/detection_frame.dart`              | 2    | Detection frame model              |
+| `clients/flutter/lib/providers/notifications_provider.dart`    | 3    | Notification state + history       |
+| `clients/flutter/lib/providers/detection_stream_provider.dart` | 3    | Detection frame stream per camera  |
+| `clients/flutter/lib/screens/live_view/live_view_screen.dart`  | 4    | Adaptive camera grid               |
+| `clients/flutter/lib/screens/live_view/camera_tile.dart`       | 4    | Single camera WebRTC tile          |
+| `clients/flutter/lib/screens/live_view/fullscreen_view.dart`   | 5    | Fullscreen video + controls        |
+| `clients/flutter/lib/screens/live_view/ptz_controls.dart`      | 5    | PTZ d-pad overlay                  |
+| `clients/flutter/lib/screens/live_view/analytics_overlay.dart` | 6    | Bounding box CustomPainter         |
+| `clients/flutter/lib/widgets/notification_bell.dart`           | 7    | App bar bell + badge + dropdown    |
+| `clients/flutter/lib/widgets/notification_toast.dart`          | 7    | Snackbar helper for events         |
+| `internal/nvr/ai/pipeline.go`                                  | 8    | Backend: broadcast detection_frame |
+| `internal/nvr/api/events.go`                                   | 8    | Backend: Detections field on Event |
 
 ---
 
 ### Task 1: WHEP Service + flutter_webrtc Dependency
 
 **Files:**
+
 - Modify: `clients/flutter/pubspec.yaml`
 - Create: `clients/flutter/lib/services/whep_service.dart`
 
 - [ ] **Step 1: Add flutter_webrtc to pubspec.yaml**
 
 Add under `dependencies:`:
+
 ```yaml
-  flutter_webrtc: ^0.12.0
+flutter_webrtc: ^0.12.0
 ```
 
 Run:
+
 ```bash
 cd clients/flutter && flutter pub get
 ```
@@ -243,6 +246,7 @@ git commit -m "feat(flutter): add WHEP WebRTC streaming service"
 ### Task 2: WebSocket Service + Event Models
 
 **Files:**
+
 - Create: `clients/flutter/lib/services/websocket_service.dart`
 - Create: `clients/flutter/lib/models/notification_event.dart`
 - Create: `clients/flutter/lib/models/detection_frame.dart`
@@ -473,6 +477,7 @@ git commit -m "feat(flutter): add WebSocket service with notification and detect
 ### Task 3: Riverpod Providers — Notifications + Detection Stream
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/notifications_provider.dart`
 - Create: `clients/flutter/lib/providers/detection_stream_provider.dart`
 
@@ -606,6 +611,7 @@ git commit -m "feat(flutter): add notification and detection stream Riverpod pro
 ### Task 4: Live View Screen + Camera Tile
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/live_view/live_view_screen.dart`
 - Create: `clients/flutter/lib/screens/live_view/camera_tile.dart`
 - Modify: `clients/flutter/lib/router/app_router.dart`
@@ -871,10 +877,13 @@ class _CameraGrid extends StatelessWidget {
 In `clients/flutter/lib/router/app_router.dart`, replace the `/live` route:
 
 Change:
+
 ```dart
 GoRoute(path: '/live', builder: (_, __) => const HomePlaceholder(title: 'Live View')),
 ```
+
 To:
+
 ```dart
 GoRoute(path: '/live', builder: (_, __) => const LiveViewScreen()),
 ```
@@ -899,6 +908,7 @@ git commit -m "feat(flutter): add live view screen with adaptive camera grid"
 ### Task 5: Fullscreen View + PTZ Controls
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/live_view/fullscreen_view.dart`
 - Create: `clients/flutter/lib/screens/live_view/ptz_controls.dart`
 - Modify: `clients/flutter/lib/screens/live_view/live_view_screen.dart`
@@ -1110,6 +1120,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 In `live_view_screen.dart`, update the `onTap` in `CameraTile` to push `FullscreenView`:
 
 Replace the `onTap` callback:
+
 ```dart
 onTap: () {
   Navigator.of(context).push(MaterialPageRoute(
@@ -1138,6 +1149,7 @@ git commit -m "feat(flutter): add fullscreen view with PTZ controls"
 ### Task 6: Analytics Overlay (CustomPainter)
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/live_view/analytics_overlay.dart`
 
 - [ ] **Step 1: Create analytics overlay widget**
@@ -1258,6 +1270,7 @@ git commit -m "feat(flutter): add AI analytics overlay with bounding box CustomP
 ### Task 7: Notification Bell + Toast
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/notification_bell.dart`
 - Create: `clients/flutter/lib/widgets/notification_toast.dart`
 - Modify: `clients/flutter/lib/screens/live_view/live_view_screen.dart`
@@ -1517,6 +1530,7 @@ git commit -m "feat(flutter): add notification bell with history and event snack
 ### Task 8: Backend — Broadcast detection_frame Events
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go`
 - Modify: `internal/nvr/ai/pipeline.go`
 
@@ -1537,11 +1551,13 @@ type DetectionData struct {
 ```
 
 Add to Event struct:
+
 ```go
 Detections []DetectionData `json:"detections,omitempty"`
 ```
 
 Add a new publish method:
+
 ```go
 func (b *EventBroadcaster) PublishDetectionFrame(camera string, detections []DetectionData) {
     b.Publish(Event{
@@ -1574,6 +1590,7 @@ if p.eventPub != nil && len(tracked) > 0 {
 ```
 
 This requires updating the `EventPublisher` interface to include `PublishDetectionFrame`. Add to the interface:
+
 ```go
 PublishDetectionFrame(camera string, detections []DetectionData)
 ```
@@ -1612,6 +1629,7 @@ The notification bell should appear on ALL screens, not just live view. Update `
 For a unified approach, update `AdaptiveLayout` to optionally show the bell:
 
 In `adaptive_layout.dart`, wrap the child in a `Scaffold` that has an `AppBar` with the bell:
+
 ```dart
 // Add to the rail layout:
 Expanded(

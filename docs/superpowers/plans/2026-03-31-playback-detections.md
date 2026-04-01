@@ -15,6 +15,7 @@
 ## File Structure
 
 ### Backend (Go)
+
 - **Modify:** `internal/nvr/db/detections.go` — add `QueryDetectionsByTimeRange`
 - **Modify:** `internal/nvr/api/cameras.go` — add `Detections` handler
 - **Modify:** `internal/nvr/api/router.go` — register new route
@@ -22,6 +23,7 @@
 - **Modify:** `internal/nvr/db/db_test.go` — (if needed, but we test via API)
 
 ### Frontend (Flutter)
+
 - **Modify:** `clients/flutter/lib/models/detection_frame.dart` — add `PlaybackDetection` model
 - **Modify:** `clients/flutter/lib/services/playback_service.dart` — add `fetchDetections` method
 - **Modify:** `clients/flutter/lib/screens/playback/playback_controller.dart` — detection cache, lookup, toggle, fetch trigger
@@ -31,6 +33,7 @@
 - **Modify:** `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart` — increase `_timelineHeight`
 
 ### Tests
+
 - **Modify:** `internal/nvr/api/cameras_test.go` — API endpoint test
 - **Modify:** `clients/flutter/test/playback/playback_controller_test.dart` — detection lookup tests
 
@@ -39,6 +42,7 @@
 ## Task 1: Backend — New DB Function
 
 **Files:**
+
 - Modify: `internal/nvr/db/detections.go`
 
 - [ ] **Step 1: Add `QueryDetectionsByTimeRange` to `detections.go`**
@@ -96,6 +100,7 @@ git commit -m "feat(db): add QueryDetectionsByTimeRange for playback"
 ## Task 2: Backend — New API Endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -168,6 +173,7 @@ git commit -m "feat(api): add GET /cameras/:id/detections endpoint for playback"
 ## Task 3: Backend — API Endpoint Test
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras_test.go`
 
 - [ ] **Step 1: Write the test**
@@ -269,6 +275,7 @@ git commit -m "test: add API test for GET /cameras/:id/detections"
 ## Task 4: Flutter — PlaybackDetection Model
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/detection_frame.dart`
 
 - [ ] **Step 1: Add `PlaybackDetection` class**
@@ -337,6 +344,7 @@ git commit -m "feat(flutter): add PlaybackDetection model for historical detecti
 ## Task 5: Flutter — PlaybackService.fetchDetections
 
 **Files:**
+
 - Modify: `clients/flutter/lib/services/playback_service.dart`
 
 - [ ] **Step 1: Add import for the model**
@@ -414,6 +422,7 @@ git commit -m "feat(flutter): add fetchDetections to PlaybackService"
 ## Task 6: Flutter — Detection Cache on PlaybackController
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/playback_controller.dart`
 
 - [ ] **Step 1: Add import**
@@ -580,6 +589,7 @@ git commit -m "feat(flutter): add detection cache and lookup to PlaybackControll
 ## Task 7: Flutter — Detection Lookup Unit Tests
 
 **Files:**
+
 - Modify: `clients/flutter/test/playback/playback_controller_test.dart`
 
 - [ ] **Step 1: Add import**
@@ -681,6 +691,7 @@ git commit -m "test(flutter): add detection lookup unit tests"
 ## Task 8: Flutter — PlaybackDetectionOverlay Widget
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/playback/playback_detection_overlay.dart`
 
 - [ ] **Step 1: Create the overlay widget**
@@ -801,6 +812,7 @@ git commit -m "feat(flutter): add PlaybackDetectionOverlay widget"
 ## Task 9: Flutter — Integrate Overlay into CameraPlayer
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/camera_player.dart`
 
 - [ ] **Step 1: Add imports**
@@ -913,6 +925,7 @@ git commit -m "feat(flutter): integrate detection overlay and toggle into Camera
 ## Task 10: Flutter — Timeline Event Markers
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart`
 - Modify: `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart`
 

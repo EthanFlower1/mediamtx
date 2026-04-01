@@ -16,36 +16,36 @@
 
 ### Server (Go) — New/Modified Files
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/ptz.go` | Extend: AbsoluteMove, RelativeMove, SetPreset, RemovePreset, SetHomePosition, GetStatus |
-| `internal/nvr/onvif/media_config.go` | New: Profile CRUD, video/audio encoder config get/set/options |
-| `internal/nvr/onvif/device_mgmt.go` | New: Date/time, hostname, network, device users, scopes, reboot |
-| `internal/nvr/api/cameras.go` | Extend: All new API endpoint handlers |
-| `internal/nvr/api/router.go` | Extend: Register new routes |
+| File                                 | Responsibility                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| `internal/nvr/onvif/ptz.go`          | Extend: AbsoluteMove, RelativeMove, SetPreset, RemovePreset, SetHomePosition, GetStatus |
+| `internal/nvr/onvif/media_config.go` | New: Profile CRUD, video/audio encoder config get/set/options                           |
+| `internal/nvr/onvif/device_mgmt.go`  | New: Date/time, hostname, network, device users, scopes, reboot                         |
+| `internal/nvr/api/cameras.go`        | Extend: All new API endpoint handlers                                                   |
+| `internal/nvr/api/router.go`         | Extend: Register new routes                                                             |
 
 ### Flutter — New Files
 
-| File | Responsibility |
-|------|---------------|
-| `lib/models/device_info.dart` | DeviceInfo model |
-| `lib/models/ptz_status.dart` | PTZStatus model |
-| `lib/models/media_profile.dart` | ProfileInfo, VideoEncoderConfig, AudioEncoderConfig, options models |
-| `lib/models/device_management.dart` | DateTimeInfo, HostnameInfo, NetworkInterfaceInfo, etc. |
-| `lib/providers/onvif_providers.dart` | All ONVIF-related providers (device info, imaging, relay, presets, audio, PTZ status, media profiles, device mgmt) |
-| `lib/widgets/onvif/device_info_section.dart` | Device info display |
-| `lib/widgets/onvif/imaging_section.dart` | Imaging settings with API save |
-| `lib/widgets/onvif/relay_section.dart` | Relay output toggles |
-| `lib/widgets/onvif/ptz_presets_section.dart` | PTZ presets + home + set preset |
-| `lib/widgets/onvif/audio_section.dart` | Audio capabilities display |
-| `lib/widgets/onvif/ptz_enhanced_section.dart` | Enhanced PTZ with position display |
-| `lib/widgets/onvif/media_config_section.dart` | Media profiles + encoder config |
-| `lib/widgets/onvif/device_mgmt_section.dart` | Device management (system, network, users) |
+| File                                          | Responsibility                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `lib/models/device_info.dart`                 | DeviceInfo model                                                                                                   |
+| `lib/models/ptz_status.dart`                  | PTZStatus model                                                                                                    |
+| `lib/models/media_profile.dart`               | ProfileInfo, VideoEncoderConfig, AudioEncoderConfig, options models                                                |
+| `lib/models/device_management.dart`           | DateTimeInfo, HostnameInfo, NetworkInterfaceInfo, etc.                                                             |
+| `lib/providers/onvif_providers.dart`          | All ONVIF-related providers (device info, imaging, relay, presets, audio, PTZ status, media profiles, device mgmt) |
+| `lib/widgets/onvif/device_info_section.dart`  | Device info display                                                                                                |
+| `lib/widgets/onvif/imaging_section.dart`      | Imaging settings with API save                                                                                     |
+| `lib/widgets/onvif/relay_section.dart`        | Relay output toggles                                                                                               |
+| `lib/widgets/onvif/ptz_presets_section.dart`  | PTZ presets + home + set preset                                                                                    |
+| `lib/widgets/onvif/audio_section.dart`        | Audio capabilities display                                                                                         |
+| `lib/widgets/onvif/ptz_enhanced_section.dart` | Enhanced PTZ with position display                                                                                 |
+| `lib/widgets/onvif/media_config_section.dart` | Media profiles + encoder config                                                                                    |
+| `lib/widgets/onvif/device_mgmt_section.dart`  | Device management (system, network, users)                                                                         |
 
 ### Flutter — Modified Files
 
-| File | Change |
-|------|--------|
+| File                                            | Change                         |
+| ----------------------------------------------- | ------------------------------ |
 | `lib/screens/cameras/camera_detail_screen.dart` | Add collapsible ONVIF sections |
 
 ---
@@ -55,6 +55,7 @@
 ### Task 1: Server — Device Info Endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -128,6 +129,7 @@ git commit -m "feat(api): add device-info endpoint for ONVIF device information"
 ### Task 2: Flutter — ONVIF Models
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/device_info.dart`
 
 - [ ] **Step 1: Create device_info.dart model**
@@ -258,6 +260,7 @@ git commit -m "feat(flutter): add ONVIF models for device info, imaging, relay, 
 ### Task 3: Flutter — ONVIF Providers
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/onvif_providers.dart`
 
 - [ ] **Step 1: Create onvif_providers.dart**
@@ -362,6 +365,7 @@ git commit -m "feat(flutter): add Riverpod providers for ONVIF features"
 ### Task 4: Flutter — ONVIF Section Widgets
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/onvif/device_info_section.dart`
 - Create: `clients/flutter/lib/widgets/onvif/imaging_section.dart`
 - Create: `clients/flutter/lib/widgets/onvif/relay_section.dart`
@@ -783,6 +787,7 @@ git commit -m "feat(flutter): add ONVIF section widgets for device info, imaging
 ### Task 5: Flutter — Integrate Sections into Camera Detail Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 - [ ] **Step 1: Add imports at top of camera_detail_screen.dart**
@@ -808,7 +813,7 @@ if (_camera?.onvifEndpoint.isNotEmpty == true) ...[
 ],
 ```
 
-- [ ] **Step 3: Replace the existing IMAGING section in _buildAdvancedSections**
+- [ ] **Step 3: Replace the existing IMAGING section in \_buildAdvancedSections**
 
 Find the existing IMAGING `_ExpandableSection` (around line 838-868) and replace it with:
 
@@ -821,7 +826,7 @@ _ExpandableSection(
 ),
 ```
 
-- [ ] **Step 4: Replace the AUDIO section in _buildAdvancedSections**
+- [ ] **Step 4: Replace the AUDIO section in \_buildAdvancedSections**
 
 Find the existing AUDIO `_ExpandableSection` (around line 891-896) and replace it with:
 
@@ -834,7 +839,7 @@ _ExpandableSection(
 ),
 ```
 
-- [ ] **Step 5: Add RELAY OUTPUTS section after AUDIO in _buildAdvancedSections**
+- [ ] **Step 5: Add RELAY OUTPUTS section after AUDIO in \_buildAdvancedSections**
 
 ```dart
 const SizedBox(height: 8),
@@ -847,7 +852,7 @@ if (_camera?.supportsRelay == true)
   ),
 ```
 
-- [ ] **Step 6: Add PTZ PRESETS section after RELAY OUTPUTS in _buildAdvancedSections**
+- [ ] **Step 6: Add PTZ PRESETS section after RELAY OUTPUTS in \_buildAdvancedSections**
 
 ```dart
 const SizedBox(height: 8),
@@ -867,10 +872,12 @@ Remove the state variables `_brightness`, `_contrast`, `_saturation` from the St
 - [ ] **Step 8: Build and verify Flutter app**
 
 Run from `clients/flutter/`:
+
 ```bash
 flutter analyze
 flutter build macos --debug
 ```
+
 Expected: No analysis errors, successful build.
 
 - [ ] **Step 9: Commit**
@@ -887,6 +894,7 @@ git commit -m "feat(flutter): integrate ONVIF sections into camera detail screen
 ### Task 6: Server — Enhanced PTZ Methods
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/ptz.go`
 
 - [ ] **Step 1: Add new PTZ methods to ptz.go**
@@ -1001,6 +1009,7 @@ git commit -m "feat(onvif): add enhanced PTZ methods - absolute/relative move, s
 ### Task 7: Server — Enhanced PTZ API Endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -1127,6 +1136,7 @@ git commit -m "feat(api): add enhanced PTZ endpoints - absolute/relative move, s
 ### Task 8: Flutter — Enhanced PTZ UI
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/ptz_status.dart`
 - Create: `clients/flutter/lib/widgets/onvif/ptz_enhanced_section.dart`
 - Modify: `clients/flutter/lib/providers/onvif_providers.dart`
@@ -1422,6 +1432,7 @@ if (_camera?.ptzCapable == true)
 ```
 
 Add import:
+
 ```dart
 import '../../widgets/onvif/ptz_enhanced_section.dart';
 ```
@@ -1446,6 +1457,7 @@ git commit -m "feat(flutter): add enhanced PTZ UI with position display, preset 
 ### Task 9: Server — Media Configuration ONVIF Methods
 
 **Files:**
+
 - Create: `internal/nvr/onvif/media_config.go`
 
 - [ ] **Step 1: Create media_config.go**
@@ -1896,6 +1908,7 @@ git commit -m "feat(onvif): add media configuration methods - profiles, video/au
 ### Task 10: Server — Media Configuration API Endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -2126,6 +2139,7 @@ git commit -m "feat(api): add media configuration endpoints - profiles CRUD, vid
 ### Task 11: Flutter — Media Configuration UI
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/media_profile.dart`
 - Create: `clients/flutter/lib/widgets/onvif/media_config_section.dart`
 - Modify: `clients/flutter/lib/providers/onvif_providers.dart`
@@ -2142,6 +2156,7 @@ Add `mediaProfilesProvider(cameraId)` and `videoSourcesProvider(cameraId)` famil
 - [ ] **Step 3: Create media_config_section.dart widget**
 
 Build a `MediaConfigSection` ConsumerStatefulWidget that:
+
 - Loads profiles via `mediaProfilesProvider`
 - Shows each profile as a tappable card with codec/resolution summary
 - On tap, expands to show video encoder dropdowns and sliders populated from the options endpoint
@@ -2185,6 +2200,7 @@ git commit -m "feat(flutter): add media configuration UI - profile management, v
 ### Task 12: Server — Device Management ONVIF Methods
 
 **Files:**
+
 - Create: `internal/nvr/onvif/device_mgmt.go`
 
 - [ ] **Step 1: Create device_mgmt.go**
@@ -2553,6 +2569,7 @@ git commit -m "feat(onvif): add device management methods - datetime, hostname, 
 ### Task 13: Server — Device Management API Endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -2611,6 +2628,7 @@ git commit -m "feat(api): add device management endpoints - datetime, hostname, 
 ### Task 14: Flutter — Device Management UI
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/device_management.dart`
 - Create: `clients/flutter/lib/widgets/onvif/device_mgmt_section.dart`
 - Modify: `clients/flutter/lib/providers/onvif_providers.dart`
@@ -2623,6 +2641,7 @@ Create plain class models for `DateTimeInfo`, `HostnameInfo`, `NetworkInterfaceI
 - [ ] **Step 2: Add device management providers to onvif_providers.dart**
 
 Add family providers for:
+
 - `deviceDateTimeProvider(cameraId)`
 - `deviceHostnameProvider(cameraId)`
 - `networkInterfacesProvider(cameraId)`

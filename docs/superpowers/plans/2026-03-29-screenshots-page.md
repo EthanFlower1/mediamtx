@@ -42,6 +42,7 @@ clients/flutter/lib/
 ### Task 1: DB Migration and Screenshot CRUD
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Create: `internal/nvr/db/screenshots.go`
 - Modify: `internal/nvr/db/db_test.go`
@@ -202,6 +203,7 @@ git commit -m "feat(db): add screenshots table with paginated CRUD"
 ### Task 2: Screenshots API Handlers
 
 **Files:**
+
 - Create: `internal/nvr/api/screenshots.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -381,6 +383,7 @@ func (h *ScreenshotHandler) Delete(c *gin.Context) {
 ```
 
 IMPORTANT: The `CaptureSnapshot` function from `onvif/snapshot.go` saves files to the `outputDir` you provide, but returns a path prefixed with `/thumbnails/`. You need to either:
+
 - Use the returned path and adapt it, OR
 - Construct the web path yourself from the outputDir + filename
 
@@ -393,16 +396,19 @@ Note: The `decrypt` function may not exist in the `api` package. Check if there'
 In `internal/nvr/api/router.go`:
 
 Add handler setup:
+
 ```go
 screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
 ```
 
 Add static file serving (near the existing `/thumbnails` line):
+
 ```go
 engine.Static("/screenshots", "./screenshots")
 ```
 
 Add protected routes:
+
 ```go
 // Screenshots.
 protected.POST("/cameras/:id/screenshot", screenshotHandler.Capture)
@@ -428,6 +434,7 @@ git commit -m "feat(api): add screenshot capture, list, download, delete endpoin
 ### Task 3: Flutter Screenshots Screen
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/screenshots/screenshots_screen.dart`
 
 - [ ] **Step 1: Create the screen**
@@ -435,6 +442,7 @@ git commit -m "feat(api): add screenshot capture, list, download, delete endpoin
 A `ConsumerStatefulWidget` called `ScreenshotsScreen` with:
 
 **State:**
+
 ```dart
 List<dynamic> _screenshots = [];
 int _total = 0;
@@ -448,10 +456,12 @@ bool _loading = true;
 **Header:** Row with "SCREENSHOTS" (pageTitle), spacer, and filter controls.
 
 **Filter bar:** Row with:
+
 - Camera dropdown: "All Cameras" + cameras from API (`GET /cameras`)
 - Sort dropdown: "Newest" / "Oldest"
 
 **Grid body:** `GridView.builder` with:
+
 - `crossAxisCount`: 4 on desktop (width ≥ 800), 2 on mobile
 - `childAspectRatio`: 1.2
 - Each card:
@@ -461,6 +471,7 @@ bool _loading = true;
   - GestureDetector onTap → opens full-size dialog
 
 **Full-size dialog:** `showDialog` with:
+
 - Full-width image
 - Camera name + formatted timestamp
 - Row of buttons: "DOWNLOAD" (HudButton tactical) and "DELETE" (HudButton danger)
@@ -470,6 +481,7 @@ bool _loading = true;
 **Pagination:** At bottom of grid, show "Showing X of Y" text and "LOAD MORE" HudButton (if more pages exist). Load more increments page and appends results.
 
 **Fetch method:**
+
 ```dart
 Future<void> _fetchScreenshots({bool append = false}) async {
   final api = ref.read(apiClientProvider);
@@ -522,6 +534,7 @@ git commit -m "feat(flutter): add Screenshots gallery screen with pagination"
 ### Task 4: Add Screenshots to Navigation
 
 **Files:**
+
 - Modify: `clients/flutter/lib/router/app_router.dart`
 - Modify: `clients/flutter/lib/widgets/shell/icon_rail.dart`
 - Modify: `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart`
@@ -532,11 +545,13 @@ Screenshots goes after Search (index 3), shifting Devices→4, Settings→5, Sch
 - [ ] **Step 1: Update app_router.dart**
 
 Add import:
+
 ```dart
 import '../screens/screenshots/screenshots_screen.dart';
 ```
 
 Update `_indexFromPath()`:
+
 ```dart
 int _indexFromPath(String path) {
   if (path.startsWith('/live')) return 0;
@@ -551,11 +566,13 @@ int _indexFromPath(String path) {
 ```
 
 Update `_navigateToIndex()`:
+
 ```dart
 const paths = ['/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules'];
 ```
 
 Add GoRoute in ShellRoute routes (after search, before devices):
+
 ```dart
 GoRoute(
   path: '/screenshots',
@@ -566,6 +583,7 @@ GoRoute(
 - [ ] **Step 2: Update icon_rail.dart**
 
 Insert Screenshots after Search in `_navItems`:
+
 ```dart
 static const _navItems = [
   (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'Live'),
@@ -578,6 +596,7 @@ static const _navItems = [
 ```
 
 Update the `onTap` index mapping and `isActive` check. The rail now has 6 items mapping to router indices 0,1,2,3,4,6 (5 is Settings, handled separately). Update:
+
 - Items 0-4: map to router index `i`
 - Item 5 (Schedules): map to router index `6`
 
@@ -590,6 +609,7 @@ Also update the separator — it should render before index 4 (Devices) now. Che
 - [ ] **Step 3: Update mobile_bottom_nav.dart**
 
 Insert Screenshots after Search:
+
 ```dart
 static const _items = [
   (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'LIVE'),
@@ -626,9 +646,10 @@ git commit -m "feat(flutter): add Screenshots to navigation after Search"
 ### Task 5: Wire Fullscreen Snapshot Button
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/live_view/fullscreen_view.dart`
 
-- [ ] **Step 1: Replace _takeScreenshot()**
+- [ ] **Step 1: Replace \_takeScreenshot()**
 
 Replace the placeholder method (lines 86-93) with:
 

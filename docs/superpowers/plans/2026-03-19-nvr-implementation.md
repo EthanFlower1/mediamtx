@@ -78,6 +78,7 @@ mediamtx.yml                           # Add NVR config section
 ## Task 1: SQLite Database Foundation
 
 **Files:**
+
 - Create: `internal/nvr/db/db.go`
 - Create: `internal/nvr/db/migrations.go`
 - Create: `internal/nvr/db/db_test.go`
@@ -348,6 +349,7 @@ git commit -m "feat(nvr): add SQLite database foundation with migrations"
 ## Task 2: Camera CRUD Queries
 
 **Files:**
+
 - Create: `internal/nvr/db/cameras.go`
 - Create: `internal/nvr/db/cameras_test.go`
 
@@ -673,6 +675,7 @@ git commit -m "feat(nvr): add camera CRUD database queries"
 ## Task 3: Recording Metadata Queries
 
 **Files:**
+
 - Create: `internal/nvr/db/recordings.go`
 - Create: `internal/nvr/db/recordings_test.go`
 
@@ -920,6 +923,7 @@ git commit -m "feat(nvr): add recording metadata queries with timeline support"
 ## Task 4: User & Token Queries
 
 **Files:**
+
 - Create: `internal/nvr/db/users.go`
 - Create: `internal/nvr/db/tokens.go`
 - Create: `internal/nvr/db/config.go`
@@ -1409,6 +1413,7 @@ git commit -m "feat(nvr): add user, token, and config database queries"
 ## Task 5: Crypto Utilities (RSA Keys + AES Encryption)
 
 **Files:**
+
 - Create: `internal/nvr/crypto/keys.go`
 - Create: `internal/nvr/crypto/encrypt.go`
 - Create: `internal/nvr/crypto/keys_test.go`
@@ -1710,6 +1715,7 @@ git commit -m "feat(nvr): add RSA key generation, HKDF derivation, and AES-256-G
 ## Task 6: YAML Writer (Safe Config Modification)
 
 **Files:**
+
 - Create: `internal/nvr/yamlwriter/writer.go`
 - Create: `internal/nvr/yamlwriter/writer_test.go`
 
@@ -2049,6 +2055,7 @@ git commit -m "feat(nvr): add safe YAML writer with atomic writes and file locki
 ## Task 7: NVR Config Fields & Record Cleaner Callback
 
 **Files:**
+
 - Modify: `internal/conf/conf.go`
 - Modify: `internal/recordcleaner/cleaner.go`
 
@@ -2134,6 +2141,7 @@ git commit -m "feat(nvr): add NVR config fields and OnSegmentDelete callback to 
 ## Task 8: NVR Subsystem & Core Integration
 
 **Files:**
+
 - Create: `internal/nvr/nvr.go`
 - Create: `internal/nvr/nvr_test.go`
 - Modify: `internal/core/core.go`
@@ -2449,6 +2457,7 @@ git commit -m "feat(nvr): add NVR subsystem with core integration"
 ## Task 9: JWT Auth Middleware & Auth Endpoints
 
 **Files:**
+
 - Create: `internal/nvr/api/middleware.go`
 - Create: `internal/nvr/api/auth.go`
 - Create: `internal/nvr/api/jwks.go`
@@ -3009,6 +3018,7 @@ git commit -m "feat(nvr): add JWT auth middleware, auth endpoints, and JWKS hand
 ## Task 10: Camera, Recording, User, and System API Endpoints
 
 **Files:**
+
 - Create: `internal/nvr/api/cameras.go`
 - Create: `internal/nvr/api/recordings.go`
 - Create: `internal/nvr/api/users.go`
@@ -3600,6 +3610,7 @@ git commit -m "feat(nvr): add camera, recording, user, and system API endpoints"
 ## Task 11: API Router & Core Wiring
 
 **Files:**
+
 - Create: `internal/nvr/api/router.go`
 - Modify: `internal/nvr/nvr.go`
 - Modify: `internal/core/core.go`
@@ -3755,6 +3766,7 @@ git commit -m "feat(nvr): wire NVR API routes into existing gin server"
 ## Task 12: React UI Scaffold
 
 **Files:**
+
 - Create: `ui/` (React project)
 - Create: `internal/nvr/ui/embed.go`
 - Create: `internal/nvr/ui/dist/.gitkeep`
@@ -3775,16 +3787,16 @@ npm install react-router-dom
 Update `ui/vite.config.ts`:
 
 ```ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: '../internal/nvr/ui/dist',
+    outDir: "../internal/nvr/ui/dist",
     emptyOutDir: true,
   },
-})
+});
 ```
 
 - [ ] **Step 3: Create go:embed file**
@@ -3826,7 +3838,7 @@ nvr-ui:
 Replace `ui/src/App.tsx`:
 
 ```tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 function App() {
   return (
@@ -3842,10 +3854,10 @@ function App() {
         <Route path="/" element={<Navigate to="/live" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
 
-export default App
+export default App;
 ```
 
 - [ ] **Step 7: Build and verify embed works**
@@ -3870,6 +3882,7 @@ git commit -m "feat(nvr): scaffold React UI with Vite, configure go:embed"
 ## Task 13: ONVIF Discovery & Device Management
 
 **Files:**
+
 - Create: `internal/nvr/onvif/discovery.go`
 - Create: `internal/nvr/onvif/device.go`
 - Create: `internal/nvr/onvif/media.go`
@@ -4048,6 +4061,7 @@ func (d *Device) GetStreamURI(profileToken string) (string, error) {
 Create `internal/nvr/onvif/media.go`, `internal/nvr/onvif/imaging.go`, `internal/nvr/onvif/ptz.go` as similar stubs. These will wrap the kerberos-io/onvif library calls for media profile management, imaging settings, and PTZ control respectively.
 
 The implementer should:
+
 1. Read the `kerberos-io/onvif` library documentation and examples
 2. Implement each wrapper based on the actual ONVIF service SOAP calls
 3. Test against real or simulated ONVIF cameras
@@ -4139,6 +4153,7 @@ git commit -m "feat(nvr): add ONVIF discovery, device management, and PTZ stubs"
 ## Task 14: Recording Hook Integration
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go`
 - Modify: `internal/core/core.go`
 
@@ -4249,6 +4264,7 @@ git commit -m "feat(nvr): wire recording segment callbacks to NVR database"
 ## Task 15: UI Serving & Catchall Route
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go`
 - Modify: `internal/nvr/nvr.go`
 
@@ -4308,6 +4324,7 @@ git commit -m "feat(nvr): serve embedded React UI with SPA fallback routing"
 ## Task 16: React UI — Auth Flow & API Client
 
 **Files:**
+
 - Create: `ui/src/api/client.ts`
 - Create: `ui/src/auth/context.tsx`
 - Create: `ui/src/hooks/useAuth.ts`
@@ -4320,39 +4337,50 @@ git commit -m "feat(nvr): serve embedded React UI with SPA fallback routing"
 Create `ui/src/api/client.ts`:
 
 ```ts
-let accessToken: string | null = null
+let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
-  accessToken = token
+  accessToken = token;
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(options.headers)
+export async function apiFetch(
+  path: string,
+  options: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(options.headers);
   if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`)
+    headers.set("Authorization", `Bearer ${accessToken}`);
   }
-  headers.set('Content-Type', 'application/json')
+  headers.set("Content-Type", "application/json");
 
-  let res = await fetch(`/api/nvr${path}`, { ...options, headers, credentials: 'include' })
+  let res = await fetch(`/api/nvr${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 
   if (res.status === 401 && accessToken) {
     // Try refresh
-    const refreshRes = await fetch('/api/nvr/auth/refresh', {
-      method: 'POST',
-      credentials: 'include',
-    })
+    const refreshRes = await fetch("/api/nvr/auth/refresh", {
+      method: "POST",
+      credentials: "include",
+    });
     if (refreshRes.ok) {
-      const data = await refreshRes.json()
-      accessToken = data.access_token
-      headers.set('Authorization', `Bearer ${accessToken}`)
-      res = await fetch(`/api/nvr${path}`, { ...options, headers, credentials: 'include' })
+      const data = await refreshRes.json();
+      accessToken = data.access_token;
+      headers.set("Authorization", `Bearer ${accessToken}`);
+      res = await fetch(`/api/nvr${path}`, {
+        ...options,
+        headers,
+        credentials: "include",
+      });
     } else {
-      accessToken = null
-      window.location.href = '/login'
+      accessToken = null;
+      window.location.href = "/login";
     }
   }
 
-  return res
+  return res;
 }
 ```
 
@@ -4361,82 +4389,98 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 Create `ui/src/auth/context.tsx`:
 
 ```tsx
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { setAccessToken, apiFetch } from '../api/client'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { setAccessToken, apiFetch } from "../api/client";
 
 interface AuthState {
-  isAuthenticated: boolean
-  isLoading: boolean
-  user: { id: string; username: string; role: string } | null
-  login: (username: string, password: string) => Promise<void>
-  logout: () => Promise<void>
-  setupRequired: boolean
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user: { id: string; username: string; role: string } | null;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  setupRequired: boolean;
 }
 
-const AuthContext = createContext<AuthState | null>(null)
+const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<AuthState['user']>(null)
-  const [setupRequired, setSetupRequired] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthState["user"]>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
 
   useEffect(() => {
     // Try to refresh token on mount
-    fetch('/api/nvr/auth/refresh', { method: 'POST', credentials: 'include' })
+    fetch("/api/nvr/auth/refresh", { method: "POST", credentials: "include" })
       .then(async (res) => {
         if (res.ok) {
-          const data = await res.json()
-          setAccessToken(data.access_token)
-          setIsAuthenticated(true)
+          const data = await res.json();
+          setAccessToken(data.access_token);
+          setIsAuthenticated(true);
           // Decode JWT to get user info (payload is base64)
-          const payload = JSON.parse(atob(data.access_token.split('.')[1]))
-          setUser({ id: payload.sub, username: payload.username, role: payload.role })
+          const payload = JSON.parse(atob(data.access_token.split(".")[1]));
+          setUser({
+            id: payload.sub,
+            username: payload.username,
+            role: payload.role,
+          });
         } else {
           // Check if setup is needed
-          const healthRes = await fetch('/api/nvr/system/health')
+          const healthRes = await fetch("/api/nvr/system/health");
           if (healthRes.status === 503) {
-            setSetupRequired(true)
+            setSetupRequired(true);
           }
         }
       })
       .catch(() => {})
-      .finally(() => setIsLoading(false))
-  }, [])
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const login = async (username: string, password: string) => {
-    const res = await fetch('/api/nvr/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/nvr/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
-      credentials: 'include',
-    })
-    if (!res.ok) throw new Error('Invalid credentials')
-    const data = await res.json()
-    setAccessToken(data.access_token)
-    const payload = JSON.parse(atob(data.access_token.split('.')[1]))
-    setUser({ id: payload.sub, username: payload.username, role: payload.role })
-    setIsAuthenticated(true)
-  }
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Invalid credentials");
+    const data = await res.json();
+    setAccessToken(data.access_token);
+    const payload = JSON.parse(atob(data.access_token.split(".")[1]));
+    setUser({
+      id: payload.sub,
+      username: payload.username,
+      role: payload.role,
+    });
+    setIsAuthenticated(true);
+  };
 
   const logout = async () => {
-    await apiFetch('/auth/revoke', { method: 'POST' })
-    setAccessToken(null)
-    setUser(null)
-    setIsAuthenticated(false)
-  }
+    await apiFetch("/auth/revoke", { method: "POST" });
+    setAccessToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+  };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, setupRequired }}>
+    <AuthContext.Provider
+      value={{ isAuthenticated, isLoading, user, login, logout, setupRequired }}
+    >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }
 ```
 
@@ -4445,121 +4489,146 @@ export function useAuth() {
 Create `ui/src/pages/Login.tsx`:
 
 ```tsx
-import { useState, FormEvent } from 'react'
-import { useAuth } from '../auth/context'
-import { useNavigate } from 'react-router-dom'
+import { useState, FormEvent } from "react";
+import { useAuth } from "../auth/context";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError("");
     try {
-      await login(username, password)
-      navigate('/live')
+      await login(username, password);
+      navigate("/live");
     } catch {
-      setError('Invalid credentials')
+      setError("Invalid credentials");
     }
-  }
+  };
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', padding: 20 }}>
+    <div style={{ maxWidth: 400, margin: "100px auto", padding: 20 }}>
       <h1>MediaMTX NVR</h1>
       <form onSubmit={handleSubmit}>
         <div>
           <label>Username</label>
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)} required />
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
         <button type="submit">Login</button>
       </form>
     </div>
-  )
+  );
 }
 ```
 
 Create `ui/src/pages/Setup.tsx`:
 
 ```tsx
-import { useState, FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/context'
+import { useState, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/context";
 
 export default function Setup() {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [error, setError] = useState('')
-  const navigate = useNavigate()
-  const { login } = useAuth()
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (password !== confirm) {
-      setError('Passwords do not match')
-      return
+      setError("Passwords do not match");
+      return;
     }
-    const res = await fetch('/api/nvr/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/api/nvr/auth/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
-    })
+    });
     if (!res.ok) {
-      setError('Setup failed')
-      return
+      setError("Setup failed");
+      return;
     }
-    await login(username, password)
-    navigate('/live')
-  }
+    await login(username, password);
+    navigate("/live");
+  };
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', padding: 20 }}>
+    <div style={{ maxWidth: 400, margin: "100px auto", padding: 20 }}>
       <h1>MediaMTX NVR Setup</h1>
       <p>Create your admin account to get started.</p>
       <form onSubmit={handleSubmit}>
         <div>
           <label>Username</label>
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)} required />
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
         <div>
           <label>Confirm Password</label>
-          <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
+          <input
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+          />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
         <button type="submit">Create Admin Account</button>
       </form>
     </div>
-  )
+  );
 }
 ```
 
 - [ ] **Step 4: Update App.tsx with auth routing**
 
 ```tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './auth/context'
-import Login from './pages/Login'
-import Setup from './pages/Setup'
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./auth/context";
+import Login from "./pages/Login";
+import Setup from "./pages/Setup";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, setupRequired } = useAuth()
-  if (isLoading) return <div>Loading...</div>
-  if (setupRequired) return <Navigate to="/setup" replace />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  return <>{children}</>
+  const { isAuthenticated, isLoading, setupRequired } = useAuth();
+  if (isLoading) return <div>Loading...</div>;
+  if (setupRequired) return <Navigate to="/setup" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 }
 
 function AppRoutes() {
@@ -4567,14 +4636,49 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/setup" element={<Setup />} />
-      <Route path="/live" element={<ProtectedRoute><div>Live View</div></ProtectedRoute>} />
-      <Route path="/cameras" element={<ProtectedRoute><div>Camera Management</div></ProtectedRoute>} />
-      <Route path="/recordings" element={<ProtectedRoute><div>Recordings</div></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><div>Settings</div></ProtectedRoute>} />
-      <Route path="/users" element={<ProtectedRoute><div>User Management</div></ProtectedRoute>} />
+      <Route
+        path="/live"
+        element={
+          <ProtectedRoute>
+            <div>Live View</div>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cameras"
+        element={
+          <ProtectedRoute>
+            <div>Camera Management</div>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/recordings"
+        element={
+          <ProtectedRoute>
+            <div>Recordings</div>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <div>Settings</div>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <div>User Management</div>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/" element={<Navigate to="/live" replace />} />
     </Routes>
-  )
+  );
 }
 
 export default function App() {
@@ -4584,7 +4688,7 @@ export default function App() {
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
-  )
+  );
 }
 ```
 
@@ -4608,6 +4712,7 @@ git commit -m "feat(nvr): add auth flow, API client with JWT refresh, login and 
 ## Task 17: React UI — Live View with Camera Grid
 
 **Files:**
+
 - Create: `ui/src/pages/LiveView.tsx`
 - Create: `ui/src/components/CameraGrid.tsx`
 - Create: `ui/src/components/PlayerCell.tsx`
@@ -4618,31 +4723,33 @@ git commit -m "feat(nvr): add auth flow, API client with JWT refresh, login and 
 Create `ui/src/hooks/useCameras.ts`:
 
 ```ts
-import { useState, useEffect } from 'react'
-import { apiFetch } from '../api/client'
+import { useState, useEffect } from "react";
+import { apiFetch } from "../api/client";
 
 export interface Camera {
-  id: string
-  name: string
-  rtsp_url: string
-  mediamtx_path: string
-  status: string
-  ptz_capable: boolean
+  id: string;
+  name: string;
+  rtsp_url: string;
+  mediamtx_path: string;
+  status: string;
+  ptz_capable: boolean;
 }
 
 export function useCameras() {
-  const [cameras, setCameras] = useState<Camera[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
-    const res = await apiFetch('/cameras')
-    if (res.ok) setCameras(await res.json())
-    setLoading(false)
-  }
+    const res = await apiFetch("/cameras");
+    if (res.ok) setCameras(await res.json());
+    setLoading(false);
+  };
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh();
+  }, []);
 
-  return { cameras, loading, refresh }
+  return { cameras, loading, refresh };
 }
 ```
 
@@ -4651,16 +4758,16 @@ export function useCameras() {
 Create `ui/src/components/PlayerCell.tsx`:
 
 ```tsx
-import { useRef, useEffect } from 'react'
-import { Camera } from '../hooks/useCameras'
+import { useRef, useEffect } from "react";
+import { Camera } from "../hooks/useCameras";
 
 interface Props {
-  camera: Camera
-  onSelect?: () => void
+  camera: Camera;
+  onSelect?: () => void;
 }
 
 export default function PlayerCell({ camera, onSelect }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     // Use MediaMTX's existing WebRTC or HLS endpoints for playback
@@ -4668,30 +4775,51 @@ export default function PlayerCell({ camera, onSelect }: Props) {
     // HLS: /hls/${camera.mediamtx_path}/index.m3u8
     // For v1, start with HLS as it's simpler
     if (videoRef.current) {
-      videoRef.current.src = `/${camera.mediamtx_path}`
+      videoRef.current.src = `/${camera.mediamtx_path}`;
     }
-  }, [camera.mediamtx_path])
+  }, [camera.mediamtx_path]);
 
   return (
-    <div onClick={onSelect} style={{
-      position: 'relative',
-      background: '#000',
-      aspectRatio: '16/9',
-      cursor: 'pointer',
-    }}>
-      <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-      <div style={{
-        position: 'absolute', bottom: 4, left: 4,
-        background: 'rgba(0,0,0,0.6)', color: '#fff',
-        padding: '2px 8px', fontSize: 12, borderRadius: 4,
-      }}>
+    <div
+      onClick={onSelect}
+      style={{
+        position: "relative",
+        background: "#000",
+        aspectRatio: "16/9",
+        cursor: "pointer",
+      }}
+    >
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: 4,
+          left: 4,
+          background: "rgba(0,0,0,0.6)",
+          color: "#fff",
+          padding: "2px 8px",
+          fontSize: 12,
+          borderRadius: 4,
+        }}
+      >
         {camera.name}
-        <span style={{ marginLeft: 8, color: camera.status === 'online' ? '#4f4' : '#f44' }}>
+        <span
+          style={{
+            marginLeft: 8,
+            color: camera.status === "online" ? "#4f4" : "#f44",
+          }}
+        >
           {camera.status}
         </span>
       </div>
     </div>
-  )
+  );
 }
 ```
 
@@ -4702,24 +4830,26 @@ Note: The actual stream playback integration depends on which MediaMTX endpoint 
 Create `ui/src/components/CameraGrid.tsx`:
 
 ```tsx
-import { Camera } from '../hooks/useCameras'
-import PlayerCell from './PlayerCell'
+import { Camera } from "../hooks/useCameras";
+import PlayerCell from "./PlayerCell";
 
 interface Props {
-  cameras: Camera[]
-  layout: number // grid columns (1, 2, 3, 4)
-  onSelectCamera?: (camera: Camera) => void
+  cameras: Camera[];
+  layout: number; // grid columns (1, 2, 3, 4)
+  onSelectCamera?: (camera: Camera) => void;
 }
 
 export default function CameraGrid({ cameras, layout, onSelectCamera }: Props) {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: `repeat(${layout}, 1fr)`,
-      gap: 4,
-      width: '100%',
-    }}>
-      {cameras.map(cam => (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${layout}, 1fr)`,
+        gap: 4,
+        width: "100%",
+      }}
+    >
+      {cameras.map((cam) => (
         <PlayerCell
           key={cam.id}
           camera={cam}
@@ -4727,7 +4857,7 @@ export default function CameraGrid({ cameras, layout, onSelectCamera }: Props) {
         />
       ))}
     </div>
-  )
+  );
 }
 ```
 
@@ -4736,45 +4866,63 @@ export default function CameraGrid({ cameras, layout, onSelectCamera }: Props) {
 Create `ui/src/pages/LiveView.tsx`:
 
 ```tsx
-import { useState } from 'react'
-import { useCameras, Camera } from '../hooks/useCameras'
-import CameraGrid from '../components/CameraGrid'
+import { useState } from "react";
+import { useCameras, Camera } from "../hooks/useCameras";
+import CameraGrid from "../components/CameraGrid";
 
 export default function LiveView() {
-  const { cameras, loading } = useCameras()
-  const [layout, setLayout] = useState(2)
-  const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
+  const { cameras, loading } = useCameras();
+  const [layout, setLayout] = useState(2);
+  const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
 
-  if (loading) return <div>Loading cameras...</div>
-  if (cameras.length === 0) return <div>No cameras configured. Go to Camera Management to add cameras.</div>
+  if (loading) return <div>Loading cameras...</div>;
+  if (cameras.length === 0)
+    return (
+      <div>No cameras configured. Go to Camera Management to add cameras.</div>
+    );
 
   if (selectedCamera) {
     return (
       <div>
         <button onClick={() => setSelectedCamera(null)}>Back to Grid</button>
         <h2>{selectedCamera.name}</h2>
-        <div style={{ maxWidth: '100%', aspectRatio: '16/9' }}>
+        <div style={{ maxWidth: "100%", aspectRatio: "16/9" }}>
           {/* Full-size player */}
-          <video autoPlay muted playsInline style={{ width: '100%', height: '100%' }} />
+          <video
+            autoPlay
+            muted
+            playsInline
+            style={{ width: "100%", height: "100%" }}
+          />
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div>
       <div style={{ marginBottom: 8 }}>
         <span>Layout: </span>
-        {[1, 2, 3, 4].map(n => (
-          <button key={n} onClick={() => setLayout(n)}
-            style={{ fontWeight: layout === n ? 'bold' : 'normal', marginRight: 4 }}>
+        {[1, 2, 3, 4].map((n) => (
+          <button
+            key={n}
+            onClick={() => setLayout(n)}
+            style={{
+              fontWeight: layout === n ? "bold" : "normal",
+              marginRight: 4,
+            }}
+          >
             {n}x{n}
           </button>
         ))}
       </div>
-      <CameraGrid cameras={cameras} layout={layout} onSelectCamera={setSelectedCamera} />
+      <CameraGrid
+        cameras={cameras}
+        layout={layout}
+        onSelectCamera={setSelectedCamera}
+      />
     </div>
-  )
+  );
 }
 ```
 
@@ -4783,9 +4931,16 @@ export default function LiveView() {
 Replace the Live View stub route with the actual component:
 
 ```tsx
-import LiveView from './pages/LiveView'
+import LiveView from "./pages/LiveView";
 // ...
-<Route path="/live" element={<ProtectedRoute><LiveView /></ProtectedRoute>} />
+<Route
+  path="/live"
+  element={
+    <ProtectedRoute>
+      <LiveView />
+    </ProtectedRoute>
+  }
+/>;
 ```
 
 - [ ] **Step 6: Build and verify**
@@ -4808,6 +4963,7 @@ git commit -m "feat(nvr): add live view with multi-camera grid and layout select
 ## Task 18: React UI — Camera Management Page
 
 **Files:**
+
 - Create: `ui/src/pages/CameraManagement.tsx`
 
 - [ ] **Step 1: Implement camera management page**
@@ -4815,63 +4971,63 @@ git commit -m "feat(nvr): add live view with multi-camera grid and layout select
 Create `ui/src/pages/CameraManagement.tsx`:
 
 ```tsx
-import { useState, FormEvent } from 'react'
-import { useCameras, Camera } from '../hooks/useCameras'
-import { apiFetch } from '../api/client'
+import { useState, FormEvent } from "react";
+import { useCameras, Camera } from "../hooks/useCameras";
+import { apiFetch } from "../api/client";
 
 export default function CameraManagement() {
-  const { cameras, loading, refresh } = useCameras()
-  const [showAdd, setShowAdd] = useState(false)
-  const [discovering, setDiscovering] = useState(false)
-  const [discovered, setDiscovered] = useState<any[]>([])
+  const { cameras, loading, refresh } = useCameras();
+  const [showAdd, setShowAdd] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered] = useState<any[]>([]);
 
   const handleDiscover = async () => {
-    setDiscovering(true)
-    const res = await apiFetch('/cameras/discover', { method: 'POST' })
+    setDiscovering(true);
+    const res = await apiFetch("/cameras/discover", { method: "POST" });
     if (!res.ok) {
-      setDiscovering(false)
-      return
+      setDiscovering(false);
+      return;
     }
 
     // Poll for results
     const poll = setInterval(async () => {
-      const statusRes = await apiFetch('/cameras/discover/status')
+      const statusRes = await apiFetch("/cameras/discover/status");
       if (statusRes.ok) {
-        const data = await statusRes.json()
-        if (data.status === 'complete') {
-          clearInterval(poll)
-          const resultsRes = await apiFetch('/cameras/discover/results')
-          if (resultsRes.ok) setDiscovered(await resultsRes.json())
-          setDiscovering(false)
+        const data = await statusRes.json();
+        if (data.status === "complete") {
+          clearInterval(poll);
+          const resultsRes = await apiFetch("/cameras/discover/results");
+          if (resultsRes.ok) setDiscovered(await resultsRes.json());
+          setDiscovering(false);
         }
       }
-    }, 2000)
-  }
+    }, 2000);
+  };
 
   const handleAddCamera = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const res = await apiFetch('/cameras', {
-      method: 'POST',
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const res = await apiFetch("/cameras", {
+      method: "POST",
       body: JSON.stringify({
-        name: formData.get('name'),
-        rtsp_url: formData.get('rtsp_url'),
-        record: formData.get('record') === 'on',
+        name: formData.get("name"),
+        rtsp_url: formData.get("rtsp_url"),
+        record: formData.get("record") === "on",
       }),
-    })
+    });
     if (res.ok) {
-      setShowAdd(false)
-      refresh()
+      setShowAdd(false);
+      refresh();
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this camera?')) return
-    await apiFetch(`/cameras/${id}`, { method: 'DELETE' })
-    refresh()
-  }
+    if (!confirm("Delete this camera?")) return;
+    await apiFetch(`/cameras/${id}`, { method: "DELETE" });
+    refresh();
+  };
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div>
@@ -4879,49 +5035,82 @@ export default function CameraManagement() {
 
       <div style={{ marginBottom: 16 }}>
         <button onClick={() => setShowAdd(!showAdd)}>Add Camera</button>
-        <button onClick={handleDiscover} disabled={discovering} style={{ marginLeft: 8 }}>
-          {discovering ? 'Scanning...' : 'Discover ONVIF Cameras'}
+        <button
+          onClick={handleDiscover}
+          disabled={discovering}
+          style={{ marginLeft: 8 }}
+        >
+          {discovering ? "Scanning..." : "Discover ONVIF Cameras"}
         </button>
       </div>
 
       {discovered.length > 0 && (
-        <div style={{ marginBottom: 16, padding: 12, border: '1px solid #ccc' }}>
+        <div
+          style={{ marginBottom: 16, padding: 12, border: "1px solid #ccc" }}
+        >
           <h3>Discovered Cameras</h3>
           {discovered.map((d, i) => (
             <div key={i} style={{ marginBottom: 8 }}>
-              <strong>{d.manufacturer} {d.model}</strong> — {d.xaddr}
-              <button onClick={() => {
-                setShowAdd(true)
-                // Pre-fill form (simplified — actual implementation would set form state)
-              }} style={{ marginLeft: 8 }}>Add</button>
+              <strong>
+                {d.manufacturer} {d.model}
+              </strong>{" "}
+              — {d.xaddr}
+              <button
+                onClick={() => {
+                  setShowAdd(true);
+                  // Pre-fill form (simplified — actual implementation would set form state)
+                }}
+                style={{ marginLeft: 8 }}
+              >
+                Add
+              </button>
             </div>
           ))}
         </div>
       )}
 
       {showAdd && (
-        <form onSubmit={handleAddCamera} style={{ marginBottom: 16, padding: 12, border: '1px solid #ccc' }}>
+        <form
+          onSubmit={handleAddCamera}
+          style={{ marginBottom: 16, padding: 12, border: "1px solid #ccc" }}
+        >
           <h3>Add Camera</h3>
-          <div><label>Name</label><input name="name" required /></div>
-          <div><label>RTSP URL</label><input name="rtsp_url" required /></div>
-          <div><label><input name="record" type="checkbox" /> Enable Recording</label></div>
+          <div>
+            <label>Name</label>
+            <input name="name" required />
+          </div>
+          <div>
+            <label>RTSP URL</label>
+            <input name="rtsp_url" required />
+          </div>
+          <div>
+            <label>
+              <input name="record" type="checkbox" /> Enable Recording
+            </label>
+          </div>
           <button type="submit">Add</button>
         </form>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th>Name</th><th>Status</th><th>RTSP URL</th><th>PTZ</th><th>Actions</th>
+            <th>Name</th>
+            <th>Status</th>
+            <th>RTSP URL</th>
+            <th>PTZ</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {cameras.map(cam => (
+          {cameras.map((cam) => (
             <tr key={cam.id}>
               <td>{cam.name}</td>
-              <td style={{ color: cam.status === 'online' ? 'green' : 'red' }}>{cam.status}</td>
+              <td style={{ color: cam.status === "online" ? "green" : "red" }}>
+                {cam.status}
+              </td>
               <td>{cam.rtsp_url}</td>
-              <td>{cam.ptz_capable ? 'Yes' : 'No'}</td>
+              <td>{cam.ptz_capable ? "Yes" : "No"}</td>
               <td>
                 <button onClick={() => handleDelete(cam.id)}>Delete</button>
               </td>
@@ -4930,7 +5119,7 @@ export default function CameraManagement() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 ```
 
@@ -4954,6 +5143,7 @@ git commit -m "feat(nvr): add camera management page with ONVIF discovery"
 ## Task 19: React UI — Recordings Browser with Timeline
 
 **Files:**
+
 - Create: `ui/src/pages/Recordings.tsx`
 - Create: `ui/src/components/Timeline.tsx`
 - Create: `ui/src/hooks/useRecordings.ts`
@@ -4963,27 +5153,27 @@ git commit -m "feat(nvr): add camera management page with ONVIF discovery"
 Create `ui/src/hooks/useRecordings.ts`:
 
 ```ts
-import { useState } from 'react'
-import { apiFetch } from '../api/client'
+import { useState } from "react";
+import { apiFetch } from "../api/client";
 
 export interface TimeRange {
-  start: string
-  end: string
+  start: string;
+  end: string;
 }
 
 export function useTimeline(cameraId: string | null, date: string) {
-  const [ranges, setRanges] = useState<TimeRange[]>([])
-  const [loading, setLoading] = useState(false)
+  const [ranges, setRanges] = useState<TimeRange[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const load = async () => {
-    if (!cameraId || !date) return
-    setLoading(true)
-    const res = await apiFetch(`/timeline?camera_id=${cameraId}&date=${date}`)
-    if (res.ok) setRanges(await res.json())
-    setLoading(false)
-  }
+    if (!cameraId || !date) return;
+    setLoading(true);
+    const res = await apiFetch(`/timeline?camera_id=${cameraId}&date=${date}`);
+    if (res.ok) setRanges(await res.json());
+    setLoading(false);
+  };
 
-  return { ranges, loading, load }
+  return { ranges, loading, load };
 }
 ```
 
@@ -4992,57 +5182,78 @@ export function useTimeline(cameraId: string | null, date: string) {
 Create `ui/src/components/Timeline.tsx`:
 
 ```tsx
-import { TimeRange } from '../hooks/useRecordings'
+import { TimeRange } from "../hooks/useRecordings";
 
 interface Props {
-  ranges: TimeRange[]
-  date: string
-  onSeek?: (time: Date) => void
+  ranges: TimeRange[];
+  date: string;
+  onSeek?: (time: Date) => void;
 }
 
 export default function Timeline({ ranges, date, onSeek }: Props) {
-  const dayStart = new Date(date + 'T00:00:00Z')
-  const dayMs = 24 * 60 * 60 * 1000
+  const dayStart = new Date(date + "T00:00:00Z");
+  const dayMs = 24 * 60 * 60 * 1000;
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const pct = (e.clientX - rect.left) / rect.width
-    const time = new Date(dayStart.getTime() + pct * dayMs)
-    onSeek?.(time)
-  }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const time = new Date(dayStart.getTime() + pct * dayMs);
+    onSeek?.(time);
+  };
 
   return (
-    <div onClick={handleClick} style={{
-      position: 'relative', width: '100%', height: 40,
-      background: '#222', borderRadius: 4, cursor: 'crosshair',
-      overflow: 'hidden',
-    }}>
+    <div
+      onClick={handleClick}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: 40,
+        background: "#222",
+        borderRadius: 4,
+        cursor: "crosshair",
+        overflow: "hidden",
+      }}
+    >
       {ranges.map((r, i) => {
-        const start = new Date(r.start).getTime() - dayStart.getTime()
-        const end = new Date(r.end).getTime() - dayStart.getTime()
-        const left = (start / dayMs) * 100
-        const width = ((end - start) / dayMs) * 100
+        const start = new Date(r.start).getTime() - dayStart.getTime();
+        const end = new Date(r.end).getTime() - dayStart.getTime();
+        const left = (start / dayMs) * 100;
+        const width = ((end - start) / dayMs) * 100;
         return (
-          <div key={i} style={{
-            position: 'absolute', top: 0, bottom: 0,
-            left: `${left}%`, width: `${width}%`,
-            background: '#4a9eff', opacity: 0.7,
-          }} />
-        )
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: `${left}%`,
+              width: `${width}%`,
+              background: "#4a9eff",
+              opacity: 0.7,
+            }}
+          />
+        );
       })}
       {/* Hour markers */}
       {Array.from({ length: 24 }, (_, h) => (
-        <div key={h} style={{
-          position: 'absolute', top: 0, bottom: 0,
-          left: `${(h / 24) * 100}%`,
-          borderLeft: '1px solid rgba(255,255,255,0.2)',
-          fontSize: 9, color: '#888', paddingLeft: 2,
-        }}>
+        <div
+          key={h}
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${(h / 24) * 100}%`,
+            borderLeft: "1px solid rgba(255,255,255,0.2)",
+            fontSize: 9,
+            color: "#888",
+            paddingLeft: 2,
+          }}
+        >
           {h}:00
         </div>
       ))}
     </div>
-  )
+  );
 }
 ```
 
@@ -5051,46 +5262,66 @@ export default function Timeline({ ranges, date, onSeek }: Props) {
 Create `ui/src/pages/Recordings.tsx`:
 
 ```tsx
-import { useState, useEffect } from 'react'
-import { useCameras } from '../hooks/useCameras'
-import { useTimeline } from '../hooks/useRecordings'
-import Timeline from '../components/Timeline'
+import { useState, useEffect } from "react";
+import { useCameras } from "../hooks/useCameras";
+import { useTimeline } from "../hooks/useRecordings";
+import Timeline from "../components/Timeline";
 
 export default function Recordings() {
-  const { cameras, loading: camerasLoading } = useCameras()
-  const [selectedCamera, setSelectedCamera] = useState<string | null>(null)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const { ranges, loading: timelineLoading, load } = useTimeline(selectedCamera, date)
+  const { cameras, loading: camerasLoading } = useCameras();
+  const [selectedCamera, setSelectedCamera] = useState<string | null>(null);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const {
+    ranges,
+    loading: timelineLoading,
+    load,
+  } = useTimeline(selectedCamera, date);
 
   useEffect(() => {
-    if (selectedCamera && date) load()
-  }, [selectedCamera, date])
+    if (selectedCamera && date) load();
+  }, [selectedCamera, date]);
 
-  if (camerasLoading) return <div>Loading...</div>
+  if (camerasLoading) return <div>Loading...</div>;
 
   return (
     <div>
       <h1>Recordings</h1>
 
       <div style={{ marginBottom: 16 }}>
-        <select value={selectedCamera || ''} onChange={e => setSelectedCamera(e.target.value || null)}>
+        <select
+          value={selectedCamera || ""}
+          onChange={(e) => setSelectedCamera(e.target.value || null)}
+        >
           <option value="">Select Camera</option>
-          {cameras.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {cameras.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ marginLeft: 8 }} />
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          style={{ marginLeft: 8 }}
+        />
       </div>
 
       {selectedCamera && (
         <>
-          <Timeline ranges={ranges} date={date} onSeek={(time) => {
-            console.log('Seek to:', time)
-            // TODO: integrate with playback
-          }} />
+          <Timeline
+            ranges={ranges}
+            date={date}
+            onSeek={(time) => {
+              console.log("Seek to:", time);
+              // TODO: integrate with playback
+            }}
+          />
           {timelineLoading && <p>Loading timeline...</p>}
         </>
       )}
     </div>
-  )
+  );
 }
 ```
 
@@ -5114,6 +5345,7 @@ git commit -m "feat(nvr): add recordings browser with timeline visualization"
 ## Task 20: React UI — Settings & User Management Pages
 
 **Files:**
+
 - Create: `ui/src/pages/Settings.tsx`
 - Create: `ui/src/pages/UserManagement.tsx`
 
@@ -5122,17 +5354,17 @@ git commit -m "feat(nvr): add recordings browser with timeline visualization"
 Create `ui/src/pages/Settings.tsx`:
 
 ```tsx
-import { useState, useEffect } from 'react'
-import { apiFetch } from '../api/client'
+import { useState, useEffect } from "react";
+import { apiFetch } from "../api/client";
 
 export default function Settings() {
-  const [systemInfo, setSystemInfo] = useState<any>(null)
+  const [systemInfo, setSystemInfo] = useState<any>(null);
 
   useEffect(() => {
-    apiFetch('/system/info').then(async res => {
-      if (res.ok) setSystemInfo(await res.json())
-    })
-  }, [])
+    apiFetch("/system/info").then(async (res) => {
+      if (res.ok) setSystemInfo(await res.json());
+    });
+  }, []);
 
   return (
     <div>
@@ -5142,14 +5374,25 @@ export default function Settings() {
       {systemInfo ? (
         <table>
           <tbody>
-            <tr><td>Version</td><td>{systemInfo.version}</td></tr>
-            <tr><td>Platform</td><td>{systemInfo.platform}</td></tr>
-            <tr><td>Uptime</td><td>{systemInfo.uptime}</td></tr>
+            <tr>
+              <td>Version</td>
+              <td>{systemInfo.version}</td>
+            </tr>
+            <tr>
+              <td>Platform</td>
+              <td>{systemInfo.platform}</td>
+            </tr>
+            <tr>
+              <td>Uptime</td>
+              <td>{systemInfo.uptime}</td>
+            </tr>
           </tbody>
         </table>
-      ) : <p>Loading...</p>}
+      ) : (
+        <p>Loading...</p>
+      )}
     </div>
-  )
+  );
 }
 ```
 
@@ -5158,47 +5401,49 @@ export default function Settings() {
 Create `ui/src/pages/UserManagement.tsx`:
 
 ```tsx
-import { useState, useEffect, FormEvent } from 'react'
-import { apiFetch } from '../api/client'
+import { useState, useEffect, FormEvent } from "react";
+import { apiFetch } from "../api/client";
 
 interface User {
-  id: string
-  username: string
-  role: string
-  camera_permissions: string
+  id: string;
+  username: string;
+  role: string;
+  camera_permissions: string;
 }
 
 export default function UserManagement() {
-  const [users, setUsers] = useState<User[]>([])
-  const [showAdd, setShowAdd] = useState(false)
+  const [users, setUsers] = useState<User[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
 
   const refresh = async () => {
-    const res = await apiFetch('/users')
-    if (res.ok) setUsers(await res.json())
-  }
+    const res = await apiFetch("/users");
+    if (res.ok) setUsers(await res.json());
+  };
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh();
+  }, []);
 
   const handleAdd = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    await apiFetch('/users', {
-      method: 'POST',
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    await apiFetch("/users", {
+      method: "POST",
       body: JSON.stringify({
-        username: formData.get('username'),
-        password: formData.get('password'),
-        role: formData.get('role'),
+        username: formData.get("username"),
+        password: formData.get("password"),
+        role: formData.get("role"),
       }),
-    })
-    setShowAdd(false)
-    refresh()
-  }
+    });
+    setShowAdd(false);
+    refresh();
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this user?')) return
-    await apiFetch(`/users/${id}`, { method: 'DELETE' })
-    refresh()
-  }
+    if (!confirm("Delete this user?")) return;
+    await apiFetch(`/users/${id}`, { method: "DELETE" });
+    refresh();
+  };
 
   return (
     <div>
@@ -5206,9 +5451,18 @@ export default function UserManagement() {
       <button onClick={() => setShowAdd(!showAdd)}>Add User</button>
 
       {showAdd && (
-        <form onSubmit={handleAdd} style={{ margin: '16px 0', padding: 12, border: '1px solid #ccc' }}>
-          <div><label>Username</label><input name="username" required /></div>
-          <div><label>Password</label><input name="password" type="password" required /></div>
+        <form
+          onSubmit={handleAdd}
+          style={{ margin: "16px 0", padding: 12, border: "1px solid #ccc" }}
+        >
+          <div>
+            <label>Username</label>
+            <input name="username" required />
+          </div>
+          <div>
+            <label>Password</label>
+            <input name="password" type="password" required />
+          </div>
           <div>
             <label>Role</label>
             <select name="role">
@@ -5220,20 +5474,28 @@ export default function UserManagement() {
         </form>
       )}
 
-      <table style={{ width: '100%', marginTop: 16 }}>
-        <thead><tr><th>Username</th><th>Role</th><th>Actions</th></tr></thead>
+      <table style={{ width: "100%", marginTop: 16 }}>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
         <tbody>
-          {users.map(u => (
+          {users.map((u) => (
             <tr key={u.id}>
               <td>{u.username}</td>
               <td>{u.role}</td>
-              <td><button onClick={() => handleDelete(u.id)}>Delete</button></td>
+              <td>
+                <button onClick={() => handleDelete(u.id)}>Delete</button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 ```
 
@@ -5261,6 +5523,7 @@ git commit -m "feat(nvr): add settings and user management pages"
 ## Task 21: End-to-End Build Verification
 
 **Files:**
+
 - Modify: `scripts/binaries.mk`
 
 - [ ] **Step 1: Update binaries.mk to include UI build**

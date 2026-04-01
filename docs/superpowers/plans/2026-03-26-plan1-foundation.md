@@ -15,37 +15,39 @@
 ## File Structure
 
 ### New Files
-| File | Responsibility |
-|---|---|
-| `clients/flutter/assets/fonts/JetBrainsMono-*.ttf` | Bundled monospace font files (Regular, Medium, Bold) |
-| `clients/flutter/assets/fonts/IBMPlexSans-*.ttf` | Bundled sans-serif font files (Light, Regular, Medium, SemiBold, Bold) |
-| `clients/flutter/lib/theme/nvr_typography.dart` | Text style definitions using the two font families |
-| `clients/flutter/lib/theme/nvr_animations.dart` | Animation duration and curve constants |
-| `clients/flutter/lib/widgets/hud/analog_slider.dart` | Custom analog slider with tick marks and glow thumb |
-| `clients/flutter/lib/widgets/hud/hud_toggle.dart` | Custom toggle switch with ON/OFF glow states |
-| `clients/flutter/lib/widgets/hud/rotary_knob.dart` | Rotary knob control with notch marks |
-| `clients/flutter/lib/widgets/hud/segmented_control.dart` | HUD-style segmented selector |
-| `clients/flutter/lib/widgets/hud/status_badge.dart` | Status badge with glow dot and mono label |
-| `clients/flutter/lib/widgets/hud/hud_button.dart` | Button variants (primary, secondary, danger, tactical) |
-| `clients/flutter/lib/widgets/hud/corner_brackets.dart` | Corner bracket overlay for camera tiles |
-| `clients/flutter/lib/widgets/shell/icon_rail.dart` | Desktop icon rail navigation (60px) |
-| `clients/flutter/lib/widgets/shell/camera_panel.dart` | Slide-out camera list panel (230px) |
-| `clients/flutter/lib/widgets/shell/navigation_shell.dart` | Adaptive layout: icon rail + panel (desktop) or bottom nav (mobile) |
-| `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart` | Mobile bottom navigation bar (4 items) |
-| `clients/flutter/lib/providers/camera_panel_provider.dart` | Camera panel state (open/closed, search, group filter) |
+
+| File                                                       | Responsibility                                                         |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `clients/flutter/assets/fonts/JetBrainsMono-*.ttf`         | Bundled monospace font files (Regular, Medium, Bold)                   |
+| `clients/flutter/assets/fonts/IBMPlexSans-*.ttf`           | Bundled sans-serif font files (Light, Regular, Medium, SemiBold, Bold) |
+| `clients/flutter/lib/theme/nvr_typography.dart`            | Text style definitions using the two font families                     |
+| `clients/flutter/lib/theme/nvr_animations.dart`            | Animation duration and curve constants                                 |
+| `clients/flutter/lib/widgets/hud/analog_slider.dart`       | Custom analog slider with tick marks and glow thumb                    |
+| `clients/flutter/lib/widgets/hud/hud_toggle.dart`          | Custom toggle switch with ON/OFF glow states                           |
+| `clients/flutter/lib/widgets/hud/rotary_knob.dart`         | Rotary knob control with notch marks                                   |
+| `clients/flutter/lib/widgets/hud/segmented_control.dart`   | HUD-style segmented selector                                           |
+| `clients/flutter/lib/widgets/hud/status_badge.dart`        | Status badge with glow dot and mono label                              |
+| `clients/flutter/lib/widgets/hud/hud_button.dart`          | Button variants (primary, secondary, danger, tactical)                 |
+| `clients/flutter/lib/widgets/hud/corner_brackets.dart`     | Corner bracket overlay for camera tiles                                |
+| `clients/flutter/lib/widgets/shell/icon_rail.dart`         | Desktop icon rail navigation (60px)                                    |
+| `clients/flutter/lib/widgets/shell/camera_panel.dart`      | Slide-out camera list panel (230px)                                    |
+| `clients/flutter/lib/widgets/shell/navigation_shell.dart`  | Adaptive layout: icon rail + panel (desktop) or bottom nav (mobile)    |
+| `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart` | Mobile bottom navigation bar (4 items)                                 |
+| `clients/flutter/lib/providers/camera_panel_provider.dart` | Camera panel state (open/closed, search, group filter)                 |
 
 ### Modified Files
-| File | Changes |
-|---|---|
-| `clients/flutter/lib/theme/nvr_colors.dart` | Replace all color values with Tactical HUD palette |
-| `clients/flutter/lib/theme/nvr_theme.dart` | Rebuild theme with new colors, fonts, component styles |
-| `clients/flutter/lib/app.dart` | No changes needed (already uses NvrTheme.dark()) |
-| `clients/flutter/lib/main.dart` | No changes needed |
-| `clients/flutter/lib/router/app_router.dart` | Rename `/cameras` → `/devices`, update shell to use NavigationShell, update index mapping to 4 destinations on mobile |
-| `clients/flutter/lib/widgets/adaptive_layout.dart` | Replace with new NavigationShell (this file becomes unused) |
-| `clients/flutter/pubspec.yaml` | Add font asset declarations |
-| `clients/flutter/lib/screens/login_screen.dart` | Full rebuild with Tactical HUD styling |
-| `clients/flutter/lib/screens/server_setup_screen.dart` | Full rebuild with Tactical HUD styling |
+
+| File                                                   | Changes                                                                                                               |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `clients/flutter/lib/theme/nvr_colors.dart`            | Replace all color values with Tactical HUD palette                                                                    |
+| `clients/flutter/lib/theme/nvr_theme.dart`             | Rebuild theme with new colors, fonts, component styles                                                                |
+| `clients/flutter/lib/app.dart`                         | No changes needed (already uses NvrTheme.dark())                                                                      |
+| `clients/flutter/lib/main.dart`                        | No changes needed                                                                                                     |
+| `clients/flutter/lib/router/app_router.dart`           | Rename `/cameras` → `/devices`, update shell to use NavigationShell, update index mapping to 4 destinations on mobile |
+| `clients/flutter/lib/widgets/adaptive_layout.dart`     | Replace with new NavigationShell (this file becomes unused)                                                           |
+| `clients/flutter/pubspec.yaml`                         | Add font asset declarations                                                                                           |
+| `clients/flutter/lib/screens/login_screen.dart`        | Full rebuild with Tactical HUD styling                                                                                |
+| `clients/flutter/lib/screens/server_setup_screen.dart` | Full rebuild with Tactical HUD styling                                                                                |
 
 ---
 
@@ -54,6 +56,7 @@
 ### Task 1: Bundle Fonts
 
 **Files:**
+
 - Create: `clients/flutter/assets/fonts/` (directory with font files)
 - Modify: `clients/flutter/pubspec.yaml`
 
@@ -85,27 +88,27 @@ cp /tmp/ibmplex/static/IBMPlexSans-Bold.ttf clients/flutter/assets/fonts/
 Add to the `flutter:` section of `clients/flutter/pubspec.yaml`:
 
 ```yaml
-  fonts:
-    - family: JetBrainsMono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/JetBrainsMono-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/JetBrainsMono-Bold.ttf
-          weight: 700
-    - family: IBMPlexSans
-      fonts:
-        - asset: assets/fonts/IBMPlexSans-Light.ttf
-          weight: 300
-        - asset: assets/fonts/IBMPlexSans-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/IBMPlexSans-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/IBMPlexSans-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/IBMPlexSans-Bold.ttf
-          weight: 700
+fonts:
+  - family: JetBrainsMono
+    fonts:
+      - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        weight: 400
+      - asset: assets/fonts/JetBrainsMono-Medium.ttf
+        weight: 500
+      - asset: assets/fonts/JetBrainsMono-Bold.ttf
+        weight: 700
+  - family: IBMPlexSans
+    fonts:
+      - asset: assets/fonts/IBMPlexSans-Light.ttf
+        weight: 300
+      - asset: assets/fonts/IBMPlexSans-Regular.ttf
+        weight: 400
+      - asset: assets/fonts/IBMPlexSans-Medium.ttf
+        weight: 500
+      - asset: assets/fonts/IBMPlexSans-SemiBold.ttf
+        weight: 600
+      - asset: assets/fonts/IBMPlexSans-Bold.ttf
+        weight: 700
 ```
 
 - [ ] **Step 3: Verify fonts load**
@@ -126,6 +129,7 @@ git commit -m "feat(ui): bundle JetBrains Mono and IBM Plex Sans fonts"
 ### Task 2: Redefine Color Palette
 
 **Files:**
+
 - Modify: `clients/flutter/lib/theme/nvr_colors.dart`
 
 - [ ] **Step 1: Replace all color constants**
@@ -181,6 +185,7 @@ git commit -m "feat(ui): redefine color palette — Tactical HUD theme"
 ### Task 3: Typography & Animation Constants
 
 **Files:**
+
 - Create: `clients/flutter/lib/theme/nvr_typography.dart`
 - Create: `clients/flutter/lib/theme/nvr_animations.dart`
 
@@ -334,6 +339,7 @@ git commit -m "feat(ui): add typography definitions and animation constants"
 ### Task 4: Rebuild NvrTheme
 
 **Files:**
+
 - Modify: `clients/flutter/lib/theme/nvr_theme.dart`
 
 - [ ] **Step 1: Replace theme with Tactical HUD styling**
@@ -489,6 +495,7 @@ git commit -m "feat(ui): rebuild NvrTheme with Tactical HUD dark theme"
 ### Task 5: Build Custom HUD Widget Library
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/hud/corner_brackets.dart`
 - Create: `clients/flutter/lib/widgets/hud/status_badge.dart`
 - Create: `clients/flutter/lib/widgets/hud/hud_button.dart`
@@ -1192,6 +1199,7 @@ git commit -m "feat(ui): add HUD widget library — brackets, badges, buttons, s
 ### Task 6: Camera Panel Provider
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/camera_panel_provider.dart`
 
 - [ ] **Step 1: Create camera panel state provider**
@@ -1260,6 +1268,7 @@ git commit -m "feat(ui): add camera panel state provider"
 ### Task 7: Build Navigation Shell
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/shell/icon_rail.dart`
 - Create: `clients/flutter/lib/widgets/shell/mobile_bottom_nav.dart`
 - Create: `clients/flutter/lib/widgets/shell/camera_panel.dart`
@@ -1769,11 +1778,13 @@ git commit -m "feat(ui): build navigation shell — icon rail, camera panel, mob
 ### Task 8: Update Router
 
 **Files:**
+
 - Modify: `clients/flutter/lib/router/app_router.dart`
 
 - [ ] **Step 1: Update router to use NavigationShell and rename cameras → devices**
 
 Update `clients/flutter/lib/router/app_router.dart`. Key changes:
+
 - Replace `AdaptiveLayout` with `NavigationShell` in the ShellRoute builder
 - Rename `/cameras` path to `/devices`
 - Update `_indexFromPath` to map the new paths
@@ -1883,6 +1894,7 @@ git commit -m "feat(ui): update router — NavigationShell, /cameras → /device
 ### Task 9: Rebuild Login Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/login_screen.dart`
 
 - [ ] **Step 1: Rebuild LoginScreen with Tactical HUD styling**
@@ -1911,6 +1923,7 @@ git commit -m "feat(ui): rebuild LoginScreen with Tactical HUD styling"
 ### Task 10: Rebuild Server Setup Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/server_setup_screen.dart`
 
 - [ ] **Step 1: Rebuild ServerSetupScreen with Tactical HUD styling**

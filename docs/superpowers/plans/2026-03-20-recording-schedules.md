@@ -15,37 +15,40 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/db/recording_rules.go` | RecordingRule struct + CRUD queries |
-| `internal/nvr/db/recording_rules_test.go` | DB layer tests |
-| `internal/nvr/api/recording_rules.go` | HTTP handlers for rules CRUD + recording status |
-| `internal/nvr/api/recording_rules_test.go` | API handler tests |
-| `internal/nvr/scheduler/scheduler.go` | Background evaluator, write coalescing, camera state tracking |
-| `internal/nvr/scheduler/scheduler_test.go` | Scheduler evaluation logic tests |
-| `internal/nvr/scheduler/motion.go` | ONVIF PullPoint subscription + motion state machine |
-| `internal/nvr/scheduler/motion_test.go` | Motion state machine tests |
-| `internal/nvr/onvif/events.go` | Raw SOAP calls for ONVIF event service |
-| `ui/src/components/RecordingRules.tsx` | Recording rules UI component |
-| `ui/src/components/SchedulePreview.tsx` | Weekly schedule grid visualization |
-| `ui/src/hooks/useRecordingRules.ts` | React hook for rules CRUD |
+
+| File                                       | Responsibility                                                |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `internal/nvr/db/recording_rules.go`       | RecordingRule struct + CRUD queries                           |
+| `internal/nvr/db/recording_rules_test.go`  | DB layer tests                                                |
+| `internal/nvr/api/recording_rules.go`      | HTTP handlers for rules CRUD + recording status               |
+| `internal/nvr/api/recording_rules_test.go` | API handler tests                                             |
+| `internal/nvr/scheduler/scheduler.go`      | Background evaluator, write coalescing, camera state tracking |
+| `internal/nvr/scheduler/scheduler_test.go` | Scheduler evaluation logic tests                              |
+| `internal/nvr/scheduler/motion.go`         | ONVIF PullPoint subscription + motion state machine           |
+| `internal/nvr/scheduler/motion_test.go`    | Motion state machine tests                                    |
+| `internal/nvr/onvif/events.go`             | Raw SOAP calls for ONVIF event service                        |
+| `ui/src/components/RecordingRules.tsx`     | Recording rules UI component                                  |
+| `ui/src/components/SchedulePreview.tsx`    | Weekly schedule grid visualization                            |
+| `ui/src/hooks/useRecordingRules.ts`        | React hook for rules CRUD                                     |
 
 ### Modified files
-| File | Change |
-|------|--------|
-| `internal/nvr/db/migrations.go` | Add v2 migration for recording_rules table |
-| `internal/nvr/api/router.go` | Register recording rules endpoints, pass scheduler to RouterConfig |
-| `internal/nvr/api/cameras.go` | Call scheduler.RemoveCamera on camera delete |
-| `internal/nvr/nvr.go` | Create/start/stop scheduler, pass to RegisterRoutes |
-| `internal/nvr/yamlwriter/writer.go` | Add SetPathValue method |
-| `internal/nvr/yamlwriter/writer_test.go` | Test SetPathValue |
-| `ui/src/pages/CameraManagement.tsx` | Add recording rules section per camera |
+
+| File                                     | Change                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `internal/nvr/db/migrations.go`          | Add v2 migration for recording_rules table                         |
+| `internal/nvr/api/router.go`             | Register recording rules endpoints, pass scheduler to RouterConfig |
+| `internal/nvr/api/cameras.go`            | Call scheduler.RemoveCamera on camera delete                       |
+| `internal/nvr/nvr.go`                    | Create/start/stop scheduler, pass to RegisterRoutes                |
+| `internal/nvr/yamlwriter/writer.go`      | Add SetPathValue method                                            |
+| `internal/nvr/yamlwriter/writer_test.go` | Test SetPathValue                                                  |
+| `ui/src/pages/CameraManagement.tsx`      | Add recording rules section per camera                             |
 
 ---
 
 ### Task 1: Add `recording_rules` DB migration and struct
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Create: `internal/nvr/db/recording_rules.go`
 - Create: `internal/nvr/db/recording_rules_test.go`
@@ -323,6 +326,7 @@ git commit -m "feat(nvr): add recording_rules database table and CRUD queries"
 ### Task 2: Add `SetPathValue` to YAML writer
 
 **Files:**
+
 - Modify: `internal/nvr/yamlwriter/writer.go`
 - Modify: `internal/nvr/yamlwriter/writer_test.go`
 
@@ -443,6 +447,7 @@ git commit -m "feat(nvr): add SetPathValue to YAML writer for toggling individua
 ### Task 3: Implement schedule evaluator
 
 **Files:**
+
 - Create: `internal/nvr/scheduler/scheduler.go`
 - Create: `internal/nvr/scheduler/scheduler_test.go`
 
@@ -876,6 +881,7 @@ git commit -m "feat(nvr): add schedule evaluator with rule matching and write co
 ### Task 4: Implement ONVIF event subscription and motion state machine
 
 **Files:**
+
 - Create: `internal/nvr/onvif/events.go`
 - Create: `internal/nvr/scheduler/motion.go`
 - Create: `internal/nvr/scheduler/motion_test.go`
@@ -1303,6 +1309,7 @@ git commit -m "feat(nvr): add ONVIF event subscription and motion state machine"
 ### Task 5: Wire scheduler into NVR lifecycle and API
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go`
 - Modify: `internal/nvr/api/router.go`
 - Create: `internal/nvr/api/recording_rules.go`
@@ -1470,11 +1477,13 @@ func (h *RecordingRuleHandler) Status(c *gin.Context) {
 - [ ] **Step 2: Register routes in router.go**
 
 Add to `RouterConfig`:
+
 ```go
 Scheduler *scheduler.Scheduler
 ```
 
 Add to `RegisterRoutes`:
+
 ```go
 ruleHandler := &RecordingRuleHandler{
     DB:        cfg.DB,
@@ -1491,6 +1500,7 @@ protected.GET("/cameras/:id/recording-status", ruleHandler.Status)
 - [ ] **Step 3: Wire scheduler into NVR struct**
 
 In `internal/nvr/nvr.go`:
+
 - Add `scheduler *scheduler.Scheduler` field to NVR struct
 - In `Initialize()`, after opening the database and yamlWriter, create and start the scheduler:
   ```go
@@ -1508,6 +1518,7 @@ In `internal/nvr/nvr.go`:
 - [ ] **Step 4: Call scheduler.RemoveCamera on camera delete**
 
 In `internal/nvr/api/cameras.go` `Delete` handler, add after successful DB delete:
+
 ```go
 if h.Scheduler != nil {
     h.Scheduler.RemoveCamera(id)
@@ -1533,6 +1544,7 @@ git commit -m "feat(nvr): wire recording schedule API, scheduler, and camera cle
 ### Task 6: Build recording rules UI
 
 **Files:**
+
 - Create: `ui/src/hooks/useRecordingRules.ts`
 - Create: `ui/src/components/RecordingRules.tsx`
 - Create: `ui/src/components/SchedulePreview.tsx`
@@ -1543,72 +1555,85 @@ git commit -m "feat(nvr): wire recording schedule API, scheduler, and camera cle
 Create `ui/src/hooks/useRecordingRules.ts`:
 
 ```typescript
-import { useState, useEffect, useCallback } from 'react'
-import { apiFetch } from '../api/client'
+import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "../api/client";
 
 export interface RecordingRule {
-  id: string
-  camera_id: string
-  name: string
-  mode: 'always' | 'events'
-  days: string // JSON array
-  start_time: string
-  end_time: string
-  post_event_seconds: number
-  enabled: boolean
+  id: string;
+  camera_id: string;
+  name: string;
+  mode: "always" | "events";
+  days: string; // JSON array
+  start_time: string;
+  end_time: string;
+  post_event_seconds: number;
+  enabled: boolean;
 }
 
 export interface RecordingStatus {
-  effective_mode: string
-  motion_state: string
-  active_rules: string[]
-  recording: boolean
+  effective_mode: string;
+  motion_state: string;
+  active_rules: string[];
+  recording: boolean;
 }
 
 export function useRecordingRules(cameraId: string | null) {
-  const [rules, setRules] = useState<RecordingRule[]>([])
-  const [status, setStatus] = useState<RecordingStatus | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [rules, setRules] = useState<RecordingRule[]>([]);
+  const [status, setStatus] = useState<RecordingStatus | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!cameraId) return
-    setLoading(true)
+    if (!cameraId) return;
+    setLoading(true);
     const [rulesRes, statusRes] = await Promise.all([
       apiFetch(`/cameras/${cameraId}/recording-rules`),
       apiFetch(`/cameras/${cameraId}/recording-status`),
-    ])
-    if (rulesRes.ok) setRules(await rulesRes.json())
-    if (statusRes.ok) setStatus(await statusRes.json())
-    setLoading(false)
-  }, [cameraId])
+    ]);
+    if (rulesRes.ok) setRules(await rulesRes.json());
+    if (statusRes.ok) setStatus(await statusRes.json());
+    setLoading(false);
+  }, [cameraId]);
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
-  const createRule = async (rule: Omit<RecordingRule, 'id' | 'camera_id'>) => {
+  const createRule = async (rule: Omit<RecordingRule, "id" | "camera_id">) => {
     const res = await apiFetch(`/cameras/${cameraId}/recording-rules`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(rule),
-    })
-    if (res.ok) await refresh()
-    return res.ok
-  }
+    });
+    if (res.ok) await refresh();
+    return res.ok;
+  };
 
-  const updateRule = async (id: string, rule: Omit<RecordingRule, 'id' | 'camera_id'>) => {
+  const updateRule = async (
+    id: string,
+    rule: Omit<RecordingRule, "id" | "camera_id">,
+  ) => {
     const res = await apiFetch(`/recording-rules/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(rule),
-    })
-    if (res.ok) await refresh()
-    return res.ok
-  }
+    });
+    if (res.ok) await refresh();
+    return res.ok;
+  };
 
   const deleteRule = async (id: string) => {
-    const res = await apiFetch(`/recording-rules/${id}`, { method: 'DELETE' })
-    if (res.ok) await refresh()
-    return res.ok
-  }
+    const res = await apiFetch(`/recording-rules/${id}`, { method: "DELETE" });
+    if (res.ok) await refresh();
+    return res.ok;
+  };
 
-  return { rules, status, loading, refresh, createRule, updateRule, deleteRule }
+  return {
+    rules,
+    status,
+    loading,
+    refresh,
+    createRule,
+    updateRule,
+    deleteRule,
+  };
 }
 ```
 
@@ -1619,6 +1644,7 @@ Create `ui/src/components/SchedulePreview.tsx` — a 7×48 grid (30-min slots) t
 - [ ] **Step 3: Create RecordingRules component**
 
 Create `ui/src/components/RecordingRules.tsx` — the rules list + add/edit form:
+
 - Shows rules as cards with name, mode badge, days, time range, enabled toggle
 - Add Rule form: name, mode (Always/Events), day checkboxes with Weekdays/Weekends/Every Day shortcuts, time pickers, post-event buffer (events only)
 - Edit and delete actions
@@ -1647,11 +1673,13 @@ git commit -m "feat(nvr): add recording rules UI with schedule preview and statu
 ### Task 7: Integration testing and polish
 
 **Files:**
+
 - Create: `internal/nvr/api/recording_rules_test.go`
 
 - [ ] **Step 1: Write API handler tests**
 
 Create `internal/nvr/api/recording_rules_test.go` testing:
+
 - Create rule returns 201 with valid body
 - Create rule returns 404 for non-existent camera
 - Create rule returns 400 for invalid mode
@@ -1676,6 +1704,7 @@ go run .
 ```
 
 Verify:
+
 1. Server starts with no errors
 2. Create a camera, add recording rules via UI
 3. Rules appear in the list

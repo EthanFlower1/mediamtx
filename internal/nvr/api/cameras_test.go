@@ -107,6 +107,34 @@ func TestCameraCreate(t *testing.T) {
 	}
 }
 
+func TestCameraResponseIncludesRecordingHealth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	cam := &db.Camera{Name: "Test Cam", RTSPURL: "rtsp://test", MediaMTXPath: "test"}
+	err := handler.DB.CreateCamera(cam)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/cameras/"+cam.ID, nil)
+	c.Params = gin.Params{{Key: "id", Value: cam.ID}}
+	c.Set("camera_permissions", "*")
+	handler.Get(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+
+	rh, ok := resp["recording_health"]
+	require.True(t, ok, "response should include recording_health field")
+	require.Equal(t, "inactive", rh)
+}
+
 func TestSanitizePath(t *testing.T) {
 	tests := []struct {
 		input    string

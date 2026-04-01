@@ -16,41 +16,44 @@
 
 ## File Structure
 
-| File | Task | Purpose |
-|------|------|---------|
-| `clients/flutter/pubspec.yaml` | 1 | Add media_kit dependencies |
-| `clients/flutter/lib/services/playback_service.dart` | 1 | HLS URL builder + local RFC3339 formatter |
-| `clients/flutter/lib/models/recording.dart` | 2 | Recording segment + motion event models |
-| `clients/flutter/lib/models/search_result.dart` | 2 | Search result model |
-| `clients/flutter/lib/models/saved_clip.dart` | 2 | Saved clip model |
-| `clients/flutter/lib/providers/recordings_provider.dart` | 3 | Recording segments, motion events, timeline data |
-| `clients/flutter/lib/providers/search_provider.dart` | 3 | Search state + results |
-| `clients/flutter/lib/screens/playback/playback_screen.dart` | 4 | Multi-camera playback page |
-| `clients/flutter/lib/screens/playback/playback_controls.dart` | 4 | Play/pause/speed/seek bar |
-| `clients/flutter/lib/screens/playback/timeline_widget.dart` | 5 | Vertical timeline with events |
-| `clients/flutter/lib/screens/playback/camera_player.dart` | 4 | Single HLS camera player tile |
-| `clients/flutter/lib/screens/search/clip_search_screen.dart` | 6 | Search UI + results |
-| `clients/flutter/lib/screens/search/search_result_card.dart` | 6 | Result card with thumbnail + actions |
-| `clients/flutter/lib/screens/search/clip_player_sheet.dart` | 6 | Bottom sheet inline clip player |
+| File                                                          | Task | Purpose                                          |
+| ------------------------------------------------------------- | ---- | ------------------------------------------------ |
+| `clients/flutter/pubspec.yaml`                                | 1    | Add media_kit dependencies                       |
+| `clients/flutter/lib/services/playback_service.dart`          | 1    | HLS URL builder + local RFC3339 formatter        |
+| `clients/flutter/lib/models/recording.dart`                   | 2    | Recording segment + motion event models          |
+| `clients/flutter/lib/models/search_result.dart`               | 2    | Search result model                              |
+| `clients/flutter/lib/models/saved_clip.dart`                  | 2    | Saved clip model                                 |
+| `clients/flutter/lib/providers/recordings_provider.dart`      | 3    | Recording segments, motion events, timeline data |
+| `clients/flutter/lib/providers/search_provider.dart`          | 3    | Search state + results                           |
+| `clients/flutter/lib/screens/playback/playback_screen.dart`   | 4    | Multi-camera playback page                       |
+| `clients/flutter/lib/screens/playback/playback_controls.dart` | 4    | Play/pause/speed/seek bar                        |
+| `clients/flutter/lib/screens/playback/timeline_widget.dart`   | 5    | Vertical timeline with events                    |
+| `clients/flutter/lib/screens/playback/camera_player.dart`     | 4    | Single HLS camera player tile                    |
+| `clients/flutter/lib/screens/search/clip_search_screen.dart`  | 6    | Search UI + results                              |
+| `clients/flutter/lib/screens/search/search_result_card.dart`  | 6    | Result card with thumbnail + actions             |
+| `clients/flutter/lib/screens/search/clip_player_sheet.dart`   | 6    | Bottom sheet inline clip player                  |
 
 ---
 
 ### Task 1: media_kit Dependency + Playback Service
 
 **Files:**
+
 - Modify: `clients/flutter/pubspec.yaml`
 - Create: `clients/flutter/lib/services/playback_service.dart`
 
 - [ ] **Step 1: Add media_kit to pubspec.yaml**
 
 Add under `dependencies:`:
+
 ```yaml
-  media_kit: ^1.1.0
-  media_kit_video: ^1.2.0
-  media_kit_libs_video: ^1.0.0
+media_kit: ^1.1.0
+media_kit_video: ^1.2.0
+media_kit_libs_video: ^1.0.0
 ```
 
 Run:
+
 ```bash
 cd clients/flutter && flutter pub get
 ```
@@ -112,6 +115,7 @@ git commit -m "feat(flutter): add media_kit dependency and playback service"
 ### Task 2: Data Models — Recording, SearchResult, SavedClip
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/recording.dart`
 - Create: `clients/flutter/lib/models/search_result.dart`
 - Create: `clients/flutter/lib/models/saved_clip.dart`
@@ -274,6 +278,7 @@ git commit -m "feat(flutter): add recording, search result, and saved clip model
 ### Task 3: Riverpod Providers — Recordings + Search
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/recordings_provider.dart`
 - Create: `clients/flutter/lib/providers/search_provider.dart`
 
@@ -433,6 +438,7 @@ git commit -m "feat(flutter): add recordings and search Riverpod providers"
 ### Task 4: Playback Screen + Camera Player + Controls
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/playback/playback_screen.dart`
 - Create: `clients/flutter/lib/screens/playback/camera_player.dart`
 - Create: `clients/flutter/lib/screens/playback/playback_controls.dart`
@@ -807,9 +813,11 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
 - [ ] **Step 4: Update router**
 
 In `clients/flutter/lib/router/app_router.dart`, replace the `/playback` route:
+
 ```dart
 GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
 ```
+
 Add import: `import '../screens/playback/playback_screen.dart';`
 
 - [ ] **Step 5: Verify + commit**
@@ -825,6 +833,7 @@ git commit -m "feat(flutter): add playback screen with multi-camera HLS and spee
 ### Task 5: Timeline Widget
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/playback/timeline_widget.dart`
 
 - [ ] **Step 1: Create vertical/horizontal timeline**
@@ -1019,6 +1028,7 @@ git commit -m "feat(flutter): add vertical/horizontal timeline with motion event
 ### Task 6: Clip Search Screen
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/search/clip_search_screen.dart`
 - Create: `clients/flutter/lib/screens/search/search_result_card.dart`
 - Create: `clients/flutter/lib/screens/search/clip_player_sheet.dart`
@@ -1342,9 +1352,11 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
 - [ ] **Step 4: Update router**
 
 In `app_router.dart`, replace the `/search` route:
+
 ```dart
 GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
 ```
+
 Add import: `import '../screens/search/clip_search_screen.dart';`
 
 - [ ] **Step 5: Verify + commit**
@@ -1360,6 +1372,7 @@ git commit -m "feat(flutter): add AI clip search with result cards and inline pl
 ### Task 7: media_kit Initialization + Final Verification
 
 **Files:**
+
 - Modify: `clients/flutter/lib/main.dart`
 
 - [ ] **Step 1: Initialize media_kit in main.dart**

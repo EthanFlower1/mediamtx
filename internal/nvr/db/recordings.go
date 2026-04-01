@@ -271,6 +271,40 @@ func (d *DB) GetStoragePerCamera() ([]CameraStorage, error) {
 	return results, rows.Err()
 }
 
+// StreamStorage holds aggregate storage statistics for a single stream.
+type StreamStorage struct {
+	StreamID     string `json:"stream_id"`
+	StreamName   string `json:"stream_name"`
+	TotalBytes   int64  `json:"total_bytes"`
+	SegmentCount int64  `json:"segment_count"`
+}
+
+// GetStoragePerStream returns total storage used and segment count per stream
+// for a given camera.
+func (d *DB) GetStoragePerStream(cameraID string) ([]StreamStorage, error) {
+	rows, err := d.Query(`
+		SELECT r.stream_id, COALESCE(cs.name, ''), COALESCE(SUM(r.file_size), 0), COUNT(*)
+		FROM recordings r
+		LEFT JOIN camera_streams cs ON cs.id = r.stream_id
+		WHERE r.camera_id = ?
+		GROUP BY r.stream_id
+		ORDER BY COALESCE(cs.name, '')`, cameraID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []StreamStorage
+	for rows.Next() {
+		var ss StreamStorage
+		if err := rows.Scan(&ss.StreamID, &ss.StreamName, &ss.TotalBytes, &ss.SegmentCount); err != nil {
+			return nil, err
+		}
+		results = append(results, ss)
+	}
+	return results, rows.Err()
+}
+
 // DeleteRecordingsByDateRange deletes all recordings for a camera whose
 // end_time is before the given cutoff. It returns the list of file paths
 // that were deleted (so the caller can remove files from disk).

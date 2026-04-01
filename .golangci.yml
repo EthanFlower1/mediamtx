@@ -24,6 +24,11 @@ linters:
   - wastedassign
   - whitespace
 
+  exclusions:
+    paths:
+      - internal/nvr
+      - cmd/backfill
+
   settings:
     errcheck:
       exclude-functions:

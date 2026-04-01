@@ -11,6 +11,7 @@ Three layers integrated into the existing codebase:
 ### 1. Database Schema (Migration 29)
 
 **New columns on `cameras` table:**
+
 - `quota_bytes INTEGER NOT NULL DEFAULT 0` — per-camera quota (0 = unlimited)
 - `quota_warning_percent INTEGER NOT NULL DEFAULT 80` — warning threshold percentage
 - `quota_critical_percent INTEGER NOT NULL DEFAULT 90` — critical threshold percentage
@@ -36,6 +37,7 @@ A single row with `id = 'global'` represents the system-wide disk quota. Additio
 Runs after time-based retention cleanup in `runRetentionCleanup()`:
 
 **Per-camera quota enforcement:**
+
 1. Query `GetStoragePerCamera()` for each camera with `quota_bytes > 0`
 2. If usage exceeds quota, calculate bytes to free
 3. Delete oldest non-event recordings first (`DeleteOldestRecordings`)
@@ -43,6 +45,7 @@ Runs after time-based retention cleanup in `runRetentionCleanup()`:
 5. Log deletions and emit quota events
 
 **Global quota enforcement:**
+
 1. Sum all camera storage from DB
 2. If total exceeds global `quota_bytes`, identify camera with most storage above fair share
 3. Delete oldest recordings from that camera
@@ -53,15 +56,18 @@ Runs after time-based retention cleanup in `runRetentionCleanup()`:
 ### 3. API Endpoints
 
 **Per-camera quota (on existing camera CRUD):**
+
 - `PUT /api/nvr/cameras/:id` — include `quota_bytes`, `quota_warning_percent`, `quota_critical_percent` in camera update
 - `GET /api/nvr/cameras/:id` — returns quota fields in camera response
 
 **Global quota management:**
+
 - `GET /api/nvr/quotas` — list all quotas (global + any future per-path)
 - `PUT /api/nvr/quotas/global` — set global quota
 - `GET /api/nvr/quotas/status` — quota status with per-camera usage, warnings, and enforcement history
 
 **Quota status response:**
+
 ```json
 {
   "global": {
@@ -92,6 +98,7 @@ Status values: `ok`, `warning`, `critical`, `exceeded`
 ### 4. SSE Events
 
 Publish quota events via the existing `EventBroadcaster`:
+
 - `quota_warning` — camera crosses warning threshold
 - `quota_critical` — camera crosses critical threshold
 - `quota_exceeded` — enforcement triggered, recordings deleted
@@ -107,7 +114,7 @@ Publish quota events via the existing `EventBroadcaster`:
 
 ## Files Modified
 
-- `internal/nvr/db/migrations.go` — migration 29
+- `internal/nvr/db/migrations.go` — migration 30
 - `internal/nvr/db/quota.go` — new file: quota DB methods
 - `internal/nvr/db/quota_test.go` — new file: quota DB tests
 - `internal/nvr/db/cameras.go` — add quota fields to Camera struct and CRUD

@@ -249,6 +249,26 @@ func (h *RecordingHandler) Intensity(c *gin.Context) {
 	c.JSON(http.StatusOK, buckets)
 }
 
+// IntegritySummary returns aggregate integrity status counts.
+// GET /api/nvr/recordings/integrity?camera_id=X (optional)
+func (h *RecordingHandler) IntegritySummary(c *gin.Context) {
+	cameraID := c.Query("camera_id")
+	if cameraID != "" {
+		if !hasCameraPermission(c, cameraID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+			return
+		}
+	}
+
+	summary, err := h.DB.GetIntegritySummary(cameraID)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to get integrity summary", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}
+
 // CleanupRequest is the JSON body for the Cleanup endpoint.
 type CleanupRequest struct {
 	CameraID string `json:"camera_id" binding:"required"`

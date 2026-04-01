@@ -90,7 +90,7 @@ func TestSyncWorker_ProcessSync_TargetUnreachable(t *testing.T) {
 		RecordingID: rec.ID,
 		CameraID:    cam.ID,
 		LocalPath:   localFile,
-		TargetPath:  "/nonexistent/path/test.mp4",
+		TargetPath:  "/dev/null/impossible/test.mp4",
 	}
 	require.NoError(t, database.InsertPendingSync(ps))
 

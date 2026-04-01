@@ -435,7 +435,7 @@ func (p *Core) createResources(initial bool) error {
 			ConfigPath:   p.confPath,
 			APIAddress:   p.conf.APIAddress,
 		}
-		if err := p.nvr.Initialize(); err != nil {
+		if err = p.nvr.Initialize(); err != nil {
 			return err
 		}
 

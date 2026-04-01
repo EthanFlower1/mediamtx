@@ -12,8 +12,8 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|----------------|
+| File                                   | Action | Responsibility                                                       |
+| -------------------------------------- | ------ | -------------------------------------------------------------------- |
 | `internal/nvr/api/integration_test.go` | Create | End-to-end integration tests for camera config + recording schedules |
 
 ---
@@ -21,6 +21,7 @@
 ### Task 1: Integration test setup helpers and camera-with-streams test
 
 **Files:**
+
 - Create: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Create the test file with setup helpers and first test**
@@ -226,6 +227,7 @@ git commit -m "test: add integration test for camera creation YAML verification"
 ### Task 2: Test camera with streams — DB correctness
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for camera + streams DB state**
@@ -290,6 +292,7 @@ git commit -m "test: add integration test for camera streams DB state and role r
 ### Task 3: Test recording rule creation stores correct DB data
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for recording rules with stream_id**
@@ -376,6 +379,7 @@ git commit -m "test: add integration test for recording rules with stream_id DB 
 ### Task 4: Test scheduler evaluation updates YAML per-stream
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add scheduler evaluation test**
@@ -509,6 +513,7 @@ git commit -m "test: add integration test for scheduler evaluation and YAML upda
 ### Task 5: Test disabling a rule turns off recording in YAML
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for rule disable → YAML record=false**
@@ -581,6 +586,7 @@ git commit -m "test: add integration test for rule disable turning off YAML reco
 ### Task 6: Test deleting a rule and verifying cleanup
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for rule deletion + DB/YAML cleanup**
@@ -648,6 +654,7 @@ git commit -m "test: add integration test for rule deletion DB and YAML cleanup"
 ### Task 7: Test multiple rules per camera — union logic
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for always-wins-over-events union logic**
@@ -716,6 +723,7 @@ git commit -m "test: add integration test for multiple rules union logic (always
 ### Task 8: Test per-stream rules create separate YAML paths
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for per-stream YAML paths**
@@ -798,6 +806,7 @@ git commit -m "test: add integration test for per-stream recording YAML path cre
 ### Task 9: Test recording status API reflects scheduler state
 
 **Files:**
+
 - Modify: `internal/nvr/api/integration_test.go`
 
 - [ ] **Step 1: Add test for status API endpoint**
@@ -865,7 +874,7 @@ git commit -m "test: add integration test for recording status API reflecting sc
 - [ ] **Step 1: Run the full integration test suite**
 
 Run: `cd /Users/ethanflower/personal_projects/mediamtx && go test ./internal/nvr/api/ -run TestIntegration -v -count=1 -timeout=120s`
-Expected: All TestIntegration_* tests pass.
+Expected: All TestIntegration\_\* tests pass.
 
 - [ ] **Step 2: Run ALL existing tests to check for regressions**
 

@@ -19,12 +19,12 @@ CREATE INDEX idx_recordings_status ON recordings(status);
 
 **Status values:**
 
-| Status | Meaning |
-|--------|---------|
-| `unverified` | Not yet checked (default, covers existing records) |
-| `ok` | Passed all checks |
-| `corrupted` | Failed one or more checks |
-| `quarantined` | File moved to quarantine directory |
+| Status        | Meaning                                            |
+| ------------- | -------------------------------------------------- |
+| `unverified`  | Not yet checked (default, covers existing records) |
+| `ok`          | Passed all checks                                  |
+| `corrupted`   | Failed one or more checks                          |
+| `quarantined` | File moved to quarantine directory                 |
 
 - `status_detail` — Human-readable failure reason (e.g., `"truncated: expected 4521984 bytes, got 2097152"`). Null when status is `ok` or `unverified`.
 - `verified_at` — RFC3339 timestamp of last verification. Used by background scanner to skip recently-verified segments.
@@ -175,24 +175,24 @@ GET /api/nvr/recordings/integrity
 
 ### New Package: `internal/nvr/integrity/`
 
-| File | Purpose |
-|------|---------|
-| `verifier.go` | Core `verifySegment()` function, `VerificationResult` type |
-| `scanner.go` | Background scanner goroutine (interval loop, batch queries) |
-| `quarantine.go` | File move/restore operations |
-| `verifier_test.go` | Unit tests with crafted fMP4 fixtures |
-| `scanner_test.go` | Background scanner tests |
-| `quarantine_test.go` | File move/restore tests |
+| File                 | Purpose                                                     |
+| -------------------- | ----------------------------------------------------------- |
+| `verifier.go`        | Core `verifySegment()` function, `VerificationResult` type  |
+| `scanner.go`         | Background scanner goroutine (interval loop, batch queries) |
+| `quarantine.go`      | File move/restore operations                                |
+| `verifier_test.go`   | Unit tests with crafted fMP4 fixtures                       |
+| `scanner_test.go`    | Background scanner tests                                    |
+| `quarantine_test.go` | File move/restore tests                                     |
 
 ### Integration Points
 
-| File | Change |
-|------|--------|
-| `internal/nvr/db/recordings.go` | `UpdateRecordingStatus`, `GetUnverifiedRecordings`, `GetIntegritySummary` queries |
-| `internal/nvr/db/migrations.go` | New migration for status columns |
-| `internal/nvr/api/recordings.go` | `/verify`, `/integrity`, `/{id}/quarantine`, `/{id}/unquarantine` endpoints |
-| `internal/nvr/api/events.go` | `segment_corrupted` and `segment_quarantined` event types |
-| `internal/core/path.go` | Hook inline verification into `OnSegmentComplete` callback |
+| File                             | Change                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `internal/nvr/db/recordings.go`  | `UpdateRecordingStatus`, `GetUnverifiedRecordings`, `GetIntegritySummary` queries |
+| `internal/nvr/db/migrations.go`  | New migration for status columns                                                  |
+| `internal/nvr/api/recordings.go` | `/verify`, `/integrity`, `/{id}/quarantine`, `/{id}/unquarantine` endpoints       |
+| `internal/nvr/api/events.go`     | `segment_corrupted` and `segment_quarantined` event types                         |
+| `internal/core/path.go`          | Hook inline verification into `OnSegmentComplete` callback                        |
 
 ### Test Strategy
 

@@ -423,9 +423,19 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE camera_streams ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
 		`,
 	},
-	// Migration 29: Storage quota management (KAI-8).
+	// Migration 29: Recording integrity verification status.
 	{
 		version: 29,
+		sql: `
+		ALTER TABLE recordings ADD COLUMN status TEXT NOT NULL DEFAULT 'unverified';
+		ALTER TABLE recordings ADD COLUMN status_detail TEXT;
+		ALTER TABLE recordings ADD COLUMN verified_at TEXT;
+		CREATE INDEX idx_recordings_status ON recordings(status);
+		`,
+	},
+	// Migration 30: Storage quota management (KAI-8).
+	{
+		version: 30,
 		sql: `
 		ALTER TABLE cameras ADD COLUMN quota_bytes INTEGER NOT NULL DEFAULT 0;
 		ALTER TABLE cameras ADD COLUMN quota_warning_percent INTEGER NOT NULL DEFAULT 80;

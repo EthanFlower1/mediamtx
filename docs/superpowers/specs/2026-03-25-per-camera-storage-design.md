@@ -150,6 +150,7 @@ After YAML changes, the NVR hits MediaMTX's config API to trigger a hot reload. 
 `storage_status` is a **computed, in-memory field** added to the camera API response. It is NOT stored in the database.
 
 Values:
+
 - `default` — camera uses the global default storage path (no custom `storage_path` set)
 - `healthy` — custom storage path is reachable
 - `degraded` — custom storage path is unreachable, recording to local fallback
@@ -169,17 +170,18 @@ This is separate from the existing camera `status` field (which tracks stream co
 ```
 
 **Validation:**
+
 - Must be an absolute path or empty string (use default)
 - Path must exist and be writable at time of create/update (fail fast)
 - Trailing slash normalized
 
 ### New endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/storage/status` | Health status of all configured storage paths, including disk usage per path |
-| GET | `/api/storage/pending` | Pending sync queue (count, per-camera breakdown) |
-| POST | `/api/storage/sync/:camera_id` | Manually trigger sync for a camera's pending files |
+| Method | Path                           | Description                                                                  |
+| ------ | ------------------------------ | ---------------------------------------------------------------------------- |
+| GET    | `/api/storage/status`          | Health status of all configured storage paths, including disk usage per path |
+| GET    | `/api/storage/pending`         | Pending sync queue (count, per-camera breakdown)                             |
+| POST   | `/api/storage/sync/:camera_id` | Manually trigger sync for a camera's pending files                           |
 
 The `GET /api/storage/status` endpoint reports disk usage (total/used/free) for each unique storage path using `syscall.Statfs`, extending the existing system stats approach to cover multiple mount points.
 
@@ -279,15 +281,15 @@ Existing recordings remain in their original locations. The NVR retention system
 
 ## Key Files
 
-| Component | File |
-|-----------|------|
-| Camera schema | `internal/nvr/db/cameras.go` |
-| DB migrations | `internal/nvr/db/migrations.go` |
-| Camera API | `internal/nvr/api/cameras.go` |
-| StorageManager | `internal/nvr/storage/manager.go` (new) |
-| YAML writer | `internal/nvr/yamlwriter/writer.go` |
-| OnSegmentComplete | `internal/nvr/nvr.go` |
-| Record path config | `internal/conf/path.go` |
-| HLS handler | `internal/nvr/api/hls.go` |
-| Flutter camera model | `clients/flutter/lib/models/camera.dart` |
+| Component             | File                                                            |
+| --------------------- | --------------------------------------------------------------- |
+| Camera schema         | `internal/nvr/db/cameras.go`                                    |
+| DB migrations         | `internal/nvr/db/migrations.go`                                 |
+| Camera API            | `internal/nvr/api/cameras.go`                                   |
+| StorageManager        | `internal/nvr/storage/manager.go` (new)                         |
+| YAML writer           | `internal/nvr/yamlwriter/writer.go`                             |
+| OnSegmentComplete     | `internal/nvr/nvr.go`                                           |
+| Record path config    | `internal/conf/path.go`                                         |
+| HLS handler           | `internal/nvr/api/hls.go`                                       |
+| Flutter camera model  | `clients/flutter/lib/models/camera.dart`                        |
 | Flutter camera detail | `clients/flutter/lib/screens/cameras/camera_detail_screen.dart` |

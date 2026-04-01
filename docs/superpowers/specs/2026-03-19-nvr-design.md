@@ -25,6 +25,7 @@ NVR functionality is added as internal packages within the existing MediaMTX cod
 `internal/nvr/db/`
 
 Thin wrapper around SQLite providing:
+
 - Connection management (single writer, multiple readers via WAL mode)
 - Embedded migrations (Go files, run on startup)
 - Query helpers
@@ -69,7 +70,7 @@ Composite index on (camera_id, start_time, end_time) for fast timeline queries.
 | username | TEXT | Unique |
 | password_hash | TEXT | Argon2id hash |
 | role | TEXT | admin or viewer |
-| camera_permissions | TEXT (JSON) | Array of camera IDs, or "*" for all |
+| camera_permissions | TEXT (JSON) | Array of camera IDs, or "\*" for all |
 | created_at | DATETIME | |
 | updated_at | DATETIME | |
 
@@ -95,6 +96,7 @@ Used for NVR-internal state: RSA key pair (encrypted), setup completion flag, et
 ### ONVIF Credential Encryption
 
 ONVIF passwords must be recoverable (not hashed) since they're sent to cameras. Encryption approach:
+
 - AES-256-GCM symmetric encryption
 - Encryption key derived from the `nvrJWTSecret` via HKDF with info string `"nvr-onvif-encryption"` (distinct from the RSA key encryption which uses info string `"nvr-rsa-key-encryption"`)
 - If `nvrJWTSecret` is rotated, a migration re-encrypts all stored passwords
@@ -203,11 +205,13 @@ Uses MediaMTX's existing gin router. NVR endpoints are registered as a new route
 All under `/api/nvr/`:
 
 **Auth**
+
 - `POST /auth/login` — validate credentials, return access JWT + httpOnly refresh cookie
 - `POST /auth/refresh` — issue new access JWT from refresh token
 - `POST /auth/revoke` — revoke refresh token (logout)
 
 **Cameras**
+
 - `GET /cameras` — list all cameras
 - `POST /cameras` — add camera (manual or from ONVIF discovery)
 - `GET /cameras/{id}` — get camera details
@@ -218,18 +222,21 @@ All under `/api/nvr/`:
 - `GET /cameras/discover/results` — get discovery results
 
 **Camera Controls**
+
 - `POST /cameras/{id}/ptz` — send PTZ command (move, stop, goto preset)
 - `GET /cameras/{id}/ptz/presets` — list PTZ presets
 - `GET /cameras/{id}/settings` — get current camera settings via ONVIF
 - `PUT /cameras/{id}/settings` — push settings to camera via ONVIF
 
 **Recordings**
+
 - `GET /recordings?camera_id=X&start=T1&end=T2` — query recording segments
 - `GET /timeline?camera_id=X&date=D` — get timeline coverage
 - `GET /recordings/{id}/download` — download segment
 - `POST /recordings/export` — export a clip (body: `{ camera_id, start, end }`, returns MP4)
 
 **Users** (admin only)
+
 - `GET /users` — list users
 - `POST /users` — create user
 - `GET /users/{id}` — get user
@@ -237,6 +244,7 @@ All under `/api/nvr/`:
 - `DELETE /users/{id}` — delete user
 
 **System**
+
 - `GET /system/info` — version, uptime, platform
 - `GET /system/storage` — disk usage, recording stats
 - `GET /system/health` — health check (200 if ready, 503 during setup/migration)
@@ -245,6 +253,7 @@ All under `/api/nvr/`:
 ### Auth Middleware
 
 Gin middleware on all `/api/nvr/` routes (except `/auth/login`) that:
+
 - Validates JWT signature and expiration
 - Extracts user context (id, role, camera permissions)
 - Enforces role-based access (admin-only routes)
@@ -267,6 +276,7 @@ React with Vite. Built as a pre-step, output embedded into the Go binary via `go
 ### Views
 
 **1. Dashboard / Live View** (default landing page)
+
 - Multi-camera grid with selectable layouts (1x1, 2x2, 3x3, custom)
 - Each cell renders a WebRTC or HLS stream via MediaMTX's existing player endpoints
 - Click a cell to expand to single-camera fullscreen view
@@ -274,6 +284,7 @@ React with Vite. Built as a pre-step, output embedded into the Go binary via `go
 - Camera status indicators (online/offline)
 
 **2. Camera Management**
+
 - ONVIF discovery panel: scan button, results list with device info
 - Camera list with status, thumbnail (if available), stream info
 - Add camera form: ONVIF auto-populate or manual RTSP URL entry
@@ -281,6 +292,7 @@ React with Vite. Built as a pre-step, output embedded into the Go binary via `go
 - Camera settings panel: resolution, framerate, encoding, imaging adjustments (proxied to camera via ONVIF)
 
 **3. Recordings Browser**
+
 - Calendar picker to select date
 - Timeline bar per camera showing recording coverage (colored segments, gaps visible)
 - Multi-camera stacked timeline view
@@ -289,11 +301,13 @@ React with Vite. Built as a pre-step, output embedded into the Go binary via `go
 - Playback controls: play/pause, speed (0.5x-8x), skip forward/back
 
 **4. Settings**
+
 - Storage: recording path, retention policies, disk usage visualization
 - Server: ports, TLS toggle, log level (maps to mediamtx.yml fields)
 - System info: version, uptime, platform, resource usage
 
 **5. User Management** (admin only)
+
 - User list with roles
 - Create/edit user: username, password, role (admin/viewer)
 - Camera permission assignment: select which cameras a user can access, or grant access to all
@@ -323,6 +337,7 @@ MediaMTX's existing JWT auth is a **validator only** — it fetches public keys 
 6. JWTs include the `mediamtx_permissions` claim populated based on the user's role and camera permissions
 
 This approach:
+
 - Requires zero changes to MediaMTX's existing auth validation code
 - Uses standard RS256/JWKS flow (not HMAC)
 - Stream access tokens issued by the NVR automatically work for RTSP, WebRTC, HLS
@@ -333,6 +348,7 @@ This approach:
 ### First-Run Setup
 
 On first startup with an empty `users` table:
+
 1. NVR enters setup mode
 2. All NVR API routes return `503 Service Unavailable` except `/api/nvr/auth/setup` and the UI
 3. UI redirects to a setup page
@@ -364,9 +380,9 @@ Argon2id hashing with recommended parameters (memory: 64MB, iterations: 3, paral
 
 ```yaml
 # mediamtx.yml additions
-nvr: yes                              # enable NVR features (default: no)
-nvrDatabase: ~/.mediamtx/nvr.db       # SQLite database path
-nvrJWTSecret: ""                      # JWT signing key (auto-generated on first run if empty)
+nvr: yes # enable NVR features (default: no)
+nvrDatabase: ~/.mediamtx/nvr.db # SQLite database path
+nvrJWTSecret: "" # JWT signing key (auto-generated on first run if empty)
 ```
 
 When `nvr: no` (default), no NVR code runs — no SQLite connection, no ONVIF, no UI serving. MediaMTX behaves identically to today.

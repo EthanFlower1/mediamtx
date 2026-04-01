@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,6 +46,7 @@ type RouterConfig struct {
 	HLSHandler      *HLSHandler         // HLS VOD playback handler (may be nil)
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
+	QuarantineBase  string              // quarantine directory for corrupted recordings
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -73,6 +75,29 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	quarantineBase := cfg.QuarantineBase
+	if quarantineBase == "" {
+		quarantineBase = filepath.Join(cfg.RecordingsPath, ".quarantine")
+	}
+	integrityHandler := &IntegrityHandler{
+		DB:             cfg.DB,
+		Events:         cfg.Events,
+		RecordingsBase: cfg.RecordingsPath,
+		QuarantineBase: quarantineBase,
+	}
+
+	statsHandler := &StatsHandler{
+		DB: cfg.DB,
+	}
+
+	var healthHandler *RecordingHealthHandler
+	if cfg.Scheduler != nil {
+		healthHandler = &RecordingHealthHandler{
+			DB:             cfg.DB,
+			HealthProvider: cfg.Scheduler,
+		}
+	}
+
 	userHandler := &UserHandler{
 		DB:    cfg.DB,
 		Audit: audit,
@@ -95,6 +120,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		ConfigPath:     cfg.ConfigPath,
 		APIAddress:     cfg.APIAddress,
 		Collector:      cfg.Collector,
+		StorageMgr:     cfg.StorageManager,
 	}
 
 	savedClipHandler := &SavedClipHandler{
@@ -224,6 +250,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
 	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
 
+	// Recording control (Profile G — manage recordings and jobs on device).
+	protected.GET("/cameras/:id/recording-control/config", cameraHandler.GetRecordingConfig)
+	protected.POST("/cameras/:id/recording-control/recordings", cameraHandler.CreateEdgeRecording)
+	protected.DELETE("/cameras/:id/recording-control/recordings/:token", cameraHandler.DeleteEdgeRecording)
+	protected.POST("/cameras/:id/recording-control/jobs", cameraHandler.CreateEdgeRecordingJob)
+	protected.DELETE("/cameras/:id/recording-control/jobs/:token", cameraHandler.DeleteEdgeRecordingJob)
+	protected.GET("/cameras/:id/recording-control/jobs/:token/state", cameraHandler.GetEdgeRecordingJobState)
+
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
@@ -247,6 +281,21 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Recording integrity.
+	protected.GET("/recordings/integrity", recordingHandler.IntegritySummary)
+	protected.POST("/recordings/verify", integrityHandler.Verify)
+	protected.POST("/recordings/:id/quarantine", integrityHandler.Quarantine)
+	protected.POST("/recordings/:id/unquarantine", integrityHandler.Unquarantine)
+
+	// Recording statistics.
+	protected.GET("/recordings/stats", statsHandler.GetStats)
+	protected.GET("/recordings/stats/:camera_id/gaps", statsHandler.GetGaps)
+
+	// Recording health.
+	if healthHandler != nil {
+		protected.GET("/recordings/health", healthHandler.List)
+	}
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
@@ -276,6 +325,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/streams/:id/roles", streamHandler.UpdateRoles)
 	protected.DELETE("/streams/:id", streamHandler.Delete)
 	protected.PUT("/streams/:id/retention", streamHandler.UpdateRetention)
+	protected.GET("/cameras/:id/stream-storage", streamHandler.GetStreamStorage)
 
 	// Recording rules.
 	protected.GET("/cameras/:id/recording-rules", ruleHandler.List)
@@ -307,6 +357,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)
 	protected.GET("/system/metrics", systemHandler.Metrics)
+	protected.GET("/system/disk-io", systemHandler.DiskIO)
+	protected.PUT("/system/disk-io/thresholds", systemHandler.UpdateDiskIOThresholds)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)

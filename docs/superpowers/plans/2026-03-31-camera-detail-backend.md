@@ -13,9 +13,11 @@
 ## File Map
 
 **Create:**
+
 - `internal/nvr/db/storage_estimate.go` — storage estimate query logic
 
 **Modify:**
+
 - `internal/nvr/db/migrations.go` — Migration 28
 - `internal/nvr/db/recordings.go` — Recording struct + InsertRecording (add stream_id)
 - `internal/nvr/db/camera_streams.go` — CameraStream struct + retention CRUD
@@ -33,6 +35,7 @@
 ### Task 1: Migration 28 + Model Updates
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 - Modify: `internal/nvr/db/recordings.go`
 - Modify: `internal/nvr/db/camera_streams.go`
@@ -127,6 +130,7 @@ Every query in `recordings.go` that selects from recordings needs to include `st
 - `DeleteRecordingsByDateRange` — no change needed (only selects file_path)
 
 For `QueryRecordings`, the SELECT becomes:
+
 ```go
 rows, err := d.Query(`
     SELECT id, camera_id, stream_id, start_time, end_time, duration_ms,
@@ -139,6 +143,7 @@ rows, err := d.Query(`
 ```
 
 And the Scan:
+
 ```go
 if err := rows.Scan(
     &rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
@@ -162,6 +167,7 @@ EventRetentionDays int `json:"event_retention_days"`
 Add `retention_days, event_retention_days` to every SELECT and Scan in `camera_streams.go`. The affected methods are `ListCameraStreams`, `GetCameraStream`, `ResolveStream` (the main query, not the fallback).
 
 For `ListCameraStreams`, the SELECT becomes:
+
 ```go
 rows, err := d.Query(`
     SELECT id, camera_id, name, rtsp_url, profile_token, video_codec,
@@ -173,6 +179,7 @@ rows, err := d.Query(`
 ```
 
 And the Scan:
+
 ```go
 if err := rows.Scan(
     &s.ID, &s.CameraID, &s.Name, &s.RTSPURL, &s.ProfileToken,
@@ -229,6 +236,7 @@ git commit -m "feat: migration 28 — per-stream retention columns and recording
 ### Task 2: Recording Stream ID Association
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go`
 - Modify: `internal/nvr/db/camera_streams.go`
 
@@ -334,6 +342,7 @@ git commit -m "feat: associate recordings with their source stream via path pref
 ### Task 3: Per-Stream Retention Deletion Methods
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention.go`
 - Modify: `internal/nvr/db/retention_test.go`
 
@@ -547,6 +556,7 @@ git commit -m "feat: add per-stream recording deletion methods"
 ### Task 4: Storage Estimate Endpoint
 
 **Files:**
+
 - Create: `internal/nvr/db/storage_estimate.go`
 - Modify: `internal/nvr/api/cameras.go`
 - Modify: `internal/nvr/api/router.go`
@@ -833,6 +843,7 @@ git commit -m "feat: add storage estimate endpoint and per-stream retention API"
 ### Task 5: Scheduler Per-Stream Retention
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go`
 
 - [ ] **Step 1: Update runRetentionCleanup for per-stream retention**
@@ -964,6 +975,7 @@ git commit -m "feat: scheduler supports per-stream retention with camera-level f
 ### Task 6: Integration Test
 
 **Files:**
+
 - Modify: `internal/nvr/db/retention_test.go`
 
 - [ ] **Step 1: Write per-stream retention flow test**
@@ -1064,13 +1076,13 @@ git commit -m "test: add per-stream retention flow and stream retention update t
 
 ## Summary
 
-| Task | What it does |
-|------|-------------|
-| 1 | Migration 28 + Recording.StreamID + CameraStream retention fields |
-| 2 | OnSegmentComplete resolves and stores stream_id on recordings |
-| 3 | Per-stream deletion methods (DeleteStreamRecordingsWithout/WithEvents) |
-| 4 | Storage estimate endpoint + stream retention API |
-| 5 | Scheduler per-stream retention with camera-level fallback |
-| 6 | Integration tests |
+| Task | What it does                                                           |
+| ---- | ---------------------------------------------------------------------- |
+| 1    | Migration 28 + Recording.StreamID + CameraStream retention fields      |
+| 2    | OnSegmentComplete resolves and stores stream_id on recordings          |
+| 3    | Per-stream deletion methods (DeleteStreamRecordingsWithout/WithEvents) |
+| 4    | Storage estimate endpoint + stream retention API                       |
+| 5    | Scheduler per-stream retention with camera-level fallback              |
+| 6    | Integration tests                                                      |
 
 After this plan completes, the Flutter UI plan can be written to consume these new endpoints.

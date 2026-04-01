@@ -12,26 +12,27 @@
 
 ## File Structure
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/integrity/verifier.go` | Core `VerifySegment()` function, `VerificationResult` type, fMP4 box-walking checks |
-| `internal/nvr/integrity/verifier_test.go` | Unit tests with crafted fMP4 fixtures |
-| `internal/nvr/integrity/scanner.go` | Background scanner goroutine |
-| `internal/nvr/integrity/scanner_test.go` | Scanner batch/skip logic tests |
-| `internal/nvr/integrity/quarantine.go` | File move/restore operations |
-| `internal/nvr/integrity/quarantine_test.go` | File move/restore tests |
-| `internal/nvr/db/migrations.go` | Migration 29: status columns + index |
-| `internal/nvr/db/recordings.go` | New queries: `UpdateRecordingStatus`, `GetUnverifiedRecordings`, `GetIntegritySummary`, `GetRecordingsByFilter` |
-| `internal/nvr/api/recordings.go` | New endpoints: verify, integrity summary, quarantine, unquarantine |
-| `internal/nvr/api/events.go` | `PublishSegmentCorrupted`, `PublishSegmentQuarantined` helpers |
-| `internal/nvr/api/router.go` | Register new routes |
-| `internal/nvr/nvr.go` | Hook inline verification into `OnSegmentComplete`, start background scanner |
+| File                                        | Responsibility                                                                                                  |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `internal/nvr/integrity/verifier.go`        | Core `VerifySegment()` function, `VerificationResult` type, fMP4 box-walking checks                             |
+| `internal/nvr/integrity/verifier_test.go`   | Unit tests with crafted fMP4 fixtures                                                                           |
+| `internal/nvr/integrity/scanner.go`         | Background scanner goroutine                                                                                    |
+| `internal/nvr/integrity/scanner_test.go`    | Scanner batch/skip logic tests                                                                                  |
+| `internal/nvr/integrity/quarantine.go`      | File move/restore operations                                                                                    |
+| `internal/nvr/integrity/quarantine_test.go` | File move/restore tests                                                                                         |
+| `internal/nvr/db/migrations.go`             | Migration 29: status columns + index                                                                            |
+| `internal/nvr/db/recordings.go`             | New queries: `UpdateRecordingStatus`, `GetUnverifiedRecordings`, `GetIntegritySummary`, `GetRecordingsByFilter` |
+| `internal/nvr/api/recordings.go`            | New endpoints: verify, integrity summary, quarantine, unquarantine                                              |
+| `internal/nvr/api/events.go`                | `PublishSegmentCorrupted`, `PublishSegmentQuarantined` helpers                                                  |
+| `internal/nvr/api/router.go`                | Register new routes                                                                                             |
+| `internal/nvr/nvr.go`                       | Hook inline verification into `OnSegmentComplete`, start background scanner                                     |
 
 ---
 
 ### Task 1: Database Migration — Status Columns
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go:426` (after migration 28)
 - Modify: `internal/nvr/db/recordings.go:13-24` (Recording struct)
 
@@ -181,6 +182,7 @@ git commit -m "feat(integrity): add recording status columns (migration 29)"
 ### Task 2: DB Query Methods for Integrity
 
 **Files:**
+
 - Modify: `internal/nvr/db/recordings.go`
 
 - [ ] **Step 1: Add UpdateRecordingStatus method**
@@ -338,6 +340,7 @@ git commit -m "feat(integrity): add DB queries for status updates, verification 
 ### Task 3: Core Verification Pipeline
 
 **Files:**
+
 - Create: `internal/nvr/integrity/verifier.go`
 - Create: `internal/nvr/integrity/verifier_test.go`
 
@@ -788,6 +791,7 @@ git commit -m "feat(integrity): add core segment verification pipeline with test
 ### Task 4: Quarantine Operations
 
 **Files:**
+
 - Create: `internal/nvr/integrity/quarantine.go`
 - Create: `internal/nvr/integrity/quarantine_test.go`
 
@@ -979,6 +983,7 @@ git commit -m "feat(integrity): add quarantine file move/restore operations with
 ### Task 5: Background Scanner
 
 **Files:**
+
 - Create: `internal/nvr/integrity/scanner.go`
 - Create: `internal/nvr/integrity/scanner_test.go`
 
@@ -1149,6 +1154,7 @@ git commit -m "feat(integrity): add background integrity scanner with tests"
 ### Task 6: SSE Event Helpers
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go`
 
 - [ ] **Step 1: Add PublishSegmentCorrupted method**
@@ -1192,6 +1198,7 @@ git commit -m "feat(integrity): add SSE event helpers for segment corruption and
 ### Task 7: API Endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/recordings.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -1500,6 +1507,7 @@ import (
 Add the `IntegrityHandler` to `RouterConfig` in `internal/nvr/api/router.go`:
 
 Add a new field to `RouterConfig`:
+
 ```go
 QuarantineBase string // base path for quarantined files
 ```
@@ -1516,6 +1524,7 @@ integrityHandler := &IntegrityHandler{
 ```
 
 If `QuarantineBase` is empty, default it:
+
 ```go
 quarantineBase := cfg.QuarantineBase
 if quarantineBase == "" {
@@ -1558,6 +1567,7 @@ git commit -m "feat(integrity): add verify, quarantine, unquarantine, and integr
 ### Task 8: Inline Verification Hook & Background Scanner Start
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go`
 
 - [ ] **Step 1: Add imports**

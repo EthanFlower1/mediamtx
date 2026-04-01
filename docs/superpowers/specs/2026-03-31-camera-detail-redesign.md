@@ -34,6 +34,7 @@ The existing responsive two-column layout is preserved:
 Each camera stream is rendered as a collapsible card.
 
 **Collapsed state** (default for all streams): Single row showing:
+
 - Stream name + resolution (e.g., "Main Stream · 1920×1080")
 - Recording mode + retention summary (e.g., "Always · 3d/365d")
 - Total estimated storage for this stream (e.g., "~57 GB")
@@ -47,7 +48,7 @@ Each camera stream is rendered as a collapsible card.
 3. **Retention** — Two `AnalogSlider` widgets:
    - **No-Event Recordings** (0–90 days): How long to keep recordings that don't overlap any motion event. Shows "OFF" at 0.
    - **Event Recordings** (0–730 days): How long to keep recordings that overlap a motion event. Shows "OFF" at 0.
-   
+
    Each slider shows an inline storage estimate below it that updates live as the user drags:
    - No-event estimate: `~45 GB` (based on bitrate × hours/day × retention days)
    - Event estimate: `~4.2 GB (1.3 events/day avg)` (based on historical event frequency, or fixed assumption for new streams)
@@ -63,11 +64,13 @@ Returns per-stream estimated bytes for given retention settings. The server calc
 3. **Event frequency** — for event retention estimates, use average events/day from the last 7 days of `motion_events` data. Fall back to a fixed assumption (1 hour of events per day) when no history exists.
 
 **Request**: Query parameters for the retention values to estimate:
+
 ```
 GET /cameras/:id/storage-estimate?retention_days=3&event_retention_days=365
 ```
 
 **Response**:
+
 ```json
 {
   "streams": [
@@ -92,6 +95,7 @@ The Flutter client calls this endpoint on initial load and debounces re-calls as
 ### AI Detection Section
 
 Camera-level section (not per-stream). Contains:
+
 - **Enable toggle** (HudToggle)
 - **Confidence** slider (AnalogSlider, 0.2–0.9)
 - **Track Timeout** slider (AnalogSlider, 1–30s)
@@ -102,6 +106,7 @@ All update local state only. No dedicated save button — saves with the main Sa
 ### Advanced Section
 
 Single collapsible section containing expandable sub-sections:
+
 - **ONVIF Configuration** — endpoint, username, password, probe button
 - **Stream Settings** — camera name, RTSP URL, sub-stream URL, snapshot URI
 - **Imaging** — brightness, contrast, saturation sliders
@@ -127,6 +132,7 @@ No settings auto-save on change. Every change is held in local widget state unti
 Currently retention is per-camera (`cameras.event_retention_days`, `cameras.detection_retention_days`, `cameras.retention_days`). This needs to move to per-stream.
 
 **Schema migration 28**: Add retention columns to `camera_streams` table:
+
 ```sql
 ALTER TABLE camera_streams ADD COLUMN retention_days INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE camera_streams ADD COLUMN event_retention_days INTEGER NOT NULL DEFAULT 0;
@@ -135,6 +141,7 @@ ALTER TABLE camera_streams ADD COLUMN event_retention_days INTEGER NOT NULL DEFA
 The `detection_retention_days` remains camera-level (event data cleanup is camera-scoped since events are per-camera, not per-stream).
 
 **New endpoint**: `PUT /api/nvr/streams/:id/retention`
+
 ```json
 {
   "retention_days": 3,
@@ -143,6 +150,7 @@ The `detection_retention_days` remains camera-level (event data cleanup is camer
 ```
 
 **Scheduler changes**: The retention cleanup loop iterates streams instead of cameras for recording deletion. For each stream with `retention_days > 0`:
+
 - Delete no-event recordings for that stream older than `retention_days`
 - If `event_retention_days > 0`, delete event recordings for that stream older than `event_retention_days`
 - Otherwise (legacy), delete all recordings older than `retention_days`
@@ -150,6 +158,7 @@ The `detection_retention_days` remains camera-level (event data cleanup is camer
 The camera-level `retention_days` and `event_retention_days` columns remain as fallbacks for streams that haven't been configured (both 0). The scheduler checks the stream-level values first, falls back to camera-level.
 
 **Recording-to-stream association**: Recordings are currently associated with cameras via `camera_id`. To support per-stream retention, recordings need a `stream_id`. This requires:
+
 - Migration: `ALTER TABLE recordings ADD COLUMN stream_id TEXT DEFAULT ''`
 - The recording writer (scheduler/YAML config) must tag recordings with the stream ID they came from
 - Retention queries filter by `stream_id` when deleting
@@ -157,6 +166,7 @@ The camera-level `retention_days` and `event_retention_days` columns remain as f
 ### CameraStream Model Update (Flutter)
 
 Add to the Freezed `CameraStream` model:
+
 ```dart
 @JsonKey(name: 'retention_days') @Default(0) int retentionDays,
 @JsonKey(name: 'event_retention_days') @Default(0) int eventRetentionDays,

@@ -580,3 +580,95 @@ func TestUpdateStreamRetention(t *testing.T) {
 	assert.Equal(t, 14, updated.RetentionDays)
 	assert.Equal(t, 365, updated.EventRetentionDays)
 }
+
+func TestDeleteStreamRecordingsByDateRange(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	mainStream := &CameraStream{CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x"}
+	require.NoError(t, d.CreateCameraStream(mainStream))
+
+	subStream := &CameraStream{CameraID: cam.ID, Name: "Sub", RTSPURL: "rtsp://y"}
+	require.NoError(t, d.CreateCameraStream(subStream))
+
+	now := time.Now().UTC()
+	fiveDaysAgo := now.AddDate(0, 0, -5)
+
+	// Main stream recording (5 days old).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: mainStream.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/main-old.mp4", FileSize: 1000, Format: "fmp4",
+	}))
+
+	// Sub stream recording (5 days old).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: subStream.ID,
+		StartTime: fiveDaysAgo.Format(timeFormat),
+		EndTime:   fiveDaysAgo.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/sub-old.mp4", FileSize: 1000, Format: "fmp4",
+	}))
+
+	// Delete only main stream recordings older than 3 days.
+	cutoff := now.AddDate(0, 0, -3)
+	paths, err := d.DeleteStreamRecordingsByDateRange(cam.ID, mainStream.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/tmp/main-old.mp4"}, paths)
+
+	// Sub stream recording must survive.
+	recs, err := d.QueryRecordings(cam.ID, fiveDaysAgo.Add(-1*time.Hour), now)
+	require.NoError(t, err)
+	assert.Len(t, recs, 1)
+	assert.Equal(t, "/tmp/sub-old.mp4", recs[0].FilePath)
+}
+
+func TestGetStoragePerStream(t *testing.T) {
+	d := openTestDB(t)
+
+	cam := &Camera{Name: "test-cam"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	main := &CameraStream{CameraID: cam.ID, Name: "Main", RTSPURL: "rtsp://x"}
+	require.NoError(t, d.CreateCameraStream(main))
+
+	sub := &CameraStream{CameraID: cam.ID, Name: "Sub", RTSPURL: "rtsp://y"}
+	require.NoError(t, d.CreateCameraStream(sub))
+
+	now := time.Now().UTC()
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: main.ID,
+		StartTime: now.Format(timeFormat),
+		EndTime:   now.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/main1.mp4", FileSize: 5000, Format: "fmp4",
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: main.ID,
+		StartTime: now.Add(20 * time.Minute).Format(timeFormat),
+		EndTime:   now.Add(30 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/main2.mp4", FileSize: 3000, Format: "fmp4",
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StreamID: sub.ID,
+		StartTime: now.Format(timeFormat),
+		EndTime:   now.Add(10 * time.Minute).Format(timeFormat),
+		FilePath:  "/tmp/sub1.mp4", FileSize: 1000, Format: "fmp4",
+	}))
+
+	results, err := d.GetStoragePerStream(cam.ID)
+	require.NoError(t, err)
+	assert.Len(t, results, 2)
+
+	// Results ordered by stream name.
+	assert.Equal(t, main.ID, results[0].StreamID)
+	assert.Equal(t, "Main", results[0].StreamName)
+	assert.Equal(t, int64(8000), results[0].TotalBytes)
+	assert.Equal(t, int64(2), results[0].SegmentCount)
+
+	assert.Equal(t, sub.ID, results[1].StreamID)
+	assert.Equal(t, "Sub", results[1].StreamName)
+	assert.Equal(t, int64(1000), results[1].TotalBytes)
+	assert.Equal(t, int64(1), results[1].SegmentCount)
+}

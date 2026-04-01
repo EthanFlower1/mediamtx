@@ -30,6 +30,7 @@ clients/flutter/lib/
 ### Task 1: Add CameraStream Model
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/camera_stream.dart`
 
 - [ ] **Step 1: Create the CameraStream model**
@@ -95,6 +96,7 @@ git commit -m "feat(flutter): add CameraStream model"
 ### Task 2: Update Camera Model with AI Config Fields
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/camera.dart`
 - Regenerate: `clients/flutter/lib/models/camera.freezed.dart`
 - Regenerate: `clients/flutter/lib/models/camera.g.dart`
@@ -141,6 +143,7 @@ git commit -m "feat(flutter): add aiStreamId, aiConfidence, aiTrackTimeout to Ca
 ### Task 3: Expand AI Detection Section in Camera Detail Screen
 
 **Files:**
+
 - Modify: `clients/flutter/lib/screens/cameras/camera_detail_screen.dart`
 
 This is the main task — adding the stream dropdown, track timeout slider, and save button to the AI section.
@@ -195,7 +198,7 @@ Then add a stream fetch after the main try block's setState (after line 109, sti
       }
 ```
 
-- [ ] **Step 3: Update the _saveAi() method**
+- [ ] **Step 3: Update the \_saveAi() method**
 
 Replace the existing `_saveAi()` method (lines 147-172) with:
 

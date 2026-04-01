@@ -618,6 +618,13 @@ components:
           type: string
           nullable: true
           deprecated: true
+        # NVR
+        nvr:
+          type: boolean
+        nvrDatabase:
+          type: string
+        nvrJWTSecret:
+          type: string
 
     PathConf:
       type: object

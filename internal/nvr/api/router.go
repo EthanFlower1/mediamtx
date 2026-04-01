@@ -86,6 +86,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		QuarantineBase: quarantineBase,
 	}
 
+	statsHandler := &StatsHandler{
+		DB: cfg.DB,
+	}
+
 	var healthHandler *RecordingHealthHandler
 	if cfg.Scheduler != nil {
 		healthHandler = &RecordingHealthHandler{
@@ -282,6 +286,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/recordings/verify", integrityHandler.Verify)
 	protected.POST("/recordings/:id/quarantine", integrityHandler.Quarantine)
 	protected.POST("/recordings/:id/unquarantine", integrityHandler.Unquarantine)
+
+	// Recording statistics.
+	protected.GET("/recordings/stats", statsHandler.GetStats)
+	protected.GET("/recordings/stats/:camera_id/gaps", statsHandler.GetGaps)
 
 	// Recording health.
 	if healthHandler != nil {

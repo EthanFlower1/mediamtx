@@ -12,20 +12,21 @@
 
 ## File Map
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `internal/nvr/storage/io_monitor.go` | Create | IOSample struct, PathIOMetrics ring buffer, IOState type, threshold evaluation |
-| `internal/nvr/storage/io_monitor_test.go` | Create | Unit tests for ring buffer, threshold evaluation, state transitions |
-| `internal/nvr/storage/manager.go` | Modify | Add IOMonitor field, call benchmark in health check, wire up event broadcaster |
-| `internal/nvr/api/system.go` | Modify | Add DiskIO and UpdateDiskIOThresholds handlers to SystemHandler |
-| `internal/nvr/api/router.go` | Modify | Register two new endpoints under protected system group |
-| `internal/nvr/api/events.go` | Modify | Add PublishDiskSlow, PublishDiskCritical, PublishDiskRecovered helpers |
+| File                                      | Action | Responsibility                                                                 |
+| ----------------------------------------- | ------ | ------------------------------------------------------------------------------ |
+| `internal/nvr/storage/io_monitor.go`      | Create | IOSample struct, PathIOMetrics ring buffer, IOState type, threshold evaluation |
+| `internal/nvr/storage/io_monitor_test.go` | Create | Unit tests for ring buffer, threshold evaluation, state transitions            |
+| `internal/nvr/storage/manager.go`         | Modify | Add IOMonitor field, call benchmark in health check, wire up event broadcaster |
+| `internal/nvr/api/system.go`              | Modify | Add DiskIO and UpdateDiskIOThresholds handlers to SystemHandler                |
+| `internal/nvr/api/router.go`              | Modify | Register two new endpoints under protected system group                        |
+| `internal/nvr/api/events.go`              | Modify | Add PublishDiskSlow, PublishDiskCritical, PublishDiskRecovered helpers         |
 
 ---
 
 ### Task 1: IOSample and PathIOMetrics Ring Buffer
 
 **Files:**
+
 - Create: `internal/nvr/storage/io_monitor.go`
 - Create: `internal/nvr/storage/io_monitor_test.go`
 
@@ -223,6 +224,7 @@ git commit -m "feat(storage): add IOSample and PathIOMetrics ring buffer"
 ### Task 2: Threshold Evaluation with Sliding Window
 
 **Files:**
+
 - Modify: `internal/nvr/storage/io_monitor.go`
 - Modify: `internal/nvr/storage/io_monitor_test.go`
 
@@ -398,6 +400,7 @@ git commit -m "feat(storage): add threshold evaluation with sliding window"
 ### Task 3: IOMonitor Coordinator
 
 **Files:**
+
 - Modify: `internal/nvr/storage/io_monitor.go`
 - Modify: `internal/nvr/storage/io_monitor_test.go`
 
@@ -558,6 +561,7 @@ git commit -m "feat(storage): add IOMonitor coordinator for per-path metrics"
 ### Task 4: Wire IO Benchmark into Storage Manager Health Check
 
 **Files:**
+
 - Modify: `internal/nvr/storage/manager.go`
 - Modify: `internal/nvr/storage/io_monitor.go` (add BenchmarkPath function)
 
@@ -730,6 +734,7 @@ git commit -m "feat(storage): wire I/O benchmark into health check loop"
 ### Task 5: SSE Event Helpers
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go`
 
 - [ ] **Step 1: Add PublishDiskSlow, PublishDiskCritical, PublishDiskRecovered to EventBroadcaster**
@@ -779,6 +784,7 @@ git commit -m "feat(api): add disk I/O SSE event helpers"
 ### Task 6: API Endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/system.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -896,6 +902,7 @@ git commit -m "feat(api): add disk I/O status and threshold endpoints"
 ### Task 7: Wire EventBroadcaster into Storage Manager
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go` (or wherever Manager.Start is called)
 
 - [ ] **Step 1: Find where Manager is wired up**
@@ -929,6 +936,7 @@ git commit -m "feat(nvr): wire event broadcaster into storage manager for disk I
 ### Task 8: Also Monitor Default Recordings Path
 
 **Files:**
+
 - Modify: `internal/nvr/storage/manager.go`
 
 - [ ] **Step 1: Run I/O benchmark on the default recordings path too**
@@ -980,6 +988,7 @@ git commit -m "feat(storage): also benchmark default recordings path for I/O mon
 ### Task 9: Extract Event Emission Helper to Reduce Duplication
 
 **Files:**
+
 - Modify: `internal/nvr/storage/manager.go`
 
 - [ ] **Step 1: Extract emitIOEvent helper**

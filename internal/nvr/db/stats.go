@@ -48,3 +48,41 @@ func (d *DB) GetRecordingStats(cameraID string) ([]RecordingStats, error) {
 	}
 	return results, rows.Err()
 }
+
+// Gap represents a period where no recording exists for a camera.
+type Gap struct {
+	Start      string `json:"start"`
+	End        string `json:"end"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// GetRecordingGaps returns all gaps between consecutive recordings for a camera
+// where the gap duration exceeds gapThresholdMs milliseconds.
+func (d *DB) GetRecordingGaps(cameraID string, gapThresholdMs int64) ([]Gap, error) {
+	rows, err := d.Query(`
+		SELECT end_time, next_start,
+			CAST(ROUND((julianday(next_start) - julianday(end_time)) * 86400000) AS INTEGER) AS gap_ms
+		FROM (
+			SELECT end_time,
+				LEAD(start_time) OVER (ORDER BY start_time) AS next_start
+			FROM recordings
+			WHERE camera_id = ?
+		)
+		WHERE next_start IS NOT NULL
+		  AND CAST(ROUND((julianday(next_start) - julianday(end_time)) * 86400000) AS INTEGER) > ?
+		ORDER BY end_time`, cameraID, gapThresholdMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var gaps []Gap
+	for rows.Next() {
+		var g Gap
+		if err := rows.Scan(&g.Start, &g.End, &g.DurationMs); err != nil {
+			return nil, err
+		}
+		gaps = append(gaps, g)
+	}
+	return gaps, rows.Err()
+}

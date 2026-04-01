@@ -71,3 +71,82 @@ func TestGetRecordingStats_FilterByCamera(t *testing.T) {
 	require.Len(t, stats, 1)
 	require.Equal(t, cam1.ID, stats[0].CameraID)
 }
+
+func TestGetRecordingGaps_NoRecordings(t *testing.T) {
+	d := newTestDB(t)
+
+	gaps, err := d.GetRecordingGaps("nonexistent", 2000)
+	require.NoError(t, err)
+	require.Empty(t, gaps)
+}
+
+func TestGetRecordingGaps_NoGaps(t *testing.T) {
+	d := newTestDB(t)
+	cam := createTestCameraForRecordings(t, d)
+
+	// Two contiguous recordings (no gap).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T10:00:00.000Z",
+		EndTime: "2025-01-15T11:00:00.000Z", DurationMs: 3600000,
+		FilePath: "/recordings/g1.mp4", FileSize: 100,
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T11:00:00.000Z",
+		EndTime: "2025-01-15T12:00:00.000Z", DurationMs: 3600000,
+		FilePath: "/recordings/g2.mp4", FileSize: 100,
+	}))
+
+	gaps, err := d.GetRecordingGaps(cam.ID, 2000)
+	require.NoError(t, err)
+	require.Empty(t, gaps)
+}
+
+func TestGetRecordingGaps_WithGaps(t *testing.T) {
+	d := newTestDB(t)
+	cam := createTestCameraForRecordings(t, d)
+
+	// Three recordings with a 5-minute gap between second and third.
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T10:00:00.000Z",
+		EndTime: "2025-01-15T11:00:00.000Z", DurationMs: 3600000,
+		FilePath: "/recordings/h1.mp4", FileSize: 100,
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T11:00:00.000Z",
+		EndTime: "2025-01-15T12:00:00.000Z", DurationMs: 3600000,
+		FilePath: "/recordings/h2.mp4", FileSize: 100,
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T12:05:00.000Z",
+		EndTime: "2025-01-15T13:00:00.000Z", DurationMs: 3300000,
+		FilePath: "/recordings/h3.mp4", FileSize: 100,
+	}))
+
+	gaps, err := d.GetRecordingGaps(cam.ID, 2000)
+	require.NoError(t, err)
+	require.Len(t, gaps, 1)
+	require.Equal(t, "2025-01-15T12:00:00.000Z", gaps[0].Start)
+	require.Equal(t, "2025-01-15T12:05:00.000Z", gaps[0].End)
+	require.Equal(t, int64(300000), gaps[0].DurationMs)
+}
+
+func TestGetRecordingGaps_SmallGapFiltered(t *testing.T) {
+	d := newTestDB(t)
+	cam := createTestCameraForRecordings(t, d)
+
+	// Two recordings with a 1-second gap (below 2000ms threshold).
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T10:00:00.000Z",
+		EndTime: "2025-01-15T11:00:00.000Z", DurationMs: 3600000,
+		FilePath: "/recordings/s1.mp4", FileSize: 100,
+	}))
+	require.NoError(t, d.InsertRecording(&Recording{
+		CameraID: cam.ID, StartTime: "2025-01-15T11:00:01.000Z",
+		EndTime: "2025-01-15T12:00:00.000Z", DurationMs: 3599000,
+		FilePath: "/recordings/s2.mp4", FileSize: 100,
+	}))
+
+	gaps, err := d.GetRecordingGaps(cam.ID, 2000)
+	require.NoError(t, err)
+	require.Empty(t, gaps)
+}

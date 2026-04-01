@@ -86,6 +86,28 @@ type cameraRequest struct {
 	Tags              string `json:"tags"`
 }
 
+// cameraResponse wraps db.Camera with additional computed fields.
+type cameraResponse struct {
+	db.Camera
+	RecordingHealth string `json:"recording_health"`
+}
+
+// buildCameraResponse creates a cameraResponse for the given camera,
+// populating computed fields like recording health.
+func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
+	recordingHealth := scheduler.HealthInactive
+	if h.Scheduler != nil {
+		if rh := h.Scheduler.GetRecordingHealth(cam.ID); rh != nil {
+			recordingHealth = rh.Status
+		}
+	}
+
+	return cameraResponse{
+		Camera:          *cam,
+		RecordingHealth: recordingHealth,
+	}
+}
+
 var nonAlphanumericDash = regexp.MustCompile(`[^a-z0-9-]`)
 
 // sanitizePath converts a camera name to a safe MediaMTX path component.
@@ -188,7 +210,7 @@ func (h *CameraHandler) Get(c *gin.Context) {
 		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
 		return
 	}
-	c.JSON(http.StatusOK, cam)
+	c.JSON(http.StatusOK, h.buildCameraResponse(cam))
 }
 
 // Create creates a new camera in the database and writes its path to the YAML config.

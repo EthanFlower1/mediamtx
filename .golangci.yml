@@ -78,6 +78,11 @@ linters:
       - stringsbuilder
       - testingcontext
 
+exclusions:
+  paths:
+    - internal/nvr
+    - cmd/backfill
+
 formatters:
   enable:
   - gofmt

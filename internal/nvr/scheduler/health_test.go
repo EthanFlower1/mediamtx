@@ -108,7 +108,7 @@ func TestRecordingHealth_ShouldRestart_BackoffNotElapsed(t *testing.T) {
 	h := NewRecordingHealth()
 	h.Status = HealthStalled
 	h.RestartAttempts = 1
-	h.LastRestartAt = time.Now().Add(-3 * time.Second) // only 3s ago, need 15s
+	h.LastRestartAt = time.Now().Add(-3 * time.Second) // only 3s ago, need 5s
 	should := h.ShouldRestart(time.Now())
 	require.False(t, should)
 }
@@ -117,7 +117,7 @@ func TestRecordingHealth_ShouldRestart_BackoffElapsed(t *testing.T) {
 	h := NewRecordingHealth()
 	h.Status = HealthStalled
 	h.RestartAttempts = 1
-	h.LastRestartAt = time.Now().Add(-20 * time.Second) // 20s ago, need 15s
+	h.LastRestartAt = time.Now().Add(-20 * time.Second) // 20s ago, need 5s
 	should := h.ShouldRestart(time.Now())
 	require.True(t, should)
 }

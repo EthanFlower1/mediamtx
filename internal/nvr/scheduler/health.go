@@ -51,9 +51,9 @@ func NewRecordingHealth() *RecordingHealth {
 	}
 }
 
-// CheckStall checks whether the recording has stalled. Returns true if a
-// new stall was detected (transition from healthy to stalled). Does nothing
-// for inactive or already-failed cameras.
+// CheckStall checks whether the recording has stalled. Returns true if the
+// recording is currently stalled (either newly detected or ongoing). Does
+// nothing for inactive or already-failed cameras.
 func (h *RecordingHealth) CheckStall(now time.Time) bool {
 	if h.Status != HealthHealthy && h.Status != HealthStalled {
 		return false

@@ -147,3 +147,51 @@ func TestPathIOMetrics_EvaluateFewerThanWindow(t *testing.T) {
 		t.Fatalf("expected critical with fewer than window samples, got %s", curr)
 	}
 }
+
+func TestIOMonitor_RecordAndGetStatus(t *testing.T) {
+	mon := NewIOMonitor(50, 200)
+
+	mon.Record("/data", IOSample{
+		Timestamp:    time.Now(),
+		LatencyMs:    12.0,
+		ThroughputMB: 83.0,
+	})
+
+	status := mon.GetStatus()
+	if len(status) != 1 {
+		t.Fatalf("expected 1 path, got %d", len(status))
+	}
+	ps, ok := status["/data"]
+	if !ok {
+		t.Fatal("expected /data in status")
+	}
+	if ps.State != IOStateHealthy {
+		t.Fatalf("expected healthy, got %s", ps.State)
+	}
+	if ps.Latest.LatencyMs != 12.0 {
+		t.Fatalf("expected 12.0, got %f", ps.Latest.LatencyMs)
+	}
+}
+
+func TestIOMonitor_UpdateThresholds(t *testing.T) {
+	mon := NewIOMonitor(50, 200)
+	mon.Record("/data", IOSample{Timestamp: time.Now(), LatencyMs: 10, ThroughputMB: 100})
+
+	err := mon.UpdateThresholds("/data", 75, 300)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status := mon.GetStatus()
+	if status["/data"].WarnMs != 75 || status["/data"].CritMs != 300 {
+		t.Fatalf("thresholds not updated: %+v", status["/data"])
+	}
+}
+
+func TestIOMonitor_UpdateThresholds_UnknownPath(t *testing.T) {
+	mon := NewIOMonitor(50, 200)
+	err := mon.UpdateThresholds("/nonexistent", 75, 300)
+	if err == nil {
+		t.Fatal("expected error for unknown path")
+	}
+}

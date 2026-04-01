@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -139,4 +140,76 @@ func (m *PathIOMetrics) SetThresholds(warnMs, critMs float64) {
 	m.WarnMs = warnMs
 	m.CritMs = critMs
 	m.mu.Unlock()
+}
+
+// PathStatus holds the current state and metrics for a single storage path.
+type PathStatus struct {
+	State   IOState    `json:"state"`
+	Latest  IOSample   `json:"latest"`
+	WarnMs  float64    `json:"warn_ms"`
+	CritMs  float64    `json:"critical_ms"`
+	History []IOSample `json:"history"`
+}
+
+// IOMonitor manages per-path IOMetrics and coordinates recording and evaluation.
+type IOMonitor struct {
+	mu            sync.RWMutex
+	paths         map[string]*PathIOMetrics
+	defaultWarnMs float64
+	defaultCritMs float64
+}
+
+// NewIOMonitor creates an IOMonitor with default thresholds for new paths.
+func NewIOMonitor(defaultWarnMs, defaultCritMs float64) *IOMonitor {
+	return &IOMonitor{
+		paths:         make(map[string]*PathIOMetrics),
+		defaultWarnMs: defaultWarnMs,
+		defaultCritMs: defaultCritMs,
+	}
+}
+
+// Record adds a sample for the given path (creating the PathIOMetrics if needed)
+// and evaluates thresholds. Returns (previousState, newState).
+func (m *IOMonitor) Record(path string, sample IOSample) (IOState, IOState) {
+	m.mu.Lock()
+	pm, ok := m.paths[path]
+	if !ok {
+		pm = NewPathIOMetrics(m.defaultWarnMs, m.defaultCritMs)
+		m.paths[path] = pm
+	}
+	m.mu.Unlock()
+
+	pm.Add(sample)
+	return pm.Evaluate()
+}
+
+// GetStatus returns the current status of all tracked paths.
+func (m *IOMonitor) GetStatus() map[string]PathStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make(map[string]PathStatus, len(m.paths))
+	for path, pm := range m.paths {
+		warnMs, critMs := pm.GetThresholds()
+		result[path] = PathStatus{
+			State:   pm.GetState(),
+			Latest:  pm.Latest(),
+			WarnMs:  warnMs,
+			CritMs:  critMs,
+			History: pm.History(),
+		}
+	}
+	return result
+}
+
+// UpdateThresholds changes the warn and critical thresholds for a specific path.
+func (m *IOMonitor) UpdateThresholds(path string, warnMs, critMs float64) error {
+	m.mu.RLock()
+	pm, ok := m.paths[path]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("path %q not found", path)
+	}
+	pm.SetThresholds(warnMs, critMs)
+	return nil
 }

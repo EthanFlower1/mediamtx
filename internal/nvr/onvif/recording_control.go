@@ -12,7 +12,7 @@ import (
 
 // RecordingSource describes the source of an ONVIF recording.
 type RecordingSource struct {
-	SourceId    string `json:"source_id"`
+	SourceID    string `json:"source_id"`
 	Name        string `json:"name"`
 	Location    string `json:"location"`
 	Description string `json:"description"`
@@ -88,7 +88,7 @@ type recordingConfigurationXML struct {
 }
 
 type recordingSourceXML struct {
-	SourceId    string `xml:"SourceId"`
+	SourceID    string `xml:"SourceID"`
 	Name        string `xml:"Name"`
 	Location    string `xml:"Location"`
 	Description string `xml:"Description"`
@@ -229,7 +229,7 @@ func GetRecordingConfiguration(xaddr, username, password, recordingToken string)
 	return &RecordingConfiguration{
 		RecordingToken:       rc.RecordingToken,
 		Source: RecordingSource{
-			SourceId:    rc.Source.SourceId,
+			SourceID:    rc.Source.SourceID,
 			Name:        rc.Source.Name,
 			Location:    rc.Source.Location,
 			Description: rc.Source.Description,
@@ -241,7 +241,10 @@ func GetRecordingConfiguration(xaddr, username, password, recordingToken string)
 }
 
 // CreateRecording creates a new recording container on the device's edge storage.
-func CreateRecording(xaddr, username, password string, source RecordingSource, maxRetention, content string) (string, error) {
+func CreateRecording(
+	xaddr, username, password string,
+	source RecordingSource, maxRetention, content string,
+) (string, error) {
 	controlURL, err := getRecordingControlURL(xaddr, username, password)
 	if err != nil {
 		return "", fmt.Errorf("CreateRecording: %w", err)
@@ -253,7 +256,7 @@ func CreateRecording(xaddr, username, password string, source RecordingSource, m
 	reqBody := fmt.Sprintf(`<trc:CreateRecording>
       <trc:RecordingConfiguration>
         <tt:Source>
-          <tt:SourceId>%s</tt:SourceId>
+          <tt:SourceID>%s</tt:SourceID>
           <tt:Name>%s</tt:Name>
           <tt:Location>%s</tt:Location>
           <tt:Description>%s</tt:Description>
@@ -263,7 +266,7 @@ func CreateRecording(xaddr, username, password string, source RecordingSource, m
         <tt:Content>%s</tt:Content>
       </trc:RecordingConfiguration>
     </trc:CreateRecording>`,
-		xmlEscape(source.SourceId),
+		xmlEscape(source.SourceID),
 		xmlEscape(source.Name),
 		xmlEscape(source.Location),
 		xmlEscape(source.Description),
@@ -326,7 +329,10 @@ func DeleteRecording(xaddr, username, password, recordingToken string) error {
 
 // CreateRecordingJob creates a recording job that records into the specified recording container.
 // Mode should be "Active" (start recording) or "Idle" (create but don't start).
-func CreateRecordingJob(xaddr, username, password, recordingToken, mode string, priority int) (*RecordingJobConfiguration, error) {
+func CreateRecordingJob(
+	xaddr, username, password, recordingToken, mode string,
+	priority int,
+) (*RecordingJobConfiguration, error) {
 	controlURL, err := getRecordingControlURL(xaddr, username, password)
 	if err != nil {
 		return nil, fmt.Errorf("CreateRecordingJob: %w", err)

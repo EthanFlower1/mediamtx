@@ -38,9 +38,12 @@ func (h *CameraHandler) GetRecordingConfig(c *gin.Context) {
 		return
 	}
 
-	config, err := onvif.GetRecordingConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), recordingToken)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	config, err := onvif.GetRecordingConfiguration(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password, recordingToken)
 	if err != nil {
-		nvrLogError("recording-control", fmt.Sprintf("failed to get recording config for camera %s token %s", id, recordingToken), err)
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to get recording config for camera %s token %s", id, recordingToken), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get recording configuration from device"})
 		return
 	}
@@ -79,7 +82,10 @@ func (h *CameraHandler) CreateEdgeRecording(c *gin.Context) {
 		return
 	}
 
-	token, err := onvif.CreateRecording(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.Source, req.MaximumRetentionTime, req.Content)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	token, err := onvif.CreateRecording(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password,
+		req.Source, req.MaximumRetentionTime, req.Content)
 	if err != nil {
 		nvrLogError("recording-control", fmt.Sprintf("failed to create recording on camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create recording on device"})
@@ -111,9 +117,12 @@ func (h *CameraHandler) DeleteEdgeRecording(c *gin.Context) {
 		return
 	}
 
-	err = onvif.DeleteRecording(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), recordingToken)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	err = onvif.DeleteRecording(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password, recordingToken)
 	if err != nil {
-		nvrLogError("recording-control", fmt.Sprintf("failed to delete recording on camera %s token %s", id, recordingToken), err)
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to delete recording on camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete recording on device"})
 		return
 	}
@@ -163,7 +172,10 @@ func (h *CameraHandler) CreateEdgeRecordingJob(c *gin.Context) {
 		return
 	}
 
-	jobConfig, err := onvif.CreateRecordingJob(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.RecordingToken, req.Mode, req.Priority)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	jobConfig, err := onvif.CreateRecordingJob(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password,
+		req.RecordingToken, req.Mode, req.Priority)
 	if err != nil {
 		nvrLogError("recording-control", fmt.Sprintf("failed to create recording job on camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create recording job on device"})
@@ -195,9 +207,12 @@ func (h *CameraHandler) DeleteEdgeRecordingJob(c *gin.Context) {
 		return
 	}
 
-	err = onvif.DeleteRecordingJob(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), jobToken)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	err = onvif.DeleteRecordingJob(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password, jobToken)
 	if err != nil {
-		nvrLogError("recording-control", fmt.Sprintf("failed to delete recording job on camera %s token %s", id, jobToken), err)
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to delete recording job on camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete recording job on device"})
 		return
 	}
@@ -227,9 +242,12 @@ func (h *CameraHandler) GetEdgeRecordingJobState(c *gin.Context) {
 		return
 	}
 
-	state, err := onvif.GetRecordingJobState(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), jobToken)
+	password := h.decryptPassword(cam.ONVIFPassword)
+	state, err := onvif.GetRecordingJobState(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password, jobToken)
 	if err != nil {
-		nvrLogError("recording-control", fmt.Sprintf("failed to get recording job state on camera %s token %s", id, jobToken), err)
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to get recording job state for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get recording job state from device"})
 		return
 	}

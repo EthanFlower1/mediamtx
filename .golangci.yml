@@ -24,6 +24,11 @@ linters:
   - wastedassign
   - whitespace
 
+  exclusions:
+    paths:
+      - internal/nvr
+      - cmd/backfill
+
   settings:
     errcheck:
       exclude-functions:
@@ -77,11 +82,6 @@ linters:
       - reflecttypefor
       - stringsbuilder
       - testingcontext
-
-run:
-  skip-dirs:
-    - internal/nvr
-    - cmd/backfill
 
 formatters:
   enable:

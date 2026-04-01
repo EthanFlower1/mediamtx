@@ -13,6 +13,7 @@ DB open → migrations → recovery scan → repair → reconcile → fragment b
 ```
 
 This ordering ensures:
+
 - Recorders don't create files that collide with ones being repaired
 - Fragment backfill operates on clean, repaired files
 - Repaired segments are immediately available for playback
@@ -85,14 +86,14 @@ type RepairResult struct {
 
 ### Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| File has ftyp + moov but no moof/mdat | Unrecoverable — no media data |
-| File truncated inside moov box | Unrecoverable — can't parse structure |
-| File has complete fragments + partial trailing moof | Truncate after last complete mdat |
-| File has complete fragments + partial trailing mdat | Truncate after the moof preceding the partial mdat (drop the incomplete pair) |
-| File ends cleanly after last mdat | AlreadyComplete — no repair needed |
-| File has unexpected box type (not moof/mdat) after moov | Stop walking, truncate at that point, log warning |
+| Scenario                                                | Behavior                                                                      |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| File has ftyp + moov but no moof/mdat                   | Unrecoverable — no media data                                                 |
+| File truncated inside moov box                          | Unrecoverable — can't parse structure                                         |
+| File has complete fragments + partial trailing moof     | Truncate after last complete mdat                                             |
+| File has complete fragments + partial trailing mdat     | Truncate after the moof preceding the partial mdat (drop the incomplete pair) |
+| File ends cleanly after last mdat                       | AlreadyComplete — no repair needed                                            |
+| File has unexpected box type (not moof/mdat) after moov | Stop walking, truncate at that point, log warning                             |
 
 ## DB Reconciliation
 
@@ -145,24 +146,24 @@ No special logic needed. The recorder already generates timestamp-based filename
 
 ### New Package: `internal/nvr/recovery/`
 
-| File | Purpose |
-|------|---------|
-| `recovery.go` | `Run()` entry point, orchestrates scan → repair → reconcile |
-| `scanner.go` | Directory walking, orphan detection, candidate filtering |
-| `repair.go` | fMP4 box walking, truncation, `RepairSegment()` function |
-| `reconcile.go` | DB insert/update for recovered segments |
-| `repair_test.go` | Unit tests for repair with crafted fMP4 fixtures |
-| `scanner_test.go` | Unit tests for candidate discovery |
-| `reconcile_test.go` | Unit tests for DB operations |
-| `recovery_test.go` | Integration test: record → SIGKILL → recover → verify |
+| File                | Purpose                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `recovery.go`       | `Run()` entry point, orchestrates scan → repair → reconcile |
+| `scanner.go`        | Directory walking, orphan detection, candidate filtering    |
+| `repair.go`         | fMP4 box walking, truncation, `RepairSegment()` function    |
+| `reconcile.go`      | DB insert/update for recovered segments                     |
+| `repair_test.go`    | Unit tests for repair with crafted fMP4 fixtures            |
+| `scanner_test.go`   | Unit tests for candidate discovery                          |
+| `reconcile_test.go` | Unit tests for DB operations                                |
+| `recovery_test.go`  | Integration test: record → SIGKILL → recover → verify       |
 
 ### Integration Points
 
-| File | Change |
-|------|--------|
-| `internal/nvr/nvr.go` | Call `recovery.Run()` during `Initialize()`, before backfill goroutine starts |
+| File                            | Change                                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------- |
+| `internal/nvr/nvr.go`           | Call `recovery.Run()` during `Initialize()`, before backfill goroutine starts                 |
 | `internal/nvr/db/recordings.go` | Add `GetOrphanedFiles()` query, `GetUnindexedRecordings()` query, `UpdateRecordingFileSize()` |
-| `internal/nvr/db/migrations.go` | No new migrations — uses existing schema (leverages KAI-12 status columns if present) |
+| `internal/nvr/db/migrations.go` | No new migrations — uses existing schema (leverages KAI-12 status columns if present)         |
 
 ### Dependencies
 
@@ -175,15 +176,15 @@ No special logic needed. The recorder already generates timestamp-based filename
 
 All recovery actions logged at appropriate levels:
 
-| Event | Level |
-|-------|-------|
-| Recovery scan started | Info |
-| Orphaned file found | Info |
-| Segment repaired successfully | Info (with original/new size, fragments recovered) |
-| Segment already complete | Debug |
-| Segment unrecoverable | Warn (with detail) |
-| File moved to recovery_failed | Warn |
-| DB entry reconciled | Debug |
+| Event                            | Level                                                           |
+| -------------------------------- | --------------------------------------------------------------- |
+| Recovery scan started            | Info                                                            |
+| Orphaned file found              | Info                                                            |
+| Segment repaired successfully    | Info (with original/new size, fragments recovered)              |
+| Segment already complete         | Debug                                                           |
+| Segment unrecoverable            | Warn (with detail)                                              |
+| File moved to recovery_failed    | Warn                                                            |
+| DB entry reconciled              | Debug                                                           |
 | Recovery scan complete (summary) | Info (total scanned, repaired, unrecoverable, already complete) |
 
 ## Test Strategy
@@ -192,35 +193,35 @@ All recovery actions logged at appropriate levels:
 
 **repair_test.go** — Craft minimal fMP4 files in memory:
 
-| Test | Input | Expected |
-|------|-------|----------|
-| `TestRepairCompleteFile` | Valid ftyp + moov + 2x(moof+mdat) | AlreadyComplete = true |
+| Test                      | Input                                        | Expected                                               |
+| ------------------------- | -------------------------------------------- | ------------------------------------------------------ |
+| `TestRepairCompleteFile`  | Valid ftyp + moov + 2x(moof+mdat)            | AlreadyComplete = true                                 |
 | `TestRepairTruncatedMdat` | Valid structure, last mdat truncated mid-way | Repaired = true, file truncated before incomplete mdat |
-| `TestRepairTruncatedMoof` | Valid structure, partial moof at end | Repaired = true, file truncated before incomplete moof |
-| `TestRepairNoFragments` | ftyp + moov only | Unrecoverable = true |
-| `TestRepairTruncatedMoov` | ftyp + partial moov | Unrecoverable = true |
-| `TestRepairEmptyFile` | 0 bytes | Error returned |
-| `TestRepairTooSmall` | 4 bytes | Error returned |
-| `TestRepairNotFMP4` | Random bytes | Error returned |
+| `TestRepairTruncatedMoof` | Valid structure, partial moof at end         | Repaired = true, file truncated before incomplete moof |
+| `TestRepairNoFragments`   | ftyp + moov only                             | Unrecoverable = true                                   |
+| `TestRepairTruncatedMoov` | ftyp + partial moov                          | Unrecoverable = true                                   |
+| `TestRepairEmptyFile`     | 0 bytes                                      | Error returned                                         |
+| `TestRepairTooSmall`      | 4 bytes                                      | Error returned                                         |
+| `TestRepairNotFMP4`       | Random bytes                                 | Error returned                                         |
 
 **scanner_test.go** — Temp directories with planted files:
 
-| Test | Setup | Expected |
-|------|-------|----------|
-| `TestScanFindsOrphans` | Files on disk, empty DB | All files returned as candidates |
-| `TestScanSkipsIndexed` | Files on disk, matching DB entries with fragments | No candidates |
-| `TestScanFindsUnindexed` | DB entries with no fragments | Entries returned as candidates |
-| `TestScanSkipsQuarantined` | Files in .quarantine/ | Skipped |
-| `TestScanSkipsSmallFiles` | Files < 8 bytes | Skipped |
+| Test                       | Setup                                             | Expected                         |
+| -------------------------- | ------------------------------------------------- | -------------------------------- |
+| `TestScanFindsOrphans`     | Files on disk, empty DB                           | All files returned as candidates |
+| `TestScanSkipsIndexed`     | Files on disk, matching DB entries with fragments | No candidates                    |
+| `TestScanFindsUnindexed`   | DB entries with no fragments                      | Entries returned as candidates   |
+| `TestScanSkipsQuarantined` | Files in .quarantine/                             | Skipped                          |
+| `TestScanSkipsSmallFiles`  | Files < 8 bytes                                   | Skipped                          |
 
 **reconcile_test.go** — Mock DB:
 
-| Test | Input | Expected |
-|------|-------|----------|
-| `TestReconcileOrphanedFile` | Repaired file, no DB entry | New recording inserted |
-| `TestReconcileUnindexedEntry` | DB entry, repaired file | file_size updated |
-| `TestReconcileUnrecoverable` | Unrecoverable result | Status set to corrupted (if KAI-12) or file moved |
-| `TestReconcileMissingFile` | DB entry, file deleted | Status set to corrupted |
+| Test                          | Input                      | Expected                                          |
+| ----------------------------- | -------------------------- | ------------------------------------------------- |
+| `TestReconcileOrphanedFile`   | Repaired file, no DB entry | New recording inserted                            |
+| `TestReconcileUnindexedEntry` | DB entry, repaired file    | file_size updated                                 |
+| `TestReconcileUnrecoverable`  | Unrecoverable result       | Status set to corrupted (if KAI-12) or file moved |
+| `TestReconcileMissingFile`    | DB entry, file deleted     | Status set to corrupted                           |
 
 ### Integration Test
 

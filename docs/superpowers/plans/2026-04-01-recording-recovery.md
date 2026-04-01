@@ -12,24 +12,25 @@
 
 ## File Structure
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/recovery/repair.go` | `RepairSegment()` — fMP4 box walking and file truncation |
-| `internal/nvr/recovery/repair_test.go` | Unit tests with crafted fMP4 byte fixtures |
-| `internal/nvr/recovery/scanner.go` | `ScanForCandidates()` — find orphaned files and unindexed DB entries |
-| `internal/nvr/recovery/scanner_test.go` | Unit tests with temp dirs and mock DB |
-| `internal/nvr/recovery/reconcile.go` | `Reconcile()` — insert/update DB entries for recovered segments |
-| `internal/nvr/recovery/reconcile_test.go` | Unit tests for DB operations |
-| `internal/nvr/recovery/recovery.go` | `Run()` — orchestrates scan → repair → reconcile |
-| `internal/nvr/recovery/recovery_test.go` | Integration test: end-to-end recovery pipeline |
-| `internal/nvr/db/recordings.go` | Add `GetAllRecordingPaths()` and `UpdateRecordingFileSize()` queries |
-| `internal/nvr/nvr.go` | Call `recovery.Run()` in `Initialize()` at line ~200 |
+| File                                      | Responsibility                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------- |
+| `internal/nvr/recovery/repair.go`         | `RepairSegment()` — fMP4 box walking and file truncation             |
+| `internal/nvr/recovery/repair_test.go`    | Unit tests with crafted fMP4 byte fixtures                           |
+| `internal/nvr/recovery/scanner.go`        | `ScanForCandidates()` — find orphaned files and unindexed DB entries |
+| `internal/nvr/recovery/scanner_test.go`   | Unit tests with temp dirs and mock DB                                |
+| `internal/nvr/recovery/reconcile.go`      | `Reconcile()` — insert/update DB entries for recovered segments      |
+| `internal/nvr/recovery/reconcile_test.go` | Unit tests for DB operations                                         |
+| `internal/nvr/recovery/recovery.go`       | `Run()` — orchestrates scan → repair → reconcile                     |
+| `internal/nvr/recovery/recovery_test.go`  | Integration test: end-to-end recovery pipeline                       |
+| `internal/nvr/db/recordings.go`           | Add `GetAllRecordingPaths()` and `UpdateRecordingFileSize()` queries |
+| `internal/nvr/nvr.go`                     | Call `recovery.Run()` in `Initialize()` at line ~200                 |
 
 ---
 
 ### Task 1: fMP4 Repair — RepairSegment Function
 
 **Files:**
+
 - Create: `internal/nvr/recovery/repair.go`
 - Create: `internal/nvr/recovery/repair_test.go`
 
@@ -424,6 +425,7 @@ git commit -m "feat(recovery): add fMP4 segment repair with box-walking truncati
 ### Task 2: Recovery Scanner — Find Incomplete Segments
 
 **Files:**
+
 - Create: `internal/nvr/recovery/scanner.go`
 - Create: `internal/nvr/recovery/scanner_test.go`
 
@@ -659,6 +661,7 @@ git commit -m "feat(recovery): add scanner to find incomplete segments on startu
 ### Task 3: DB Queries for Recovery
 
 **Files:**
+
 - Modify: `internal/nvr/db/recordings.go` (add two new methods after line ~475)
 
 - [ ] **Step 1: Write GetAllRecordingPaths query**
@@ -749,6 +752,7 @@ git commit -m "feat(db): add recovery queries for orphaned and unindexed recordi
 ### Task 4: Reconciliation Logic
 
 **Files:**
+
 - Create: `internal/nvr/recovery/reconcile.go`
 - Create: `internal/nvr/recovery/reconcile_test.go`
 
@@ -880,6 +884,7 @@ func moveToRecoveryFailed(filePath string) error {
 - [ ] **Step 2: Add missing filepath import**
 
 The `moveToRecoveryFailed` function uses `filepath`. Ensure the import block includes:
+
 ```go
 import (
 	"fmt"
@@ -1034,6 +1039,7 @@ git commit -m "feat(recovery): add reconciliation logic for repaired segments"
 ### Task 5: Recovery Orchestrator — Run Function
 
 **Files:**
+
 - Create: `internal/nvr/recovery/recovery.go`
 - Create: `internal/nvr/recovery/recovery_test.go`
 
@@ -1257,6 +1263,7 @@ git commit -m "feat(recovery): add Run orchestrator for scan-repair-reconcile pi
 ### Task 6: Integrate Recovery into NVR Startup
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go` (lines ~37-70 for struct, ~200 for startup sequence)
 
 - [ ] **Step 1: Add the recovery adapter type**
@@ -1356,11 +1363,13 @@ func (a *recoveryReconcileAdapter) MatchCameraFromPath(filePath string) (cameraI
 In `internal/nvr/nvr.go`, add the recovery import and call. Insert the recovery call **after** line 199 (`n.syncAudioTranscodeState()`) and **before** line 201 (`n.startFragmentBackfill()`):
 
 Add to imports:
+
 ```go
 "github.com/bluenviron/mediamtx/internal/nvr/recovery"
 ```
 
 Insert between `syncAudioTranscodeState()` and `startFragmentBackfill()`:
+
 ```go
 	// Run startup recovery: detect and repair incomplete segments from crashes.
 	if n.RecordingsPath != "" {
@@ -1395,6 +1404,7 @@ git commit -m "feat(nvr): integrate recovery scanner into startup before backfil
 ### Task 7: Run Full Test Suite and Fix Issues
 
 **Files:**
+
 - All files from tasks 1-6
 
 - [ ] **Step 1: Run all recovery package tests**

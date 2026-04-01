@@ -133,6 +133,7 @@ func (n *NVR) Initialize() error {
 	n.sched.Start()
 
 	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
+	n.storageMgr.SetEventPublisher(n.events)
 	n.storageMgr.Start()
 
 	n.metricsCollector = metrics.New(360, 10*time.Second)

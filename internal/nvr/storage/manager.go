@@ -20,6 +20,13 @@ const (
 	defaultMaxRetries    = 10
 )
 
+// EventPublisher can publish disk I/O events.
+type EventPublisher interface {
+	PublishDiskSlow(path string, avgLatencyMs, throughputMB, thresholdMs float64)
+	PublishDiskCritical(path string, avgLatencyMs, throughputMB, thresholdMs float64)
+	PublishDiskRecovered(path string, avgLatencyMs, throughputMB float64)
+}
+
 // Manager monitors storage path health, handles failover, and recovery.
 type Manager struct {
 	db             *db.DB
@@ -31,6 +38,9 @@ type Manager struct {
 
 	mu     sync.RWMutex
 	health map[string]bool
+
+	ioMonitor *IOMonitor
+	events    EventPublisher
 
 	stopCh chan struct{}
 	wg     sync.WaitGroup
@@ -46,6 +56,7 @@ func New(database *db.DB, yw *yamlwriter.Writer, recordingsPath, apiAddress stri
 		checkInterval:  defaultCheckInterval,
 		maxRetries:     defaultMaxRetries,
 		health:         make(map[string]bool),
+		ioMonitor:      NewIOMonitor(50, 200),
 		stopCh:         make(chan struct{}),
 	}
 }
@@ -80,6 +91,31 @@ func (m *Manager) GetAllHealth() map[string]bool {
 		result[k] = v
 	}
 	return result
+}
+
+// SetEventPublisher sets the event publisher used for disk I/O events.
+func (m *Manager) SetEventPublisher(ep EventPublisher) {
+	m.events = ep
+}
+
+// GetIOMonitor returns the Manager's IOMonitor instance.
+func (m *Manager) GetIOMonitor() *IOMonitor {
+	return m.ioMonitor
+}
+
+// emitIOEvent publishes an SSE event when the I/O state changes for a path.
+func (m *Manager) emitIOEvent(path string, sample IOSample, result EvalResult) {
+	if result.Prev == result.Curr || m.events == nil {
+		return
+	}
+	switch {
+	case result.Curr == IOStateSlow:
+		m.events.PublishDiskSlow(path, result.AvgMs, sample.ThroughputMB, result.WarnMs)
+	case result.Curr == IOStateCritical:
+		m.events.PublishDiskCritical(path, result.AvgMs, sample.ThroughputMB, result.CritMs)
+	case result.Curr == IOStateHealthy:
+		m.events.PublishDiskRecovered(path, result.AvgMs, sample.ThroughputMB)
+	}
 }
 
 // StorageStatus returns a human-readable status string for a camera's storage path.
@@ -122,6 +158,16 @@ func (m *Manager) runHealthCheck() {
 		}
 	}
 	m.evaluateHealth(pathCameras)
+
+	if m.recordingsPath != "" {
+		sample, err := BenchmarkPath(m.recordingsPath)
+		if err != nil {
+			log.Printf("[NVR] [storage] I/O benchmark error for default path %s: %v", m.recordingsPath, err)
+		} else {
+			result := m.ioMonitor.Record(m.recordingsPath, sample)
+			m.emitIOEvent(m.recordingsPath, sample, result)
+		}
+	}
 }
 
 func (m *Manager) evaluateHealth(pathCameras map[string][]string) {
@@ -135,6 +181,16 @@ func (m *Manager) evaluateHealth(pathCameras map[string][]string) {
 		wasHealthy, existed := m.health[path]
 		m.health[path] = healthy
 		m.mu.Unlock()
+
+		if healthy {
+			sample, benchErr := BenchmarkPath(path)
+			if benchErr != nil {
+				log.Printf("[NVR] [storage] I/O benchmark error for %s: %v", path, benchErr)
+			} else {
+				result := m.ioMonitor.Record(path, sample)
+				m.emitIOEvent(path, sample, result)
+			}
+		}
 
 		if !existed {
 			continue

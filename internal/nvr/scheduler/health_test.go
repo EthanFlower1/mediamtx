@@ -91,3 +91,65 @@ func TestRecordingHealth_CheckStall_Inactive(t *testing.T) {
 	stalled := h.CheckStall(time.Now())
 	require.False(t, stalled) // inactive cameras don't stall
 }
+
+func TestRecordingHealth_ShouldRestart_FirstAttempt(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.StallDetectedAt = time.Now()
+	h.RestartAttempts = 0
+	should := h.ShouldRestart(time.Now())
+	require.True(t, should)
+}
+
+func TestRecordingHealth_ShouldRestart_BackoffNotElapsed(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.RestartAttempts = 1
+	h.LastRestartAt = time.Now().Add(-3 * time.Second) // only 3s ago, need 15s
+	should := h.ShouldRestart(time.Now())
+	require.False(t, should)
+}
+
+func TestRecordingHealth_ShouldRestart_BackoffElapsed(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.RestartAttempts = 1
+	h.LastRestartAt = time.Now().Add(-20 * time.Second) // 20s ago, need 15s
+	should := h.ShouldRestart(time.Now())
+	require.True(t, should)
+}
+
+func TestRecordingHealth_ShouldRestart_MaxReached(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.RestartAttempts = 3
+	should := h.ShouldRestart(time.Now())
+	require.False(t, should)
+}
+
+func TestRecordingHealth_MarkRestarted(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.RestartAttempts = 0
+	now := time.Now()
+	h.MarkRestarted(now)
+	require.Equal(t, 1, h.RestartAttempts)
+	require.Equal(t, now, h.LastRestartAt)
+	require.Equal(t, HealthStalled, h.Status)
+}
+
+func TestRecordingHealth_MarkFailed(t *testing.T) {
+	h := NewRecordingHealth()
+	h.Status = HealthStalled
+	h.RestartAttempts = 3
+	h.MarkFailed()
+	require.Equal(t, HealthFailed, h.Status)
+	require.Equal(t, "recovery failed after 3 attempts", h.LastError)
+}
+
+func TestBackoffDuration(t *testing.T) {
+	require.Equal(t, 5*time.Second, backoffDuration(0))
+	require.Equal(t, 15*time.Second, backoffDuration(1))
+	require.Equal(t, 45*time.Second, backoffDuration(2))
+	require.Equal(t, 45*time.Second, backoffDuration(5)) // capped
+}

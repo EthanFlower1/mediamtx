@@ -1,6 +1,9 @@
 package scheduler
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Health status constants.
 const (
@@ -88,4 +91,34 @@ func (h *RecordingHealth) RecordSegment(t time.Time) {
 	if h.Status == HealthStalled || h.Status == HealthFailed || h.Status == HealthHealthy {
 		h.Status = HealthHealthy
 	}
+}
+
+// ShouldRestart returns true if a restart attempt should be made now.
+// Returns false if max attempts reached or backoff period hasn't elapsed.
+func (h *RecordingHealth) ShouldRestart(now time.Time) bool {
+	if h.Status != HealthStalled {
+		return false
+	}
+	if h.RestartAttempts >= MaxRestartAttempts {
+		return false
+	}
+	if h.RestartAttempts > 0 {
+		backoff := backoffDuration(h.RestartAttempts - 1)
+		if now.Sub(h.LastRestartAt) < backoff {
+			return false
+		}
+	}
+	return true
+}
+
+// MarkRestarted records that a restart attempt was made.
+func (h *RecordingHealth) MarkRestarted(now time.Time) {
+	h.RestartAttempts++
+	h.LastRestartAt = now
+}
+
+// MarkFailed transitions the health to failed state.
+func (h *RecordingHealth) MarkFailed() {
+	h.Status = HealthFailed
+	h.LastError = fmt.Sprintf("recovery failed after %d attempts", MaxRestartAttempts)
 }

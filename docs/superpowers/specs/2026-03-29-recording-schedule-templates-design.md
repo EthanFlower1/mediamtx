@@ -9,6 +9,7 @@
 ## Context
 
 Recording rules are currently created per-camera through a buried "MANAGE SCHEDULES" button. Users want:
+
 1. A dedicated page for managing recording schedule templates
 2. Easy defaults (pre-built templates for common patterns)
 3. Per-stream template assignment directly on the camera detail page
@@ -24,6 +25,7 @@ Add "Schedules" to the sidebar after Devices (after the separator). Icon: `Icons
 ### Layout: List View
 
 Compact list of all schedule templates. Each row:
+
 - Colored dot: orange = continuous (always), green = motion (events)
 - Template name (bold)
 - Description: days + time range
@@ -35,6 +37,7 @@ Header: "RECORDING SCHEDULES" title + "+ NEW TEMPLATE" button (tactical style).
 ### Create/Edit Dialog
 
 Same dialog for both create and edit. Fields:
+
 - Name (text input)
 - Mode selector: Continuous / Motion
 - Days: chip toggles for Mon-Sun (all selected by default)
@@ -44,6 +47,7 @@ Same dialog for both create and edit. Fields:
 ### Delete
 
 Templates can only be deleted if:
+
 - They are not a default template (`is_default = false`)
 - They are not assigned to any streams
 
@@ -55,13 +59,13 @@ Show a confirmation dialog. If assigned, show "Remove from X streams first" erro
 
 Seeded on first launch when the `schedule_templates` table is empty.
 
-| Name | Mode | Days | Start | End | Post-Event |
-|------|------|------|-------|-----|------------|
-| 24/7 Continuous | always | 0,1,2,3,4,5,6 | 00:00 | 00:00 | 0 |
-| 24/7 Motion | events | 0,1,2,3,4,5,6 | 00:00 | 00:00 | 30 |
-| Business Hours | always | 1,2,3,4,5 | 08:00 | 18:00 | 0 |
-| After Hours Motion | events | 0,1,2,3,4,5,6 | 18:00 | 08:00 | 30 |
-| Weekday Only | always | 1,2,3,4,5 | 00:00 | 00:00 | 0 |
+| Name               | Mode   | Days          | Start | End   | Post-Event |
+| ------------------ | ------ | ------------- | ----- | ----- | ---------- |
+| 24/7 Continuous    | always | 0,1,2,3,4,5,6 | 00:00 | 00:00 | 0          |
+| 24/7 Motion        | events | 0,1,2,3,4,5,6 | 00:00 | 00:00 | 30         |
+| Business Hours     | always | 1,2,3,4,5     | 08:00 | 18:00 | 0          |
+| After Hours Motion | events | 0,1,2,3,4,5,6 | 18:00 | 08:00 | 30         |
+| Weekday Only       | always | 1,2,3,4,5     | 00:00 | 00:00 | 0          |
 
 Days use ISO weekday numbers: 0=Sunday, 1=Monday, ... 6=Saturday.
 
@@ -82,6 +86,7 @@ RECORDING
 ```
 
 Each row:
+
 - Stream label: `"{name} ({width}x{height})"` using `CameraStream.displayLabel`
 - Dropdown: "None" + all templates from `GET /schedule-templates`
 - The currently active template is pre-selected (matched by `template_id` on the recording rule)
@@ -152,6 +157,7 @@ Body: { "stream_id": "...", "template_id": "..." }
 ```
 
 Logic:
+
 1. If `template_id` is empty: delete existing recording rule for this camera+stream, return 200.
 2. If `template_id` is set: look up the template, create or update a recording rule for this camera+stream copying the template's mode, days, start_time, end_time, post_event_seconds. Set `template_id` on the rule. Return 200 with the rule.
 
@@ -176,11 +182,13 @@ Methods: List, Create, Update, Delete. Standard CRUD with validation matching th
 ## Flutter: Files
 
 ### New Files
+
 - `lib/models/schedule_template.dart` — ScheduleTemplate model
 - `lib/screens/schedules/schedules_screen.dart` — main list page
 - `lib/providers/schedule_templates_provider.dart` — data provider
 
 ### Modified Files
+
 - `lib/router/app_router.dart` — add `/schedules` route
 - `lib/widgets/shell/icon_rail.dart` — add Schedules nav item after Devices
 - `lib/widgets/shell/mobile_bottom_nav.dart` — add Schedules as 5th item

@@ -333,3 +333,20 @@ func (h *StreamHandler) UpdateRetention(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stream)
 }
+
+// GetStreamStorage returns per-stream storage breakdown for a camera.
+func (h *StreamHandler) GetStreamStorage(c *gin.Context) {
+	cameraID := c.Param("id")
+
+	results, err := h.DB.GetStoragePerStream(cameraID)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query stream storage", err)
+		return
+	}
+
+	if results == nil {
+		results = []db.StreamStorage{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"streams": results})
+}

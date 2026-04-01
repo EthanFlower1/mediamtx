@@ -32,16 +32,19 @@ type MetricsSample struct {
 ### System Metrics Collection (No External Dependencies)
 
 **Process metrics (cross-platform):**
+
 - `runtime.MemStats.Alloc` → heap allocation
 - `runtime.MemStats.Sys` → total process memory
 - `runtime.NumGoroutine()` → goroutine count
 
 **System CPU % (Linux):**
+
 - Parse `/proc/stat` to get total and idle CPU jiffies
 - Compare two consecutive reads (10s apart) to calculate utilization
 - Fallback: return 0 on non-Linux platforms
 
 **System Memory % (Linux):**
+
 - Parse `/proc/meminfo` for MemTotal and MemAvailable
 - Calculate: `(total - available) / total * 100`
 - Fallback on macOS: use `syscall.Sysctl("hw.memsize")` for total, `runtime.MemStats.Sys` for process usage (less accurate but functional)
@@ -85,8 +88,22 @@ Update the existing endpoint to include the ring buffer history:
     "goroutines": 42
   },
   "history": [
-    {"t": 1711742400, "cpu": 12.5, "mem": 45.2, "alloc": 128.5, "sys": 256.0, "gr": 42},
-    {"t": 1711742410, "cpu": 13.1, "mem": 45.3, "alloc": 129.0, "sys": 256.0, "gr": 43}
+    {
+      "t": 1711742400,
+      "cpu": 12.5,
+      "mem": 45.2,
+      "alloc": 128.5,
+      "sys": 256.0,
+      "gr": 42
+    },
+    {
+      "t": 1711742410,
+      "cpu": 13.1,
+      "mem": 45.3,
+      "alloc": 129.0,
+      "sys": 256.0,
+      "gr": 43
+    }
   ]
 }
 ```
@@ -136,6 +153,7 @@ CURRENT STATS
 ### Chart Styling
 
 Match the NVR dark theme:
+
 - Background: NvrColors.bgSecondary
 - Grid lines: NvrColors.border (subtle)
 - CPU line: NvrColors.accent (#f97316, orange)
@@ -143,7 +161,7 @@ Match the NVR dark theme:
 - Heap line: NvrColors.accent
 - Axis labels: NvrTypography.monoLabel (gray, 9px)
 - Tooltip: dark background, accent text
-- Chart container: _SectionCard with 1px border, 8px radius
+- Chart container: \_SectionCard with 1px border, 8px radius
 
 ### Auto-Refresh
 
@@ -158,12 +176,14 @@ New provider: `metricsHistoryProvider` — fetches `/system/metrics`, parses `cu
 ## Files
 
 ### Backend
+
 - Create: `internal/nvr/metrics/collector.go` — ring buffer + system metrics sampling
 - Modify: `internal/nvr/api/system.go` — enhance Metrics endpoint with history
 - Modify: `internal/nvr/nvr.go` — start/stop collector
 - Modify: `internal/nvr/api/router.go` — pass collector to SystemHandler (if needed)
 
 ### Flutter
+
 - Modify: `clients/flutter/pubspec.yaml` — add `fl_chart`
 - Create: `clients/flutter/lib/screens/settings/performance_panel.dart` — chart widgets
 - Modify: `clients/flutter/lib/screens/settings/settings_screen.dart` — add Performance tab

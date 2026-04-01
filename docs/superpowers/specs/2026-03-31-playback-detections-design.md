@@ -43,6 +43,7 @@ Added to `CameraHandler` in `cameras.go`, registered in `router.go` under the ex
 ### Model
 
 New `PlaybackDetection` class in `models/detection_frame.dart` (alongside existing `DetectionBox`):
+
 - `frameTime` (`DateTime`) — timestamp for binary search lookup
 - `className` (`String`)
 - `confidence` (`double`)
@@ -73,11 +74,13 @@ Cache is cleared whenever `_disposeAllPlayers` is called (segment change, date c
 ### Layout
 
 Existing layout constants:
+
 - `_recordingTop = 0`, `_recordingHeight = 18` (recording segments)
 - `_eventTop = 21`, `_eventHeight = 14` (intensity buckets)
 - `_bookmarkY = 38`
 
 New layout:
+
 - `_motionEventTop = 37`, `_motionEventHeight = 10` (new event markers lane)
 - `_bookmarkY` shifts to `49`
 - `_timelineHeight` increases from `70` to `80` in `FixedPlayheadTimeline`
@@ -85,6 +88,7 @@ New layout:
 ### Rendering
 
 Each `MotionEvent` is drawn as a horizontal bar from `startTime` to `endTime`. Color is determined by `objectClass`:
+
 - `person` — warm color (orange)
 - `vehicle` — cool color (blue)
 - `animal` — green
@@ -148,11 +152,13 @@ Tolerance window lookup uses binary search on the sorted, pre-fetched list. No A
 ## Files Changed
 
 ### Backend (Go)
+
 - `internal/nvr/db/detections.go` — new `QueryDetectionsByTimeRange` function
 - `internal/nvr/api/cameras.go` — new `Detections` handler method
 - `internal/nvr/api/router.go` — register new route
 
 ### Frontend (Flutter)
+
 - `clients/flutter/lib/screens/playback/timeline/timeline_painter.dart` — new `_paintMotionEvents` method, layout adjustments
 - `clients/flutter/lib/screens/playback/timeline/fixed_playhead_timeline.dart` — increase `_timelineHeight`
 - `clients/flutter/lib/screens/playback/playback_controller.dart` — detection cache, `getDetectionsAtTime`, toggle state, fetch trigger in `_openSegmentAt`

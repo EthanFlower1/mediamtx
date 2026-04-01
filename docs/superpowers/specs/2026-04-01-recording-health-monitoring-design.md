@@ -87,6 +87,7 @@ These are SSE events delivered to connected clients via the existing `EventBroad
 Returns an array of per-camera recording health status. Protected route (JWT required).
 
 Response:
+
 ```json
 {
   "cameras": [

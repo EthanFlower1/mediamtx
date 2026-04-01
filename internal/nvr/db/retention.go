@@ -355,6 +355,46 @@ func (d *DB) DeleteStreamRecordingsWithEvents(cameraID, streamID string, before 
 	return paths, nil
 }
 
+// DeleteStreamRecordingsByDateRange deletes all recordings for a specific
+// stream whose end_time is before the given cutoff, regardless of event
+// overlap. Returns deleted file paths for disk cleanup.
+func (d *DB) DeleteStreamRecordingsByDateRange(cameraID, streamID string, before time.Time) ([]string, error) {
+	beforeStr := before.UTC().Format(timeFormat)
+
+	rows, err := d.Query(
+		`SELECT file_path FROM recordings WHERE camera_id = ? AND stream_id = ? AND end_time < ?`,
+		cameraID, streamID, beforeStr,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(paths) > 0 {
+		_, err = d.Exec(
+			`DELETE FROM recordings WHERE camera_id = ? AND stream_id = ? AND end_time < ?`,
+			cameraID, streamID, beforeStr,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return paths, nil
+}
+
 // TableStats holds row count for a database table.
 type TableStats struct {
 	RowCount int64 `json:"row_count"`

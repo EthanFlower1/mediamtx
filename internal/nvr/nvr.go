@@ -940,6 +940,11 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		return
 	}
 
+	// Notify the scheduler for health tracking.
+	if n.sched != nil {
+		n.sched.NotifySegmentForCamera(cam.ID)
+	}
+
 	detectAndInsertPendingSync(n.database, rec, cam)
 
 	if n.hlsHandler != nil {

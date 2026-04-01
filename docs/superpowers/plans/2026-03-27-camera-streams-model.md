@@ -13,6 +13,7 @@
 ### Task 1: DB migration — Create `camera_streams` table and add `stream_id` to `recording_rules`
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go`
 
 - [ ] **Step 1: Add migration version 21**
@@ -87,6 +88,7 @@ git commit -m "feat(db): add camera_streams table and stream_id to recording_rul
 ### Task 2: DB layer — CameraStream struct and CRUD operations
 
 **Files:**
+
 - Create: `internal/nvr/db/camera_streams.go`
 
 - [ ] **Step 1: Create the CameraStream CRUD file**
@@ -308,6 +310,7 @@ git commit -m "feat(db): add CameraStream CRUD and role resolution"
 ### Task 3: DB layer — Add `StreamID` to `RecordingRule`
 
 **Files:**
+
 - Modify: `internal/nvr/db/recording_rules.go`
 
 - [ ] **Step 1: Add StreamID field to struct and all queries**
@@ -334,6 +337,7 @@ type RecordingRule struct {
 Update all SQL queries in the file to include `stream_id`:
 
 **`CreateRecordingRule`** — add `stream_id` to INSERT:
+
 ```go
 _, err := d.Exec(`
     INSERT INTO recording_rules (id, camera_id, stream_id, name, mode, days, start_time,
@@ -347,6 +351,7 @@ _, err := d.Exec(`
 **All SELECT queries** (`GetRecordingRule`, `ListRecordingRules`, `ListAllEnabledRecordingRules`) — add `stream_id` to the SELECT column list and Scan call. It goes after `camera_id` in both.
 
 **`UpdateRecordingRule`** — add `stream_id = ?` to the UPDATE SET clause:
+
 ```go
 res, err := d.Exec(`
     UPDATE recording_rules SET camera_id = ?, stream_id = ?, name = ?, mode = ?, days = ?,
@@ -375,6 +380,7 @@ git commit -m "feat(db): add stream_id to RecordingRule"
 ### Task 4: API — Stream CRUD endpoints
 
 **Files:**
+
 - Create: `internal/nvr/api/streams.go`
 - Modify: `internal/nvr/api/router.go`
 
@@ -507,11 +513,13 @@ func (h *StreamHandler) Delete(c *gin.Context) {
 In `internal/nvr/api/router.go`, in the `RegisterRoutes` function, add stream handler initialization and routes. After the existing camera routes block (around line 172):
 
 Add handler initialization after the other handlers (around line 110):
+
 ```go
 streamHandler := &StreamHandler{DB: cfg.DB}
 ```
 
 Add routes in the protected group after camera routes:
+
 ```go
 // Camera streams.
 protected.GET("/cameras/:id/streams", streamHandler.List)
@@ -537,6 +545,7 @@ git commit -m "feat(api): add camera stream CRUD endpoints"
 ### Task 5: API — Include streams in camera responses and auto-populate on create
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 
 - [ ] **Step 1: Add streams to camera list and get responses**
@@ -546,6 +555,7 @@ In `internal/nvr/api/cameras.go`, find the `List` handler (the one that calls `h
 Find the `List` method and after the `cameras` are fetched from DB, add stream loading. Wrap each camera in a response struct that includes streams:
 
 Create a response type near the top of cameras.go:
+
 ```go
 type cameraWithStreams struct {
 	*db.Camera
@@ -554,6 +564,7 @@ type cameraWithStreams struct {
 ```
 
 In the `List` handler, after `cameras, err := h.DB.ListCameras()`, build the response:
+
 ```go
 result := make([]cameraWithStreams, len(cameras))
 for i, cam := range cameras {
@@ -573,6 +584,7 @@ Do the same in the `Get` handler — wrap the single camera response with its st
 In the `Create` handler, after the camera is inserted into the DB, check if the request included profile data. The existing `cameraRequest` struct has fields from ONVIF discovery. Add stream creation logic after the camera insert.
 
 Add a `Profiles` field to `cameraRequest` if not already present:
+
 ```go
 type cameraRequest struct {
     // ... existing fields ...
@@ -581,6 +593,7 @@ type cameraRequest struct {
 ```
 
 After `h.DB.CreateCamera(cam)` succeeds, if profiles were provided, create streams with auto-assigned roles:
+
 ```go
 if len(req.Profiles) > 0 {
     // Sort by resolution descending (profiles typically arrive highest-first from ONVIF).
@@ -629,11 +642,13 @@ git commit -m "feat(api): include streams in camera responses, auto-populate on 
 ### Task 6: Update recording rules API to accept `stream_id`
 
 **Files:**
+
 - Modify: `internal/nvr/api/recording_rules.go`
 
 - [ ] **Step 1: Add `StreamID` to the request struct and handlers**
 
 In `internal/nvr/api/recording_rules.go`, add `StreamID` to `recordingRuleRequest`:
+
 ```go
 type recordingRuleRequest struct {
     Name             string `json:"name" binding:"required"`
@@ -665,6 +680,7 @@ git commit -m "feat(api): accept stream_id in recording rule create/update"
 ### Task 7: Update YAML writer to use stream URLs
 
 **Files:**
+
 - Modify: `internal/nvr/nvr.go` (camera path creation and migration)
 
 - [ ] **Step 1: Update `ensureCameraPaths` to use stream URLs**
@@ -722,9 +738,11 @@ Expected: Tests pass (some may need minor updates for the new `stream_id` field 
 
 Run: Start the server briefly to trigger migration: `./mediamtx &; sleep 5; kill %1`
 Check logs for migration success and verify streams were created:
+
 ```bash
 sqlite3 ~/.mediamtx/nvr.db "SELECT id, camera_id, name, roles FROM camera_streams;"
 ```
+
 Expected: Stream records exist for each camera
 
 - [ ] **Step 4: Test stream API endpoints**
@@ -736,6 +754,7 @@ TOKEN=$(curl -s -X POST http://localhost:9997/api/nvr/auth/login -H 'Content-Typ
 CAMERA_ID=$(sqlite3 ~/.mediamtx/nvr.db "SELECT id FROM cameras LIMIT 1;")
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:9997/api/nvr/cameras/$CAMERA_ID/streams" | python3 -m json.tool
 ```
+
 Expected: JSON array of stream objects with roles
 
 - [ ] **Step 5: Commit any fixes**

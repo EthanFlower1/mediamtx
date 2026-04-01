@@ -19,6 +19,7 @@ The Flutter camera discovery flow is minimal — it shows name, IP, and model, t
 ## Architecture
 
 No new API endpoints. Uses existing:
+
 - `POST /cameras/discover` — start scan
 - `GET /cameras/discover/status` — poll scan progress
 - `GET /cameras/discover/results` — get discovered devices
@@ -28,11 +29,13 @@ No new API endpoints. Uses existing:
 ### Backend Changes
 
 **`internal/nvr/onvif/discovery.go`:**
+
 - Add `AuthRequired bool` field to `DiscoveredDevice` struct
 - In `enrichDevice()`: if unauthenticated profile fetch fails, set `AuthRequired = true` instead of silently skipping. If it succeeds, set `AuthRequired = false` and include the profiles.
 - Capture the number of profiles found during enrichment even without auth (some cameras expose profile count in device info)
 
 **`internal/nvr/api/cameras.go`:**
+
 - `DiscoverResults` handler: cross-reference discovered device IPs/XAddrs against cameras already in the DB. Add an `existing_camera_id` field to each result if matched, so the Flutter client can show "ALREADY ADDED."
 
 ### Flutter UI Changes
@@ -43,7 +46,9 @@ All new widgets use `NvrColors`, `NvrTypography`, `CornerBrackets`, and the exis
 Replace the `_DiscoverTab` widget internals:
 
 #### Discovery Result Card
+
 Replaces the current minimal ListTile. Shows:
+
 - Camera name (manufacturer + model fallback)
 - IP address
 - Manufacturer and model on a second line
@@ -54,20 +59,24 @@ Replaces the current minimal ListTile. Shows:
 - Already-added cards have reduced opacity
 
 #### Camera Detail Bottom Sheet
+
 New widget: `_CameraDetailSheet` shown via `showModalBottomSheet`. Contains:
 
 **Header section:**
+
 - Camera name (large, bold)
 - IP, manufacturer, firmware version
 - Auth status badge
 
 **Credentials section** (shown when auth is required or when user wants to re-probe):
+
 - Username and Password text fields side by side
 - "PROBE CAMERA" button — calls `POST /cameras/probe` with XAddr + credentials
 - Loading state while probing
 - Error display if probe fails
 
 **Streams section** (shown after successful probe or if profiles were available without auth):
+
 - Radio-selectable list of streams
 - Each stream shows: name, resolution (W×H), codec, profile token
 - RTSP URI in smaller muted text below
@@ -75,15 +84,18 @@ New widget: `_CameraDetailSheet` shown via `showModalBottomSheet`. Contains:
 - First/highest-resolution stream pre-selected
 
 **Capabilities section:**
+
 - Horizontal wrap of capability badges
 - Supported capabilities in accent color, unsupported dimmed
 - Icons: Media, Events, Analytics, PTZ, Audio, Imaging, Recording
 
 **Camera name field:**
+
 - Pre-populated with discovered name (manufacturer + model)
 - Editable text field so user can customize before adding
 
 **Add Camera button:**
+
 - Full-width green button at bottom
 - Disabled until a stream is selected
 - Calls `POST /cameras` with: name, selected stream's RTSP URL (with injected credentials), ONVIF endpoint, ONVIF credentials, selected profile token

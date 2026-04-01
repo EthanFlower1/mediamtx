@@ -22,6 +22,7 @@ RTSP Source → stream.Stream → Recorder (supervisor) → recorderInstance
 ```
 
 Key characteristics:
+
 - Recorder supervisor restarts failed instances with 2s pause
 - fMP4 parts written every 1s (configurable), segments closed at 1h
 - Fragment backfill indexes fMP4 files asynchronously (newest-first)
@@ -46,55 +47,55 @@ internal/nvr/audit/
 
 ### stream_test.go — Camera-side network failures
 
-| Test | Failure Mode | Verifies |
-|------|-------------|----------|
-| `TestStreamDisconnect` | Kill RTSP source mid-recording | Current segment properly closed (valid fMP4), DB entry gets end time, supervisor restarts |
-| `TestStreamStall` | Source stops sending, TCP stays open | Read timeout triggers, segment closed cleanly, no zombie goroutines |
-| `TestStreamReconnect` | Source disconnects, returns after 5s | New segment starts, gap accurately reflected in DB timeline |
+| Test                   | Failure Mode                         | Verifies                                                                                  |
+| ---------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `TestStreamDisconnect` | Kill RTSP source mid-recording       | Current segment properly closed (valid fMP4), DB entry gets end time, supervisor restarts |
+| `TestStreamStall`      | Source stops sending, TCP stays open | Read timeout triggers, segment closed cleanly, no zombie goroutines                       |
+| `TestStreamReconnect`  | Source disconnects, returns after 5s | New segment starts, gap accurately reflected in DB timeline                               |
 
 ### recorder_test.go — Recorder/format layer
 
-| Test | Failure Mode | Verifies |
-|------|-------------|----------|
-| `TestSegmentBoundaryFailure` | Error during segment close (mock file close) | Partial segment state, whether prior completed part data is recoverable |
-| `TestOOMPressure` | Record with constrained `GOMEMLIMIT` | Behavior under GC pressure, segment write correctness |
-| `TestLargePartSize` | High-bitrate data exceeding `MaxPartSize` in one part | Part split correctly, no truncation |
+| Test                         | Failure Mode                                          | Verifies                                                                |
+| ---------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| `TestSegmentBoundaryFailure` | Error during segment close (mock file close)          | Partial segment state, whether prior completed part data is recoverable |
+| `TestOOMPressure`            | Record with constrained `GOMEMLIMIT`                  | Behavior under GC pressure, segment write correctness                   |
+| `TestLargePartSize`          | High-bitrate data exceeding `MaxPartSize` in one part | Part split correctly, no truncation                                     |
 
 ### storage_test.go — Storage-side failures
 
-| Test | Failure Mode | Verifies |
-|------|-------------|----------|
-| `TestDiskFull` | Fill temp directory to capacity mid-recording | Current segment state, error propagation, storage manager failover |
-| `TestStoragePathUnavailable` | Remove recording directory mid-write | Error handling, failover to alternate path, data loss in gap |
-| `TestStoragePermissionDenied` | Change directory to read-only mid-recording | Error surfaces, recording state consistency |
+| Test                          | Failure Mode                                  | Verifies                                                           |
+| ----------------------------- | --------------------------------------------- | ------------------------------------------------------------------ |
+| `TestDiskFull`                | Fill temp directory to capacity mid-recording | Current segment state, error propagation, storage manager failover |
+| `TestStoragePathUnavailable`  | Remove recording directory mid-write          | Error handling, failover to alternate path, data loss in gap       |
+| `TestStoragePermissionDenied` | Change directory to read-only mid-recording   | Error surfaces, recording state consistency                        |
 
 ### database_test.go — SQLite failures
 
-| Test | Failure Mode | Verifies |
-|------|-------------|----------|
-| `TestDBInsertFailureDuringSegmentComplete` | DB returns error on `InsertRecording` | Orphaned file on disk with no DB entry, recovery possibility |
-| `TestDBFragmentIndexingFailure` | Fail during `InsertFragments` | Recording exists but fragments missing, backfill recovery |
-| `TestDBLocked` | Hold write lock during segment complete | Retry behavior, whether data is buffered or lost |
+| Test                                       | Failure Mode                            | Verifies                                                     |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------------------------ |
+| `TestDBInsertFailureDuringSegmentComplete` | DB returns error on `InsertRecording`   | Orphaned file on disk with no DB entry, recovery possibility |
+| `TestDBFragmentIndexingFailure`            | Fail during `InsertFragments`           | Recording exists but fragments missing, backfill recovery    |
+| `TestDBLocked`                             | Hold write lock during segment complete | Retry behavior, whether data is buffered or lost             |
 
 ### lifecycle_test.go — Process signals
 
-| Test | Failure Mode | Verifies |
-|------|-------------|----------|
-| `TestGracefulShutdown` | SIGTERM during active recording | Segments properly closed, DB consistent, no data loss |
-| `TestSIGKILL` | `kill -9` subprocess mid-recording | fMP4 file integrity (readable up to last moof+mdat?), DB state (incomplete entries?), recovery path |
-| `TestRestartRecovery` | SIGKILL then fresh start | Orphaned file detection, fragment backfill re-indexes, timeline has accurate gap |
+| Test                   | Failure Mode                       | Verifies                                                                                            |
+| ---------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `TestGracefulShutdown` | SIGTERM during active recording    | Segments properly closed, DB consistent, no data loss                                               |
+| `TestSIGKILL`          | `kill -9` subprocess mid-recording | fMP4 file integrity (readable up to last moof+mdat?), DB state (incomplete entries?), recovery path |
+| `TestRestartRecovery`  | SIGKILL then fresh start           | Orphaned file detection, fragment backfill re-indexes, timeline has accurate gap                    |
 
 ## End-to-End Scenario Tests
 
 ### scenario_test.go
 
-| Test | Scenario | Verifies |
-|------|----------|----------|
-| `TestScenarioNetworkDropAndRecover` | Record 10s, kill source, wait 5s, restart, record 10s | Two valid segments, accurate 5s gap in timeline, both playable via HLS, fragment index covers both |
-| `TestScenarioDiskFullRecovery` | Record until disk fills, clear space, verify resume | Pre-full segment valid/recoverable, new segment starts cleanly, DB timeline reflects gap |
-| `TestScenarioPowerLoss` | Fork subprocess, record 10s, SIGKILL, run recovery | Last segment readable to last complete moof+mdat, DB state after backfill recovery, timeline accuracy |
-| `TestScenarioStorageFailover` | Primary + fallback paths, make primary unavailable, restore | No gap during failover, files consolidated after restore |
-| `TestScenarioOOMKill` | Fork subprocess with `GOMEMLIMIT`, high-bitrate stream | Segment integrity, whether OOM kill leaves corruption |
+| Test                                | Scenario                                                    | Verifies                                                                                              |
+| ----------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `TestScenarioNetworkDropAndRecover` | Record 10s, kill source, wait 5s, restart, record 10s       | Two valid segments, accurate 5s gap in timeline, both playable via HLS, fragment index covers both    |
+| `TestScenarioDiskFullRecovery`      | Record until disk fills, clear space, verify resume         | Pre-full segment valid/recoverable, new segment starts cleanly, DB timeline reflects gap              |
+| `TestScenarioPowerLoss`             | Fork subprocess, record 10s, SIGKILL, run recovery          | Last segment readable to last complete moof+mdat, DB state after backfill recovery, timeline accuracy |
+| `TestScenarioStorageFailover`       | Primary + fallback paths, make primary unavailable, restore | No gap during failover, files consolidated after restore                                              |
+| `TestScenarioOOMKill`               | Fork subprocess with `GOMEMLIMIT`, high-bitrate stream      | Segment integrity, whether OOM kill leaves corruption                                                 |
 
 ## Findings Report
 
@@ -127,6 +128,7 @@ Use a minimal test RTSP server that generates synthetic H.264 + AAC frames. Leve
 ### Subprocess Testing (for SIGKILL/power loss)
 
 Tests that need SIGKILL will:
+
 1. Build a small test binary that sets up the recording pipeline
 2. Run it as a subprocess via `exec.Command`
 3. Send `SIGKILL` after a delay
@@ -140,11 +142,11 @@ Each test gets an isolated temp directory for recordings and SQLite DB. Cleaned 
 
 Findings will be categorized using these severity levels:
 
-| Severity | Definition |
-|----------|-----------|
-| **data_loss** | Recorded data is permanently lost with no recovery path |
-| **corruption** | File or DB is left in an inconsistent state that requires manual intervention |
-| **gap** | Recording has a time gap but data before and after is intact |
+| Severity        | Definition                                                                       |
+| --------------- | -------------------------------------------------------------------------------- |
+| **data_loss**   | Recorded data is permanently lost with no recovery path                          |
+| **corruption**  | File or DB is left in an inconsistent state that requires manual intervention    |
+| **gap**         | Recording has a time gap but data before and after is intact                     |
 | **recoverable** | Data appears lost but can be recovered via backfill, re-indexing, or file repair |
 
 ## Out of Scope

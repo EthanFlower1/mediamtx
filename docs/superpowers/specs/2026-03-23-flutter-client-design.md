@@ -99,17 +99,17 @@ clients/flutter/
 
 ## 2. Key Packages
 
-| Package | Purpose | Platforms |
-|---------|---------|-----------|
-| `flutter_webrtc` | Live view via WHEP | All 6 |
-| `media_kit` + `media_kit_video` + `media_kit_libs_*` | HLS recording playback | All 6 |
-| `riverpod` + `flutter_riverpod` | State management | All |
-| `go_router` | Navigation + auth guards | All |
-| `dio` | HTTP client + interceptors | All |
-| `flutter_secure_storage` | JWT/token storage | iOS, Android, macOS, Windows, Linux |
-| `web_socket_channel` | WebSocket notifications | All |
-| `flutter_local_notifications` | Native push alerts | iOS, Android, macOS, Windows, Linux |
-| `freezed` + `json_serializable` | Immutable models + JSON | All |
+| Package                                              | Purpose                    | Platforms                           |
+| ---------------------------------------------------- | -------------------------- | ----------------------------------- |
+| `flutter_webrtc`                                     | Live view via WHEP         | All 6                               |
+| `media_kit` + `media_kit_video` + `media_kit_libs_*` | HLS recording playback     | All 6                               |
+| `riverpod` + `flutter_riverpod`                      | State management           | All                                 |
+| `go_router`                                          | Navigation + auth guards   | All                                 |
+| `dio`                                                | HTTP client + interceptors | All                                 |
+| `flutter_secure_storage`                             | JWT/token storage          | iOS, Android, macOS, Windows, Linux |
+| `web_socket_channel`                                 | WebSocket notifications    | All                                 |
+| `flutter_local_notifications`                        | Native push alerts         | iOS, Android, macOS, Windows, Linux |
+| `freezed` + `json_serializable`                      | Immutable models + JSON    | All                                 |
 
 ---
 
@@ -128,7 +128,7 @@ clients/flutter/
 The `/auth/refresh` endpoint currently reads the refresh token from an HttpOnly cookie only. For mobile clients, it must also accept a JSON body:
 
 ```json
-{"refresh_token": "raw-token-string"}
+{ "refresh_token": "raw-token-string" }
 ```
 
 The endpoint checks cookie first (web compatibility), then JSON body (mobile). One change in `internal/nvr/api/auth.go`'s `Refresh` handler.
@@ -180,6 +180,7 @@ class WhepService {
 ### Camera Grid
 
 Adaptive layout using `LayoutBuilder`:
+
 - Width < 600px (phone): 1 column
 - Width 600-900px (tablet): 2 columns
 - Width 900-1200px (small desktop): 3 columns
@@ -197,6 +198,7 @@ Each tile shows: video feed, camera name, status badge (online/offline), connect
 ### Fullscreen View
 
 Tap a tile → fullscreen with:
+
 - PTZ d-pad overlay (for `ptz_capable` cameras)
 - Analytics overlay (bounding boxes from WebSocket)
 - Screenshot button
@@ -216,8 +218,24 @@ In `pipeline.go`'s `ProcessFrame`, after storing detections, broadcast a new `de
   "type": "detection_frame",
   "camera": "AD410",
   "detections": [
-    {"class": "person", "confidence": 0.87, "track_id": 4, "x": 0.3, "y": 0.2, "w": 0.1, "h": 0.3},
-    {"class": "car", "confidence": 0.72, "track_id": 2, "x": 0.6, "y": 0.5, "w": 0.15, "h": 0.1}
+    {
+      "class": "person",
+      "confidence": 0.87,
+      "track_id": 4,
+      "x": 0.3,
+      "y": 0.2,
+      "w": 0.1,
+      "h": 0.3
+    },
+    {
+      "class": "car",
+      "confidence": 0.72,
+      "track_id": 2,
+      "x": 0.6,
+      "y": 0.5,
+      "w": 0.15,
+      "h": 0.1
+    }
   ],
   "time": "2026-03-23T21:50:40Z"
 }
@@ -228,6 +246,7 @@ This is broadcast at the pipeline's frame rate (2 FPS) for each camera with AI e
 ### Flutter Overlay
 
 `DetectionStreamProvider` filters WebSocket events by `type == "detection_frame"` and the currently viewed camera ID. `AnalyticsOverlay` widget uses `CustomPainter` to draw:
+
 - Color-coded bounding boxes (blue=person, green=vehicle, amber=animal)
 - Labels: "Person #4 87%"
 - Box color changes to red when loitering
@@ -260,6 +279,7 @@ player.open(Media(playbackUrl));
 ### Multi-Camera Sync
 
 Same approach as the web fix:
+
 - Track ready state per camera
 - On seek: pause all, wait for all to buffer at new position, resume together
 - Shared `PlaybackController` manages sync state
@@ -267,6 +287,7 @@ Same approach as the web fix:
 ### Timeline Widget
 
 Vertical timeline with:
+
 - 24-hour scale, responsive height (`min(960, viewportHeight - 200)`)
 - Recording segment bars (colored by camera)
 - Motion event markers (icons for person/car/animal)
@@ -300,12 +321,14 @@ List view with: name, status badge, thumbnail (from `/cameras/:id/snapshot`), re
 ### Add Camera
 
 Two tabs:
+
 - **Discover:** POST `/cameras/discover`, poll status, show results. 30-second timeout with cancel button.
 - **Manual:** Enter RTSP URL (validated: must start with `rtsp://`), name, credentials.
 
 ### Camera Detail
 
 Tabbed view:
+
 - **General:** Name, RTSP URL, ONVIF endpoint, credentials
 - **Recording:** Recording rules list, add/edit/delete
 - **AI:** Enable toggle, sub-stream URL, confidence threshold slider (20-90%)
@@ -353,14 +376,14 @@ Tabbed view:
 
 ### Event Types Handled
 
-| Type | Alert | Badge |
-|------|-------|-------|
-| `ai_detection` | Snackbar + push | Person/car/animal icon |
-| `motion` | Snackbar + push | Motion icon |
-| `camera_offline` | Persistent snackbar + push | Red offline icon |
-| `camera_online` | Brief snackbar | Green online icon |
-| `recording_started` | Brief snackbar | Record icon |
-| `detection_frame` | No alert (overlay only) | — |
+| Type                | Alert                      | Badge                  |
+| ------------------- | -------------------------- | ---------------------- |
+| `ai_detection`      | Snackbar + push            | Person/car/animal icon |
+| `motion`            | Snackbar + push            | Motion icon            |
+| `camera_offline`    | Persistent snackbar + push | Red offline icon       |
+| `camera_online`     | Brief snackbar             | Green online icon      |
+| `recording_started` | Brief snackbar             | Record icon            |
+| `detection_frame`   | No alert (overlay only)    | —                      |
 
 ---
 
@@ -443,14 +466,17 @@ Changes to the Go backend to support the Flutter client:
 ## 15. Platform-Specific Notes
 
 ### iOS
+
 - **App Transport Security:** Self-signed certs or local HTTP connections require an ATS exception in `Info.plist` (`NSAppTransportSecurity > NSAllowsLocalNetworking = true`).
 - **Background notifications:** iOS limits background execution to ~30 seconds. Real-time push while backgrounded is not achievable without APNs. The app uses `BGAppRefreshTask` for periodic checks (system-discretionary, ~15 min intervals). Document this limitation for customers.
 
 ### Android
+
 - **Foreground service:** For persistent WebSocket notifications when backgrounded. Requires `FOREGROUND_SERVICE` permission and a persistent notification.
 - **Cleartext traffic:** If connecting over HTTP, set `android:usesCleartextTraffic="true"` in `AndroidManifest.xml` or use a network security config.
 
 ### WebSocket Authentication
+
 The WebSocket server (port API+1) currently has **no JWT authentication** — any client on the LAN can connect. This is acceptable for local network NVR deployments. If the NVR is exposed to the internet, JWT-based WebSocket auth should be added as a future enhancement (pass token as query parameter: `ws://host:port/ws?token=...`).
 
 ---
@@ -458,6 +484,7 @@ The WebSocket server (port API+1) currently has **no JWT authentication** — an
 ## 16. API Response Schemas
 
 ### Search Result (`GET /search`)
+
 ```json
 {
   "query": "person",
@@ -479,18 +506,28 @@ The WebSocket server (port API+1) currently has **no JWT authentication** — an
 ```
 
 ### detection_frame WebSocket Event
+
 ```json
 {
   "type": "detection_frame",
   "camera": "AD410",
   "time": "2026-03-23T21:50:40Z",
   "detections": [
-    {"class": "person", "confidence": 0.87, "track_id": 4, "x": 0.3, "y": 0.2, "w": 0.1, "h": 0.3}
+    {
+      "class": "person",
+      "confidence": 0.87,
+      "track_id": 4,
+      "x": 0.3,
+      "y": 0.2,
+      "w": 0.1,
+      "h": 0.3
+    }
   ]
 }
 ```
 
 ### Camera Object (`GET /cameras`)
+
 ```json
 {
   "id": "uuid",
@@ -516,10 +553,10 @@ The WebSocket server (port API+1) currently has **no JWT authentication** — an
 
 ## 17. File Map
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `clients/flutter/` | Create | Entire Flutter project |
-| `internal/nvr/api/auth.go` | Modify | Refresh token in JSON body + login response |
-| `internal/nvr/ai/pipeline.go` | Modify | Broadcast detection_frame events |
-| `internal/nvr/api/events.go` | Modify | Add Detections field to Event struct |
-| `internal/nvr/api/system.go` | Modify | Add clip_search_available + port discovery |
+| File                          | Action | Purpose                                     |
+| ----------------------------- | ------ | ------------------------------------------- |
+| `clients/flutter/`            | Create | Entire Flutter project                      |
+| `internal/nvr/api/auth.go`    | Modify | Refresh token in JSON body + login response |
+| `internal/nvr/ai/pipeline.go` | Modify | Broadcast detection_frame events            |
+| `internal/nvr/api/events.go`  | Modify | Add Detections field to Event struct        |
+| `internal/nvr/api/system.go`  | Modify | Add clip_search_available + port discovery  |

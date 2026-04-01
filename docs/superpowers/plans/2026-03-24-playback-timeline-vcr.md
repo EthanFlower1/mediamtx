@@ -17,36 +17,39 @@
 All paths relative to `clients/flutter/`.
 
 ### New files:
-| File | Responsibility |
-|------|---------------|
-| `lib/screens/playback/playback_controller.dart` | ChangeNotifier wrapping media_kit players; owns position, play state, speed, seek, skip, frame-step |
-| `lib/screens/playback/timeline/timeline_viewport.dart` | Manages visible time window, zoom, pan, time-to-pixel conversions |
-| `lib/screens/playback/timeline/grid_layer.dart` | CustomPainter for hour/minute grid lines and time labels |
-| `lib/screens/playback/timeline/recording_layer.dart` | CustomPainter for recording segment bars |
-| `lib/screens/playback/timeline/event_layer.dart` | CustomPainter for event duration bars/dots with color coding |
-| `lib/screens/playback/timeline/playhead_layer.dart` | Draggable playhead indicator |
-| `lib/screens/playback/timeline/interaction_layer.dart` | Transparent hit-test layer for tap, long-press, pinch, pan |
-| `lib/screens/playback/timeline/mini_overview_bar.dart` | 32px overview bar showing full 24h with viewport indicator |
-| `lib/screens/playback/timeline/composable_timeline.dart` | Assembles all layers into a Stack |
-| `lib/screens/playback/controls/transport_controls.dart` | Row of transport buttons (play, pause, frame step, skip event/gap) |
-| `lib/screens/playback/controls/jog_slider.dart` | Horizontal slider for variable-speed scrubbing -2x to +2x |
-| `lib/screens/playback/event_detail_popup.dart` | Overlay popup showing event thumbnail, type, confidence, time |
-| `test/playback/recording_model_test.dart` | Unit tests for RecordingSegment model |
-| `test/playback/timeline_viewport_test.dart` | Unit tests for viewport time-to-pixel math |
-| `test/playback/playback_controller_test.dart` | Unit tests for controller seek/skip logic |
+
+| File                                                     | Responsibility                                                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `lib/screens/playback/playback_controller.dart`          | ChangeNotifier wrapping media_kit players; owns position, play state, speed, seek, skip, frame-step |
+| `lib/screens/playback/timeline/timeline_viewport.dart`   | Manages visible time window, zoom, pan, time-to-pixel conversions                                   |
+| `lib/screens/playback/timeline/grid_layer.dart`          | CustomPainter for hour/minute grid lines and time labels                                            |
+| `lib/screens/playback/timeline/recording_layer.dart`     | CustomPainter for recording segment bars                                                            |
+| `lib/screens/playback/timeline/event_layer.dart`         | CustomPainter for event duration bars/dots with color coding                                        |
+| `lib/screens/playback/timeline/playhead_layer.dart`      | Draggable playhead indicator                                                                        |
+| `lib/screens/playback/timeline/interaction_layer.dart`   | Transparent hit-test layer for tap, long-press, pinch, pan                                          |
+| `lib/screens/playback/timeline/mini_overview_bar.dart`   | 32px overview bar showing full 24h with viewport indicator                                          |
+| `lib/screens/playback/timeline/composable_timeline.dart` | Assembles all layers into a Stack                                                                   |
+| `lib/screens/playback/controls/transport_controls.dart`  | Row of transport buttons (play, pause, frame step, skip event/gap)                                  |
+| `lib/screens/playback/controls/jog_slider.dart`          | Horizontal slider for variable-speed scrubbing -2x to +2x                                           |
+| `lib/screens/playback/event_detail_popup.dart`           | Overlay popup showing event thumbnail, type, confidence, time                                       |
+| `test/playback/recording_model_test.dart`                | Unit tests for RecordingSegment model                                                               |
+| `test/playback/timeline_viewport_test.dart`              | Unit tests for viewport time-to-pixel math                                                          |
+| `test/playback/playback_controller_test.dart`            | Unit tests for controller seek/skip logic                                                           |
 
 ### Modified files:
-| File | Changes |
-|------|---------|
-| `lib/models/recording.dart` | Update RecordingSegment to parse full backend response (id, startTime, endTime, durationMs, etc.) |
-| `lib/providers/recordings_provider.dart` | Fix RFC3339 timestamps, fix motion events to use `date` param |
-| `lib/screens/playback/playback_screen.dart` | Rewire to use PlaybackController, replace layouts with horizontal timeline below video |
-| `lib/screens/playback/camera_player.dart` | Receive PlaybackController instead of raw state props |
+
+| File                                        | Changes                                                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `lib/models/recording.dart`                 | Update RecordingSegment to parse full backend response (id, startTime, endTime, durationMs, etc.) |
+| `lib/providers/recordings_provider.dart`    | Fix RFC3339 timestamps, fix motion events to use `date` param                                     |
+| `lib/screens/playback/playback_screen.dart` | Rewire to use PlaybackController, replace layouts with horizontal timeline below video            |
+| `lib/screens/playback/camera_player.dart`   | Receive PlaybackController instead of raw state props                                             |
 
 ### Deleted files:
-| File | Reason |
-|------|--------|
-| `lib/screens/playback/timeline_widget.dart` | Replaced by composable timeline |
+
+| File                                          | Reason                                      |
+| --------------------------------------------- | ------------------------------------------- |
+| `lib/screens/playback/timeline_widget.dart`   | Replaced by composable timeline             |
 | `lib/screens/playback/playback_controls.dart` | Replaced by transport controls + jog slider |
 
 ---
@@ -54,6 +57,7 @@ All paths relative to `clients/flutter/`.
 ## Task 1: Fix RecordingSegment model and provider bugs
 
 **Files:**
+
 - Modify: `lib/models/recording.dart:1-11`
 - Modify: `lib/providers/recordings_provider.dart:1-50`
 - Create: `test/playback/recording_model_test.dart`
@@ -209,12 +213,14 @@ Expected: ALL PASS
 In `lib/providers/recordings_provider.dart`:
 
 For `recordingSegmentsProvider` (line 13-14), change timestamps to include timezone:
+
 ```dart
 final start = '${key.date}T00:00:00Z';
 final end = '${key.date}T23:59:59Z';
 ```
 
 For `motionEventsProvider` (lines 30-49), replace the entire provider body:
+
 ```dart
 final motionEventsProvider =
     FutureProvider.family<List<MotionEvent>, RecordingsKey>((ref, key) async {
@@ -247,6 +253,7 @@ git commit -m "fix: update RecordingSegment model and fix provider API bugs"
 ## Task 2: Create TimelineViewport
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/timeline_viewport.dart`
 - Create: `test/playback/timeline_viewport_test.dart`
 
@@ -468,6 +475,7 @@ git commit -m "feat: add TimelineViewport with zoom, pan, and grid interval logi
 ## Task 3: Create PlaybackController
 
 **Files:**
+
 - Create: `lib/screens/playback/playback_controller.dart`
 - Create: `test/playback/playback_controller_test.dart`
 
@@ -995,6 +1003,7 @@ git commit -m "feat: add PlaybackController with seek, skip, and frame-step logi
 ## Task 4: Create GridLayer
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/grid_layer.dart`
 
 No unit test needed — this is pure painting. Verified visually when composable timeline is assembled.
@@ -1082,6 +1091,7 @@ git commit -m "feat: add GridLayer for timeline hour/minute grid lines"
 ## Task 5: Create RecordingLayer
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/recording_layer.dart`
 
 - [ ] **Step 1: Implement RecordingLayer**
@@ -1151,6 +1161,7 @@ git commit -m "feat: add RecordingLayer for timeline recording segment bars"
 ## Task 6: Create EventLayer
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/event_layer.dart`
 
 - [ ] **Step 1: Implement EventLayer**
@@ -1254,6 +1265,7 @@ git commit -m "feat: add EventLayer for timeline event bars and dots"
 ## Task 7: Create PlayheadLayer
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/playhead_layer.dart`
 
 - [ ] **Step 1: Implement PlayheadLayer**
@@ -1330,6 +1342,7 @@ git commit -m "feat: add PlayheadLayer (visual-only) for playhead line and handl
 ## Task 8: Create InteractionLayer
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/interaction_layer.dart`
 
 - [ ] **Step 1: Implement InteractionLayer**
@@ -1462,6 +1475,7 @@ git commit -m "feat: add InteractionLayer for tap, long-press, pinch, and pan"
 ## Task 9: Create MiniOverviewBar
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/mini_overview_bar.dart`
 
 - [ ] **Step 1: Implement MiniOverviewBar**
@@ -1622,6 +1636,7 @@ git commit -m "feat: add MiniOverviewBar showing full 24h with viewport indicato
 ## Task 10: Create ComposableTimeline
 
 **Files:**
+
 - Create: `lib/screens/playback/timeline/composable_timeline.dart`
 
 Assembles all layers into a stack and manages viewport state.
@@ -1962,6 +1977,7 @@ git commit -m "feat: add ComposableTimeline assembling all timeline layers"
 ## Task 11: Create TransportControls
 
 **Files:**
+
 - Create: `lib/screens/playback/controls/transport_controls.dart`
 
 - [ ] **Step 1: Implement TransportControls**
@@ -2086,6 +2102,7 @@ git commit -m "feat: add TransportControls with frame step, event skip, gap skip
 ## Task 12: Create JogSlider
 
 **Files:**
+
 - Create: `lib/screens/playback/controls/jog_slider.dart`
 
 - [ ] **Step 1: Implement JogSlider**
@@ -2222,6 +2239,7 @@ git commit -m "feat: add JogSlider for variable-speed scrubbing with spring-back
 ## Task 13: Create EventDetailPopup
 
 **Files:**
+
 - Create: `lib/screens/playback/event_detail_popup.dart`
 
 - [ ] **Step 1: Implement EventDetailPopup**
@@ -2437,6 +2455,7 @@ git commit -m "feat: add EventDetailPopup with thumbnail, event info, and play-f
 ## Task 14: Rewire PlaybackScreen and CameraPlayer
 
 **Files:**
+
 - Modify: `lib/screens/playback/playback_screen.dart` (full rewrite)
 - Modify: `lib/screens/playback/camera_player.dart`
 - Delete: `lib/screens/playback/timeline_widget.dart`
@@ -2920,6 +2939,7 @@ git commit -m "feat: rewire PlaybackScreen with PlaybackController and composabl
 ## Task 15: Smoke test and polish
 
 **Files:**
+
 - Various — fix any issues found during testing
 
 - [ ] **Step 1: Run full analysis**
@@ -2935,6 +2955,7 @@ Ensure all tests pass.
 - [ ] **Step 3: Fix any issues found**
 
 Address compile errors, import issues, type mismatches. Common things to watch for:
+
 - Verify `AnimatedBuilder` class name compiles (it's the correct Flutter widget name).
 - Verify all imports resolve correctly — especially the 3-level relative imports from `timeline/` subdirectory.
 - Check that `RecordingSegment` model import in `recordings_provider.dart` still resolves after changes.

@@ -16,36 +16,37 @@
 
 ## File Structure
 
-| File | Task | Purpose |
-|------|------|---------|
-| `clients/flutter/pubspec.yaml` | 1 | Package dependencies |
-| `clients/flutter/lib/main.dart` | 1 | App entry point |
-| `clients/flutter/lib/app.dart` | 3 | MaterialApp with theme + router |
-| `clients/flutter/lib/theme/nvr_colors.dart` | 2 | NVR color palette constants |
-| `clients/flutter/lib/theme/nvr_theme.dart` | 2 | Material 3 dark theme |
-| `clients/flutter/lib/models/user.dart` | 4 | User model (freezed) |
-| `clients/flutter/lib/models/camera.dart` | 4 | Camera model (freezed) |
-| `clients/flutter/lib/services/auth_service.dart` | 5 | Login, refresh, logout, secure storage |
-| `clients/flutter/lib/services/api_client.dart` | 6 | dio + JWT interceptor + auto-refresh |
-| `clients/flutter/lib/providers/auth_provider.dart` | 7 | Auth state (Riverpod) |
-| `clients/flutter/lib/providers/cameras_provider.dart` | 7 | Camera list (Riverpod) |
-| `clients/flutter/lib/router/app_router.dart` | 3 | go_router with auth guards |
-| `clients/flutter/lib/screens/server_setup_screen.dart` | 8 | First-launch server URL entry |
-| `clients/flutter/lib/screens/login_screen.dart` | 8 | Username/password login |
-| `clients/flutter/lib/screens/setup_screen.dart` | 8 | Initial admin setup |
-| `clients/flutter/lib/widgets/adaptive_layout.dart` | 3 | Bottom nav / side rail shell |
-| `clients/flutter/lib/widgets/connection_banner.dart` | 9 | "Server Unreachable" banner |
-| `clients/flutter/lib/screens/home_placeholder.dart` | 9 | Placeholder screens for tabs |
-| `internal/nvr/api/auth.go` | 10 | Backend: refresh token in JSON body |
-| `internal/nvr/api/system.go` | 10 | Backend: port discovery in /system/info |
-| `clients/flutter/test/auth_service_test.dart` | 5 | Auth service unit tests |
-| `clients/flutter/test/api_client_test.dart` | 6 | API client unit tests |
+| File                                                   | Task | Purpose                                 |
+| ------------------------------------------------------ | ---- | --------------------------------------- |
+| `clients/flutter/pubspec.yaml`                         | 1    | Package dependencies                    |
+| `clients/flutter/lib/main.dart`                        | 1    | App entry point                         |
+| `clients/flutter/lib/app.dart`                         | 3    | MaterialApp with theme + router         |
+| `clients/flutter/lib/theme/nvr_colors.dart`            | 2    | NVR color palette constants             |
+| `clients/flutter/lib/theme/nvr_theme.dart`             | 2    | Material 3 dark theme                   |
+| `clients/flutter/lib/models/user.dart`                 | 4    | User model (freezed)                    |
+| `clients/flutter/lib/models/camera.dart`               | 4    | Camera model (freezed)                  |
+| `clients/flutter/lib/services/auth_service.dart`       | 5    | Login, refresh, logout, secure storage  |
+| `clients/flutter/lib/services/api_client.dart`         | 6    | dio + JWT interceptor + auto-refresh    |
+| `clients/flutter/lib/providers/auth_provider.dart`     | 7    | Auth state (Riverpod)                   |
+| `clients/flutter/lib/providers/cameras_provider.dart`  | 7    | Camera list (Riverpod)                  |
+| `clients/flutter/lib/router/app_router.dart`           | 3    | go_router with auth guards              |
+| `clients/flutter/lib/screens/server_setup_screen.dart` | 8    | First-launch server URL entry           |
+| `clients/flutter/lib/screens/login_screen.dart`        | 8    | Username/password login                 |
+| `clients/flutter/lib/screens/setup_screen.dart`        | 8    | Initial admin setup                     |
+| `clients/flutter/lib/widgets/adaptive_layout.dart`     | 3    | Bottom nav / side rail shell            |
+| `clients/flutter/lib/widgets/connection_banner.dart`   | 9    | "Server Unreachable" banner             |
+| `clients/flutter/lib/screens/home_placeholder.dart`    | 9    | Placeholder screens for tabs            |
+| `internal/nvr/api/auth.go`                             | 10   | Backend: refresh token in JSON body     |
+| `internal/nvr/api/system.go`                           | 10   | Backend: port discovery in /system/info |
+| `clients/flutter/test/auth_service_test.dart`          | 5    | Auth service unit tests                 |
+| `clients/flutter/test/api_client_test.dart`            | 6    | API client unit tests                   |
 
 ---
 
 ### Task 1: Flutter Project Scaffold
 
 **Files:**
+
 - Create: `clients/flutter/pubspec.yaml`
 - Create: `clients/flutter/lib/main.dart`
 - Create: `clients/flutter/analysis_options.yaml`
@@ -62,11 +63,11 @@ flutter create clients/flutter --org com.mediamtx --project-name nvr_client --pl
 ```yaml
 name: nvr_client
 description: MediaMTX NVR cross-platform client
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: ">=3.2.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -135,6 +136,7 @@ git commit -m "feat(flutter): scaffold Flutter project with dependencies"
 ### Task 2: Theme — NVR Colors + Material 3 Dark Theme
 
 **Files:**
+
 - Create: `clients/flutter/lib/theme/nvr_colors.dart`
 - Create: `clients/flutter/lib/theme/nvr_theme.dart`
 
@@ -267,6 +269,7 @@ git commit -m "feat(flutter): add NVR dark theme with Material 3"
 ### Task 3: Navigation — Adaptive Layout + Router
 
 **Files:**
+
 - Create: `clients/flutter/lib/app.dart`
 - Create: `clients/flutter/lib/router/app_router.dart`
 - Create: `clients/flutter/lib/widgets/adaptive_layout.dart`
@@ -500,6 +503,7 @@ git commit -m "feat(flutter): add adaptive navigation shell with go_router"
 ### Task 4: Data Models — User + Camera
 
 **Files:**
+
 - Create: `clients/flutter/lib/models/user.dart`
 - Create: `clients/flutter/lib/models/camera.dart`
 
@@ -584,6 +588,7 @@ git commit -m "feat(flutter): add User and Camera data models with freezed"
 ### Task 5: Auth Service — Login, Refresh, Logout, Secure Storage
 
 **Files:**
+
 - Create: `clients/flutter/lib/services/auth_service.dart`
 - Create: `clients/flutter/test/auth_service_test.dart`
 
@@ -774,6 +779,7 @@ git commit -m "feat(flutter): add auth service with login, refresh, logout"
 ### Task 6: API Client — dio + JWT Interceptor
 
 **Files:**
+
 - Create: `clients/flutter/lib/services/api_client.dart`
 
 - [ ] **Step 1: Create API client with JWT interceptor**
@@ -884,6 +890,7 @@ git commit -m "feat(flutter): add API client with JWT interceptor and auto-refre
 ### Task 7: Riverpod Providers — Auth + Cameras
 
 **Files:**
+
 - Create: `clients/flutter/lib/providers/auth_provider.dart`
 - Create: `clients/flutter/lib/providers/cameras_provider.dart`
 
@@ -1032,6 +1039,7 @@ final camerasProvider = FutureProvider<List<Camera>>((ref) async {
 - [ ] **Step 3: Wire auth guard into router**
 
 Update `app_router.dart`'s redirect to check auth state:
+
 ```dart
 redirect: (context, state) {
   final auth = ref.read(authProvider);
@@ -1068,6 +1076,7 @@ git commit -m "feat(flutter): add auth and cameras Riverpod providers"
 ### Task 8: Screens — Server Setup, Login, Setup
 
 **Files:**
+
 - Create: `clients/flutter/lib/screens/server_setup_screen.dart`
 - Create: `clients/flutter/lib/screens/login_screen.dart`
 - Create: `clients/flutter/lib/screens/setup_screen.dart`
@@ -1315,6 +1324,7 @@ git commit -m "feat(flutter): add server setup, login, and placeholder screens"
 ### Task 9: Connection Banner + Offline Cache
 
 **Files:**
+
 - Create: `clients/flutter/lib/widgets/connection_banner.dart`
 
 - [ ] **Step 1: Create connection banner widget**
@@ -1373,6 +1383,7 @@ git commit -m "feat(flutter): add server connection banner widget"
 ### Task 10: Backend Changes — Auth JSON Body + Port Discovery
 
 **Files:**
+
 - Modify: `internal/nvr/api/auth.go`
 - Modify: `internal/nvr/api/system.go` (or equivalent)
 

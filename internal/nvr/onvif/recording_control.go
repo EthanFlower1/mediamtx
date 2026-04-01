@@ -49,6 +49,13 @@ type RecordingJobState struct {
 	Sources        []RecordingJobStateSource `json:"sources"`
 }
 
+// TrackConfiguration holds the configuration for a track within a recording.
+type TrackConfiguration struct {
+	TrackToken  string `json:"track_token"`
+	TrackType   string `json:"track_type"`
+	Description string `json:"description"`
+}
+
 // --- SOAP XML types for recording control ---
 
 type recordingControlEnvelope struct {
@@ -63,6 +70,9 @@ type recordingControlBody struct {
 	CreateRecordingJobResponse       *createRecordingJobResponse       `xml:"CreateRecordingJobResponse"`
 	DeleteRecordingJobResponse       *deleteRecordingJobResponse       `xml:"DeleteRecordingJobResponse"`
 	GetRecordingJobStateResponse     *getRecordingJobStateResponse     `xml:"GetRecordingJobStateResponse"`
+	CreateTrackResponse             *createTrackResponse             `xml:"CreateTrackResponse"`
+	DeleteTrackResponse             *deleteTrackResponse             `xml:"DeleteTrackResponse"`
+	GetTrackConfigurationResponse   *getTrackConfigurationResponse   `xml:"GetTrackConfigurationResponse"`
 	Fault                            *recordingControlFault            `xml:"Fault"`
 }
 
@@ -129,6 +139,24 @@ type recordingJobStateSourceXML struct {
 
 type recordingJobSourceTokenXML struct {
 	Token string `xml:"Token"`
+}
+
+// --- Track SOAP XML response types ---
+
+type createTrackResponse struct {
+	TrackToken string `xml:"TrackToken"`
+}
+
+type deleteTrackResponse struct{}
+
+type getTrackConfigurationResponse struct {
+	TrackConfiguration trackConfigurationXML `xml:"TrackConfiguration"`
+}
+
+type trackConfigurationXML struct {
+	TrackToken  string `xml:"token,attr"`
+	TrackType   string `xml:"TrackType"`
+	Description string `xml:"Description"`
 }
 
 // --- SOAP helpers ---
@@ -451,5 +479,46 @@ func GetRecordingJobState(xaddr, username, password, jobToken string) (*Recordin
 		RecordingToken: st.RecordingToken,
 		State:          st.State,
 		Sources:        sources,
+	}, nil
+}
+
+// GetTrackConfiguration returns the configuration for a specific track within a recording.
+func GetTrackConfiguration(xaddr, username, password, recordingToken, trackToken string) (*TrackConfiguration, error) {
+	controlURL, err := getRecordingControlURL(xaddr, username, password)
+	if err != nil {
+		return nil, fmt.Errorf("GetTrackConfiguration: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	reqBody := fmt.Sprintf(`<trc:GetTrackConfiguration>
+      <trc:RecordingToken>%s</trc:RecordingToken>
+      <trc:TrackToken>%s</trc:TrackToken>
+    </trc:GetTrackConfiguration>`,
+		xmlEscape(recordingToken),
+		xmlEscape(trackToken))
+
+	body, err := doRecordingControlSOAP(ctx, controlURL, username, password, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("GetTrackConfiguration: %w", err)
+	}
+
+	var env recordingControlEnvelope
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("GetTrackConfiguration parse: %w", err)
+	}
+	if env.Body.Fault != nil {
+		return nil, fmt.Errorf("GetTrackConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.GetTrackConfigurationResponse == nil {
+		return nil, fmt.Errorf("GetTrackConfiguration: empty response")
+	}
+
+	tc := env.Body.GetTrackConfigurationResponse.TrackConfiguration
+	return &TrackConfiguration{
+		TrackToken:  tc.TrackToken,
+		TrackType:   tc.TrackType,
+		Description: tc.Description,
 	}, nil
 }

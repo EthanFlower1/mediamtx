@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -47,6 +48,7 @@ type RouterConfig struct {
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	QuarantineBase  string              // quarantine directory for corrupted recordings
+	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -413,6 +415,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/tours/:id", tourHandler.Get)
 	protected.PUT("/tours/:id", tourHandler.Update)
 	protected.DELETE("/tours/:id", tourHandler.Delete)
+
+	// Camera connection resilience.
+	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
+	protected.GET("/cameras/:id/connection", connHandler.GetState)
+	protected.GET("/cameras/:id/connection/history", connHandler.History)
+	protected.GET("/cameras/:id/connection/summary", connHandler.Summary)
+	protected.GET("/cameras/:id/connection/queue", connHandler.QueuedCommands)
+	protected.GET("/connections", connHandler.GetAllStates)
 
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")

@@ -24,6 +24,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
+	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
@@ -68,6 +69,7 @@ type NVR struct {
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 
 	integrityScanner *integrity.Scanner
+	connMgr          *connmgr.Manager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -147,6 +149,25 @@ func (n *NVR) Initialize() error {
 	// Monitor camera online/offline state transitions and publish events.
 	n.cameraStatusDone = make(chan struct{})
 	go n.runCameraStatusMonitor(n.cameraStatusDone)
+
+	// Start connection resilience manager for ONVIF cameras.
+	n.connMgr = connmgr.New(n.database)
+	n.connMgr.OnStateChange = func(cameraID, oldState, newState, errMsg string) {
+		if n.events != nil {
+			msg := fmt.Sprintf("%s → %s", oldState, newState)
+			if errMsg != "" {
+				msg += ": " + errMsg
+			}
+			n.events.Publish(api.Event{
+				Type:    "connection_state_change",
+				Camera:  cameraID,
+				Message: msg,
+			})
+		}
+	}
+	if err := n.connMgr.Start(); err != nil {
+		log.Printf("[NVR] connection manager start error: %v", err)
+	}
 
 	if err := n.loadOrGenerateKeys(); err != nil {
 		n.database.Close()
@@ -354,6 +375,15 @@ func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
 				if ready {
 					n.events.PublishCameraOnline(cameraName)
 					log.Printf("[NVR] camera online: %s (%s)", cameraName, path)
+					// Notify connection manager to trigger immediate reconnect.
+					if n.connMgr != nil {
+						for _, cam := range cameras {
+							if cam.MediaMTXPath == path {
+								n.connMgr.NotifyOnline(cam.ID)
+								break
+							}
+						}
+					}
 				} else {
 					n.events.PublishCameraOffline(cameraName)
 					log.Printf("[NVR] camera offline: %s (%s)", cameraName, path)
@@ -513,6 +543,9 @@ func (n *NVR) Close() {
 		n.aiEmbedder.Close()
 	}
 
+	if n.connMgr != nil {
+		n.connMgr.Stop()
+	}
 	if n.cameraStatusDone != nil {
 		close(n.cameraStatusDone)
 	}
@@ -825,6 +858,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		HLSHandler:      n.hlsHandler,
 		StorageManager:  n.storageMgr,
 		Collector:       n.metricsCollector,
+		ConnManager:     n.connMgr,
 	})
 }
 

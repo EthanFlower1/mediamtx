@@ -28,6 +28,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
+	"github.com/bluenviron/mediamtx/internal/nvr/recovery"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
@@ -196,6 +197,21 @@ func (n *NVR) Initialize() error {
 	// Sync audio_transcode flag with YAML config: if a -live path exists
 	// in the YAML but the DB doesn't know about it, update the DB.
 	n.syncAudioTranscodeState()
+
+	// Run startup recovery: detect and repair incomplete segments from crashes.
+	if n.RecordingsPath != "" {
+		recoveryCfg := recovery.RunConfig{
+			RecordDirs: []string{n.RecordingsPath},
+			DB:         &recoveryDBAdapter{db: n.database},
+			Reconciler: &recoveryReconcileAdapter{db: n.database, nvr: n},
+		}
+		if result, err := recovery.Run(recoveryCfg); err != nil {
+			log.Printf("NVR: recovery scan failed: %v", err)
+		} else if result.Scanned > 0 {
+			log.Printf("NVR: recovery complete — scanned=%d repaired=%d unrecoverable=%d",
+				result.Scanned, result.Repaired, result.Unrecoverable)
+		}
+	}
 
 	// Start background migration for recordings that predate fragment indexing.
 	n.startFragmentBackfill()

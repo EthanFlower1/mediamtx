@@ -45,6 +45,9 @@ type Camera struct {
 	AudioTranscode           bool    `json:"audio_transcode"`
 	RecordingStreamID        string  `json:"recording_stream_id,omitempty"`
 	StoragePath              string `json:"storage_path"`
+	QuotaBytes               int64  `json:"quota_bytes"`
+	QuotaWarningPercent      int    `json:"quota_warning_percent"`
+	QuotaCriticalPercent     int    `json:"quota_critical_percent"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -64,6 +67,13 @@ func (d *DB) CreateCamera(cam *Camera) error {
 	cam.CreatedAt = now
 	cam.UpdatedAt = now
 
+	if cam.QuotaWarningPercent == 0 {
+		cam.QuotaWarningPercent = 80
+	}
+	if cam.QuotaCriticalPercent == 0 {
+		cam.QuotaCriticalPercent = 90
+	}
+
 	_, err := d.Exec(`
 		INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
@@ -72,8 +82,9 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
-			storage_path, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			storage_path, quota_bytes, quota_warning_percent, quota_critical_percent,
+			created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
@@ -81,7 +92,8 @@ func (d *DB) CreateCamera(cam *Camera) error {
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
-		cam.StoragePath, cam.CreatedAt, cam.UpdatedAt,
+		cam.StoragePath, cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
 }
@@ -98,7 +110,8 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
+			quota_bytes, quota_warning_percent, quota_critical_percent
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -110,6 +123,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
+		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -132,7 +146,8 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
+			quota_bytes, quota_warning_percent, quota_critical_percent
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -144,6 +159,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
+		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -165,7 +181,8 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			supports_media2, supports_analytics, supports_edge_recording,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
+			quota_bytes, quota_warning_percent, quota_critical_percent
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -185,6 +202,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
+			&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +224,9 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			supports_relay = ?, supports_audio_backchannel = ?, snapshot_uri = ?,
 			supports_media2 = ?, supports_analytics = ?, supports_edge_recording = ?,
 			motion_timeout_seconds = ?, sub_stream_url = ?, ai_enabled = ?,
-			audio_transcode = ?, storage_path = ?, updated_at = ?
+			audio_transcode = ?, storage_path = ?,
+			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
+			updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
@@ -216,7 +236,9 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
-		cam.StoragePath, cam.UpdatedAt, cam.ID,
+		cam.StoragePath,
+		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {
 		return err

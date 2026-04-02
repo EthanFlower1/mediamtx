@@ -801,6 +801,137 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 	// Step 4: Clean audit log entries older than 90 days.
 	auditCutoff := now.AddDate(0, 0, -90)
 	_ = s.db.DeleteAuditEntriesBefore(auditCutoff)
+
+	// Step 5: Enforce per-camera storage quotas.
+	s.enforceQuotas(cameras)
+}
+
+// enforceQuotas checks per-camera and global storage quotas, deleting oldest
+// recordings when usage exceeds the configured limit. Non-event recordings
+// are deleted first, then event recordings, always oldest-first.
+func (s *Scheduler) enforceQuotas(cameras []*db.Camera) {
+	// Per-camera quota enforcement.
+	for _, cam := range cameras {
+		if cam.QuotaBytes <= 0 {
+			continue
+		}
+		used, err := s.db.GetCameraStorageUsage(cam.ID)
+		if err != nil {
+			log.Printf("scheduler: quota check failed for camera %s: %v", cam.Name, err)
+			continue
+		}
+		if used <= cam.QuotaBytes {
+			continue
+		}
+
+		bytesToFree := used - cam.QuotaBytes
+		log.Printf("scheduler: camera %s over quota by %d bytes (used=%d, quota=%d), enforcing cleanup",
+			cam.Name, bytesToFree, used, cam.QuotaBytes)
+
+		// First pass: delete oldest non-event recordings.
+		paths, freed, err := s.db.DeleteOldestRecordingsWithoutEvents(cam.ID, bytesToFree)
+		if err != nil {
+			log.Printf("scheduler: quota enforcement (non-event) FAILED for camera %s: %v", cam.Name, err)
+		} else if len(paths) > 0 {
+			removed := removeFiles(paths)
+			log.Printf("scheduler: quota enforcement for %s: deleted %d non-event recordings (%d files, %d bytes freed)",
+				cam.Name, len(paths), removed, freed)
+		}
+
+		bytesToFree -= freed
+		if bytesToFree > 0 {
+			// Second pass: delete oldest event recordings.
+			paths, freed, err := s.db.DeleteOldestRecordingsWithEvents(cam.ID, bytesToFree)
+			if err != nil {
+				log.Printf("scheduler: quota enforcement (event) FAILED for camera %s: %v", cam.Name, err)
+			} else if len(paths) > 0 {
+				removed := removeFiles(paths)
+				log.Printf("scheduler: quota enforcement for %s: deleted %d event recordings (%d files, %d bytes freed)",
+					cam.Name, len(paths), removed, freed)
+			}
+		}
+
+		if s.eventPub != nil {
+			s.eventPub.PublishRecordingStopped(cam.Name)
+		}
+	}
+
+	// Global quota enforcement.
+	globalQuota, err := s.db.GetStorageQuota("global")
+	if err != nil || !globalQuota.Enabled || globalQuota.QuotaBytes <= 0 {
+		return
+	}
+
+	totalUsed, err := s.db.GetTotalStorageUsage()
+	if err != nil {
+		log.Printf("scheduler: global quota check failed: %v", err)
+		return
+	}
+	if totalUsed <= globalQuota.QuotaBytes {
+		return
+	}
+
+	log.Printf("scheduler: global storage over quota by %d bytes (used=%d, quota=%d), enforcing cleanup",
+		totalUsed-globalQuota.QuotaBytes, totalUsed, globalQuota.QuotaBytes)
+
+	// Build per-camera usage map and find the camera using the most storage.
+	storagePerCamera, err := s.db.GetStoragePerCamera()
+	if err != nil {
+		log.Printf("scheduler: global quota: failed to get per-camera storage: %v", err)
+		return
+	}
+
+	// Delete oldest recordings from the largest camera until under quota.
+	bytesToFree := totalUsed - globalQuota.QuotaBytes
+	for bytesToFree > 0 && len(storagePerCamera) > 0 {
+		// Find camera using the most storage.
+		maxIdx := 0
+		for i, cs := range storagePerCamera {
+			if cs.TotalBytes > storagePerCamera[maxIdx].TotalBytes {
+				maxIdx = i
+			}
+		}
+		biggestCam := storagePerCamera[maxIdx]
+		if biggestCam.TotalBytes <= 0 {
+			break
+		}
+
+		// Delete non-event recordings first.
+		paths, freed, err := s.db.DeleteOldestRecordingsWithoutEvents(biggestCam.CameraID, bytesToFree)
+		if err != nil {
+			log.Printf("scheduler: global quota enforcement FAILED for camera %s: %v", biggestCam.CameraName, err)
+			break
+		}
+		if len(paths) > 0 {
+			removed := removeFiles(paths)
+			log.Printf("scheduler: global quota: deleted %d non-event recordings from %s (%d files, %d bytes freed)",
+				len(paths), biggestCam.CameraName, removed, freed)
+		}
+
+		bytesToFree -= freed
+		if bytesToFree > 0 && freed == 0 {
+			// No non-event recordings left, try event recordings.
+			paths, freed, err = s.db.DeleteOldestRecordingsWithEvents(biggestCam.CameraID, bytesToFree)
+			if err != nil {
+				log.Printf("scheduler: global quota enforcement (event) FAILED for camera %s: %v", biggestCam.CameraName, err)
+				break
+			}
+			if len(paths) > 0 {
+				removed := removeFiles(paths)
+				log.Printf("scheduler: global quota: deleted %d event recordings from %s (%d files, %d bytes freed)",
+					len(paths), biggestCam.CameraName, removed, freed)
+			}
+			bytesToFree -= freed
+			if freed == 0 {
+				// This camera has nothing left to delete, remove it from the list.
+				storagePerCamera = append(storagePerCamera[:maxIdx], storagePerCamera[maxIdx+1:]...)
+			}
+		}
+		// Update the camera's usage for the next iteration.
+		if maxIdx < len(storagePerCamera) {
+			storagePerCamera[maxIdx].TotalBytes -= freed
+		}
+	}
 }
 
 // removeFiles deletes files from disk and returns the count successfully removed.

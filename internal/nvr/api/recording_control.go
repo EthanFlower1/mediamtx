@@ -254,3 +254,132 @@ func (h *CameraHandler) GetEdgeRecordingJobState(c *gin.Context) {
 
 	c.JSON(http.StatusOK, state)
 }
+
+// CreateEdgeTrack adds a track to a recording on the camera's edge storage.
+//
+//	POST /cameras/:id/recording-control/recordings/:token/tracks
+func (h *CameraHandler) CreateEdgeTrack(c *gin.Context) {
+	id := c.Param("id")
+	recordingToken := c.Param("token")
+
+	var req struct {
+		TrackType   string `json:"track_type"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.TrackType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "track_type is required (Video, Audio, or Metadata)"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for create track", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	password := h.decryptPassword(cam.ONVIFPassword)
+	trackToken, err := onvif.CreateTrack(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password,
+		recordingToken, req.TrackType, req.Description)
+	if err != nil {
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to create track on camera %s recording %s", id, recordingToken), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create track on device"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"track_token": trackToken})
+}
+
+// DeleteEdgeTrack removes a track from a recording on the camera's edge storage.
+//
+//	DELETE /cameras/:id/recording-control/recordings/:token/tracks/:trackToken
+func (h *CameraHandler) DeleteEdgeTrack(c *gin.Context) {
+	id := c.Param("id")
+	recordingToken := c.Param("token")
+	trackToken := c.Param("trackToken")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for delete track", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	password := h.decryptPassword(cam.ONVIFPassword)
+	err = onvif.DeleteTrack(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password,
+		recordingToken, trackToken)
+	if err != nil {
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to delete track %s on camera %s", trackToken, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete track on device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "track deleted"})
+}
+
+// GetEdgeTrackConfig returns the configuration for a track on the camera's edge storage.
+//
+//	GET /cameras/:id/recording-control/tracks/:trackToken/config?recording_token=X
+func (h *CameraHandler) GetEdgeTrackConfig(c *gin.Context) {
+	id := c.Param("id")
+	trackToken := c.Param("trackToken")
+	recordingToken := c.Query("recording_token")
+
+	if recordingToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recording_token query parameter is required"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for track config", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	password := h.decryptPassword(cam.ONVIFPassword)
+	config, err := onvif.GetTrackConfiguration(
+		cam.ONVIFEndpoint, cam.ONVIFUsername, password,
+		recordingToken, trackToken)
+	if err != nil {
+		nvrLogError("recording-control",
+			fmt.Sprintf("failed to get track config for camera %s track %s", id, trackToken), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get track configuration from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, config)
+}

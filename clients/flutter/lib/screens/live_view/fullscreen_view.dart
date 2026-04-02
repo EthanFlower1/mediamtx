@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/rtsp_player_service.dart';
 import '../../services/whep_service.dart';
 import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
@@ -28,9 +30,16 @@ class FullscreenView extends ConsumerStatefulWidget {
 }
 
 class _FullscreenViewState extends ConsumerState<FullscreenView> {
-  WhepConnection? _connection;
-  WhepConnectionState _connState = WhepConnectionState.connecting;
-  StreamSubscription<WhepConnectionState>? _stateSub;
+  WhepConnection? _whepConnection;
+  StreamSubscription<WhepConnectionState>? _whepStateSub;
+  RtspConnection? _rtspConnection;
+  StreamSubscription<RtspConnectionState>? _rtspStateSub;
+
+  bool _isConnecting = true;
+  bool _isConnected = false;
+  bool _isFailed = false;
+  bool _useRtsp = false;
+
   bool _controlsVisible = true;
   Timer? _hideControlsTimer;
   bool _aiEnabled = false;
@@ -46,6 +55,21 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
     _scheduleHideControls();
   }
 
+  bool get _isH265 {
+    final codec = widget.camera.liveViewCodec.toUpperCase();
+    return codec == 'H265' || codec == 'HEVC';
+  }
+
+  void _setConnState({bool connecting = false, bool connected = false, bool failed = false}) {
+    if (mounted) {
+      setState(() {
+        _isConnecting = connecting;
+        _isConnected = connected;
+        _isFailed = failed;
+      });
+    }
+  }
+
   void _initConnection() {
     final auth = ref.read(authProvider);
     final serverUrl = auth.serverUrl ?? '';
@@ -54,21 +78,50 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
     final livePath = camera.liveViewPath.isNotEmpty
         ? camera.liveViewPath
         : camera.mediamtxPath;
-    _connection = WhepConnection(
-      serverUrl: serverUrl,
-      mediamtxPath: livePath,
-    );
 
-    _stateSub = _connection!.stateStream.listen((state) {
-      if (mounted) {
-        setState(() => _connState = state);
-        if (state == WhepConnectionState.connected) {
-          _connection?.setAudioEnabled(!_muted);
+    _useRtsp = _isH265;
+
+    if (_useRtsp) {
+      _rtspConnection = RtspConnection(
+        serverUrl: serverUrl,
+        mediamtxPath: livePath,
+      );
+      _rtspStateSub = _rtspConnection!.stateStream.listen((state) {
+        if (!mounted) return;
+        switch (state) {
+          case RtspConnectionState.connecting:
+            _setConnState(connecting: true);
+          case RtspConnectionState.connected:
+            _setConnState(connected: true);
+            _rtspConnection?.setAudioEnabled(!_muted);
+          case RtspConnectionState.failed:
+            _setConnState(failed: true);
+          case RtspConnectionState.disposed:
+            break;
         }
-      }
-    });
-
-    _connection!.connect();
+      });
+      _rtspConnection!.connect();
+    } else {
+      _whepConnection = WhepConnection(
+        serverUrl: serverUrl,
+        mediamtxPath: livePath,
+      );
+      _whepStateSub = _whepConnection!.stateStream.listen((state) {
+        if (!mounted) return;
+        switch (state) {
+          case WhepConnectionState.connecting:
+            _setConnState(connecting: true);
+          case WhepConnectionState.connected:
+            _setConnState(connected: true);
+            _whepConnection?.setAudioEnabled(!_muted);
+          case WhepConnectionState.failed:
+            _setConnState(failed: true);
+          case WhepConnectionState.disposed:
+            break;
+        }
+      });
+      _whepConnection!.connect();
+    }
   }
 
   void _toggleControls() {
@@ -116,8 +169,10 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   @override
   void dispose() {
     _hideControlsTimer?.cancel();
-    _stateSub?.cancel();
-    _connection?.dispose();
+    _whepStateSub?.cancel();
+    _whepConnection?.dispose();
+    _rtspStateSub?.cancel();
+    _rtspConnection?.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
@@ -256,7 +311,11 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
               label: _muted ? 'Muted' : 'Audio',
               onTap: () {
                 setState(() => _muted = !_muted);
-                _connection?.setAudioEnabled(!_muted);
+                if (_useRtsp) {
+                  _rtspConnection?.setAudioEnabled(!_muted);
+                } else {
+                  _whepConnection?.setAudioEnabled(!_muted);
+                }
               },
             ),
             const SizedBox(width: 8),
@@ -297,14 +356,26 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   }
 
   Widget _buildVideoLayer() {
-    switch (_connState) {
-      case WhepConnectionState.connecting:
-        return const Center(
-          child: CircularProgressIndicator(color: NvrColors.accent),
-        );
+    if (_isConnecting) {
+      return const Center(
+        child: CircularProgressIndicator(color: NvrColors.accent),
+      );
+    }
 
-      case WhepConnectionState.connected:
-        final renderer = _connection?.renderer;
+    if (_isConnected) {
+      if (_useRtsp) {
+        final vc = _rtspConnection?.videoController;
+        if (vc == null) {
+          return const Center(
+            child: CircularProgressIndicator(color: NvrColors.accent),
+          );
+        }
+        return Video(
+          controller: vc,
+          fill: Colors.black,
+        );
+      } else {
+        final renderer = _whepConnection?.renderer;
         if (renderer == null) {
           return const Center(
             child: CircularProgressIndicator(color: NvrColors.accent),
@@ -314,31 +385,38 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
           renderer,
           objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
         );
-
-      case WhepConnectionState.failed:
-        return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: NvrColors.danger, size: 48),
-              const SizedBox(height: 16),
-              const Text(
-                'Connection failed',
-                style: TextStyle(color: NvrColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                onPressed: () => _connection?.retry(),
-              ),
-            ],
-          ),
-        );
-
-      case WhepConnectionState.disposed:
-        return const SizedBox.shrink();
+      }
     }
+
+    if (_isFailed) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: NvrColors.danger, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Connection failed',
+              style: TextStyle(color: NvrColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              onPressed: () {
+                if (_useRtsp) {
+                  _rtspConnection?.retry();
+                } else {
+                  _whepConnection?.retry();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }
 

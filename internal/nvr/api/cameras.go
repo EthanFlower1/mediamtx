@@ -49,6 +49,7 @@ type streamPathEntry struct {
 	Name       string `json:"name"`
 	Path       string `json:"path"`
 	Resolution string `json:"resolution,omitempty"`
+	VideoCodec string `json:"video_codec,omitempty"`
 }
 
 // cameraResponse wraps db.Camera and adds a storage_status field.
@@ -56,6 +57,7 @@ type cameraResponse struct {
 	db.Camera
 	StorageStatus   string            `json:"storage_status"`
 	LiveViewPath    string            `json:"live_view_path"`
+	LiveViewCodec   string            `json:"live_view_codec,omitempty"`
 	StreamPaths     []streamPathEntry `json:"stream_paths"`
 	RecordingHealth string            `json:"recording_health"`
 }
@@ -89,12 +91,15 @@ func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 			Name:       s.Name,
 			Path:       path,
 			Resolution: res,
+			VideoCodec: s.VideoCodec,
 		})
 	}
 
-	// Resolve default live view path from the stream with the live_view role.
+	// Resolve default live view path and codec from the stream with the live_view role.
 	lvPath := cam.MediaMTXPath
+	lvCodec := ""
 	if stream, err := h.DB.ResolveStream(cam.ID, db.StreamRoleLiveView); err == nil && stream.ID != "" {
+		lvCodec = stream.VideoCodec
 		// Find this stream's path from the list we just built.
 		for _, sp := range streamPaths {
 			if sp.Name == stream.Name {
@@ -102,6 +107,10 @@ func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 				break
 			}
 		}
+	}
+	// Fallback: use the first stream's codec if no live_view role is set.
+	if lvCodec == "" && len(streams) > 0 {
+		lvCodec = streams[0].VideoCodec
 	}
 
 	recordingHealth := scheduler.HealthInactive
@@ -115,6 +124,7 @@ func (h *CameraHandler) buildCameraResponse(cam *db.Camera) cameraResponse {
 		Camera:          *cam,
 		StorageStatus:   status,
 		LiveViewPath:    lvPath,
+		LiveViewCodec:   lvCodec,
 		StreamPaths:     streamPaths,
 		RecordingHealth: recordingHealth,
 	}

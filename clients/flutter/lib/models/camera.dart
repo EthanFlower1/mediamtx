@@ -31,6 +31,7 @@ class Camera with _$Camera {
     @JsonKey(name: 'storage_path') @Default('') String storagePath,
     @JsonKey(name: 'storage_status') @Default('default') String storageStatus,
     @JsonKey(name: 'live_view_path') @Default('') String liveViewPath,
+    @JsonKey(name: 'live_view_codec') @Default('') String liveViewCodec,
     @JsonKey(name: 'stream_paths') @Default([]) List<StreamPath> streamPaths,
   }) = _Camera;
 
@@ -43,6 +44,7 @@ class StreamPath with _$StreamPath {
     @Default('') String name,
     @Default('') String path,
     @Default('') String resolution,
+    @JsonKey(name: 'video_codec') @Default('') String videoCodec,
   }) = _StreamPath;
 
   factory StreamPath.fromJson(Map<String, dynamic> json) => _$StreamPathFromJson(json);

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../models/camera.dart';
+import '../../services/rtsp_player_service.dart';
 import '../../services/whep_service.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
@@ -28,9 +30,19 @@ class CameraTile extends StatefulWidget {
 }
 
 class _CameraTileState extends State<CameraTile> {
-  WhepConnection? _connection;
-  WhepConnectionState _connState = WhepConnectionState.connecting;
-  StreamSubscription<WhepConnectionState>? _stateSub;
+  // WHEP (WebRTC) connection for H.264 streams.
+  WhepConnection? _whepConnection;
+  StreamSubscription<WhepConnectionState>? _whepStateSub;
+
+  // RTSP connection for H.265 streams.
+  RtspConnection? _rtspConnection;
+  StreamSubscription<RtspConnectionState>? _rtspStateSub;
+
+  // Unified connection state.
+  bool _isConnecting = true;
+  bool _isConnected = false;
+  bool _isFailed = false;
+  bool _useRtsp = false;
 
   // Drives the HH:MM:SS timestamp in the bottom-right overlay.
   late Timer _clockTimer;
@@ -38,6 +50,7 @@ class _CameraTileState extends State<CameraTile> {
 
   // Stream override — when non-null, overrides the default liveViewPath.
   String? _overridePath;
+  String? _overrideCodec;
 
   @override
   void initState() {
@@ -61,7 +74,7 @@ class _CameraTileState extends State<CameraTile> {
     // Reconnect when camera comes online, path changes, or server changes.
     if ((!oldOnline && newOnline) || pathChanged || serverChanged) {
       _disposeConnection();
-      _connState = WhepConnectionState.connecting;
+      _setConnState(connecting: true);
       _initConnection();
     }
   }
@@ -74,41 +87,112 @@ class _CameraTileState extends State<CameraTile> {
         : camera.mediamtxPath;
   }
 
+  String get _activeCodec {
+    if (_overrideCodec != null) return _overrideCodec!;
+    return widget.camera.liveViewCodec;
+  }
+
+  bool get _isH265 {
+    final codec = _activeCodec.toUpperCase();
+    return codec == 'H265' || codec == 'HEVC';
+  }
+
+  void _setConnState({bool connecting = false, bool connected = false, bool failed = false}) {
+    if (mounted) {
+      setState(() {
+        _isConnecting = connecting;
+        _isConnected = connected;
+        _isFailed = failed;
+      });
+    }
+  }
+
   void _initConnection() {
     final camera = widget.camera;
     final isOnline = camera.status != 'disconnected';
     final livePath = _activePath;
     if (!isOnline || livePath.isEmpty) return;
 
-    _connection = WhepConnection(
-      serverUrl: widget.serverUrl,
-      mediamtxPath: livePath,
-    );
+    _useRtsp = _isH265;
 
-    _stateSub = _connection!.stateStream.listen((state) {
-      if (mounted) setState(() => _connState = state);
-    });
-
-    _connection!.connect();
+    if (_useRtsp) {
+      _rtspConnection = RtspConnection(
+        serverUrl: widget.serverUrl,
+        mediamtxPath: livePath,
+      );
+      _rtspStateSub = _rtspConnection!.stateStream.listen((state) {
+        if (!mounted) return;
+        switch (state) {
+          case RtspConnectionState.connecting:
+            _setConnState(connecting: true);
+          case RtspConnectionState.connected:
+            _setConnState(connected: true);
+          case RtspConnectionState.failed:
+            _setConnState(failed: true);
+          case RtspConnectionState.disposed:
+            break;
+        }
+      });
+      _rtspConnection!.connect();
+    } else {
+      _whepConnection = WhepConnection(
+        serverUrl: widget.serverUrl,
+        mediamtxPath: livePath,
+      );
+      _whepStateSub = _whepConnection!.stateStream.listen((state) {
+        if (!mounted) return;
+        switch (state) {
+          case WhepConnectionState.connecting:
+            _setConnState(connecting: true);
+          case WhepConnectionState.connected:
+            _setConnState(connected: true);
+          case WhepConnectionState.failed:
+            _setConnState(failed: true);
+          case WhepConnectionState.disposed:
+            break;
+        }
+      });
+      _whepConnection!.connect();
+    }
   }
 
   Future<void> _retry() async {
-    await _connection?.retry();
+    if (_useRtsp) {
+      await _rtspConnection?.retry();
+    } else {
+      await _whepConnection?.retry();
+    }
   }
 
   void _switchStream(String path) {
     if (path == _activePath) return;
-    setState(() => _overridePath = path);
+    // Find the codec for the selected stream.
+    String? codec;
+    for (final sp in widget.camera.streamPaths) {
+      if (sp.path == path) {
+        codec = sp.videoCodec;
+        break;
+      }
+    }
+    setState(() {
+      _overridePath = path;
+      _overrideCodec = codec;
+    });
     _disposeConnection();
-    _connState = WhepConnectionState.connecting;
+    _setConnState(connecting: true);
     _initConnection();
   }
 
   void _disposeConnection() {
-    _stateSub?.cancel();
-    _stateSub = null;
-    _connection?.dispose();
-    _connection = null;
+    _whepStateSub?.cancel();
+    _whepStateSub = null;
+    _whepConnection?.dispose();
+    _whepConnection = null;
+
+    _rtspStateSub?.cancel();
+    _rtspStateSub = null;
+    _rtspConnection?.dispose();
+    _rtspConnection = null;
   }
 
   @override
@@ -145,8 +229,7 @@ class _CameraTileState extends State<CameraTile> {
               CornerBrackets(child: const SizedBox.expand()),
 
               // AI analytics overlay (preserved, rebuilt in next task).
-              if (camera.aiEnabled &&
-                  _connState == WhepConnectionState.connected)
+              if (camera.aiEnabled && _isConnected)
                 AnalyticsOverlay(
                   cameraName: camera.name,
                   cameraId: camera.id,
@@ -289,7 +372,8 @@ class _CameraTileState extends State<CameraTile> {
       );
     }
 
-    if (_connection == null) {
+    final hasConnection = _useRtsp ? _rtspConnection != null : _whepConnection != null;
+    if (!hasConnection) {
       return Container(
         color: NvrColors.bgSecondary,
         child: const Center(
@@ -298,20 +382,38 @@ class _CameraTileState extends State<CameraTile> {
       );
     }
 
-    switch (_connState) {
-      case WhepConnectionState.connecting:
-        return Container(
-          color: NvrColors.bgSecondary,
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: NvrColors.accent,
-            ),
+    if (_isConnecting) {
+      return Container(
+        color: NvrColors.bgSecondary,
+        child: const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: NvrColors.accent,
           ),
-        );
+        ),
+      );
+    }
 
-      case WhepConnectionState.connected:
-        final renderer = _connection!.renderer;
+    if (_isConnected) {
+      if (_useRtsp) {
+        final vc = _rtspConnection?.videoController;
+        if (vc == null) {
+          return Container(
+            color: NvrColors.bgSecondary,
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: NvrColors.accent,
+              ),
+            ),
+          );
+        }
+        return Video(
+          controller: vc,
+          fill: NvrColors.bgSecondary,
+        );
+      } else {
+        final renderer = _whepConnection!.renderer;
         if (renderer == null) {
           return Container(
             color: NvrColors.bgSecondary,
@@ -327,49 +429,50 @@ class _CameraTileState extends State<CameraTile> {
           renderer,
           objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
         );
-
-      case WhepConnectionState.failed:
-        return Container(
-          color: NvrColors.bgSecondary,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: NvrColors.danger,
-                  size: 28,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Connection failed',
-                  style: TextStyle(
-                    color: NvrColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  onPressed: _retry,
-                  child: const Text(
-                    'Retry',
-                    style: TextStyle(color: NvrColors.accent, fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-
-      case WhepConnectionState.disposed:
-        return Container(color: NvrColors.bgSecondary);
+      }
     }
+
+    if (_isFailed) {
+      return Container(
+        color: NvrColors.bgSecondary,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: NvrColors.danger,
+                size: 28,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Connection failed',
+                style: TextStyle(
+                  color: NvrColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: _retry,
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(color: NvrColors.accent, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(color: NvrColors.bgSecondary);
   }
 }
 

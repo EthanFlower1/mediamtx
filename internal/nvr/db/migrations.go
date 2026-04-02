@@ -452,4 +452,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
+	// Migration 31: Service capabilities cache (KAI-112).
+	{
+		version: 31,
+		sql:     `ALTER TABLE cameras ADD COLUMN service_capabilities TEXT DEFAULT '';`,
+	},
 }

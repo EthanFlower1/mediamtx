@@ -1195,6 +1195,51 @@ func (s *Scheduler) stopEventPipelineLocked(camID string) {
 	}
 }
 
+// ResubscribeCamera tears down any active event subscription for the given
+// camera and starts a fresh one using the current credentials from the DB.
+// This should be called after credential rotation so that ONVIF event
+// subscriptions use the updated credentials.
+func (s *Scheduler) ResubscribeCamera(cameraID string) {
+	cam, err := s.db.GetCamera(cameraID)
+	if err != nil {
+		log.Printf("scheduler: resubscribe camera %s: %v", cameraID, err)
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Tear down existing subscription if any.
+	s.stopEventPipelineLocked(cameraID)
+
+	// Only resubscribe if the camera has an ONVIF endpoint.
+	if cam.ONVIFEndpoint == "" {
+		return
+	}
+
+	// Check if there are active event-mode rules for this camera.
+	rules, err := s.db.ListRecordingRules(cameraID)
+	if err != nil {
+		log.Printf("scheduler: resubscribe camera %s: list rules: %v", cameraID, err)
+		return
+	}
+
+	hasEventRule := false
+	for _, r := range rules {
+		if r.Mode == "events" && r.Enabled {
+			hasEventRule = true
+			break
+		}
+	}
+
+	if hasEventRule {
+		s.startEventPipelineLocked(cameraID, cam, rules)
+	} else {
+		// Even without event rules, start the motion alert subscription.
+		s.startMotionAlertSubscription(cam)
+	}
+}
+
 // queueWrite adds a pending YAML write and starts/resets the coalesce timer.
 func (s *Scheduler) queueWrite(path string, record bool) {
 	s.pendingWritesMu.Lock()

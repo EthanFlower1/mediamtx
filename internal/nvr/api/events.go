@@ -136,6 +136,58 @@ func (b *EventBroadcaster) PublishTampering(cameraName string) {
 	})
 }
 
+// PublishDigitalInput publishes a digital-input event for the given camera.
+func (b *EventBroadcaster) PublishDigitalInput(cameraName string, active bool) {
+	action := "triggered"
+	if !active {
+		action = "cleared"
+	}
+	b.Publish(Event{
+		Type:    "digital_input",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Digital input %s on %s", action, cameraName),
+	})
+}
+
+// PublishSignalLoss publishes a signal-loss event for the given camera.
+func (b *EventBroadcaster) PublishSignalLoss(cameraName string, active bool) {
+	action := "detected"
+	if !active {
+		action = "recovered"
+	}
+	b.Publish(Event{
+		Type:    "signal_loss",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Signal loss %s on %s", action, cameraName),
+	})
+}
+
+// PublishHardwareFailure publishes a hardware-failure event for the given camera.
+func (b *EventBroadcaster) PublishHardwareFailure(cameraName string, active bool) {
+	action := "detected"
+	if !active {
+		action = "cleared"
+	}
+	b.Publish(Event{
+		Type:    "hardware_failure",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Hardware failure %s on %s", action, cameraName),
+	})
+}
+
+// PublishRelay publishes a relay-output event for the given camera.
+func (b *EventBroadcaster) PublishRelay(cameraName string, active bool) {
+	action := "activated"
+	if !active {
+		action = "deactivated"
+	}
+	b.Publish(Event{
+		Type:    "relay",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Relay %s on %s", action, cameraName),
+	})
+}
+
 // PublishCameraOffline publishes a camera-offline event.
 func (b *EventBroadcaster) PublishCameraOffline(cameraName string) {
 	b.Publish(Event{

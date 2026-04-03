@@ -20,15 +20,6 @@ type AudioSourceInfo struct {
 	Channels int    `json:"channels"`
 }
 
-// AudioSourceConfig represents an audio source configuration that binds
-// a physical audio source to a media profile.
-type AudioSourceConfig struct {
-	Token       string `json:"token"`
-	Name        string `json:"name"`
-	UseCount    int    `json:"use_count"`
-	SourceToken string `json:"source_token"`
-}
-
 // AudioSourceConfigOptions describes the available options when configuring
 // an audio source (e.g. which input tokens can be selected).
 type AudioSourceConfigOptions struct {
@@ -91,7 +82,6 @@ func convertAudioSourceConfigs(configs []*onvifgo.AudioSourceConfiguration) []*A
 		result[i] = &AudioSourceConfig{
 			Token:       cfg.Token,
 			Name:        cfg.Name,
-			UseCount:    cfg.UseCount,
 			SourceToken: cfg.SourceToken,
 		}
 	}
@@ -137,7 +127,6 @@ func GetAudioSourceConfiguration(xaddr, username, password, configToken string) 
 	return &AudioSourceConfig{
 		Token:       cfg.Token,
 		Name:        cfg.Name,
-		UseCount:    cfg.UseCount,
 		SourceToken: cfg.SourceToken,
 	}, nil
 }

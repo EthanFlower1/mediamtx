@@ -8,7 +8,7 @@ import (
 )
 
 func TestMetadataStreamSubscriberRequiresStreamURI(t *testing.T) {
-	cb := func(eventType DetectedEventType, active bool) {}
+	cb := func(event DetectedEvent) {}
 	sub, err := NewMetadataStreamSubscriber("", "", "", cb, nil)
 	require.Error(t, err)
 	assert.Nil(t, sub)
@@ -23,7 +23,7 @@ func TestMetadataStreamSubscriberRequiresCallback(t *testing.T) {
 }
 
 func TestMetadataStreamSubscriberCreation(t *testing.T) {
-	eventCb := func(eventType DetectedEventType, active bool) {}
+	eventCb := func(event DetectedEvent) {}
 	frameCb := func(frame *MetadataFrame) {}
 
 	// With both callbacks.

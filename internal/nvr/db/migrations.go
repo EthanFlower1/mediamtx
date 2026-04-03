@@ -490,4 +490,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 33,
 		sql:     `ALTER TABLE cameras ADD COLUMN supported_event_topics TEXT DEFAULT '';`,
 	},
+	// Migration 34: Add metadata column for analytics event details (KAI-20).
+	{
+		version: 34,
+		sql:     `ALTER TABLE motion_events ADD COLUMN metadata TEXT;`,
+	},
 }

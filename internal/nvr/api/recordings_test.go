@@ -288,6 +288,73 @@ func TestRecordingQuery(t *testing.T) {
 	}
 }
 
+func TestEventsEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, database, _, cleanup := setupRecordingTest(t)
+	defer cleanup()
+
+	// Create test camera.
+	cam := &db.Camera{Name: "EventCam", RTSPURL: "rtsp://test"}
+	if err := database.CreateCamera(cam); err != nil {
+		t.Fatalf("create camera: %v", err)
+	}
+
+	// Insert events of different types.
+	for _, et := range []string{"motion", "line_crossing", "intrusion"} {
+		if err := database.InsertMotionEvent(&db.MotionEvent{
+			CameraID:  cam.ID,
+			StartedAt: "2026-04-03T10:00:00.000Z",
+			EventType: et,
+		}); err != nil {
+			t.Fatalf("insert event: %v", err)
+		}
+	}
+
+	// Test: query all types.
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?date=2026-04-03", nil)
+	c.Params = gin.Params{{Key: "id", Value: cam.ID}}
+	c.Set("camera_permissions", "*")
+
+	handler.Events(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var events []db.MotionEvent
+	if err := json.Unmarshal(w.Body.Bytes(), &events); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events, got %d", len(events))
+	}
+
+	// Test: filter by type.
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/?date=2026-04-03&type=line_crossing", nil)
+	c.Params = gin.Params{{Key: "id", Value: cam.ID}}
+	c.Set("camera_permissions", "*")
+
+	handler.Events(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	if err := json.Unmarshal(w.Body.Bytes(), &events); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].EventType != "line_crossing" {
+		t.Errorf("expected line_crossing, got %s", events[0].EventType)
+	}
+}
+
 func TestRecordingQueryCrossDate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler, database, tmpDir, cleanup := setupRecordingTest(t)

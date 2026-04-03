@@ -199,7 +199,7 @@ func (ms *MetadataStreamSubscriber) connectAndRead(ctx context.Context) error {
 			for _, evt := range events {
 				eventType, ok := classifyTopic(evt.Topic)
 				if ok {
-					ms.eventCb(eventType, evt.Active)
+					ms.eventCb(DetectedEvent{Type: eventType, Active: evt.Active})
 				}
 			}
 		}

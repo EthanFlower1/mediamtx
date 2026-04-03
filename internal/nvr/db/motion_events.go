@@ -1,6 +1,7 @@
 package db
 
 import (
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,7 @@ type MotionEvent struct {
 	Confidence       float64 `json:"confidence"`
 	Embedding        []byte  `json:"-"`
 	DetectionSummary string  `json:"detection_summary,omitempty"`
+	Metadata         *string `json:"metadata,omitempty"`
 }
 
 // InsertMotionEvent inserts a new motion event into the database.
@@ -24,10 +26,10 @@ func (d *DB) InsertMotionEvent(event *MotionEvent) error {
 		event.EventType = "motion"
 	}
 	res, err := d.Exec(`
-		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type, object_class, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type, object_class, confidence, metadata)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.CameraID, event.StartedAt, event.EndedAt, event.ThumbnailPath, event.EventType,
-		event.ObjectClass, event.Confidence,
+		event.ObjectClass, event.Confidence, event.Metadata,
 	)
 	if err != nil {
 		return err
@@ -124,7 +126,7 @@ func (d *DB) CloseStaleMotionEventsForCamera(cameraID string, maxAge time.Durati
 func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*MotionEvent, error) {
 	rows, err := d.Query(`
 		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion'),
-		       COALESCE(object_class, ''), COALESCE(confidence, 0)
+		       COALESCE(object_class, ''), COALESCE(confidence, 0), metadata
 		FROM motion_events
 		WHERE camera_id = ?
 		  AND started_at < ?
@@ -143,7 +145,7 @@ func (d *DB) QueryMotionEvents(cameraID string, start, end time.Time) ([]*Motion
 	for rows.Next() {
 		ev := &MotionEvent{}
 		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType,
-			&ev.ObjectClass, &ev.Confidence); err != nil {
+			&ev.ObjectClass, &ev.Confidence, &ev.Metadata); err != nil {
 			return nil, err
 		}
 		events = append(events, ev)
@@ -217,7 +219,7 @@ func (d *DB) ListSearchableEvents(cameraID string, start, end time.Time) ([]*Sea
 func (d *DB) QueryMotionEventsByClass(cameraID, objectClass string, start, end time.Time) ([]*MotionEvent, error) {
 	query := `
 		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''), COALESCE(event_type, 'motion'),
-		       COALESCE(object_class, ''), COALESCE(confidence, 0)
+		       COALESCE(object_class, ''), COALESCE(confidence, 0), metadata
 		FROM motion_events
 		WHERE camera_id = ?
 		  AND started_at < ?
@@ -246,7 +248,56 @@ func (d *DB) QueryMotionEventsByClass(cameraID, objectClass string, start, end t
 	for rows.Next() {
 		ev := &MotionEvent{}
 		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt, &ev.ThumbnailPath, &ev.EventType,
-			&ev.ObjectClass, &ev.Confidence); err != nil {
+			&ev.ObjectClass, &ev.Confidence, &ev.Metadata); err != nil {
+			return nil, err
+		}
+		events = append(events, ev)
+	}
+	return events, rows.Err()
+}
+
+// QueryEvents returns events for a camera that overlap the given time range,
+// optionally filtered by event type. When eventTypes is nil or empty, all
+// types are returned.
+func (d *DB) QueryEvents(cameraID string, start, end time.Time, eventTypes []string) ([]*MotionEvent, error) {
+	query := `
+		SELECT id, camera_id, started_at, ended_at, COALESCE(thumbnail_path, ''),
+		       COALESCE(event_type, 'motion'), COALESCE(object_class, ''),
+		       COALESCE(confidence, 0), metadata
+		FROM motion_events
+		WHERE camera_id = ?
+		  AND started_at < ?
+		  AND (ended_at IS NULL OR ended_at > ?)`
+
+	args := []interface{}{
+		cameraID,
+		end.UTC().Format(timeFormat),
+		start.UTC().Format(timeFormat),
+	}
+
+	if len(eventTypes) > 0 {
+		placeholders := make([]string, len(eventTypes))
+		for i, et := range eventTypes {
+			placeholders[i] = "?"
+			args = append(args, et)
+		}
+		query += ` AND event_type IN (` + strings.Join(placeholders, ",") + `)`
+	}
+
+	query += ` ORDER BY started_at`
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []*MotionEvent
+	for rows.Next() {
+		ev := &MotionEvent{}
+		if err := rows.Scan(&ev.ID, &ev.CameraID, &ev.StartedAt, &ev.EndedAt,
+			&ev.ThumbnailPath, &ev.EventType, &ev.ObjectClass, &ev.Confidence,
+			&ev.Metadata); err != nil {
 			return nil, err
 		}
 		events = append(events, ev)

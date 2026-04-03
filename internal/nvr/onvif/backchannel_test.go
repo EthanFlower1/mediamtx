@@ -143,6 +143,21 @@ func TestNegotiateCodecNoneSupported(t *testing.T) {
 	}
 }
 
+func TestAudioCapabilitiesStruct(t *testing.T) {
+	caps := AudioCapabilities{
+		HasBackchannel:   true,
+		AudioSources:     1,
+		AudioOutputs:     2,
+		BackchannelCodec: "G711",
+	}
+	if caps.BackchannelCodec != "G711" {
+		t.Fatalf("expected G711, got %s", caps.BackchannelCodec)
+	}
+	if caps.AudioOutputs != 2 {
+		t.Fatalf("expected 2 outputs, got %d", caps.AudioOutputs)
+	}
+}
+
 func TestBackchannelStreamURISOAP(t *testing.T) {
 	profileToken := "Profile_1"
 	innerBody := backchannelStreamURIBody(profileToken)

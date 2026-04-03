@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	code.cloudfoundry.org/bytefmt v0.67.0
-	github.com/EthanFlower1/onvif-go v0.0.0-20260401050950-9dc91b4154f4
+	github.com/EthanFlower1/onvif-go v0.0.0-20260403010837-f408f9ecc298
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/MicahParks/jwkset v0.11.0
 	github.com/MicahParks/keyfunc/v3 v3.8.0

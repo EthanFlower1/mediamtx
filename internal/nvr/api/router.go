@@ -242,8 +242,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)
 
-	// Audio capabilities.
+	// Audio.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
+	protected.GET("/cameras/:id/audio/sources", cameraHandler.AudioSources)
+	protected.GET("/cameras/:id/audio/source-configs", cameraHandler.AudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/compatible/:profileToken", cameraHandler.CompatibleAudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/:token", cameraHandler.GetAudioSourceConfig)
+	protected.PUT("/cameras/:id/audio/source-configs/:token", cameraHandler.UpdateAudioSourceConfig)
+	protected.GET("/cameras/:id/audio/source-configs/:token/options", cameraHandler.AudioSourceConfigOptions)
+	protected.POST("/cameras/:id/audio/source-configs/add", cameraHandler.AddAudioSourceToProfile)
+	protected.POST("/cameras/:id/audio/source-configs/remove", cameraHandler.RemoveAudioSourceFromProfile)
 
 	// Edge recordings (camera SD card / Profile G).
 	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)

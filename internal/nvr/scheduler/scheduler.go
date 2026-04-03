@@ -1206,6 +1206,12 @@ func (s *Scheduler) ResubscribeCamera(cameraID string) {
 		return
 	}
 
+	rules, err := s.db.ListRecordingRules(cameraID)
+	if err != nil {
+		log.Printf("scheduler: resubscribe camera %s: list rules: %v", cameraID, err)
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1214,13 +1220,6 @@ func (s *Scheduler) ResubscribeCamera(cameraID string) {
 
 	// Only resubscribe if the camera has an ONVIF endpoint.
 	if cam.ONVIFEndpoint == "" {
-		return
-	}
-
-	// Check if there are active event-mode rules for this camera.
-	rules, err := s.db.ListRecordingRules(cameraID)
-	if err != nil {
-		log.Printf("scheduler: resubscribe camera %s: list rules: %v", cameraID, err)
 		return
 	}
 

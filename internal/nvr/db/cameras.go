@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,6 +53,10 @@ type Camera struct {
 	SupportedEventTopics     string `json:"supported_event_topics"`
 	DeviceID                 string `json:"device_id,omitempty"`
 	ChannelIndex             *int   `json:"channel_index,omitempty"`
+	MulticastEnabled         bool   `json:"multicast_enabled"`
+	MulticastAddress         string `json:"multicast_address"`
+	MulticastPort            int    `json:"multicast_port"`
+	MulticastTTL             int    `json:"multicast_ttl"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -94,8 +99,9 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			storage_path, quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
 			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
 			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
@@ -107,6 +113,7 @@ func (d *DB) CreateCamera(cam *Camera) error {
 		cam.StoragePath, cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
 		cam.SupportedEventTopics,
 		deviceID, cam.ChannelIndex,
+		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
 		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
@@ -130,6 +137,7 @@ func scanCamera(scan func(...interface{}) error) (*Camera, error) {
 		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
 		&cam.SupportedEventTopics,
 		&deviceID, &cam.ChannelIndex,
+		&cam.MulticastEnabled, &cam.MulticastAddress, &cam.MulticastPort, &cam.MulticastTTL,
 	)
 	if err != nil {
 		return nil, err
@@ -155,7 +163,8 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
-			device_id, channel_index
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl
 		FROM cameras WHERE id = ?`, id)
 	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -182,7 +191,8 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
-			device_id, channel_index
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl
 		FROM cameras WHERE mediamtx_path = ?`, path)
 	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -209,7 +219,8 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
-			device_id, channel_index
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -244,6 +255,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			audio_transcode = ?, storage_path = ?,
 			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
 			supported_event_topics = ?,
+			multicast_enabled = ?, multicast_address = ?, multicast_port = ?, multicast_ttl = ?,
 			updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
@@ -258,6 +270,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.StoragePath,
 		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
 		cam.SupportedEventTopics,
+		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
 		cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {
@@ -404,6 +417,24 @@ func (d *DB) UpdateCameraRetentionPolicy(id string, retentionDays, eventRetentio
 		return err
 	}
 	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateCameraMulticast updates only the multicast configuration fields.
+func (d *DB) UpdateCameraMulticast(id string, enabled bool, address string, port, ttl int) error {
+	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	res, err := d.Exec(`
+		UPDATE cameras
+		SET multicast_enabled = ?, multicast_address = ?, multicast_port = ?, multicast_ttl = ?, updated_at = ?
+		WHERE id = ?`,
+		enabled, address, port, ttl, now, id)
+	if err != nil {
+		return fmt.Errorf("update multicast config: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
 		return ErrNotFound
 	}
 	return nil

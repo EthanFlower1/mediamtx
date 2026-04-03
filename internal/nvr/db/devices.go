@@ -144,7 +144,8 @@ func (d *DB) ListCamerasByDevice(deviceID string) ([]*Camera, error) {
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
-			device_id, channel_index
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl
 		FROM cameras WHERE device_id = ? ORDER BY channel_index`, deviceID,
 	)
 	if err != nil {

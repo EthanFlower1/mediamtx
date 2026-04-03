@@ -517,4 +517,14 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_cameras_device ON cameras(device_id);
 		`,
 	},
+	// Migration 36: Multicast streaming configuration (KAI-21).
+	{
+		version: 36,
+		sql: `
+		ALTER TABLE cameras ADD COLUMN multicast_enabled INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE cameras ADD COLUMN multicast_address TEXT NOT NULL DEFAULT '';
+		ALTER TABLE cameras ADD COLUMN multicast_port INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
+		`,
+	},
 }

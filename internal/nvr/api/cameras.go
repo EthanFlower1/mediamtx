@@ -1147,6 +1147,26 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		}
 	}
 
+	// If multicast is enabled, update the YAML source to the multicast URI.
+	// Otherwise the refresh would leave the source pointing at whatever was
+	// last set (which might be stale after a profile change).
+	if cam.MulticastEnabled && cam.ONVIFProfileToken != "" {
+		multicastURI, err := onvif.GetStreamUriMulticast(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken)
+		if err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("multicast enabled but failed to get multicast URI for camera %q: %v", cam.Name, err))
+		} else {
+			stablePath := cam.MediaMTXPath
+			yamlConfig := map[string]interface{}{
+				"source": multicastURI,
+			}
+			if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to update multicast source for camera %q: %v", cam.Name, err))
+			} else {
+				nvrLogInfo("cameras", fmt.Sprintf("Refreshed multicast source for camera %q: %s", cam.Name, multicastURI))
+			}
+		}
+	}
+
 	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles found, streams recreated", cam.Name, len(result.Profiles)))
 	for i, p := range result.Profiles {
 		nvrLogInfo("cameras", fmt.Sprintf("  Profile %d: name=%q token=%q uri=%q video=%s audio=%s %dx%d", i, p.Name, p.Token, p.StreamURI, p.VideoCodec, p.AudioCodec, p.Width, p.Height))
@@ -4678,4 +4698,168 @@ func validateOSDConfig(cfg onvif.OSDConfig) error {
 	}
 
 	return nil
+}
+
+// multicastResponse is the JSON response for GET /cameras/:id/multicast.
+type multicastResponse struct {
+	Supported bool   `json:"supported"`
+	Enabled   bool   `json:"enabled"`
+	Address   string `json:"address"`
+	Port      int    `json:"port"`
+	TTL       int    `json:"ttl"`
+}
+
+// multicastRequest is the JSON body for PUT /cameras/:id/multicast.
+type multicastRequest struct {
+	Enabled bool   `json:"enabled"`
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+	TTL     int    `json:"ttl"`
+}
+
+// GetMulticast returns the multicast configuration for a camera and probes
+// the device to check whether it supports multicast streaming.
+func (h *CameraHandler) GetMulticast(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "fetch camera", err)
+		return
+	}
+
+	resp := multicastResponse{
+		Enabled: cam.MulticastEnabled,
+		Address: cam.MulticastAddress,
+		Port:    cam.MulticastPort,
+		TTL:     cam.MulticastTTL,
+	}
+
+	// Probe device for multicast support if ONVIF is configured.
+	if cam.ONVIFEndpoint != "" && cam.ONVIFProfileToken != "" {
+		password := h.decryptPassword(cam.ONVIFPassword)
+		cfg, err := onvif.GetMulticastConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken)
+		if err == nil && cfg != nil {
+			resp.Supported = true
+			// If the camera has never been configured locally, show the camera's defaults.
+			if resp.Address == "" {
+				resp.Address = cfg.Address
+				resp.Port = cfg.Port
+				resp.TTL = cfg.TTL
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// UpdateMulticast enables or disables multicast streaming for a camera.
+// When enabling, it configures the camera via ONVIF, retrieves the multicast
+// stream URI, and updates the MediaMTX source. When disabling, it reverts
+// to the unicast stream URI.
+func (h *CameraHandler) UpdateMulticast(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "fetch camera", err)
+		return
+	}
+
+	var req multicastRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.Enabled {
+		// Validate prerequisites.
+		if cam.ONVIFEndpoint == "" || cam.ONVIFProfileToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "camera must have ONVIF endpoint and profile token configured"})
+			return
+		}
+		if err := onvif.ValidateMulticastAddress(req.Address); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if req.Port < 1024 || req.Port > 65535 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "port must be between 1024 and 65535"})
+			return
+		}
+		if req.TTL < 1 || req.TTL > 255 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "TTL must be between 1 and 255"})
+			return
+		}
+
+		password := h.decryptPassword(cam.ONVIFPassword)
+
+		// Check camera supports multicast.
+		_, err := onvif.GetMulticastConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "camera does not support multicast: " + err.Error()})
+			return
+		}
+
+		// Configure multicast on the camera.
+		mcCfg := &onvif.MulticastConfig{
+			Address:   req.Address,
+			Port:      req.Port,
+			TTL:       req.TTL,
+			AutoStart: true, // Camera must auto-start multicast when enabled.
+		}
+		if err := onvif.SetMulticastConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken, mcCfg); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to configure multicast on camera: " + err.Error()})
+			return
+		}
+
+		// Get the multicast stream URI.
+		multicastURI, err := onvif.GetStreamUriMulticast(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to get multicast stream URI: " + err.Error()})
+			return
+		}
+
+		// Update MediaMTX source to multicast URI.
+		stablePath := cam.MediaMTXPath
+		yamlConfig := map[string]interface{}{
+			"source": multicastURI,
+		}
+		if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to update stream config", err)
+			return
+		}
+
+		nvrLogInfo("cameras", fmt.Sprintf("Enabled multicast for camera %q: addr=%s port=%d ttl=%d uri=%s", cam.Name, req.Address, req.Port, req.TTL, multicastURI))
+	} else {
+		// Disable: revert to unicast.
+		stablePath := cam.MediaMTXPath
+		yamlConfig := map[string]interface{}{
+			"source": cam.RTSPURL,
+		}
+		if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to revert stream config", err)
+			return
+		}
+
+		nvrLogInfo("cameras", fmt.Sprintf("Disabled multicast for camera %q, reverted to unicast", cam.Name))
+	}
+
+	// Persist multicast settings in DB.
+	if err := h.DB.UpdateCameraMulticast(id, req.Enabled, req.Address, req.Port, req.TTL); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to save multicast config", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"enabled": req.Enabled,
+		"address": req.Address,
+		"port":    req.Port,
+		"ttl":     req.TTL,
+	})
 }

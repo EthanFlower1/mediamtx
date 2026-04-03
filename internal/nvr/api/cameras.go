@@ -825,6 +825,26 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		}
 	}
 
+	// If multicast is enabled, update the YAML source to the multicast URI.
+	// Otherwise the refresh would leave the source pointing at whatever was
+	// last set (which might be stale after a profile change).
+	if cam.MulticastEnabled && cam.ONVIFProfileToken != "" {
+		multicastURI, err := onvif.GetStreamUriMulticast(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken)
+		if err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("multicast enabled but failed to get multicast URI for camera %q: %v", cam.Name, err))
+		} else {
+			stablePath := cam.MediaMTXPath
+			yamlConfig := map[string]interface{}{
+				"source": multicastURI,
+			}
+			if err := h.YAMLWriter.AddPath(stablePath, yamlConfig); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to update multicast source for camera %q: %v", cam.Name, err))
+			} else {
+				nvrLogInfo("cameras", fmt.Sprintf("Refreshed multicast source for camera %q: %s", cam.Name, multicastURI))
+			}
+		}
+	}
+
 	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles found, streams recreated", cam.Name, len(result.Profiles)))
 	for i, p := range result.Profiles {
 		nvrLogInfo("cameras", fmt.Sprintf("  Profile %d: name=%q token=%q uri=%q video=%s audio=%s %dx%d", i, p.Name, p.Token, p.StreamURI, p.VideoCodec, p.AudioCodec, p.Width, p.Height))

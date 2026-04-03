@@ -1562,6 +1562,10 @@ func (h *CameraHandler) UpdateAudioSourceConfig(c *gin.Context) {
 		return
 	}
 	req.Token = token
+	if req.SourceToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source_token is required"})
+		return
+	}
 
 	if err := onvif.SetAudioSourceConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), &req); err != nil {
 		nvrLogError("audio", fmt.Sprintf("failed to set audio source config %s for camera %s", token, id), err)

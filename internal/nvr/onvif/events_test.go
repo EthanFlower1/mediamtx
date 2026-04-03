@@ -130,3 +130,78 @@ func TestParseEvents_AllTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestParseEventProperties(t *testing.T) {
+	body := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <tev:GetEventPropertiesResponse xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
+      <tev:TopicNamespaceLocation>http://www.onvif.org/onvif/ver10/topics/topicns.xml</tev:TopicNamespaceLocation>
+      <tev:TopicSet>
+        <tns1:RuleEngine xmlns:tns1="http://www.onvif.org/ver10/topics">
+          <CellMotionDetector>
+            <Motion wstop:topic="true" xmlns:wstop="http://docs.oasis-open.org/wsn/t-1"/>
+          </CellMotionDetector>
+        </tns1:RuleEngine>
+        <tns1:VideoSource xmlns:tns1="http://www.onvif.org/ver10/topics">
+          <GlobalSceneChange>
+            <ImagingService wstop:topic="true" xmlns:wstop="http://docs.oasis-open.org/wsn/t-1"/>
+          </GlobalSceneChange>
+          <SignalLoss wstop:topic="true" xmlns:wstop="http://docs.oasis-open.org/wsn/t-1"/>
+        </tns1:VideoSource>
+        <tns1:Device xmlns:tns1="http://www.onvif.org/ver10/topics">
+          <Trigger>
+            <DigitalInput wstop:topic="true" xmlns:wstop="http://docs.oasis-open.org/wsn/t-1"/>
+            <Relay wstop:topic="true" xmlns:wstop="http://docs.oasis-open.org/wsn/t-1"/>
+          </Trigger>
+        </tns1:Device>
+      </tev:TopicSet>
+    </tev:GetEventPropertiesResponse>
+  </s:Body>
+</s:Envelope>`)
+
+	topics, err := parseEventProperties(body)
+	if err != nil {
+		t.Fatalf("parseEventProperties error: %v", err)
+	}
+
+	want := map[DetectedEventType]bool{
+		EventMotion:       true,
+		EventTampering:    true,
+		EventSignalLoss:   true,
+		EventDigitalInput: true,
+		EventRelay:        true,
+	}
+	got := make(map[DetectedEventType]bool)
+	for _, tp := range topics {
+		got[tp] = true
+	}
+	for wantType := range want {
+		if !got[wantType] {
+			t.Errorf("missing expected topic: %s", wantType)
+		}
+	}
+	if len(topics) != len(got) {
+		t.Errorf("got %d topics but %d unique — duplicates present", len(topics), len(got))
+	}
+}
+
+func TestParseEventProperties_Empty(t *testing.T) {
+	body := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <tev:GetEventPropertiesResponse xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
+      <tev:TopicNamespaceLocation>http://www.onvif.org/onvif/ver10/topics/topicns.xml</tev:TopicNamespaceLocation>
+      <tev:TopicSet/>
+    </tev:GetEventPropertiesResponse>
+  </s:Body>
+</s:Envelope>`)
+
+	topics, err := parseEventProperties(body)
+	if err != nil {
+		t.Fatalf("parseEventProperties error: %v", err)
+	}
+	if len(topics) != 0 {
+		t.Errorf("expected 0 topics, got %d", len(topics))
+	}
+}

@@ -583,6 +583,91 @@ func parseEvents(body []byte) ([]DetectedEvent, error) {
 	return detected, nil
 }
 
+// GetEventProperties sends the GetEventProperties SOAP request and returns
+// the list of event types the camera supports, as determined by its TopicSet.
+func (es *EventSubscriber) GetEventProperties(ctx context.Context) ([]DetectedEventType, error) {
+	body := `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
+  <s:Header></s:Header>
+  <s:Body>
+    <tev:GetEventProperties/>
+  </s:Body>
+</s:Envelope>`
+
+	respBody, err := es.doSOAP(ctx, es.eventServiceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("GetEventProperties: %w", err)
+	}
+
+	return parseEventProperties(respBody)
+}
+
+// GetEventPropertiesFromURL sends GetEventProperties to an arbitrary event
+// service URL with the given credentials. This is used during probe when no
+// EventSubscriber exists yet.
+func GetEventPropertiesFromURL(ctx context.Context, eventServiceURL, username, password string) ([]DetectedEventType, error) {
+	es := &EventSubscriber{
+		eventServiceURL: eventServiceURL,
+		username:        username,
+		password:        password,
+		client:          &http.Client{Timeout: 10 * time.Second},
+	}
+	return es.GetEventProperties(ctx)
+}
+
+// parseEventProperties extracts supported event topics from a
+// GetEventPropertiesResponse. It walks the TopicSet XML tree, building
+// slash-separated paths from element names, and classifies each path.
+func parseEventProperties(body []byte) ([]DetectedEventType, error) {
+	type genericElement struct {
+		XMLName  xml.Name
+		Children []genericElement `xml:",any"`
+	}
+
+	type topicSetEnvelope struct {
+		XMLName xml.Name `xml:"Envelope"`
+		Body    struct {
+			Response struct {
+				TopicSet genericElement `xml:"TopicSet"`
+			} `xml:"GetEventPropertiesResponse"`
+		} `xml:"Body"`
+	}
+
+	var env topicSetEnvelope
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("parse GetEventPropertiesResponse: %w", err)
+	}
+
+	seen := make(map[DetectedEventType]bool)
+	var topics []DetectedEventType
+
+	var walk func(el genericElement, path string)
+	walk = func(el genericElement, path string) {
+		current := path
+		if el.XMLName.Local != "" && el.XMLName.Local != "TopicSet" {
+			if current != "" {
+				current += "/"
+			}
+			current += el.XMLName.Local
+		}
+
+		if current != "" {
+			if evtType, ok := classifyTopic(current); ok && !seen[evtType] {
+				seen[evtType] = true
+				topics = append(topics, evtType)
+			}
+		}
+
+		for _, child := range el.Children {
+			walk(child, current)
+		}
+	}
+
+	walk(env.Body.Response.TopicSet, "")
+	return topics, nil
+}
+
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

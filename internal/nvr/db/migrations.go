@@ -452,4 +452,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
+	// Migration 31: Add metadata column for analytics event details (KAI-20).
+	{
+		version: 31,
+		sql:     `ALTER TABLE motion_events ADD COLUMN metadata TEXT;`,
+	},
 }

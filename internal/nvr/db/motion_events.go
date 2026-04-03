@@ -16,6 +16,7 @@ type MotionEvent struct {
 	Confidence       float64 `json:"confidence"`
 	Embedding        []byte  `json:"-"`
 	DetectionSummary string  `json:"detection_summary,omitempty"`
+	Metadata         *string `json:"metadata,omitempty"`
 }
 
 // InsertMotionEvent inserts a new motion event into the database.
@@ -24,10 +25,10 @@ func (d *DB) InsertMotionEvent(event *MotionEvent) error {
 		event.EventType = "motion"
 	}
 	res, err := d.Exec(`
-		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type, object_class, confidence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO motion_events (camera_id, started_at, ended_at, thumbnail_path, event_type, object_class, confidence, metadata)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.CameraID, event.StartedAt, event.EndedAt, event.ThumbnailPath, event.EventType,
-		event.ObjectClass, event.Confidence,
+		event.ObjectClass, event.Confidence, event.Metadata,
 	)
 	if err != nil {
 		return err

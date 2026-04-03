@@ -202,8 +202,9 @@ type cameraRequest struct {
 	RTSPURL           string `json:"rtsp_url"`
 	PTZCapable        bool   `json:"ptz_capable"`
 	Tags              string `json:"tags"`
-	StoragePath       string `json:"storage_path"`
-	Profiles          []struct {
+	StoragePath         string          `json:"storage_path"`
+	ServiceCapabilities json.RawMessage `json:"service_capabilities,omitempty"`
+	Profiles            []struct {
 		Name         string `json:"name"`
 		RTSPURL      string `json:"rtsp_url"`
 		ProfileToken string `json:"profile_token"`
@@ -373,17 +374,18 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	recordPath := storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
 
 	cam := &db.Camera{
-		ID:                camID,
-		Name:              req.Name,
-		ONVIFEndpoint:     req.ONVIFEndpoint,
-		ONVIFUsername:      req.ONVIFUsername,
-		ONVIFPassword:     h.encryptPassword(req.ONVIFPassword),
-		ONVIFProfileToken: req.ONVIFProfileToken,
-		RTSPURL:           req.RTSPURL,
-		PTZCapable:        req.PTZCapable,
-		MediaMTXPath:      pathName,
-		Tags:              req.Tags,
-		StoragePath:       req.StoragePath,
+		ID:                  camID,
+		Name:                req.Name,
+		ONVIFEndpoint:       req.ONVIFEndpoint,
+		ONVIFUsername:        req.ONVIFUsername,
+		ONVIFPassword:       h.encryptPassword(req.ONVIFPassword),
+		ONVIFProfileToken:   req.ONVIFProfileToken,
+		RTSPURL:             req.RTSPURL,
+		PTZCapable:          req.PTZCapable,
+		MediaMTXPath:        pathName,
+		Tags:                req.Tags,
+		StoragePath:         req.StoragePath,
+		ServiceCapabilities: string(req.ServiceCapabilities),
 	}
 
 	if err := h.DB.CreateCamera(cam); err != nil {
@@ -736,9 +738,11 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"profiles":     result.Profiles,
-		"capabilities": result.Capabilities,
-		"snapshot_uri":  result.SnapshotURI,
+		"profiles":              result.Profiles,
+		"capabilities":          result.Capabilities,
+		"snapshot_uri":           result.SnapshotURI,
+		"service_infos":         result.ServiceInfos,
+		"detailed_capabilities": result.DetailedCapabilities,
 	})
 }
 
@@ -782,6 +786,14 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 	cam.SupportsEdgeRecording = result.Capabilities.Recording && result.Capabilities.Replay
 	if result.SnapshotURI != "" {
 		cam.SnapshotURI = result.SnapshotURI
+	}
+
+	// Persist detailed service capabilities as JSON.
+	if result.DetailedCapabilities != nil {
+		capsJSON, err := json.Marshal(result.DetailedCapabilities)
+		if err == nil {
+			cam.ServiceCapabilities = string(capsJSON)
+		}
 	}
 	if err := h.DB.UpdateCamera(cam); err != nil {
 		apiError(c, http.StatusInternalServerError, "update capabilities", err)
@@ -1342,6 +1354,40 @@ func (h *CameraHandler) GetDeviceInfo(c *gin.Context) {
 		"firmware_version": info.FirmwareVersion,
 		"serial_number":    info.SerialNumber,
 		"hardware_id":      info.HardwareID,
+	})
+}
+
+// GetServices returns the cached ONVIF service list and per-service
+// capabilities for a camera. The data is populated during probe/refresh.
+//
+//	GET /cameras/:id/services
+func (h *CameraHandler) GetServices(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ServiceCapabilities == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"capabilities": nil,
+		})
+		return
+	}
+
+	var caps json.RawMessage
+	if err := json.Unmarshal([]byte(cam.ServiceCapabilities), &caps); err != nil {
+		apiError(c, http.StatusInternalServerError, "parse stored capabilities", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"capabilities": caps,
 	})
 }
 

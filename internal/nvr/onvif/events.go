@@ -24,6 +24,14 @@ const (
 	EventMotion DetectedEventType = "motion"
 	// EventTampering represents a camera tampering / global scene change event.
 	EventTampering DetectedEventType = "tampering"
+	// EventDigitalInput represents a digital input trigger event.
+	EventDigitalInput DetectedEventType = "digital_input"
+	// EventSignalLoss represents a video signal loss event.
+	EventSignalLoss DetectedEventType = "signal_loss"
+	// EventHardwareFailure represents a hardware failure event.
+	EventHardwareFailure DetectedEventType = "hardware_failure"
+	// EventRelay represents a relay output event.
+	EventRelay DetectedEventType = "relay"
 )
 
 // DetectedEvent carries the type and active state of a single ONVIF event.
@@ -519,6 +527,20 @@ func classifyTopic(topic string) (DetectedEventType, bool) {
 	}
 	if strings.Contains(lower, "globalscenechange") || strings.Contains(lower, "tamper") {
 		return EventTampering, true
+	}
+	if strings.Contains(lower, "digitalinput") || strings.Contains(lower, "digital_input") || strings.Contains(lower, "logicalstate") {
+		return EventDigitalInput, true
+	}
+	if strings.Contains(lower, "signalloss") || strings.Contains(lower, "videoloss") {
+		return EventSignalLoss, true
+	}
+	// processorusage is grouped here because ONVIF cameras emit it as a threshold-exceeded alert
+	// indicating the device is under stress, which maps closest to hardware failure.
+	if strings.Contains(lower, "hardwarefailure") || strings.Contains(lower, "processorusage") {
+		return EventHardwareFailure, true
+	}
+	if strings.Contains(lower, "relay") || strings.Contains(lower, "digitaloutput") {
+		return EventRelay, true
 	}
 	return "", false
 }

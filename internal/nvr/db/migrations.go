@@ -452,9 +452,14 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
-	// Migration 31: Connection resilience — event history and command queue (KAI-24).
+	// Migration 31: Service capabilities cache (KAI-112).
 	{
 		version: 31,
+		sql:     `ALTER TABLE cameras ADD COLUMN service_capabilities TEXT DEFAULT '';`,
+	},
+	// Migration 32: Connection resilience — event history and command queue (KAI-24).
+	{
+		version: 32,
 		sql: `
 		CREATE TABLE connection_events (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

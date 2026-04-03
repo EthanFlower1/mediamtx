@@ -221,8 +221,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
 	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
 
-	// Device info.
+	// Device info and service capabilities.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
+	protected.GET("/cameras/:id/services", cameraHandler.GetServices)
 
 	// Device management.
 	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)

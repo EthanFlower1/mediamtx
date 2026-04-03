@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -21,8 +22,9 @@ type MediaProfile struct {
 	StreamURI  string `json:"stream_uri"`
 	VideoCodec string `json:"video_codec,omitempty"`
 	AudioCodec string `json:"audio_codec,omitempty"`
-	Width      int    `json:"width,omitempty"`
-	Height     int    `json:"height,omitempty"`
+	Width            int    `json:"width,omitempty"`
+	Height           int    `json:"height,omitempty"`
+	VideoSourceToken string `json:"video_source_token,omitempty"`
 }
 
 // DiscoveredDevice represents an ONVIF device found during a WS-Discovery scan.
@@ -32,8 +34,16 @@ type DiscoveredDevice struct {
 	Model            string         `json:"model"`
 	Firmware         string         `json:"firmware"`
 	AuthRequired     bool           `json:"auth_required"`
-	ExistingCameraID string         `json:"existing_camera_id,omitempty"`
-	Profiles         []MediaProfile `json:"profiles,omitempty"`
+	ExistingCameraID string              `json:"existing_camera_id,omitempty"`
+	Profiles         []MediaProfile      `json:"profiles,omitempty"`
+	Channels         []DiscoveredChannel `json:"channels,omitempty"`
+}
+
+// DiscoveredChannel represents a single video channel on a multi-sensor device.
+type DiscoveredChannel struct {
+	VideoSourceToken string         `json:"video_source_token"`
+	Name             string         `json:"name"`
+	Profiles         []MediaProfile `json:"profiles"`
 }
 
 // ScanStatus represents the current state of a discovery scan.
@@ -312,4 +322,32 @@ func parseScopes(scopes string, dev *DiscoveredDevice) {
 			dev.Firmware = value
 		}
 	}
+}
+
+// GroupProfilesByVideoSource groups profiles by their VideoSourceToken.
+// Returns one DiscoveredChannel per unique video source, sorted by token.
+// If all profiles have empty VideoSourceToken, returns a single channel.
+func GroupProfilesByVideoSource(profiles []MediaProfile) []DiscoveredChannel {
+	groups := make(map[string][]MediaProfile)
+	var order []string
+
+	for _, p := range profiles {
+		token := p.VideoSourceToken
+		if _, seen := groups[token]; !seen {
+			order = append(order, token)
+		}
+		groups[token] = append(groups[token], p)
+	}
+
+	sort.Strings(order)
+
+	channels := make([]DiscoveredChannel, 0, len(order))
+	for i, token := range order {
+		channels = append(channels, DiscoveredChannel{
+			VideoSourceToken: token,
+			Name:             fmt.Sprintf("Channel %d", i+1),
+			Profiles:         groups[token],
+		})
+	}
+	return channels
 }

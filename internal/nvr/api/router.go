@@ -406,6 +406,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/camera-groups/:id", groupHandler.Update)
 	protected.DELETE("/camera-groups/:id", groupHandler.Delete)
 
+	// Devices.
+	deviceHandler := &DeviceHandler{
+		DB:         cfg.DB,
+		YAMLWriter: cfg.YAMLWriter,
+	}
+	protected.GET("/devices", deviceHandler.List)
+	protected.GET("/devices/:id", deviceHandler.Get)
+	protected.DELETE("/devices/:id", deviceHandler.Delete)
+
 	// Tours.
 	tourHandler := &TourHandler{DB: cfg.DB, Audit: audit}
 	protected.GET("/tours", tourHandler.List)

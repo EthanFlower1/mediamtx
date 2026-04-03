@@ -121,3 +121,103 @@ func GetAudioSourceConfigurations(xaddr, username, password string) ([]*AudioSou
 	}
 	return convertAudioSourceConfigs(configs), nil
 }
+
+// GetAudioSourceConfiguration returns a specific audio source configuration.
+func GetAudioSourceConfiguration(xaddr, username, password, configToken string) (*AudioSourceConfig, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	cfg, err := client.Dev.GetAudioSourceConfiguration(ctx, configToken)
+	if err != nil {
+		return nil, fmt.Errorf("get audio source configuration: %w", err)
+	}
+	return &AudioSourceConfig{
+		Token:       cfg.Token,
+		Name:        cfg.Name,
+		UseCount:    cfg.UseCount,
+		SourceToken: cfg.SourceToken,
+	}, nil
+}
+
+// SetAudioSourceConfiguration updates an audio source configuration on the device.
+func SetAudioSourceConfiguration(xaddr, username, password string, cfg *AudioSourceConfig) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+
+	asc := &onvifgo.AudioSourceConfiguration{
+		Token:       cfg.Token,
+		Name:        cfg.Name,
+		SourceToken: cfg.SourceToken,
+	}
+
+	ctx := context.Background()
+	if err := client.Dev.SetAudioSourceConfiguration(ctx, asc, true); err != nil {
+		return fmt.Errorf("set audio source configuration: %w", err)
+	}
+	return nil
+}
+
+// GetAudioSourceConfigOptions returns the available options for an audio source configuration.
+func GetAudioSourceConfigOptions(xaddr, username, password, configToken, profileToken string) (*AudioSourceConfigOptions, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	opts, err := client.Dev.GetAudioSourceConfigurationOptions(ctx, configToken, profileToken)
+	if err != nil {
+		return nil, fmt.Errorf("get audio source config options: %w", err)
+	}
+	return &AudioSourceConfigOptions{
+		InputTokensAvailable: opts.InputTokensAvailable,
+	}, nil
+}
+
+// GetCompatibleAudioSourceConfigs returns audio source configurations compatible with a profile.
+func GetCompatibleAudioSourceConfigs(xaddr, username, password, profileToken string) ([]*AudioSourceConfig, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	configs, err := client.Dev.GetCompatibleAudioSourceConfigurations(ctx, profileToken)
+	if err != nil {
+		return nil, fmt.Errorf("get compatible audio source configurations: %w", err)
+	}
+	return convertAudioSourceConfigs(configs), nil
+}
+
+// AddAudioSourceToProfile adds an audio source configuration to a media profile.
+func AddAudioSourceToProfile(xaddr, username, password, profileToken, configToken string) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	if err := client.Dev.AddAudioSourceConfiguration(ctx, profileToken, configToken); err != nil {
+		return fmt.Errorf("add audio source to profile: %w", err)
+	}
+	return nil
+}
+
+// RemoveAudioSourceFromProfile removes the audio source configuration from a media profile.
+func RemoveAudioSourceFromProfile(xaddr, username, password, profileToken string) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	if err := client.Dev.RemoveAudioSourceConfiguration(ctx, profileToken); err != nil {
+		return fmt.Errorf("remove audio source from profile: %w", err)
+	}
+	return nil
+}

@@ -9,9 +9,10 @@ import (
 
 // AudioCapabilities summarises the audio capabilities of an ONVIF camera.
 type AudioCapabilities struct {
-	HasBackchannel bool `json:"has_backchannel"`
-	AudioSources   int  `json:"audio_sources"`
-	AudioOutputs   int  `json:"audio_outputs"`
+	HasBackchannel   bool   `json:"has_backchannel"`
+	AudioSources     int    `json:"audio_sources"`
+	AudioOutputs     int    `json:"audio_outputs"`
+	BackchannelCodec string `json:"backchannel_codec,omitempty"`
 }
 
 // AudioSourceInfo describes a physical audio input (microphone) on the device.

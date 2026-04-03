@@ -58,10 +58,13 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 // ProbeResult holds profiles, snapshot URI, and capability flags returned
 // by a full device probe.
 type ProbeResult struct {
-	Profiles     []MediaProfile     `json:"profiles"`
-	VideoSources []*VideoSourceInfo `json:"video_sources,omitempty"`
-	SnapshotURI  string             `json:"snapshot_uri,omitempty"`
-	Capabilities Capabilities       `json:"capabilities"`
+	Profiles             []MediaProfile        `json:"profiles"`
+	VideoSources         []*VideoSourceInfo    `json:"video_sources,omitempty"`
+	SnapshotURI          string                `json:"snapshot_uri,omitempty"`
+	Capabilities         Capabilities          `json:"capabilities"`
+	ServiceInfos         []ServiceInfo         `json:"service_infos,omitempty"`
+	DetailedCapabilities *DetailedCapabilities `json:"detailed_capabilities,omitempty"`
+	SupportedEventTopics []DetectedEventType   `json:"supported_event_topics,omitempty"`
 }
 
 // ProbeDeviceFull connects to an ONVIF device and returns its media profiles,
@@ -74,7 +77,9 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	}
 
 	result := &ProbeResult{
-		Capabilities: client.GetCapabilities(),
+		Capabilities:         client.GetCapabilities(),
+		ServiceInfos:         client.ServiceInfos,
+		DetailedCapabilities: client.DetailedCapabilities,
 	}
 
 	// Get profiles + stream URIs using Media2-first auto-detection.
@@ -130,6 +135,22 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	outputs, err := client.Dev.GetAudioOutputs(ctx)
 	if err == nil && len(outputs) > 0 && outputs[0].Token != "" {
 		result.Capabilities.AudioBackchannel = true
+	}
+
+	// Discover supported event topics via GetEventProperties.
+	if result.Capabilities.Events {
+		eventURL := client.ServiceURL("events")
+		if eventURL == "" {
+			eventURL = client.ServiceURL("event")
+		}
+		if eventURL != "" {
+			topics, err := GetEventPropertiesFromURL(ctx, eventURL, username, password)
+			if err != nil {
+				log.Printf("onvif probe [%s]: GetEventProperties failed: %v", xaddr, err)
+			} else {
+				result.SupportedEventTopics = topics
+			}
+		}
 	}
 
 	return result, nil

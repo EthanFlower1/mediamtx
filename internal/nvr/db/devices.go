@@ -138,10 +138,12 @@ func (d *DB) ListCamerasByDevice(deviceID string) ([]*Camera, error) {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
 			device_id, channel_index
 		FROM cameras WHERE device_id = ? ORDER BY channel_index`, deviceID,
 	)

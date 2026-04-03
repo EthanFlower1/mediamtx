@@ -27,6 +27,10 @@ import (
 type EventPublisher interface {
 	PublishMotion(cameraName string)
 	PublishTampering(cameraName string)
+	PublishDigitalInput(cameraName string, active bool)
+	PublishSignalLoss(cameraName string, active bool)
+	PublishHardwareFailure(cameraName string, active bool)
+	PublishRelay(cameraName string, active bool)
 	PublishCameraOffline(cameraName string)
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)
@@ -1040,6 +1044,41 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			} else {
 				_ = s.db.EndMotionEvent(camID, now)
 			}
+		case onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  camID,
+					StartedAt: now,
+					EventType: string(eventType),
+				})
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventDigitalInput:
+						s.eventPub.PublishDigitalInput(cam.Name, true)
+					case onvif.EventSignalLoss:
+						s.eventPub.PublishSignalLoss(cam.Name, true)
+					case onvif.EventHardwareFailure:
+						s.eventPub.PublishHardwareFailure(cam.Name, true)
+					case onvif.EventRelay:
+						s.eventPub.PublishRelay(cam.Name, true)
+					}
+				}
+			} else {
+				_ = s.db.EndMotionEvent(camID, now)
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventDigitalInput:
+						s.eventPub.PublishDigitalInput(cam.Name, false)
+					case onvif.EventSignalLoss:
+						s.eventPub.PublishSignalLoss(cam.Name, false)
+					case onvif.EventHardwareFailure:
+						s.eventPub.PublishHardwareFailure(cam.Name, false)
+					case onvif.EventRelay:
+						s.eventPub.PublishRelay(cam.Name, false)
+					}
+				}
+			}
 		}
 	}
 	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), eventCallback)
@@ -1156,6 +1195,41 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 				}
 			} else {
 				_ = s.db.EndMotionEvent(cam.ID, now)
+			}
+		case onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  cam.ID,
+					StartedAt: now,
+					EventType: string(eventType),
+				})
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventDigitalInput:
+						s.eventPub.PublishDigitalInput(cam.Name, true)
+					case onvif.EventSignalLoss:
+						s.eventPub.PublishSignalLoss(cam.Name, true)
+					case onvif.EventHardwareFailure:
+						s.eventPub.PublishHardwareFailure(cam.Name, true)
+					case onvif.EventRelay:
+						s.eventPub.PublishRelay(cam.Name, true)
+					}
+				}
+			} else {
+				_ = s.db.EndMotionEvent(cam.ID, now)
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventDigitalInput:
+						s.eventPub.PublishDigitalInput(cam.Name, false)
+					case onvif.EventSignalLoss:
+						s.eventPub.PublishSignalLoss(cam.Name, false)
+					case onvif.EventHardwareFailure:
+						s.eventPub.PublishHardwareFailure(cam.Name, false)
+					case onvif.EventRelay:
+						s.eventPub.PublishRelay(cam.Name, false)
+					}
+				}
 			}
 		}
 	}

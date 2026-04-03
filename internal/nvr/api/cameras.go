@@ -736,9 +736,10 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"profiles":     result.Profiles,
-		"capabilities": result.Capabilities,
-		"snapshot_uri":  result.SnapshotURI,
+		"profiles":               result.Profiles,
+		"capabilities":           result.Capabilities,
+		"snapshot_uri":           result.SnapshotURI,
+		"supported_event_topics": result.SupportedEventTopics,
 	})
 }
 
@@ -782,6 +783,14 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 	cam.SupportsEdgeRecording = result.Capabilities.Recording && result.Capabilities.Replay
 	if result.SnapshotURI != "" {
 		cam.SnapshotURI = result.SnapshotURI
+	}
+	// Store supported event topics as JSON array.
+	if len(result.SupportedEventTopics) > 0 {
+		topicStrings := make([]string, len(result.SupportedEventTopics))
+		for i, t := range result.SupportedEventTopics {
+			topicStrings[i] = `"` + string(t) + `"`
+		}
+		cam.SupportedEventTopics = "[" + strings.Join(topicStrings, ",") + "]"
 	}
 	if err := h.DB.UpdateCamera(cam); err != nil {
 		apiError(c, http.StatusInternalServerError, "update capabilities", err)

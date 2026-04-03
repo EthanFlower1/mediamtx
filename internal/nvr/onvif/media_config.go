@@ -103,6 +103,12 @@ type IntRectangleRange struct {
 	HeightRange Range `json:"height_range"`
 }
 
+// AudioSourceConfig holds an audio source configuration from the device.
+type AudioSourceConfig struct {
+	Token       string `json:"token"`
+	Name        string `json:"name"`
+	SourceToken string `json:"source_token"`
+}
 
 type PTZConfigInfo struct {
 	Token     string `json:"token"`

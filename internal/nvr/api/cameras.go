@@ -2391,6 +2391,277 @@ func (h *CameraHandler) GetVideoEncoderOptions(c *gin.Context) {
 	c.JSON(http.StatusOK, opts)
 }
 
+// CreateMedia2Profile creates a new ONVIF media profile via Media2.
+//
+//	POST /cameras/:id/media2/profiles
+func (h *CameraHandler) CreateMedia2Profile(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	profile, err := onvif.CreateMedia2Profile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.Name)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create profile via Media2"})
+		return
+	}
+	c.JSON(http.StatusCreated, profile)
+}
+
+// DeleteMedia2Profile deletes an ONVIF media profile via Media2.
+//
+//	DELETE /cameras/:id/media2/profiles/:token
+func (h *CameraHandler) DeleteMedia2Profile(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	if err := onvif.DeleteMedia2Profile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete profile via Media2"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// AddMedia2Configuration adds a configuration to an ONVIF media profile via Media2.
+//
+//	POST /cameras/:id/media2/profiles/:token/configurations
+func (h *CameraHandler) AddMedia2Configuration(c *gin.Context) {
+	id := c.Param("id")
+	profileToken := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	var req struct {
+		Type  string `json:"type" binding:"required"`
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type and token are required"})
+		return
+	}
+	if err := onvif.AddMedia2Configuration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), profileToken, req.Type, req.Token); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to add configuration to profile"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// RemoveMedia2Configuration removes a configuration from an ONVIF media profile via Media2.
+//
+//	DELETE /cameras/:id/media2/profiles/:token/configurations
+func (h *CameraHandler) RemoveMedia2Configuration(c *gin.Context) {
+	id := c.Param("id")
+	profileToken := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	var req struct {
+		Type  string `json:"type" binding:"required"`
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "type and token are required"})
+		return
+	}
+	if err := onvif.RemoveMedia2Configuration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), profileToken, req.Type, req.Token); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to remove configuration from profile"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// GetVideoSourceConfigs returns all video source configurations for a camera via Media2.
+//
+//	GET /cameras/:id/media2/video-source-configs
+func (h *CameraHandler) GetVideoSourceConfigs(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	configs, err := onvif.GetVideoSourceConfigs(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get video source configurations"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
+}
+
+// SetVideoSourceConfig updates a video source configuration on a camera via Media2.
+//
+//	PUT /cameras/:id/media2/video-source-configs/:token
+func (h *CameraHandler) SetVideoSourceConfig(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	var cfg onvif.VideoSourceConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	cfg.Token = token
+	if err := onvif.SetVideoSourceConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), &cfg); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to update video source configuration"})
+		return
+	}
+	c.JSON(http.StatusOK, cfg)
+}
+
+// GetVideoSourceConfigOptions returns the options for a video source configuration via Media2.
+//
+//	GET /cameras/:id/media2/video-source-configs/:token/options
+func (h *CameraHandler) GetVideoSourceConfigOptions(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	profileToken := c.Query("profile_token")
+	opts, err := onvif.GetVideoSourceConfigOpts(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token, profileToken)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get video source configuration options"})
+		return
+	}
+	c.JSON(http.StatusOK, opts)
+}
+
+// GetAudioSourceConfigs returns all audio source configurations for a camera via Media2.
+//
+//	GET /cameras/:id/media2/audio-source-configs
+func (h *CameraHandler) GetAudioSourceConfigs(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	configs, err := onvif.GetAudioSourceConfigs(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio source configurations"})
+		return
+	}
+	c.JSON(http.StatusOK, configs)
+}
+
+// SetAudioSourceConfig updates an audio source configuration on a camera via Media2.
+//
+//	PUT /cameras/:id/media2/audio-source-configs/:token
+func (h *CameraHandler) SetAudioSourceConfig(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+	var cfg onvif.AudioSourceConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	cfg.Token = token
+	if err := onvif.SetAudioSourceConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), &cfg); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to update audio source configuration"})
+		return
+	}
+	c.JSON(http.StatusOK, cfg)
+}
+
 // StorageEstimate returns per-stream storage projections based on retention settings.
 //
 //	GET /api/nvr/cameras/:id/storage-estimate?retention_days=3&event_retention_days=365

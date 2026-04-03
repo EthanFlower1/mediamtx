@@ -226,6 +226,17 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
 	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
 
+	// Media2 configuration.
+	protected.POST("/cameras/:id/media2/profiles", cameraHandler.CreateMedia2Profile)
+	protected.DELETE("/cameras/:id/media2/profiles/:token", cameraHandler.DeleteMedia2Profile)
+	protected.POST("/cameras/:id/media2/profiles/:token/configurations", cameraHandler.AddMedia2Configuration)
+	protected.DELETE("/cameras/:id/media2/profiles/:token/configurations", cameraHandler.RemoveMedia2Configuration)
+	protected.GET("/cameras/:id/media2/video-source-configs", cameraHandler.GetVideoSourceConfigs)
+	protected.PUT("/cameras/:id/media2/video-source-configs/:token", cameraHandler.SetVideoSourceConfig)
+	protected.GET("/cameras/:id/media2/video-source-configs/:token/options", cameraHandler.GetVideoSourceConfigOptions)
+	protected.GET("/cameras/:id/media2/audio-source-configs", cameraHandler.GetAudioSourceConfigs)
+	protected.PUT("/cameras/:id/media2/audio-source-configs/:token", cameraHandler.SetAudioSourceConfig)
+
 	// Device info and service capabilities.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
 	protected.GET("/cameras/:id/services", cameraHandler.GetServices)

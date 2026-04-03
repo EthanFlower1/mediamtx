@@ -192,6 +192,90 @@ func (h *CameraHandler) decryptPassword(stored string) string {
 	return string(pt)
 }
 
+// rotateCredentialsRequest is the JSON body for credential rotation.
+type rotateCredentialsRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// RotateCredentials validates new ONVIF credentials against the camera and
+// saves them only if the ONVIF probe succeeds. Old credentials remain
+// untouched on failure.
+//
+//	POST /cameras/:id/rotate-credentials
+func (h *CameraHandler) RotateCredentials(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req rotateCredentialsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if req.Username == "" && req.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one of username or password must be provided"})
+		return
+	}
+
+	// Use new values where provided, fall back to existing for omitted fields.
+	effectiveUsername := cam.ONVIFUsername
+	if req.Username != "" {
+		effectiveUsername = req.Username
+	}
+	effectivePassword := h.decryptPassword(cam.ONVIFPassword)
+	if req.Password != "" {
+		effectivePassword = req.Password
+	}
+
+	// Validate new credentials against the camera's ONVIF endpoint.
+	_, err = onvif.ProbeDeviceFull(cam.ONVIFEndpoint, effectiveUsername, effectivePassword)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("new credentials failed ONVIF authentication: %v", err),
+		})
+		return
+	}
+
+	// Credentials validated — save to DB.
+	cam.ONVIFUsername = effectiveUsername
+	cam.ONVIFPassword = h.encryptPassword(effectivePassword)
+
+	if err := h.DB.UpdateCamera(cam); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to save rotated credentials", err)
+		return
+	}
+
+	// Audit log.
+	if h.Audit != nil {
+		h.Audit.logAction(c, "credential_rotation", "camera", cam.ID, fmt.Sprintf("Rotated credentials for camera %q", cam.Name))
+	}
+
+	// Resubscribe ONVIF events with new credentials.
+	if h.Scheduler != nil {
+		go h.Scheduler.ResubscribeCamera(cam.ID)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":      cam.ID,
+		"message": "credentials rotated successfully",
+	})
+}
+
 // cameraRequest is the JSON body for creating or updating a camera.
 type cameraRequest struct {
 	Name              string `json:"name" binding:"required"`

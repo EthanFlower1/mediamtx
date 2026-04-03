@@ -198,6 +198,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
 	protected.POST("/cameras/probe", cameraHandler.Probe)
 	protected.POST("/cameras/:id/refresh", cameraHandler.RefreshCapabilities)
+	protected.POST("/cameras/:id/rotate-credentials", cameraHandler.RotateCredentials)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)

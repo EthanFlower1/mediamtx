@@ -24,6 +24,14 @@ const (
 	EventMotion DetectedEventType = "motion"
 	// EventTampering represents a camera tampering / global scene change event.
 	EventTampering DetectedEventType = "tampering"
+	// EventLineCrossing represents a virtual line crossing detection event.
+	EventLineCrossing DetectedEventType = "line_crossing"
+	// EventIntrusion represents a field/intrusion detection event.
+	EventIntrusion DetectedEventType = "intrusion"
+	// EventLoitering represents a loitering detection event.
+	EventLoitering DetectedEventType = "loitering"
+	// EventObjectCount represents an object counting event.
+	EventObjectCount DetectedEventType = "object_count"
 )
 
 // DetectedEvent carries the type and active state of a single ONVIF event.
@@ -519,6 +527,18 @@ func classifyTopic(topic string) (DetectedEventType, bool) {
 	}
 	if strings.Contains(lower, "globalscenechange") || strings.Contains(lower, "tamper") {
 		return EventTampering, true
+	}
+	if strings.Contains(lower, "linecrossing") || strings.Contains(lower, "linecounter") {
+		return EventLineCrossing, true
+	}
+	if strings.Contains(lower, "fielddetect") || strings.Contains(lower, "intrusiondetect") {
+		return EventIntrusion, true
+	}
+	if strings.Contains(lower, "loitering") {
+		return EventLoitering, true
+	}
+	if strings.Contains(lower, "objectcount") || strings.Contains(lower, "counting") {
+		return EventObjectCount, true
 	}
 	return "", false
 }

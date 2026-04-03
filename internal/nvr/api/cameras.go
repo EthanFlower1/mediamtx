@@ -245,6 +245,7 @@ func (h *CameraHandler) RotateCredentials(c *gin.Context) {
 	// Validate new credentials against the camera's ONVIF endpoint.
 	_, err = onvif.ProbeDeviceFull(cam.ONVIFEndpoint, effectiveUsername, effectivePassword)
 	if err != nil {
+		nvrLogError("credential-rotation", fmt.Sprintf("ONVIF probe failed for camera %s", id), err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("new credentials failed ONVIF authentication: %v", err),
 		})

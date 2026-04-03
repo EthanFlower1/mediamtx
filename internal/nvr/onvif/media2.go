@@ -155,6 +155,12 @@ type setAudioSourceConfig2Response struct {
 	// Empty — success indicated by no fault.
 }
 
+var validConfigTypes = map[string]bool{
+	"VideoSource": true, "VideoEncoder": true,
+	"AudioSource": true, "AudioEncoder": true,
+	"PTZ": true, "Analytics": true, "Metadata": true,
+}
+
 // media2SOAP builds a SOAP envelope with the tr2 namespace for Media2 requests.
 func media2SOAP(innerBody string) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -402,6 +408,9 @@ func DeleteProfile2(client *Client, token string) error {
 	if env.Body.Fault != nil {
 		return fmt.Errorf("media2 DeleteProfile SOAP fault: %s", env.Body.Fault.Faultstring)
 	}
+	if env.Body.DeleteProfileResponse == nil {
+		return fmt.Errorf("media2 DeleteProfile: empty response")
+	}
 
 	return nil
 }
@@ -409,6 +418,9 @@ func DeleteProfile2(client *Client, token string) error {
 // AddConfiguration2 adds a configuration to a profile via Media2.
 // configType is one of: VideoSource, VideoEncoder, AudioSource, AudioEncoder, PTZ, Analytics, Metadata.
 func AddConfiguration2(client *Client, profileToken, configType, configToken string) error {
+	if !validConfigTypes[configType] {
+		return fmt.Errorf("media2 AddConfiguration: invalid configuration type %q", configType)
+	}
 	reqBody := fmt.Sprintf(`<tr2:AddConfiguration>
       <tr2:ProfileToken>%s</tr2:ProfileToken>
       <tr2:Configuration>
@@ -429,12 +441,18 @@ func AddConfiguration2(client *Client, profileToken, configType, configToken str
 	if env.Body.Fault != nil {
 		return fmt.Errorf("media2 AddConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
 	}
+	if env.Body.AddConfigurationResponse == nil {
+		return fmt.Errorf("media2 AddConfiguration: empty response")
+	}
 
 	return nil
 }
 
 // RemoveConfiguration2 removes a configuration from a profile via Media2.
 func RemoveConfiguration2(client *Client, profileToken, configType, configToken string) error {
+	if !validConfigTypes[configType] {
+		return fmt.Errorf("media2 RemoveConfiguration: invalid configuration type %q", configType)
+	}
 	reqBody := fmt.Sprintf(`<tr2:RemoveConfiguration>
       <tr2:ProfileToken>%s</tr2:ProfileToken>
       <tr2:Configuration>
@@ -454,6 +472,9 @@ func RemoveConfiguration2(client *Client, profileToken, configType, configToken 
 	}
 	if env.Body.Fault != nil {
 		return fmt.Errorf("media2 RemoveConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.RemoveConfigurationResponse == nil {
+		return fmt.Errorf("media2 RemoveConfiguration: empty response")
 	}
 
 	return nil
@@ -524,6 +545,9 @@ func SetVideoSourceConfiguration2(client *Client, cfg *VideoSourceConfig) error 
 	}
 	if env.Body.Fault != nil {
 		return fmt.Errorf("media2 SetVideoSourceConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.SetVideoSourceConfigurationResponse == nil {
+		return fmt.Errorf("media2 SetVideoSourceConfiguration: empty response")
 	}
 
 	return nil
@@ -620,6 +644,9 @@ func SetAudioSourceConfiguration2(client *Client, cfg *AudioSourceConfig) error 
 	}
 	if env.Body.Fault != nil {
 		return fmt.Errorf("media2 SetAudioSourceConfiguration SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.SetAudioSourceConfigurationResponse == nil {
+		return fmt.Errorf("media2 SetAudioSourceConfiguration: empty response")
 	}
 
 	return nil

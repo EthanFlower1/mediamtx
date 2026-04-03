@@ -36,6 +36,7 @@ type Camera struct {
 	SupportsMedia2           bool   `json:"supports_media2"`
 	SupportsAnalytics        bool   `json:"supports_analytics"`
 	SupportsEdgeRecording    bool   `json:"supports_edge_recording"`
+	ServiceCapabilities      string `json:"service_capabilities,omitempty"`
 	MotionTimeoutSeconds     int    `json:"motion_timeout_seconds"`
 	SubStreamURL             string  `json:"sub_stream_url,omitempty"`
 	AIEnabled                bool    `json:"ai_enabled"`
@@ -81,16 +82,18 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, quota_bytes, quota_warning_percent, quota_critical_percent,
 			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
+		cam.ServiceCapabilities,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath, cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
 		cam.CreatedAt, cam.UpdatedAt,
@@ -108,6 +111,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
@@ -120,6 +124,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
+		&cam.ServiceCapabilities,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
@@ -144,6 +149,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
@@ -156,6 +162,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
+		&cam.ServiceCapabilities,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
@@ -179,6 +186,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
@@ -199,6 +207,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 			&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 			&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
+			&cam.ServiceCapabilities,
 			&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
@@ -223,6 +232,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			supports_ptz = ?, supports_imaging = ?, supports_events = ?,
 			supports_relay = ?, supports_audio_backchannel = ?, snapshot_uri = ?,
 			supports_media2 = ?, supports_analytics = ?, supports_edge_recording = ?,
+			service_capabilities = ?,
 			motion_timeout_seconds = ?, sub_stream_url = ?, ai_enabled = ?,
 			audio_transcode = ?, storage_path = ?,
 			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
@@ -235,6 +245,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
+		cam.ServiceCapabilities,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath,
 		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,

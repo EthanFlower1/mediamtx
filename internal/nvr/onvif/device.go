@@ -58,9 +58,11 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 // ProbeResult holds profiles, snapshot URI, and capability flags returned
 // by a full device probe.
 type ProbeResult struct {
-	Profiles     []MediaProfile `json:"profiles"`
-	SnapshotURI  string         `json:"snapshot_uri,omitempty"`
-	Capabilities Capabilities   `json:"capabilities"`
+	Profiles             []MediaProfile        `json:"profiles"`
+	SnapshotURI          string                `json:"snapshot_uri,omitempty"`
+	Capabilities         Capabilities          `json:"capabilities"`
+	ServiceInfos         []ServiceInfo         `json:"service_infos,omitempty"`
+	DetailedCapabilities *DetailedCapabilities `json:"detailed_capabilities,omitempty"`
 }
 
 // ProbeDeviceFull connects to an ONVIF device and returns its media profiles,
@@ -73,7 +75,9 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	}
 
 	result := &ProbeResult{
-		Capabilities: client.GetCapabilities(),
+		Capabilities:         client.GetCapabilities(),
+		ServiceInfos:         client.ServiceInfos,
+		DetailedCapabilities: client.DetailedCapabilities,
 	}
 
 	// Get profiles + stream URIs using Media2-first auto-detection.

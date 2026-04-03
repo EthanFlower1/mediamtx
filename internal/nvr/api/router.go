@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -47,6 +48,7 @@ type RouterConfig struct {
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	QuarantineBase  string              // quarantine directory for corrupted recordings
+	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -206,6 +208,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/ptz/status", cameraHandler.PTZStatus)
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
+	protected.GET("/cameras/:id/settings/options", cameraHandler.GetImagingOptions)
+	protected.GET("/cameras/:id/settings/status", cameraHandler.GetImagingStatus)
+	protected.GET("/cameras/:id/settings/focus/move-options", cameraHandler.GetFocusMoveOptions)
+	protected.POST("/cameras/:id/settings/focus/move", cameraHandler.MoveFocus)
+	protected.POST("/cameras/:id/settings/focus/stop", cameraHandler.StopFocus)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
 	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
@@ -230,8 +237,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/media2/audio-source-configs", cameraHandler.GetAudioSourceConfigs)
 	protected.PUT("/cameras/:id/media2/audio-source-configs/:token", cameraHandler.SetAudioSourceConfig)
 
-	// Device info.
+	// Device info and service capabilities.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
+	protected.GET("/cameras/:id/services", cameraHandler.GetServices)
 
 	// Device management.
 	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)
@@ -424,6 +432,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/tours/:id", tourHandler.Get)
 	protected.PUT("/tours/:id", tourHandler.Update)
 	protected.DELETE("/tours/:id", tourHandler.Delete)
+
+	// Camera connection resilience.
+	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
+	protected.GET("/cameras/:id/connection", connHandler.GetState)
+	protected.GET("/cameras/:id/connection/history", connHandler.History)
+	protected.GET("/cameras/:id/connection/summary", connHandler.Summary)
+	protected.GET("/cameras/:id/connection/queue", connHandler.QueuedCommands)
+	protected.GET("/connections", connHandler.GetAllStates)
 
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")

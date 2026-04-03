@@ -452,4 +452,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
+	// Migration 31: Supported event topics from GetEventProperties (KAI-110).
+	{
+		version: 31,
+		sql:     `ALTER TABLE cameras ADD COLUMN supported_event_topics TEXT DEFAULT '';`,
+	},
 }

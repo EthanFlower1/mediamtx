@@ -1,6 +1,7 @@
 package onvif
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +49,38 @@ func TestGroupProfilesByVideoSourceEmptyTokens(t *testing.T) {
 	channels := GroupProfilesByVideoSource(profiles)
 	require.Len(t, channels, 1)
 	assert.Len(t, channels[0].Profiles, 2)
+}
+
+func TestDiscoveredDeviceChannelsJSON(t *testing.T) {
+	dev := DiscoveredDevice{
+		XAddr:        "http://192.168.1.50",
+		Manufacturer: "Hanwha",
+		Model:        "PNM-9322VQP",
+		Profiles: []MediaProfile{
+			{Token: "P1", Name: "Main Ch1", VideoSourceToken: "VS_1", Width: 2560, Height: 1440},
+			{Token: "P2", Name: "Main Ch2", VideoSourceToken: "VS_2", Width: 2560, Height: 1440},
+		},
+		Channels: []DiscoveredChannel{
+			{
+				VideoSourceToken: "VS_1",
+				Name:             "Channel 1",
+				Profiles:         []MediaProfile{{Token: "P1", Name: "Main Ch1", VideoSourceToken: "VS_1", Width: 2560, Height: 1440}},
+			},
+			{
+				VideoSourceToken: "VS_2",
+				Name:             "Channel 2",
+				Profiles:         []MediaProfile{{Token: "P2", Name: "Main Ch2", VideoSourceToken: "VS_2", Width: 2560, Height: 1440}},
+			},
+		},
+	}
+
+	data, err := json.Marshal(dev)
+	require.NoError(t, err)
+
+	var decoded map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &decoded))
+
+	channels, ok := decoded["channels"].([]interface{})
+	require.True(t, ok, "channels should be present in JSON")
+	assert.Len(t, channels, 2)
 }

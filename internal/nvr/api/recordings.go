@@ -206,6 +206,44 @@ func (h *RecordingHandler) MotionEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, events)
 }
 
+// Events returns events for a camera on a given date, optionally filtered by type.
+// Path param: id (camera ID). Query params: date (YYYY-MM-DD), type (comma-separated event types, optional).
+func (h *RecordingHandler) Events(c *gin.Context) {
+	cameraID := c.Param("id")
+
+	if !hasCameraPermission(c, cameraID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	dateStr := c.Query("date")
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
+		return
+	}
+
+	start := date
+	end := date.Add(24 * time.Hour)
+
+	var eventTypes []string
+	if typeParam := c.Query("type"); typeParam != "" {
+		eventTypes = strings.Split(typeParam, ",")
+	}
+
+	events, err := h.DB.QueryEvents(cameraID, start, end, eventTypes)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query events", err)
+		return
+	}
+
+	if events == nil {
+		events = []*db.MotionEvent{}
+	}
+
+	c.JSON(http.StatusOK, events)
+}
+
 // Intensity returns motion event counts bucketed by time interval.
 func (h *RecordingHandler) Intensity(c *gin.Context) {
 	cameraID := c.Query("camera_id")
@@ -233,10 +271,17 @@ func (h *RecordingHandler) Intensity(c *gin.Context) {
 		}
 	}
 
+	eventType := c.Query("event_type")
+
 	start := date
 	end := date.Add(24 * time.Hour)
 
-	buckets, err := h.DB.GetMotionIntensity(cameraID, start, end, bucketSeconds)
+	var buckets []db.IntensityBucket
+	if eventType != "" {
+		buckets, err = h.DB.GetMotionIntensityByType(cameraID, start, end, bucketSeconds, eventType)
+	} else {
+		buckets, err = h.DB.GetMotionIntensity(cameraID, start, end, bucketSeconds)
+	}
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to query intensity", err)
 		return

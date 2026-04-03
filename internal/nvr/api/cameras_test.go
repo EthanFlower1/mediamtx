@@ -320,6 +320,56 @@ func TestCameraListGroupByDevice(t *testing.T) {
 	assert.Equal(t, dev.ID, deviceEntry["id"])
 }
 
+func TestResolveDeviceCredentials(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+	handler.EncryptionKey = []byte("0123456789abcdef0123456789abcdef") // 32-byte AES key
+
+	dev := &db.Device{
+		Name:          "Multi",
+		ONVIFEndpoint: "http://192.168.1.50",
+		ONVIFUsername: "admin",
+		ONVIFPassword: handler.encryptPassword("secret"),
+		ChannelCount:  2,
+	}
+	require.NoError(t, handler.DB.CreateDevice(dev))
+
+	cam := &db.Camera{
+		Name:         "Ch1",
+		RTSPURL:      "rtsp://x",
+		MediaMTXPath: "nvr/c1/main",
+		DeviceID:     dev.ID,
+		ChannelIndex: intPtr(0),
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	endpoint, username, password := handler.resolveONVIFCredentials(cam)
+	assert.Equal(t, "http://192.168.1.50", endpoint)
+	assert.Equal(t, "admin", username)
+	assert.Equal(t, "secret", password)
+}
+
+func TestResolveStandaloneCredentials(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+	handler.EncryptionKey = []byte("0123456789abcdef0123456789abcdef")
+
+	cam := &db.Camera{
+		Name:          "Standalone",
+		RTSPURL:       "rtsp://y",
+		MediaMTXPath:  "nvr/s1/main",
+		ONVIFEndpoint: "http://192.168.1.100",
+		ONVIFUsername: "user",
+		ONVIFPassword: handler.encryptPassword("pwd"),
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	endpoint, username, password := handler.resolveONVIFCredentials(cam)
+	assert.Equal(t, "http://192.168.1.100", endpoint)
+	assert.Equal(t, "user", username)
+	assert.Equal(t, "pwd", password)
+}
+
 func TestCreateMultiChannelCamera(t *testing.T) {
 	handler, cleanup := setupCameraTest(t)
 	defer cleanup()

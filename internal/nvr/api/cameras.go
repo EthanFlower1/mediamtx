@@ -192,6 +192,19 @@ func (h *CameraHandler) decryptPassword(stored string) string {
 	return string(pt)
 }
 
+// resolveONVIFCredentials returns the ONVIF endpoint, username, and decrypted
+// password for a camera. If the camera belongs to a device, credentials are
+// read from the device record.
+func (h *CameraHandler) resolveONVIFCredentials(cam *db.Camera) (endpoint, username, password string) {
+	if cam.DeviceID != "" {
+		dev, err := h.DB.GetDevice(cam.DeviceID)
+		if err == nil {
+			return dev.ONVIFEndpoint, dev.ONVIFUsername, h.decryptPassword(dev.ONVIFPassword)
+		}
+	}
+	return cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword)
+}
+
 // cameraRequest is the JSON body for creating or updating a camera.
 type cameraRequest struct {
 	Name              string `json:"name" binding:"required"`
@@ -554,7 +567,8 @@ func (h *CameraHandler) Create(c *gin.Context) {
 			var probeErr error
 			go func() {
 				defer close(done)
-				result, probeErr = onvif.ProbeDeviceFull(camCopy.ONVIFEndpoint, camCopy.ONVIFUsername, h.decryptPassword(camCopy.ONVIFPassword))
+				endpoint, user, pass := h.resolveONVIFCredentials(&camCopy)
+				result, probeErr = onvif.ProbeDeviceFull(endpoint, user, pass)
 			}()
 			select {
 			case <-done:
@@ -966,9 +980,9 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		return
 	}
 
-	password := h.decryptPassword(cam.ONVIFPassword)
-	nvrLogInfo("cameras", fmt.Sprintf("Refreshing camera %q: endpoint=%s user=%q passLen=%d", cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, len(password)))
-	result, err := onvif.ProbeDeviceFull(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
+	endpoint, username, password := h.resolveONVIFCredentials(cam)
+	nvrLogInfo("cameras", fmt.Sprintf("Refreshing camera %q: endpoint=%s user=%q passLen=%d", cam.Name, endpoint, username, len(password)))
+	result, err := onvif.ProbeDeviceFull(endpoint, username, password)
 	if err != nil {
 		nvrLogError("cameras", fmt.Sprintf("refresh probe failed for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF probe failed: " + err.Error()})

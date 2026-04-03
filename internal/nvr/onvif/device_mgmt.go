@@ -3,6 +3,7 @@ package onvif
 import (
 	"context"
 	"fmt"
+	"net"
 
 	onvifgo "github.com/EthanFlower1/onvif-go"
 )
@@ -405,6 +406,73 @@ func GetNTPConfig(xaddr, user, pass string) (*NTPInfo, error) {
 	return info, nil
 }
 
+// SetDateTimeRequest is the request body for SetSystemDateAndTime.
+type SetDateTimeRequest struct {
+	Type           string   `json:"type"`
+	DaylightSaving bool     `json:"daylight_saving"`
+	Timezone       string   `json:"timezone"`
+	UTCDateTime    *DateVal `json:"utc_date_time,omitempty"`
+}
+
+// DateVal holds a date/time value for set requests.
+type DateVal struct {
+	Year   int `json:"year"`
+	Month  int `json:"month"`
+	Day    int `json:"day"`
+	Hour   int `json:"hour"`
+	Minute int `json:"minute"`
+	Second int `json:"second"`
+}
+
+// SetDNSRequest is the request body for SetDNS.
+type SetDNSRequest struct {
+	FromDHCP bool     `json:"from_dhcp"`
+	Servers  []string `json:"servers"`
+}
+
+// SetNTPRequest is the request body for SetNTP.
+type SetNTPRequest struct {
+	FromDHCP bool     `json:"from_dhcp"`
+	Servers  []string `json:"servers"`
+}
+
+// SetNetworkInterfaceRequest is the request body for SetNetworkInterfaces.
+type SetNetworkInterfaceRequest struct {
+	Enabled *bool       `json:"enabled,omitempty"`
+	IPv4    *IPv4Config `json:"ipv4,omitempty"`
+}
+
+// SetNetworkInterfaceResponse is the response from SetNetworkInterfaces.
+type SetNetworkInterfaceResponse struct {
+	RebootNeeded bool `json:"reboot_needed"`
+}
+
+// GatewayInfo holds network gateway configuration.
+type GatewayInfo struct {
+	IPv4 []string `json:"ipv4"`
+	IPv6 []string `json:"ipv6"`
+}
+
+// ScopesRequest is the request body for scope operations.
+type ScopesRequest struct {
+	Scopes []string `json:"scopes"`
+}
+
+// DiscoveryModeInfo holds the discovery mode for the device.
+type DiscoveryModeInfo struct {
+	Mode string `json:"mode"`
+}
+
+// SystemLogInfo holds system log content.
+type SystemLogInfo struct {
+	Content string `json:"content"`
+}
+
+// SupportInfo holds system support information.
+type SupportInfo struct {
+	Content string `json:"content"`
+}
+
 // GetDNSConfig retrieves the DNS configuration from the device.
 func GetDNSConfig(xaddr, user, pass string) (*DNSInfo, error) {
 	client, err := NewClient(xaddr, user, pass)
@@ -439,4 +507,305 @@ func GetDNSConfig(xaddr, user, pass string) (*DNSInfo, error) {
 	}
 
 	return info, nil
+}
+
+// ValidateIP returns an error if s is not a valid IPv4 or IPv6 address.
+func ValidateIP(s string) error {
+	if net.ParseIP(s) == nil {
+		return fmt.Errorf("invalid IP address: %s", s)
+	}
+	return nil
+}
+
+// SetSystemDateAndTime sets the system date and time on the device.
+func SetSystemDateAndTime(xaddr, user, pass string, req *SetDateTimeRequest) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	sdt := &onvifgo.SystemDateTime{
+		DateTimeType:    onvifgo.SetDateTimeType(req.Type),
+		DaylightSavings: req.DaylightSaving,
+		TimeZone:        &onvifgo.TimeZone{TZ: req.Timezone},
+	}
+
+	if req.UTCDateTime != nil {
+		sdt.UTCDateTime = &onvifgo.DateTime{
+			Date: onvifgo.Date{
+				Year:  req.UTCDateTime.Year,
+				Month: req.UTCDateTime.Month,
+				Day:   req.UTCDateTime.Day,
+			},
+			Time: onvifgo.Time{
+				Hour:   req.UTCDateTime.Hour,
+				Minute: req.UTCDateTime.Minute,
+				Second: req.UTCDateTime.Second,
+			},
+		}
+	}
+
+	if err := client.Dev.SetSystemDateAndTime(ctx, sdt); err != nil {
+		return fmt.Errorf("SetSystemDateAndTime: %w", err)
+	}
+
+	return nil
+}
+
+// SetDNSConfig sets the DNS configuration on the device.
+func SetDNSConfig(xaddr, user, pass string, req *SetDNSRequest) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	manual := make([]onvifgo.IPAddress, 0, len(req.Servers))
+	for _, s := range req.Servers {
+		ip := net.ParseIP(s)
+		addr := onvifgo.IPAddress{Type: "IPv4", IPv4Address: s}
+		if ip != nil && ip.To4() == nil {
+			addr.Type = "IPv6"
+			addr.IPv6Address = s
+			addr.IPv4Address = ""
+		}
+		manual = append(manual, addr)
+	}
+
+	if err := client.Dev.SetDNS(ctx, req.FromDHCP, nil, manual); err != nil {
+		return fmt.Errorf("SetDNS: %w", err)
+	}
+
+	return nil
+}
+
+// SetNTPConfig sets the NTP configuration on the device.
+func SetNTPConfig(xaddr, user, pass string, req *SetNTPRequest) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	manual := make([]onvifgo.NetworkHost, 0, len(req.Servers))
+	for _, s := range req.Servers {
+		host := onvifgo.NetworkHost{}
+		ip := net.ParseIP(s)
+		if ip == nil {
+			host.Type = "DNS"
+			host.DNSname = s
+		} else if ip.To4() != nil {
+			host.Type = "IPv4"
+			host.IPv4Address = s
+		} else {
+			host.Type = "IPv6"
+			host.IPv6Address = s
+		}
+		manual = append(manual, host)
+	}
+
+	if err := client.Dev.SetNTP(ctx, req.FromDHCP, manual); err != nil {
+		return fmt.Errorf("SetNTP: %w", err)
+	}
+
+	return nil
+}
+
+// SetNetworkInterface sets the configuration of a network interface on the device.
+// Returns true if the device requires a reboot for changes to take effect.
+func SetNetworkInterface(xaddr, user, pass, token string, req *SetNetworkInterfaceRequest) (bool, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return false, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	config := &onvifgo.NetworkInterfaceSetConfiguration{
+		Enabled: req.Enabled,
+	}
+
+	if req.IPv4 != nil {
+		config.IPv4 = &onvifgo.IPv4NetworkInterfaceSetConfiguration{
+			Enabled: &req.IPv4.Enabled,
+			DHCP:    &req.IPv4.DHCP,
+		}
+	}
+
+	reboot, err := client.Dev.SetNetworkInterfaces(ctx, token, config)
+	if err != nil {
+		return false, fmt.Errorf("SetNetworkInterfaces: %w", err)
+	}
+
+	return reboot, nil
+}
+
+// GetNetworkDefaultGateway retrieves the default gateway from the device.
+func GetNetworkDefaultGateway(xaddr, user, pass string) (*GatewayInfo, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	gw, err := client.Dev.GetNetworkDefaultGateway(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("GetNetworkDefaultGateway: %w", err)
+	}
+
+	info := &GatewayInfo{
+		IPv4: gw.IPv4Address,
+		IPv6: gw.IPv6Address,
+	}
+	if info.IPv4 == nil {
+		info.IPv4 = []string{}
+	}
+	if info.IPv6 == nil {
+		info.IPv6 = []string{}
+	}
+
+	return info, nil
+}
+
+// SetNetworkDefaultGateway sets the default gateway on the device.
+func SetNetworkDefaultGateway(xaddr, user, pass string, req *GatewayInfo) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	gw := &onvifgo.NetworkGateway{
+		IPv4Address: req.IPv4,
+		IPv6Address: req.IPv6,
+	}
+
+	if err := client.Dev.SetNetworkDefaultGateway(ctx, gw); err != nil {
+		return fmt.Errorf("SetNetworkDefaultGateway: %w", err)
+	}
+
+	return nil
+}
+
+// SetDeviceScopes replaces all configurable scopes on the device.
+func SetDeviceScopes(xaddr, user, pass string, scopes []string) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	if err := client.Dev.SetScopes(ctx, scopes); err != nil {
+		return fmt.Errorf("SetScopes: %w", err)
+	}
+
+	return nil
+}
+
+// AddDeviceScopes adds scopes to the device.
+func AddDeviceScopes(xaddr, user, pass string, scopes []string) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	if err := client.Dev.AddScopes(ctx, scopes); err != nil {
+		return fmt.Errorf("AddScopes: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveDeviceScopes removes scopes from the device.
+// Returns the remaining scopes after removal.
+func RemoveDeviceScopes(xaddr, user, pass string, scopes []string) ([]string, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	remaining, err := client.Dev.RemoveScopes(ctx, scopes)
+	if err != nil {
+		return nil, fmt.Errorf("RemoveScopes: %w", err)
+	}
+
+	return remaining, nil
+}
+
+// GetDiscoveryMode retrieves the WS-Discovery mode from the device.
+func GetDiscoveryMode(xaddr, user, pass string) (*DiscoveryModeInfo, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	mode, err := client.Dev.GetDiscoveryMode(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("GetDiscoveryMode: %w", err)
+	}
+
+	return &DiscoveryModeInfo{Mode: string(mode)}, nil
+}
+
+// SetDiscoveryMode sets the WS-Discovery mode on the device.
+func SetDiscoveryMode(xaddr, user, pass, mode string) error {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	if err := client.Dev.SetDiscoveryMode(ctx, onvifgo.DiscoveryMode(mode)); err != nil {
+		return fmt.Errorf("SetDiscoveryMode: %w", err)
+	}
+
+	return nil
+}
+
+// GetSystemLog retrieves the system log from the device.
+func GetSystemLog(xaddr, user, pass, logType string) (*SystemLogInfo, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	log, err := client.Dev.GetSystemLog(ctx, onvifgo.SystemLogType(logType))
+	if err != nil {
+		return nil, fmt.Errorf("GetSystemLog: %w", err)
+	}
+
+	return &SystemLogInfo{Content: log.String}, nil
+}
+
+// GetSystemSupportInformation retrieves support information from the device.
+func GetSystemSupportInformation(xaddr, user, pass string) (*SupportInfo, error) {
+	client, err := NewClient(xaddr, user, pass)
+	if err != nil {
+		return nil, fmt.Errorf("connect to device: %w", err)
+	}
+
+	ctx := context.Background()
+
+	info, err := client.Dev.GetSystemSupportInformation(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("GetSystemSupportInformation: %w", err)
+	}
+
+	return &SupportInfo{Content: info.String}, nil
 }

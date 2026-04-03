@@ -200,6 +200,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
 	protected.POST("/cameras/probe", cameraHandler.Probe)
 	protected.POST("/cameras/:id/refresh", cameraHandler.RefreshCapabilities)
+	protected.POST("/cameras/:id/rotate-credentials", cameraHandler.RotateCredentials)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)
@@ -243,15 +244,28 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Device management.
 	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)
+	protected.PUT("/cameras/:id/device/datetime", cameraHandler.SetDeviceDateTimeHandler)
 	protected.GET("/cameras/:id/device/hostname", cameraHandler.GetDeviceHostnameHandler)
 	protected.PUT("/cameras/:id/device/hostname", cameraHandler.SetDeviceHostnameHandler)
 	protected.POST("/cameras/:id/device/reboot", cameraHandler.RebootDevice)
 	protected.GET("/cameras/:id/device/scopes", cameraHandler.GetDeviceScopesHandler)
+	protected.PUT("/cameras/:id/device/scopes", cameraHandler.SetDeviceScopesHandler)
+	protected.POST("/cameras/:id/device/scopes", cameraHandler.AddDeviceScopesHandler)
+	protected.DELETE("/cameras/:id/device/scopes", cameraHandler.RemoveDeviceScopesHandler)
+	protected.GET("/cameras/:id/device/discovery-mode", cameraHandler.GetDiscoveryModeHandler)
+	protected.PUT("/cameras/:id/device/discovery-mode", cameraHandler.SetDiscoveryModeHandler)
+	protected.GET("/cameras/:id/device/system-log", cameraHandler.GetSystemLogHandler)
+	protected.GET("/cameras/:id/device/support-info", cameraHandler.GetSystemSupportInfoHandler)
 	protected.GET("/cameras/:id/device/network/interfaces", cameraHandler.GetNetworkInterfacesHandler)
+	protected.PUT("/cameras/:id/device/network/interfaces/:token", cameraHandler.SetNetworkInterfaceHandler)
 	protected.GET("/cameras/:id/device/network/protocols", cameraHandler.GetNetworkProtocolsHandler)
 	protected.PUT("/cameras/:id/device/network/protocols", cameraHandler.SetNetworkProtocolsHandler)
 	protected.GET("/cameras/:id/device/network/dns", cameraHandler.GetDNSConfigHandler)
+	protected.PUT("/cameras/:id/device/network/dns", cameraHandler.SetDNSConfigHandler)
 	protected.GET("/cameras/:id/device/network/ntp", cameraHandler.GetNTPConfigHandler)
+	protected.PUT("/cameras/:id/device/network/ntp", cameraHandler.SetNTPConfigHandler)
+	protected.GET("/cameras/:id/device/network/gateway", cameraHandler.GetNetworkDefaultGatewayHandler)
+	protected.PUT("/cameras/:id/device/network/gateway", cameraHandler.SetNetworkDefaultGatewayHandler)
 	protected.GET("/cameras/:id/device/users", cameraHandler.GetDeviceUsersHandler)
 	protected.POST("/cameras/:id/device/users", cameraHandler.CreateDeviceUserHandler)
 	protected.PUT("/cameras/:id/device/users/:username", cameraHandler.UpdateDeviceUserHandler)
@@ -261,8 +275,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)
 
-	// Audio capabilities.
+	// Audio.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
+	protected.GET("/cameras/:id/audio/sources", cameraHandler.AudioSources)
+	protected.GET("/cameras/:id/audio/source-configs", cameraHandler.AudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/compatible/:profileToken", cameraHandler.CompatibleAudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/:token", cameraHandler.GetAudioSourceConfig)
+	protected.PUT("/cameras/:id/audio/source-configs/:token", cameraHandler.UpdateAudioSourceConfig)
+	protected.GET("/cameras/:id/audio/source-configs/:token/options", cameraHandler.AudioSourceConfigOptions)
+	protected.POST("/cameras/:id/audio/source-configs/add", cameraHandler.AddAudioSourceToProfile)
+	protected.POST("/cameras/:id/audio/source-configs/remove", cameraHandler.RemoveAudioSourceFromProfile)
 
 	// Edge recordings (camera SD card / Profile G).
 	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)

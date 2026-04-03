@@ -24,6 +24,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
+	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
@@ -68,6 +69,8 @@ type NVR struct {
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 
 	integrityScanner *integrity.Scanner
+
+	backchannelMgr *backchannel.Manager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -129,6 +132,26 @@ func (n *NVR) Initialize() error {
 	n.callbackMgr = onvif.NewCallbackManager()
 
 	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+
+	// Initialize backchannel audio session manager.
+	credKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+	n.backchannelMgr = backchannel.NewManager(func(cameraID string) (string, string, string, error) {
+		cam, err := n.database.GetCamera(cameraID)
+		if err != nil {
+			return "", "", "", err
+		}
+		password := cam.ONVIFPassword
+		if len(credKey) > 0 && strings.HasPrefix(password, "enc:") {
+			ct, decErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(password, "enc:"))
+			if decErr == nil {
+				if pt, decErr2 := crypto.Decrypt(credKey, ct); decErr2 == nil {
+					password = string(pt)
+				}
+			}
+		}
+		return cam.ONVIFEndpoint, cam.ONVIFUsername, password, nil
+	})
+
 	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress)
 	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
@@ -513,6 +536,10 @@ func (n *NVR) Close() {
 		n.aiEmbedder.Close()
 	}
 
+	if n.backchannelMgr != nil {
+		n.backchannelMgr.CloseAll()
+	}
+
 	if n.cameraStatusDone != nil {
 		close(n.cameraStatusDone)
 	}
@@ -825,6 +852,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		HLSHandler:      n.hlsHandler,
 		StorageManager:  n.storageMgr,
 		Collector:       n.metricsCollector,
+		BackchannelMgr:  n.backchannelMgr,
 	})
 }
 

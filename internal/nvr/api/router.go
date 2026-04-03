@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -47,6 +48,7 @@ type RouterConfig struct {
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	QuarantineBase  string              // quarantine directory for corrupted recordings
+	BackchannelMgr  *backchannel.Manager // backchannel audio session manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -69,6 +71,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		EncryptionKey: cfg.EncryptionKey,
 		AIRestarter:   cfg.AIRestarter,
 		StorageMgr:    cfg.StorageManager,
+	}
+
+	var backchannelHandler *BackchannelHandler
+	if cfg.BackchannelMgr != nil {
+		backchannelHandler = &BackchannelHandler{
+			DB:            cfg.DB,
+			Manager:       cfg.BackchannelMgr,
+			EncryptionKey: cfg.EncryptionKey,
+		}
 	}
 
 	recordingHandler := &RecordingHandler{
@@ -244,6 +255,18 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Audio capabilities.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
+
+	// Backchannel audio.
+	if backchannelHandler != nil {
+		protected.GET("/cameras/:id/audio/backchannel/ws", backchannelHandler.WebSocket)
+		protected.GET("/cameras/:id/audio/backchannel/info", backchannelHandler.Info)
+		protected.GET("/cameras/:id/audio/outputs", backchannelHandler.GetAudioOutputs)
+		protected.GET("/cameras/:id/audio/output-configs", backchannelHandler.GetAudioOutputConfigs)
+		protected.PUT("/cameras/:id/audio/output-configs/:token", backchannelHandler.UpdateAudioOutputConfig)
+		protected.GET("/cameras/:id/audio/decoder-configs", backchannelHandler.GetAudioDecoderConfigs)
+		protected.PUT("/cameras/:id/audio/decoder-configs/:token", backchannelHandler.UpdateAudioDecoderConfig)
+		protected.GET("/cameras/:id/audio/decoder-options/:token", backchannelHandler.GetAudioDecoderOptions)
+	}
 
 	// Edge recordings (camera SD card / Profile G).
 	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)

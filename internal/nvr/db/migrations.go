@@ -485,4 +485,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_queued_commands_camera ON queued_commands(camera_id, status);
 		`,
 	},
+	// Migration 33: Supported event topics from GetEventProperties (KAI-110).
+	{
+		version: 33,
+		sql:     `ALTER TABLE cameras ADD COLUMN supported_event_topics TEXT DEFAULT '';`,
+	},
 }

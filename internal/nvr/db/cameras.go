@@ -49,6 +49,7 @@ type Camera struct {
 	QuotaBytes               int64  `json:"quota_bytes"`
 	QuotaWarningPercent      int    `json:"quota_warning_percent"`
 	QuotaCriticalPercent     int    `json:"quota_critical_percent"`
+	SupportedEventTopics    string `json:"supported_event_topics"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -85,6 +86,7 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
 			created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
@@ -96,6 +98,7 @@ func (d *DB) CreateCamera(cam *Camera) error {
 		cam.ServiceCapabilities,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath, cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.SupportedEventTopics,
 		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
@@ -115,7 +118,8 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
-			quota_bytes, quota_warning_percent, quota_critical_percent
+			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics
 		FROM cameras WHERE id = ?`, id,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -129,6 +133,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
+		&cam.SupportedEventTopics,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -153,7 +158,8 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
-			quota_bytes, quota_warning_percent, quota_critical_percent
+			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics
 		FROM cameras WHERE mediamtx_path = ?`, path,
 	).Scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
@@ -167,6 +173,7 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
+		&cam.SupportedEventTopics,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -190,7 +197,8 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
-			quota_bytes, quota_warning_percent, quota_critical_percent
+			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -212,6 +220,7 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 			&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
+			&cam.SupportedEventTopics,
 		); err != nil {
 			return nil, err
 		}
@@ -236,6 +245,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			motion_timeout_seconds = ?, sub_stream_url = ?, ai_enabled = ?,
 			audio_transcode = ?, storage_path = ?,
 			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
+			supported_event_topics = ?,
 			updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
@@ -249,6 +259,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath,
 		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.SupportedEventTopics,
 		cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {

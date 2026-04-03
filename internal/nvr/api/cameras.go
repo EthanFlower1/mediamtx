@@ -738,11 +738,12 @@ func (h *CameraHandler) Probe(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"profiles":              result.Profiles,
-		"capabilities":          result.Capabilities,
+		"profiles":               result.Profiles,
+		"capabilities":           result.Capabilities,
 		"snapshot_uri":           result.SnapshotURI,
-		"service_infos":         result.ServiceInfos,
-		"detailed_capabilities": result.DetailedCapabilities,
+		"service_infos":          result.ServiceInfos,
+		"detailed_capabilities":  result.DetailedCapabilities,
+		"supported_event_topics": result.SupportedEventTopics,
 	})
 }
 
@@ -793,6 +794,12 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		capsJSON, err := json.Marshal(result.DetailedCapabilities)
 		if err == nil {
 			cam.ServiceCapabilities = string(capsJSON)
+		}
+	}
+	// Store supported event topics as JSON array.
+	if len(result.SupportedEventTopics) > 0 {
+		if b, err := json.Marshal(result.SupportedEventTopics); err == nil {
+			cam.SupportedEventTopics = string(b)
 		}
 	}
 	if err := h.DB.UpdateCamera(cam); err != nil {

@@ -27,6 +27,10 @@ import (
 type EventPublisher interface {
 	PublishMotion(cameraName string)
 	PublishTampering(cameraName string)
+	PublishDigitalInput(cameraName string, active bool)
+	PublishSignalLoss(cameraName string, active bool)
+	PublishHardwareFailure(cameraName string, active bool)
+	PublishRelay(cameraName string, active bool)
 	PublishCameraOffline(cameraName string)
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)
@@ -1031,20 +1035,8 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 				s.CancelMotionTimer(camID)
 				_ = s.db.EndMotionEvent(camID, now)
 			}
-		case onvif.EventTampering:
-			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
-				_ = s.db.InsertMotionEvent(&db.MotionEvent{
-					CameraID:  camID,
-					StartedAt: now,
-					EventType: "tampering",
-				})
-				if s.eventPub != nil {
-					s.eventPub.PublishTampering(cam.Name)
-				}
-			} else {
-				_ = s.db.EndMotionEvent(camID, now)
-			}
+		case onvif.EventTampering, onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			s.handleInfoEvent(camID, cam.Name, eventType, active)
 		}
 	}
 	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), eventCallback)
@@ -1068,6 +1060,39 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 	go sub.Start(context.Background())
 
 	s.startMetadataStreamLocked(camID, cam)
+}
+
+// handleInfoEvent handles informational event types (tampering, digital_input,
+// signal_loss, hardware_failure, relay) — insert/end in DB and publish via SSE.
+// Unlike motion, these don't trigger recording or manage MotionSMs.
+func (s *Scheduler) handleInfoEvent(camID, camName string, eventType onvif.DetectedEventType, active bool) {
+	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	evtStr := string(eventType)
+	if active {
+		_ = s.db.InsertMotionEvent(&db.MotionEvent{
+			CameraID:  camID,
+			StartedAt: now,
+			EventType: evtStr,
+		})
+	} else {
+		_ = s.db.EndMotionEventByType(camID, evtStr, now)
+	}
+	if s.eventPub != nil {
+		switch eventType {
+		case onvif.EventTampering:
+			if active {
+				s.eventPub.PublishTampering(camName)
+			}
+		case onvif.EventDigitalInput:
+			s.eventPub.PublishDigitalInput(camName, active)
+		case onvif.EventSignalLoss:
+			s.eventPub.PublishSignalLoss(camName, active)
+		case onvif.EventHardwareFailure:
+			s.eventPub.PublishHardwareFailure(camName, active)
+		case onvif.EventRelay:
+			s.eventPub.PublishRelay(camName, active)
+		}
+	}
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted.
@@ -1150,20 +1175,8 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 				s.CancelMotionTimer(cam.ID)
 				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
-		case onvif.EventTampering:
-			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
-				_ = s.db.InsertMotionEvent(&db.MotionEvent{
-					CameraID:  cam.ID,
-					StartedAt: now,
-					EventType: "tampering",
-				})
-				if s.eventPub != nil {
-					s.eventPub.PublishTampering(cam.Name)
-				}
-			} else {
-				_ = s.db.EndMotionEvent(cam.ID, now)
-			}
+		case onvif.EventTampering, onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			s.handleInfoEvent(cam.ID, cam.Name, eventType, active)
 		}
 	}
 

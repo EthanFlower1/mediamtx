@@ -42,8 +42,7 @@ type DetectedEvent struct {
 }
 
 // EventCallback is invoked when an ONVIF event is detected.
-// eventType indicates the kind of event, active indicates whether it started or stopped.
-type EventCallback func(eventType DetectedEventType, active bool)
+type EventCallback func(event DetectedEvent)
 
 // EventSubscriber manages an ONVIF WS-BaseNotification subscription where the
 // camera pushes events to the NVR via HTTP POST (no polling).
@@ -212,7 +211,7 @@ func (es *EventSubscriber) HandleNotification(body []byte) {
 	}
 	for _, evt := range events {
 		log.Printf("onvif events [%s]: %s=%v (push)", es.xaddr, evt.Type, evt.Active)
-		es.callback(evt.Type, evt.Active)
+		es.callback(evt)
 	}
 }
 
@@ -252,7 +251,7 @@ func (es *EventSubscriber) fallbackPullPoint(ctx context.Context) error {
 			}
 			for _, evt := range events {
 				log.Printf("onvif events [%s]: %s=%v (poll)", es.xaddr, evt.Type, evt.Active)
-				es.callback(evt.Type, evt.Active)
+				es.callback(evt)
 			}
 		}
 	}

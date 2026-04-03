@@ -1003,19 +1003,19 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 
 	// Create the event subscriber. Wrap the event callback to also publish events
 	// and persist motion events in the database.
-	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
-		switch eventType {
+	eventCallback := func(event onvif.DetectedEvent) {
+		switch event.Type {
 		case onvif.EventMotion:
 			// Dispatch to ALL MotionSMs for this camera (default + per-stream).
 			s.mu.Lock()
 			for sk, msm := range s.motionSMs {
 				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
-					msm.OnMotion(active)
+					msm.OnMotion(event.Active)
 				}
 			}
 			s.mu.Unlock()
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
+			if event.Active {
 				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
 				if !s.db.HasOpenMotionEvent(camID) {
 					_ = s.db.InsertMotionEvent(&db.MotionEvent{
@@ -1032,7 +1032,7 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			}
 		case onvif.EventTampering:
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
+			if event.Active {
 				_ = s.db.InsertMotionEvent(&db.MotionEvent{
 					CameraID:  camID,
 					StartedAt: now,
@@ -1049,23 +1049,29 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			s.mu.Lock()
 			for sk, msm := range s.motionSMs {
 				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
-					msm.OnMotion(active)
+					msm.OnMotion(event.Active)
 				}
 			}
 			s.mu.Unlock()
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			evtType := string(eventType)
-			if active {
+			evtType := string(event.Type)
+			if event.Active {
 				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
 				if !s.db.HasOpenMotionEvent(camID) {
-					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					me := &db.MotionEvent{
 						CameraID:  camID,
 						StartedAt: now,
 						EventType: evtType,
-					})
+					}
+					if len(event.Metadata) > 0 {
+						metaJSON, _ := json.Marshal(event.Metadata)
+						metaStr := string(metaJSON)
+						me.Metadata = &metaStr
+					}
+					_ = s.db.InsertMotionEvent(me)
 				}
 				if s.eventPub != nil {
-					switch eventType {
+					switch event.Type {
 					case onvif.EventLineCrossing:
 						s.eventPub.PublishLineCrossing(cam.Name)
 					case onvif.EventIntrusion:
@@ -1073,7 +1079,11 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 					case onvif.EventLoitering:
 						s.eventPub.PublishLoitering(cam.Name)
 					case onvif.EventObjectCount:
-						s.eventPub.PublishObjectCount(cam.Name, 0)
+						count := 0
+						if v, ok := event.Metadata["count"]; ok {
+							fmt.Sscanf(v, "%d", &count)
+						}
+						s.eventPub.PublishObjectCount(cam.Name, count)
 					}
 				}
 			} else {
@@ -1135,20 +1145,20 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 		return
 	}
 
-	eventCallback := func(eventType onvif.DetectedEventType, active bool) {
-		switch eventType {
+	eventCallback := func(event onvif.DetectedEvent) {
+		switch event.Type {
 		case onvif.EventMotion:
 			// Dispatch to ALL MotionSMs for this camera (default + per-stream).
 			s.mu.Lock()
 			for sk, msm := range s.motionSMs {
 				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
-					msm.OnMotion(active)
+					msm.OnMotion(event.Active)
 				}
 			}
 			s.mu.Unlock()
 
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
+			if event.Active {
 				// Reset the auto-close timer on every motion=true (keeps event alive).
 				s.StartMotionTimer(cam.ID, cam.MotionTimeoutSeconds)
 
@@ -1157,7 +1167,7 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					break
 				}
 
-				event := &db.MotionEvent{
+				me := &db.MotionEvent{
 					CameraID:  cam.ID,
 					StartedAt: now,
 				}
@@ -1170,9 +1180,9 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					if err != nil {
 						log.Printf("scheduler: thumbnail capture failed for camera %s: %v", cam.ID, err)
 					} else {
-						event.ThumbnailPath = thumbPath
+						me.ThumbnailPath = thumbPath
 					}
-					_ = s.db.InsertMotionEvent(event)
+					_ = s.db.InsertMotionEvent(me)
 				}()
 
 				if s.eventPub != nil {
@@ -1185,7 +1195,7 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 			}
 		case onvif.EventTampering:
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if active {
+			if event.Active {
 				_ = s.db.InsertMotionEvent(&db.MotionEvent{
 					CameraID:  cam.ID,
 					StartedAt: now,
@@ -1201,23 +1211,29 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 			s.mu.Lock()
 			for sk, msm := range s.motionSMs {
 				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
-					msm.OnMotion(active)
+					msm.OnMotion(event.Active)
 				}
 			}
 			s.mu.Unlock()
 			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			evtType := string(eventType)
-			if active {
+			evtType := string(event.Type)
+			if event.Active {
 				s.StartMotionTimer(cam.ID, cam.MotionTimeoutSeconds)
 				if !s.db.HasOpenMotionEvent(cam.ID) {
-					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					me := &db.MotionEvent{
 						CameraID:  cam.ID,
 						StartedAt: now,
 						EventType: evtType,
-					})
+					}
+					if len(event.Metadata) > 0 {
+						metaJSON, _ := json.Marshal(event.Metadata)
+						metaStr := string(metaJSON)
+						me.Metadata = &metaStr
+					}
+					_ = s.db.InsertMotionEvent(me)
 				}
 				if s.eventPub != nil {
-					switch eventType {
+					switch event.Type {
 					case onvif.EventLineCrossing:
 						s.eventPub.PublishLineCrossing(cam.Name)
 					case onvif.EventIntrusion:
@@ -1225,7 +1241,11 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					case onvif.EventLoitering:
 						s.eventPub.PublishLoitering(cam.Name)
 					case onvif.EventObjectCount:
-						s.eventPub.PublishObjectCount(cam.Name, 0)
+						count := 0
+						if v, ok := event.Metadata["count"]; ok {
+							fmt.Sscanf(v, "%d", &count)
+						}
+						s.eventPub.PublishObjectCount(cam.Name, count)
 					}
 				}
 			} else {

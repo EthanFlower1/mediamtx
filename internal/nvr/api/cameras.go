@@ -786,11 +786,9 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 	}
 	// Store supported event topics as JSON array.
 	if len(result.SupportedEventTopics) > 0 {
-		topicStrings := make([]string, len(result.SupportedEventTopics))
-		for i, t := range result.SupportedEventTopics {
-			topicStrings[i] = `"` + string(t) + `"`
+		if b, err := json.Marshal(result.SupportedEventTopics); err == nil {
+			cam.SupportedEventTopics = string(b)
 		}
-		cam.SupportedEventTopics = "[" + strings.Join(topicStrings, ",") + "]"
 	}
 	if err := h.DB.UpdateCamera(cam); err != nil {
 		apiError(c, http.StatusInternalServerError, "update capabilities", err)

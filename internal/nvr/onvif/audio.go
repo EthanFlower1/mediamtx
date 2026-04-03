@@ -2,6 +2,7 @@ package onvif
 
 import (
 	"context"
+	"fmt"
 )
 
 // AudioCapabilities summarises the audio capabilities of an ONVIF camera.
@@ -9,6 +10,27 @@ type AudioCapabilities struct {
 	HasBackchannel bool `json:"has_backchannel"`
 	AudioSources   int  `json:"audio_sources"`
 	AudioOutputs   int  `json:"audio_outputs"`
+}
+
+// AudioSourceInfo describes a physical audio input (microphone) on the device.
+type AudioSourceInfo struct {
+	Token    string `json:"token"`
+	Channels int    `json:"channels"`
+}
+
+// AudioSourceConfig represents an audio source configuration that binds
+// a physical audio source to a media profile.
+type AudioSourceConfig struct {
+	Token       string `json:"token"`
+	Name        string `json:"name"`
+	UseCount    int    `json:"use_count"`
+	SourceToken string `json:"source_token"`
+}
+
+// AudioSourceConfigOptions describes the available options when configuring
+// an audio source (e.g. which input tokens can be selected).
+type AudioSourceConfigOptions struct {
+	InputTokensAvailable []string `json:"input_tokens_available"`
 }
 
 // GetAudioCapabilities queries an ONVIF camera for its audio capabilities.
@@ -36,4 +58,27 @@ func GetAudioCapabilities(xaddr, username, password string) (*AudioCapabilities,
 	}
 
 	return caps, nil
+}
+
+// GetAudioSources returns all audio sources (microphones) on the device.
+func GetAudioSources(xaddr, username, password string) ([]*AudioSourceInfo, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	sources, err := client.Dev.GetAudioSources(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get audio sources: %w", err)
+	}
+
+	result := make([]*AudioSourceInfo, len(sources))
+	for i, s := range sources {
+		result[i] = &AudioSourceInfo{
+			Token:    s.Token,
+			Channels: s.Channels,
+		}
+	}
+	return result, nil
 }

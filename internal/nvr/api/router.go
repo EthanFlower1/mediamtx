@@ -298,6 +298,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/cameras/:id/analytics/rules/:name", cameraHandler.DeleteAnalyticsRule)
 	protected.GET("/cameras/:id/analytics/modules", cameraHandler.GetAnalyticsModules)
 
+	// Metadata configuration (Profile T).
+	protected.GET("/cameras/:id/metadata/configurations", cameraHandler.GetMetadataConfigurations)
+	protected.GET("/cameras/:id/metadata/configurations/:token", cameraHandler.GetMetadataConfiguration)
+	protected.PUT("/cameras/:id/metadata/configurations/:token", cameraHandler.SetMetadataConfiguration)
+	protected.POST("/cameras/:id/metadata/profile", cameraHandler.AddMetadataToProfile)
+	protected.DELETE("/cameras/:id/metadata/profile/:profileToken", cameraHandler.RemoveMetadataFromProfile)
+
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)

@@ -3184,3 +3184,162 @@ func (h *CameraHandler) DeleteDeviceUserHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
 }
+
+// GetMetadataConfigurations returns all metadata configurations from the camera.
+//
+//	GET /cameras/:id/metadata/configurations
+func (h *CameraHandler) GetMetadataConfigurations(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for metadata configurations", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	configs, err := onvif.GetMetadataConfigurations(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("metadata", fmt.Sprintf("failed to get metadata configurations for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get metadata configurations from device"})
+		return
+	}
+	if configs == nil {
+		configs = []*onvif.MetadataConfigInfo{}
+	}
+	c.JSON(http.StatusOK, gin.H{"configurations": configs})
+}
+
+// GetMetadataConfiguration returns a single metadata configuration by token.
+//
+//	GET /cameras/:id/metadata/configurations/:token
+func (h *CameraHandler) GetMetadataConfiguration(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for metadata configuration", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	config, err := onvif.GetMetadataConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token)
+	if err != nil {
+		nvrLogError("metadata", fmt.Sprintf("failed to get metadata configuration %s for camera %s", token, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get metadata configuration from device"})
+		return
+	}
+	c.JSON(http.StatusOK, config)
+}
+
+// SetMetadataConfiguration updates a metadata configuration on the camera.
+//
+//	PUT /cameras/:id/metadata/configurations/:token
+func (h *CameraHandler) SetMetadataConfiguration(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for metadata configuration", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var cfg onvif.MetadataConfigInfo
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	cfg.Token = token
+
+	if err := onvif.SetMetadataConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), &cfg); err != nil {
+		nvrLogError("metadata", fmt.Sprintf("failed to set metadata configuration %s for camera %s", token, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to set metadata configuration on device"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "metadata configuration updated"})
+}
+
+// AddMetadataToProfile adds a metadata configuration to a media profile.
+//
+//	POST /cameras/:id/metadata/profile
+func (h *CameraHandler) AddMetadataToProfile(c *gin.Context) {
+	id := c.Param("id")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for metadata profile", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var body struct {
+		ProfileToken string `json:"profile_token" binding:"required"`
+		ConfigToken  string `json:"config_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := onvif.AddMetadataToProfile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), body.ProfileToken, body.ConfigToken); err != nil {
+		nvrLogError("metadata", fmt.Sprintf("failed to add metadata to profile for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to add metadata configuration to profile"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "metadata configuration added to profile"})
+}
+
+// RemoveMetadataFromProfile removes the metadata configuration from a media profile.
+//
+//	DELETE /cameras/:id/metadata/profile/:profileToken
+func (h *CameraHandler) RemoveMetadataFromProfile(c *gin.Context) {
+	id := c.Param("id")
+	profileToken := c.Param("profileToken")
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for metadata profile removal", err)
+		return
+	}
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	if err := onvif.RemoveMetadataFromProfile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), profileToken); err != nil {
+		nvrLogError("metadata", fmt.Sprintf("failed to remove metadata from profile for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to remove metadata configuration from profile"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "metadata configuration removed from profile"})
+}

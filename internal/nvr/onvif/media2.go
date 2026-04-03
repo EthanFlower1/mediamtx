@@ -39,7 +39,12 @@ type media2Profile struct {
 	Configurations media2Configurations `xml:"Configurations"`
 }
 
+type media2VideoSourceConfig struct {
+	SourceToken string `xml:"SourceToken"`
+}
+
 type media2Configurations struct {
+	VideoSource  *media2VideoSourceConfig  `xml:"VideoSource"`
 	VideoEncoder *media2VideoEncoderConfig `xml:"VideoEncoder"`
 	AudioEncoder *media2AudioEncoderConfig `xml:"AudioEncoder"`
 }
@@ -143,6 +148,9 @@ func GetProfiles2(client *Client) ([]MediaProfile, error) {
 		mp := MediaProfile{
 			Token: p.Token,
 			Name:  p.Name,
+		}
+		if p.Configurations.VideoSource != nil {
+			mp.VideoSourceToken = p.Configurations.VideoSource.SourceToken
 		}
 		if p.Configurations.VideoEncoder != nil {
 			mp.VideoCodec = p.Configurations.VideoEncoder.Encoding

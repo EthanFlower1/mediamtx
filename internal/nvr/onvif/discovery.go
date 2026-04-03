@@ -230,6 +230,14 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 
 		dev.Profiles = append(dev.Profiles, mp)
 	}
+
+	// Group profiles by video source to detect multi-channel devices.
+	if len(dev.Profiles) > 0 {
+		channels := GroupProfilesByVideoSource(dev.Profiles)
+		if len(channels) > 1 {
+			dev.Channels = channels
+		}
+	}
 }
 
 // xaddrToHost extracts the host:port from an ONVIF XAddr URL.

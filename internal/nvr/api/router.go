@@ -410,6 +410,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	deviceHandler := &DeviceHandler{
 		DB:         cfg.DB,
 		YAMLWriter: cfg.YAMLWriter,
+		Scheduler:  cfg.Scheduler,
 	}
 	protected.GET("/devices", deviceHandler.List)
 	protected.GET("/devices/:id", deviceHandler.Get)

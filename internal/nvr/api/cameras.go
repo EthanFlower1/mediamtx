@@ -4218,3 +4218,246 @@ func (h *CameraHandler) GetSystemSupportInfoHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, result)
 }
+
+// GetOSDs returns all OSD overlays for a camera.
+//
+//	GET /cameras/:id/osd
+func (h *CameraHandler) GetOSDs(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for OSD", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	osds, err := onvif.GetOSDs(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), cam.ONVIFProfileToken)
+	if err != nil {
+		if errors.Is(err, onvif.ErrOSDNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support OSD management"})
+			return
+		}
+		nvrLogError("osd", fmt.Sprintf("failed to get OSDs for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get OSDs from device"})
+		return
+	}
+
+	if osds == nil {
+		osds = []onvif.OSD{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"osds": osds})
+}
+
+// GetOSDOptions returns available OSD options for a camera.
+//
+//	GET /cameras/:id/osd/options
+func (h *CameraHandler) GetOSDOptions(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for OSD options", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	options, err := onvif.GetOSDOptions(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), cam.ONVIFProfileToken)
+	if err != nil {
+		if errors.Is(err, onvif.ErrOSDNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support OSD management"})
+			return
+		}
+		nvrLogError("osd", fmt.Sprintf("failed to get OSD options for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get OSD options from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, options)
+}
+
+// CreateOSD creates a new OSD overlay on a camera.
+//
+//	POST /cameras/:id/osd
+func (h *CameraHandler) CreateOSD(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for OSD creation", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var cfg onvif.OSDConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := validateOSDConfig(cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := onvif.CreateOSD(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), cfg)
+	if err != nil {
+		if errors.Is(err, onvif.ErrOSDNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support OSD management"})
+			return
+		}
+		nvrLogError("osd", fmt.Sprintf("failed to create OSD for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to create OSD on device"})
+		return
+	}
+
+	nvrLogInfo("osd", fmt.Sprintf("Created OSD %q on camera %s", token, id))
+	c.JSON(http.StatusCreated, gin.H{"token": token})
+}
+
+// SetOSD updates an existing OSD overlay on a camera.
+//
+//	PUT /cameras/:id/osd/:token
+func (h *CameraHandler) SetOSD(c *gin.Context) {
+	id := c.Param("id")
+	osdToken := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for OSD update", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var cfg onvif.OSDConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	// Use URL param token if not in body.
+	if cfg.Token == "" {
+		cfg.Token = osdToken
+	}
+
+	if err := validateOSDConfig(cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := onvif.SetOSD(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), cfg); err != nil {
+		if errors.Is(err, onvif.ErrOSDNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support OSD management"})
+			return
+		}
+		nvrLogError("osd", fmt.Sprintf("failed to update OSD %q for camera %s", osdToken, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to update OSD on device"})
+		return
+	}
+
+	nvrLogInfo("osd", fmt.Sprintf("Updated OSD %q on camera %s", osdToken, id))
+	c.JSON(http.StatusOK, gin.H{"message": "OSD updated"})
+}
+
+// DeleteOSD removes an OSD overlay from a camera.
+//
+//	DELETE /cameras/:id/osd/:token
+func (h *CameraHandler) DeleteOSD(c *gin.Context) {
+	id := c.Param("id")
+	osdToken := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for OSD deletion", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	if err := onvif.DeleteOSD(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), osdToken); err != nil {
+		if errors.Is(err, onvif.ErrOSDNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support OSD management"})
+			return
+		}
+		nvrLogError("osd", fmt.Sprintf("failed to delete OSD %q for camera %s", osdToken, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to delete OSD from device"})
+		return
+	}
+
+	nvrLogInfo("osd", fmt.Sprintf("Deleted OSD %q from camera %s", osdToken, id))
+	c.JSON(http.StatusOK, gin.H{"message": "OSD deleted"})
+}
+
+// validateOSDConfig validates an OSD configuration for create and set operations.
+func validateOSDConfig(cfg onvif.OSDConfig) error {
+	if cfg.Type != "Text" && cfg.Type != "Image" {
+		return fmt.Errorf("type must be 'Text' or 'Image'")
+	}
+
+	validPositions := map[string]bool{
+		"UpperLeft": true, "UpperRight": true,
+		"LowerLeft": true, "LowerRight": true,
+		"Custom": true,
+	}
+	if !validPositions[cfg.Position.Type] {
+		return fmt.Errorf("position type must be one of: UpperLeft, UpperRight, LowerLeft, LowerRight, Custom")
+	}
+
+	if cfg.Position.Type == "Custom" && (cfg.Position.X == nil || cfg.Position.Y == nil) {
+		return fmt.Errorf("custom position requires x and y coordinates")
+	}
+
+	if cfg.Type == "Text" && cfg.TextString == nil {
+		return fmt.Errorf("text_string is required when type is 'Text'")
+	}
+
+	if cfg.Type == "Image" && (cfg.Image == nil || cfg.Image.ImagePath == "") {
+		return fmt.Errorf("image with image_path is required when type is 'Image'")
+	}
+
+	if cfg.VideoSourceToken == "" {
+		return fmt.Errorf("video_source_token is required")
+	}
+
+	return nil
+}

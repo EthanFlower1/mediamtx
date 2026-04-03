@@ -2,10 +2,117 @@ package onvif
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 
 	onvifgo "github.com/EthanFlower1/onvif-go"
 )
+
+// --- Backchannel stream URI SOAP response types ---
+
+type backchannelURIEnvelope struct {
+	XMLName xml.Name            `xml:"Envelope"`
+	Body    backchannelURIBody  `xml:"Body"`
+}
+
+type backchannelURIBody struct {
+	GetStreamUriResponse *backchannelURIResponse `xml:"GetStreamUriResponse"`
+	Fault                *soapFault              `xml:"Fault"`
+}
+
+type backchannelURIResponse struct {
+	MediaUri struct {
+		Uri string `xml:"Uri"`
+	} `xml:"MediaUri"`
+}
+
+type soapFault struct {
+	Faultstring string `xml:"faultstring"`
+}
+
+// backchannelStreamURIBody builds the inner SOAP XML for a Media1 GetStreamUri
+// request using RTP-Unicast/RTSP transport.
+func backchannelStreamURIBody(profileToken string) string {
+	return fmt.Sprintf(`<trt:GetStreamUri xmlns:trt="http://www.onvif.org/ver10/media/wsdl"
+                         xmlns:tt="http://www.onvif.org/ver10/schema">
+      <trt:StreamSetup>
+        <tt:Stream>RTP-Unicast</tt:Stream>
+        <tt:Transport>
+          <tt:Protocol>RTSP</tt:Protocol>
+        </tt:Transport>
+      </trt:StreamSetup>
+      <trt:ProfileToken>%s</trt:ProfileToken>
+    </trt:GetStreamUri>`, profileToken)
+}
+
+// backchannelSOAP wraps an inner body in a SOAP 1.2 envelope without Media2 namespaces.
+func backchannelSOAP(innerBody string) string {
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Header></s:Header>
+  <s:Body>
+    %s
+  </s:Body>
+</s:Envelope>`, innerBody)
+}
+
+// GetBackchannelStreamURI retrieves the RTSP backchannel stream URI from the
+// device's Media1 service using a custom SOAP call.
+func GetBackchannelStreamURI(xaddr, username, password, profileToken string) (string, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return "", fmt.Errorf("backchannel stream uri: create client: %w", err)
+	}
+
+	mediaURL := client.ServiceURL("media")
+	if mediaURL == "" {
+		return "", fmt.Errorf("backchannel stream uri: device does not support Media service")
+	}
+
+	soapBody := backchannelSOAP(backchannelStreamURIBody(profileToken))
+
+	if client.Username != "" {
+		soapBody = injectWSSecurity(soapBody, client.Username, client.Password)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, mediaURL, strings.NewReader(soapBody))
+	if err != nil {
+		return "", fmt.Errorf("backchannel stream uri: create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/soap+xml; charset=utf-8")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("backchannel stream uri: http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("backchannel stream uri: read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("backchannel stream uri: SOAP fault (HTTP %d): %s", resp.StatusCode, truncate(string(respBody), 200))
+	}
+
+	var env backchannelURIEnvelope
+	if err := xml.Unmarshal(respBody, &env); err != nil {
+		return "", fmt.Errorf("backchannel stream uri: parse response: %w", err)
+	}
+	if env.Body.Fault != nil {
+		return "", fmt.Errorf("backchannel stream uri: SOAP fault: %s", env.Body.Fault.Faultstring)
+	}
+	if env.Body.GetStreamUriResponse == nil {
+		return "", fmt.Errorf("backchannel stream uri: empty response")
+	}
+
+	return strings.TrimSpace(env.Body.GetStreamUriResponse.MediaUri.Uri), nil
+}
 
 // AudioOutputConfig holds the configuration for a device audio output.
 type AudioOutputConfig struct {

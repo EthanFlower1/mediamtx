@@ -1,6 +1,7 @@
 package onvif
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -139,5 +140,21 @@ func TestNegotiateCodecNoneSupported(t *testing.T) {
 	codec := NegotiateCodec(opts)
 	if codec != nil {
 		t.Errorf("expected nil codec when no codecs supported, got %+v", codec)
+	}
+}
+
+func TestBackchannelStreamURISOAP(t *testing.T) {
+	profileToken := "Profile_1"
+	innerBody := backchannelStreamURIBody(profileToken)
+	envelope := backchannelSOAP(innerBody)
+
+	if !strings.Contains(envelope, profileToken) {
+		t.Errorf("SOAP body missing profile token %q", profileToken)
+	}
+	if !strings.Contains(envelope, "RTP-Unicast") {
+		t.Error("SOAP body missing transport type \"RTP-Unicast\"")
+	}
+	if !strings.Contains(envelope, "RTSP") {
+		t.Error("SOAP body missing protocol \"RTSP\"")
 	}
 }

@@ -48,10 +48,10 @@ type multicastConfigEnvelope struct {
 
 type multicastConfigBody struct {
 	GetVideoEncoderConfigurationResponse *vecResponse `xml:"GetVideoEncoderConfigurationResponse"`
-	Fault                                *soapFault   `xml:"Fault"`
+	Fault                                *multicastFault   `xml:"Fault"`
 }
 
-type soapFault struct {
+type multicastFault struct {
 	Faultstring string `xml:"faultstring"`
 }
 
@@ -112,7 +112,7 @@ type media1StreamUriEnvelope struct {
 
 type media1StreamUriBody struct {
 	GetStreamUriResponse *media1StreamUriResponse `xml:"GetStreamUriResponse"`
-	Fault                *soapFault               `xml:"Fault"`
+	Fault                *multicastFault               `xml:"Fault"`
 }
 
 type media1StreamUriResponse struct {
@@ -287,14 +287,14 @@ func SetMulticastConfig(xaddr, username, password, profileToken string, cfg *Mul
           </tt:Address>
           <tt:Port>%d</tt:Port>
           <tt:TTL>%d</tt:TTL>
-          <tt:AutoStart>false</tt:AutoStart>
+          <tt:AutoStart>%t</tt:AutoStart>
         </tt:Multicast>
       </trt:Configuration>
       <trt:ForcePersistence>true</trt:ForcePersistence>
     </trt:SetVideoEncoderConfiguration>`,
 		xmlEscape(encoderToken), xmlEscape(encoderName), xmlEscape(encoding),
 		width, height, quality,
-		xmlEscape(cfg.Address), cfg.Port, cfg.TTL)
+		xmlEscape(cfg.Address), cfg.Port, cfg.TTL, cfg.AutoStart)
 
 	data, err := doMedia1SOAP(client, reqBody)
 	if err != nil {
@@ -305,7 +305,7 @@ func SetMulticastConfig(xaddr, username, password, profileToken string, cfg *Mul
 	type faultEnvelope struct {
 		XMLName xml.Name `xml:"Envelope"`
 		Body    struct {
-			Fault *soapFault `xml:"Fault"`
+			Fault *multicastFault `xml:"Fault"`
 		} `xml:"Body"`
 	}
 	var env faultEnvelope

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -47,6 +48,7 @@ type RouterConfig struct {
 	StorageManager  *storage.Manager    // storage health and sync manager (may be nil)
 	Collector       *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	QuarantineBase  string              // quarantine directory for corrupted recordings
+	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -198,6 +200,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/discover/results", cameraHandler.DiscoverResults)
 	protected.POST("/cameras/probe", cameraHandler.Probe)
 	protected.POST("/cameras/:id/refresh", cameraHandler.RefreshCapabilities)
+	protected.POST("/cameras/:id/rotate-credentials", cameraHandler.RotateCredentials)
 
 	// Camera PTZ & settings.
 	protected.POST("/cameras/:id/ptz", cameraHandler.PTZCommand)
@@ -206,6 +209,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/ptz/status", cameraHandler.PTZStatus)
 	protected.GET("/cameras/:id/settings", cameraHandler.GetSettings)
 	protected.PUT("/cameras/:id/settings", cameraHandler.UpdateSettings)
+	protected.GET("/cameras/:id/settings/options", cameraHandler.GetImagingOptions)
+	protected.GET("/cameras/:id/settings/status", cameraHandler.GetImagingStatus)
+	protected.GET("/cameras/:id/settings/focus/move-options", cameraHandler.GetFocusMoveOptions)
+	protected.POST("/cameras/:id/settings/focus/move", cameraHandler.MoveFocus)
+	protected.POST("/cameras/:id/settings/focus/stop", cameraHandler.StopFocus)
 	protected.PUT("/cameras/:id/retention", cameraHandler.UpdateRetention)
 	protected.GET("/cameras/:id/storage-estimate", cameraHandler.StorageEstimate)
 	protected.PUT("/cameras/:id/motion-timeout", cameraHandler.UpdateMotionTimeout)
@@ -219,20 +227,45 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
 	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
 
-	// Device info.
+	// Media2 configuration.
+	protected.POST("/cameras/:id/media2/profiles", cameraHandler.CreateMedia2Profile)
+	protected.DELETE("/cameras/:id/media2/profiles/:token", cameraHandler.DeleteMedia2Profile)
+	protected.POST("/cameras/:id/media2/profiles/:token/configurations", cameraHandler.AddMedia2Configuration)
+	protected.DELETE("/cameras/:id/media2/profiles/:token/configurations", cameraHandler.RemoveMedia2Configuration)
+	protected.GET("/cameras/:id/media2/video-source-configs", cameraHandler.GetVideoSourceConfigs)
+	protected.PUT("/cameras/:id/media2/video-source-configs/:token", cameraHandler.SetVideoSourceConfig)
+	protected.GET("/cameras/:id/media2/video-source-configs/:token/options", cameraHandler.GetVideoSourceConfigOptions)
+	protected.GET("/cameras/:id/media2/audio-source-configs", cameraHandler.GetAudioSourceConfigs)
+	protected.PUT("/cameras/:id/media2/audio-source-configs/:token", cameraHandler.SetAudioSourceConfig)
+
+	// Device info and service capabilities.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
+	protected.GET("/cameras/:id/services", cameraHandler.GetServices)
 
 	// Device management.
 	protected.GET("/cameras/:id/device/datetime", cameraHandler.GetDeviceDateTime)
+	protected.PUT("/cameras/:id/device/datetime", cameraHandler.SetDeviceDateTimeHandler)
 	protected.GET("/cameras/:id/device/hostname", cameraHandler.GetDeviceHostnameHandler)
 	protected.PUT("/cameras/:id/device/hostname", cameraHandler.SetDeviceHostnameHandler)
 	protected.POST("/cameras/:id/device/reboot", cameraHandler.RebootDevice)
 	protected.GET("/cameras/:id/device/scopes", cameraHandler.GetDeviceScopesHandler)
+	protected.PUT("/cameras/:id/device/scopes", cameraHandler.SetDeviceScopesHandler)
+	protected.POST("/cameras/:id/device/scopes", cameraHandler.AddDeviceScopesHandler)
+	protected.DELETE("/cameras/:id/device/scopes", cameraHandler.RemoveDeviceScopesHandler)
+	protected.GET("/cameras/:id/device/discovery-mode", cameraHandler.GetDiscoveryModeHandler)
+	protected.PUT("/cameras/:id/device/discovery-mode", cameraHandler.SetDiscoveryModeHandler)
+	protected.GET("/cameras/:id/device/system-log", cameraHandler.GetSystemLogHandler)
+	protected.GET("/cameras/:id/device/support-info", cameraHandler.GetSystemSupportInfoHandler)
 	protected.GET("/cameras/:id/device/network/interfaces", cameraHandler.GetNetworkInterfacesHandler)
+	protected.PUT("/cameras/:id/device/network/interfaces/:token", cameraHandler.SetNetworkInterfaceHandler)
 	protected.GET("/cameras/:id/device/network/protocols", cameraHandler.GetNetworkProtocolsHandler)
 	protected.PUT("/cameras/:id/device/network/protocols", cameraHandler.SetNetworkProtocolsHandler)
 	protected.GET("/cameras/:id/device/network/dns", cameraHandler.GetDNSConfigHandler)
+	protected.PUT("/cameras/:id/device/network/dns", cameraHandler.SetDNSConfigHandler)
 	protected.GET("/cameras/:id/device/network/ntp", cameraHandler.GetNTPConfigHandler)
+	protected.PUT("/cameras/:id/device/network/ntp", cameraHandler.SetNTPConfigHandler)
+	protected.GET("/cameras/:id/device/network/gateway", cameraHandler.GetNetworkDefaultGatewayHandler)
+	protected.PUT("/cameras/:id/device/network/gateway", cameraHandler.SetNetworkDefaultGatewayHandler)
 	protected.GET("/cameras/:id/device/users", cameraHandler.GetDeviceUsersHandler)
 	protected.POST("/cameras/:id/device/users", cameraHandler.CreateDeviceUserHandler)
 	protected.PUT("/cameras/:id/device/users/:username", cameraHandler.UpdateDeviceUserHandler)
@@ -242,8 +275,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/relay-outputs", cameraHandler.GetRelayOutputs)
 	protected.POST("/cameras/:id/relay-outputs/:token/state", cameraHandler.SetRelayOutputState)
 
-	// Audio capabilities.
+	// Audio.
 	protected.GET("/cameras/:id/audio/capabilities", cameraHandler.AudioCapabilities)
+	protected.GET("/cameras/:id/audio/sources", cameraHandler.AudioSources)
+	protected.GET("/cameras/:id/audio/source-configs", cameraHandler.AudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/compatible/:profileToken", cameraHandler.CompatibleAudioSourceConfigs)
+	protected.GET("/cameras/:id/audio/source-configs/:token", cameraHandler.GetAudioSourceConfig)
+	protected.PUT("/cameras/:id/audio/source-configs/:token", cameraHandler.UpdateAudioSourceConfig)
+	protected.GET("/cameras/:id/audio/source-configs/:token/options", cameraHandler.AudioSourceConfigOptions)
+	protected.POST("/cameras/:id/audio/source-configs/add", cameraHandler.AddAudioSourceToProfile)
+	protected.POST("/cameras/:id/audio/source-configs/remove", cameraHandler.RemoveAudioSourceFromProfile)
 
 	// Edge recordings (camera SD card / Profile G).
 	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)
@@ -279,6 +320,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/cameras/:id/analytics/rules/:name", cameraHandler.DeleteAnalyticsRule)
 	protected.GET("/cameras/:id/analytics/modules", cameraHandler.GetAnalyticsModules)
 
+	// Metadata configuration (Profile T).
+	protected.GET("/cameras/:id/metadata/configurations", cameraHandler.GetMetadataConfigurations)
+	protected.GET("/cameras/:id/metadata/configurations/:token", cameraHandler.GetMetadataConfiguration)
+	protected.PUT("/cameras/:id/metadata/configurations/:token", cameraHandler.SetMetadataConfiguration)
+	protected.POST("/cameras/:id/metadata/profile", cameraHandler.AddMetadataToProfile)
+	protected.DELETE("/cameras/:id/metadata/profile/:profileToken", cameraHandler.RemoveMetadataFromProfile)
+
 	// OSD (On-Screen Display) management.
 	protected.GET("/cameras/:id/osd", cameraHandler.GetOSDs)
 	protected.GET("/cameras/:id/osd/options", cameraHandler.GetOSDOptions)
@@ -311,6 +359,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Motion events.
 	protected.GET("/cameras/:id/motion-events", recordingHandler.MotionEvents)
+	protected.GET("/cameras/:id/events", recordingHandler.Events)
 	protected.DELETE("/cameras/:id/events", cameraHandler.PurgeEvents)
 
 	// Saved clips.
@@ -420,6 +469,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/tours/:id", tourHandler.Get)
 	protected.PUT("/tours/:id", tourHandler.Update)
 	protected.DELETE("/tours/:id", tourHandler.Delete)
+
+	// Camera connection resilience.
+	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
+	protected.GET("/cameras/:id/connection", connHandler.GetState)
+	protected.GET("/cameras/:id/connection/history", connHandler.History)
+	protected.GET("/cameras/:id/connection/summary", connHandler.Summary)
+	protected.GET("/cameras/:id/connection/queue", connHandler.QueuedCommands)
+	protected.GET("/connections", connHandler.GetAllStates)
 
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")

@@ -24,17 +24,33 @@ const (
 	EventMotion DetectedEventType = "motion"
 	// EventTampering represents a camera tampering / global scene change event.
 	EventTampering DetectedEventType = "tampering"
+	// EventLineCrossing represents a virtual line crossing detection event.
+	EventLineCrossing DetectedEventType = "line_crossing"
+	// EventIntrusion represents a field/intrusion detection event.
+	EventIntrusion DetectedEventType = "intrusion"
+	// EventLoitering represents a loitering detection event.
+	EventLoitering DetectedEventType = "loitering"
+	// EventObjectCount represents an object counting event.
+	EventObjectCount DetectedEventType = "object_count"
+	// EventDigitalInput represents a digital input trigger event.
+	EventDigitalInput DetectedEventType = "digital_input"
+	// EventSignalLoss represents a video signal loss event.
+	EventSignalLoss DetectedEventType = "signal_loss"
+	// EventHardwareFailure represents a hardware failure event.
+	EventHardwareFailure DetectedEventType = "hardware_failure"
+	// EventRelay represents a relay output event.
+	EventRelay DetectedEventType = "relay"
 )
 
 // DetectedEvent carries the type and active state of a single ONVIF event.
 type DetectedEvent struct {
-	Type   DetectedEventType
-	Active bool
+	Type     DetectedEventType
+	Active   bool
+	Metadata map[string]string // optional key-value metadata (e.g., direction, count)
 }
 
 // EventCallback is invoked when an ONVIF event is detected.
-// eventType indicates the kind of event, active indicates whether it started or stopped.
-type EventCallback func(eventType DetectedEventType, active bool)
+type EventCallback func(event DetectedEvent)
 
 // EventSubscriber manages an ONVIF WS-BaseNotification subscription where the
 // camera pushes events to the NVR via HTTP POST (no polling).
@@ -203,7 +219,7 @@ func (es *EventSubscriber) HandleNotification(body []byte) {
 	}
 	for _, evt := range events {
 		log.Printf("onvif events [%s]: %s=%v (push)", es.xaddr, evt.Type, evt.Active)
-		es.callback(evt.Type, evt.Active)
+		es.callback(evt)
 	}
 }
 
@@ -243,7 +259,7 @@ func (es *EventSubscriber) fallbackPullPoint(ctx context.Context) error {
 			}
 			for _, evt := range events {
 				log.Printf("onvif events [%s]: %s=%v (poll)", es.xaddr, evt.Type, evt.Active)
-				es.callback(evt.Type, evt.Active)
+				es.callback(evt)
 			}
 		}
 	}
@@ -520,11 +536,37 @@ func classifyTopic(topic string) (DetectedEventType, bool) {
 	if strings.Contains(lower, "globalscenechange") || strings.Contains(lower, "tamper") {
 		return EventTampering, true
 	}
+	if strings.Contains(lower, "linecrossing") || strings.Contains(lower, "linecounter") {
+		return EventLineCrossing, true
+	}
+	if strings.Contains(lower, "fielddetect") || strings.Contains(lower, "intrusiondetect") {
+		return EventIntrusion, true
+	}
+	if strings.Contains(lower, "loitering") {
+		return EventLoitering, true
+	}
+	if strings.Contains(lower, "objectcount") || strings.Contains(lower, "counting") {
+		return EventObjectCount, true
+	}
+	if strings.Contains(lower, "digitalinput") || strings.Contains(lower, "digital_input") || strings.Contains(lower, "logicalstate") {
+		return EventDigitalInput, true
+	}
+	if strings.Contains(lower, "signalloss") || strings.Contains(lower, "videoloss") {
+		return EventSignalLoss, true
+	}
+	// processorusage is grouped here because ONVIF cameras emit it as a threshold-exceeded alert
+	// indicating the device is under stress, which maps closest to hardware failure.
+	if strings.Contains(lower, "hardwarefailure") || strings.Contains(lower, "processorusage") {
+		return EventHardwareFailure, true
+	}
+	if strings.Contains(lower, "relay") || strings.Contains(lower, "digitaloutput") {
+		return EventRelay, true
+	}
 	return "", false
 }
 
 // parseEvents scans PullMessages or Notify responses for all recognized events.
-// It returns ALL detected events (motion, tampering, etc.), not just the first match.
+// It returns ALL detected events (motion, tampering, analytics, etc.).
 func parseEvents(body []byte) ([]DetectedEvent, error) {
 	var env soapEnvelope
 	if err := xml.Unmarshal(body, &env); err != nil {
@@ -544,21 +586,143 @@ func parseEvents(body []byte) ([]DetectedEvent, error) {
 			continue
 		}
 
-		for _, item := range msg.Message.InnerMessage.Data.SimpleItems {
-			nameLower := strings.ToLower(item.Name)
-			if nameLower == "ismotion" || nameLower == "state" {
-				valueLower := strings.ToLower(strings.TrimSpace(item.Value))
-				active := valueLower == "true" || valueLower == "1"
-				detected = append(detected, DetectedEvent{
-					Type:   eventType,
-					Active: active,
-				})
-				break // one state per message
+		items := msg.Message.InnerMessage.Data.SimpleItems
+
+		switch eventType {
+		case EventObjectCount:
+			evt := DetectedEvent{Type: eventType, Metadata: make(map[string]string)}
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "count" || nameLower == "objectcount" {
+					evt.Metadata["count"] = item.Value
+					count := 0
+					fmt.Sscanf(item.Value, "%d", &count)
+					evt.Active = count > 0
+				}
+			}
+			// If no count property found, treat as active (camera-dependent).
+			if _, hasCount := evt.Metadata["count"]; !hasCount {
+				evt.Active = true
+			}
+			detected = append(detected, evt)
+
+		case EventLineCrossing:
+			evt := DetectedEvent{Type: eventType, Metadata: make(map[string]string)}
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "state" || nameLower == "ismotion" {
+					valueLower := strings.ToLower(strings.TrimSpace(item.Value))
+					evt.Active = valueLower == "true" || valueLower == "1"
+				}
+				if nameLower == "direction" {
+					evt.Metadata["direction"] = item.Value
+				}
+			}
+			detected = append(detected, evt)
+
+		default:
+			// Motion, tampering, intrusion, loitering — standard state-based.
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "ismotion" || nameLower == "state" {
+					valueLower := strings.ToLower(strings.TrimSpace(item.Value))
+					active := valueLower == "true" || valueLower == "1"
+					detected = append(detected, DetectedEvent{
+						Type:   eventType,
+						Active: active,
+					})
+					break
+				}
 			}
 		}
 	}
 
 	return detected, nil
+}
+
+// GetEventProperties sends the GetEventProperties SOAP request and returns
+// the list of event types the camera supports, as determined by its TopicSet.
+func (es *EventSubscriber) GetEventProperties(ctx context.Context) ([]DetectedEventType, error) {
+	body := `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:tev="http://www.onvif.org/ver10/events/wsdl">
+  <s:Header></s:Header>
+  <s:Body>
+    <tev:GetEventProperties/>
+  </s:Body>
+</s:Envelope>`
+
+	respBody, err := es.doSOAP(ctx, es.eventServiceURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("GetEventProperties: %w", err)
+	}
+
+	return parseEventProperties(respBody)
+}
+
+// GetEventPropertiesFromURL sends GetEventProperties to an arbitrary event
+// service URL with the given credentials. This is used during probe when no
+// EventSubscriber exists yet.
+func GetEventPropertiesFromURL(ctx context.Context, eventServiceURL, username, password string) ([]DetectedEventType, error) {
+	es := &EventSubscriber{
+		eventServiceURL: eventServiceURL,
+		username:        username,
+		password:        password,
+		client:          &http.Client{Timeout: 10 * time.Second},
+	}
+	return es.GetEventProperties(ctx)
+}
+
+// parseEventProperties extracts supported event topics from a
+// GetEventPropertiesResponse. It walks the TopicSet XML tree, building
+// slash-separated paths from element names, and classifies each path.
+func parseEventProperties(body []byte) ([]DetectedEventType, error) {
+	type genericElement struct {
+		XMLName  xml.Name
+		Children []genericElement `xml:",any"`
+	}
+
+	type topicSetEnvelope struct {
+		XMLName xml.Name `xml:"Envelope"`
+		Body    struct {
+			Response struct {
+				TopicSet genericElement `xml:"TopicSet"`
+			} `xml:"GetEventPropertiesResponse"`
+		} `xml:"Body"`
+	}
+
+	var env topicSetEnvelope
+	if err := xml.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("parse GetEventPropertiesResponse: %w", err)
+	}
+
+	seen := make(map[DetectedEventType]bool)
+	var topics []DetectedEventType
+
+	var walk func(el genericElement, path string)
+	walk = func(el genericElement, path string) {
+		current := path
+		if el.XMLName.Local != "" && el.XMLName.Local != "TopicSet" {
+			if current != "" {
+				current += "/"
+			}
+			current += el.XMLName.Local
+		}
+
+		if current != "" {
+			if evtType, ok := classifyTopic(current); ok && !seen[evtType] {
+				seen[evtType] = true
+				topics = append(topics, evtType)
+			}
+		}
+
+		for _, child := range el.Children {
+			walk(child, current)
+		}
+	}
+
+	walk(env.Body.Response.TopicSet, "")
+	return topics, nil
 }
 
 func truncate(s string, maxLen int) string {

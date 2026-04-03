@@ -278,3 +278,104 @@ func TestDetections(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w3.Code)
 }
+
+func TestRotateCredentials_CameraNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "nonexistent"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"admin","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRotateCredentials_NoONVIFEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a camera without ONVIF endpoint.
+	cam := &db.Camera{
+		ID:           "cam-no-onvif",
+		Name:         "No ONVIF",
+		RTSPURL:      "rtsp://192.168.1.100/stream",
+		MediaMTXPath: "cam-no-onvif",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-no-onvif"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"admin","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "no ONVIF endpoint")
+}
+
+func TestRotateCredentials_EmptyCredentials(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	cam := &db.Camera{
+		ID:            "cam-empty-creds",
+		Name:          "Test Cam",
+		ONVIFEndpoint: "http://192.168.1.100:80/onvif/device_service",
+		MediaMTXPath:  "cam-empty-creds",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-empty-creds"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "at least one of username or password")
+}
+
+func TestRotateCredentials_ProbeFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a camera with an unreachable ONVIF endpoint — probe will fail.
+	cam := &db.Camera{
+		ID:            "cam-probe-fail",
+		Name:          "Probe Fail",
+		ONVIFEndpoint: "http://127.0.0.1:1/onvif/device_service", // port 1 — connection refused immediately
+		ONVIFUsername: "olduser",
+		ONVIFPassword: "oldpass",
+		MediaMTXPath:  "cam-probe-fail",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-probe-fail"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"newuser","password":"newpass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "failed ONVIF authentication")
+
+	// Verify old credentials are unchanged.
+	updated, err := handler.DB.GetCamera("cam-probe-fail")
+	require.NoError(t, err)
+	assert.Equal(t, "olduser", updated.ONVIFUsername)
+	assert.Equal(t, "oldpass", updated.ONVIFPassword)
+}

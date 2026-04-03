@@ -73,6 +73,43 @@ type Range struct {
 	Max int `json:"max"`
 }
 
+// VideoSourceConfig holds a video source configuration from the device.
+type VideoSourceConfig struct {
+	Token       string        `json:"token"`
+	Name        string        `json:"name"`
+	SourceToken string        `json:"source_token"`
+	Bounds      *IntRectangle `json:"bounds,omitempty"`
+}
+
+// IntRectangle represents a rectangle with position and dimensions.
+type IntRectangle struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// VideoSourceConfigOptions holds the available options for a video source configuration.
+type VideoSourceConfigOptions struct {
+	BoundsRange             *IntRectangleRange `json:"bounds_range,omitempty"`
+	MaximumNumberOfProfiles int                `json:"maximum_number_of_profiles,omitempty"`
+}
+
+// IntRectangleRange represents min/max ranges for each rectangle dimension.
+type IntRectangleRange struct {
+	XRange      Range `json:"x_range"`
+	YRange      Range `json:"y_range"`
+	WidthRange  Range `json:"width_range"`
+	HeightRange Range `json:"height_range"`
+}
+
+// AudioSourceConfig holds an audio source configuration from the device.
+type AudioSourceConfig struct {
+	Token       string `json:"token"`
+	Name        string `json:"name"`
+	SourceToken string `json:"source_token"`
+}
+
 type PTZConfigInfo struct {
 	Token     string `json:"token"`
 	Name      string `json:"name"`
@@ -391,4 +428,92 @@ func RemoveAudioEncoderFromProfile(xaddr, username, password, profileToken strin
 		return fmt.Errorf("remove audio encoder from profile: %w", err)
 	}
 	return nil
+}
+
+// --- Media2 public wrappers ---
+
+// CreateMedia2Profile creates a new media profile via Media2.
+func CreateMedia2Profile(xaddr, username, password, name string) (*ProfileInfo, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	token, retName, err := CreateProfile2(client, name)
+	if err != nil {
+		return nil, err
+	}
+	return &ProfileInfo{Token: token, Name: retName}, nil
+}
+
+// DeleteMedia2Profile deletes a media profile via Media2.
+func DeleteMedia2Profile(xaddr, username, password, token string) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+	return DeleteProfile2(client, token)
+}
+
+// AddMedia2Configuration adds a configuration to a profile via Media2.
+func AddMedia2Configuration(xaddr, username, password, profileToken, configType, configToken string) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+	return AddConfiguration2(client, profileToken, configType, configToken)
+}
+
+// RemoveMedia2Configuration removes a configuration from a profile via Media2.
+func RemoveMedia2Configuration(xaddr, username, password, profileToken, configType, configToken string) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+	return RemoveConfiguration2(client, profileToken, configType, configToken)
+}
+
+// GetVideoSourceConfigs returns all video source configurations via Media2.
+func GetVideoSourceConfigs(xaddr, username, password string) ([]VideoSourceConfig, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+	return GetVideoSourceConfigurations2(client)
+}
+
+// SetVideoSourceConfig updates a video source configuration via Media2.
+func SetVideoSourceConfig(xaddr, username, password string, cfg *VideoSourceConfig) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+	return SetVideoSourceConfiguration2(client, cfg)
+}
+
+// GetVideoSourceConfigOpts returns the available options for a video source configuration via Media2.
+func GetVideoSourceConfigOpts(xaddr, username, password, configToken, profileToken string) (*VideoSourceConfigOptions, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+	return GetVideoSourceConfigurationOptions2(client, configToken, profileToken)
+}
+
+// GetAudioSourceConfigs returns all audio source configurations via Media2.
+func GetAudioSourceConfigs(xaddr, username, password string) ([]AudioSourceConfig, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+	return GetAudioSourceConfigurations2(client)
+}
+
+// SetAudioSourceConfig updates an audio source configuration via Media2.
+func SetAudioSourceConfig(xaddr, username, password string, cfg *AudioSourceConfig) error {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return err
+	}
+	return SetAudioSourceConfiguration2(client, cfg)
 }

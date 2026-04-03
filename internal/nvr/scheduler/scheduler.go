@@ -1044,6 +1044,42 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 			} else {
 				_ = s.db.EndMotionEvent(camID, now)
 			}
+		case onvif.EventLineCrossing, onvif.EventIntrusion, onvif.EventLoitering, onvif.EventObjectCount:
+			// Analytics events: drive recording like motion and persist to DB.
+			s.mu.Lock()
+			for sk, msm := range s.motionSMs {
+				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
+					msm.OnMotion(active)
+				}
+			}
+			s.mu.Unlock()
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			evtType := string(eventType)
+			if active {
+				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
+				if !s.db.HasOpenMotionEvent(camID) {
+					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+						CameraID:  camID,
+						StartedAt: now,
+						EventType: evtType,
+					})
+				}
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventLineCrossing:
+						s.eventPub.PublishLineCrossing(cam.Name)
+					case onvif.EventIntrusion:
+						s.eventPub.PublishIntrusion(cam.Name)
+					case onvif.EventLoitering:
+						s.eventPub.PublishLoitering(cam.Name)
+					case onvif.EventObjectCount:
+						s.eventPub.PublishObjectCount(cam.Name, 0)
+					}
+				}
+			} else {
+				s.CancelMotionTimer(camID)
+				_ = s.db.EndMotionEvent(camID, now)
+			}
 		}
 	}
 	sub, err := onvif.NewEventSubscriber(cam.ONVIFEndpoint, cam.ONVIFUsername, s.decryptPassword(cam.ONVIFPassword), s.callbackURL(camID), eventCallback)
@@ -1159,6 +1195,41 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 					s.eventPub.PublishTampering(cam.Name)
 				}
 			} else {
+				_ = s.db.EndMotionEvent(cam.ID, now)
+			}
+		case onvif.EventLineCrossing, onvif.EventIntrusion, onvif.EventLoitering, onvif.EventObjectCount:
+			s.mu.Lock()
+			for sk, msm := range s.motionSMs {
+				if sk == cam.ID || strings.HasPrefix(sk, cam.ID+":") {
+					msm.OnMotion(active)
+				}
+			}
+			s.mu.Unlock()
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			evtType := string(eventType)
+			if active {
+				s.StartMotionTimer(cam.ID, cam.MotionTimeoutSeconds)
+				if !s.db.HasOpenMotionEvent(cam.ID) {
+					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+						CameraID:  cam.ID,
+						StartedAt: now,
+						EventType: evtType,
+					})
+				}
+				if s.eventPub != nil {
+					switch eventType {
+					case onvif.EventLineCrossing:
+						s.eventPub.PublishLineCrossing(cam.Name)
+					case onvif.EventIntrusion:
+						s.eventPub.PublishIntrusion(cam.Name)
+					case onvif.EventLoitering:
+						s.eventPub.PublishLoitering(cam.Name)
+					case onvif.EventObjectCount:
+						s.eventPub.PublishObjectCount(cam.Name, 0)
+					}
+				}
+			} else {
+				s.CancelMotionTimer(cam.ID)
 				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
 		}

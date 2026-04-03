@@ -27,6 +27,10 @@ import (
 type EventPublisher interface {
 	PublishMotion(cameraName string)
 	PublishTampering(cameraName string)
+	PublishLineCrossing(cameraName string)
+	PublishIntrusion(cameraName string)
+	PublishLoitering(cameraName string)
+	PublishObjectCount(cameraName string, count int)
 	PublishCameraOffline(cameraName string)
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)

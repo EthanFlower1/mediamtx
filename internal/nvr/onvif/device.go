@@ -58,9 +58,13 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 // ProbeResult holds profiles, snapshot URI, and capability flags returned
 // by a full device probe.
 type ProbeResult struct {
-	Profiles     []MediaProfile `json:"profiles"`
-	SnapshotURI  string         `json:"snapshot_uri,omitempty"`
-	Capabilities Capabilities   `json:"capabilities"`
+	Profiles             []MediaProfile        `json:"profiles"`
+	VideoSources         []*VideoSourceInfo    `json:"video_sources,omitempty"`
+	SnapshotURI          string                `json:"snapshot_uri,omitempty"`
+	Capabilities         Capabilities          `json:"capabilities"`
+	ServiceInfos         []ServiceInfo         `json:"service_infos,omitempty"`
+	DetailedCapabilities *DetailedCapabilities `json:"detailed_capabilities,omitempty"`
+	SupportedEventTopics []DetectedEventType   `json:"supported_event_topics,omitempty"`
 }
 
 // ProbeDeviceFull connects to an ONVIF device and returns its media profiles,
@@ -73,7 +77,9 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 	}
 
 	result := &ProbeResult{
-		Capabilities: client.GetCapabilities(),
+		Capabilities:         client.GetCapabilities(),
+		ServiceInfos:         client.ServiceInfos,
+		DetailedCapabilities: client.DetailedCapabilities,
 	}
 
 	// Get profiles + stream URIs using Media2-first auto-detection.
@@ -86,6 +92,20 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 		log.Printf("onvif probe [%s]: WARNING: 0 profiles returned (camera may not support GetProfiles or auth failed)", xaddr)
 	}
 	result.Profiles = profiles
+
+	// Get video sources for multi-channel detection.
+	ctx2 := context.Background()
+	sources, err := client.Dev.GetVideoSources(ctx2)
+	if err == nil && len(sources) > 0 {
+		for _, s := range sources {
+			vs := &VideoSourceInfo{Token: s.Token, Framerate: s.Framerate}
+			if s.Resolution != nil {
+				vs.Width = s.Resolution.Width
+				vs.Height = s.Resolution.Height
+			}
+			result.VideoSources = append(result.VideoSources, vs)
+		}
+	}
 
 	if usedMedia2 {
 		log.Printf("onvif probe [%s]: used Media2 service", xaddr)
@@ -117,6 +137,22 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 		result.Capabilities.AudioBackchannel = true
 	}
 
+	// Discover supported event topics via GetEventProperties.
+	if result.Capabilities.Events {
+		eventURL := client.ServiceURL("events")
+		if eventURL == "" {
+			eventURL = client.ServiceURL("event")
+		}
+		if eventURL != "" {
+			topics, err := GetEventPropertiesFromURL(ctx, eventURL, username, password)
+			if err != nil {
+				log.Printf("onvif probe [%s]: GetEventProperties failed: %v", xaddr, err)
+			} else {
+				result.SupportedEventTopics = topics
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -125,6 +161,9 @@ func profileToMediaProfile(p *onvifgo.Profile) MediaProfile {
 	mp := MediaProfile{
 		Token: p.Token,
 		Name:  p.Name,
+	}
+	if p.VideoSourceConfiguration != nil {
+		mp.VideoSourceToken = p.VideoSourceConfiguration.SourceToken
 	}
 	if p.VideoEncoderConfiguration != nil {
 		mp.VideoCodec = p.VideoEncoderConfiguration.Encoding

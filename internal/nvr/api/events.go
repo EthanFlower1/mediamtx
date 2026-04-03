@@ -28,7 +28,7 @@ type DetectionData struct {
 
 // Event represents a system event that is broadcast to SSE clients.
 type Event struct {
-	Type       string          `json:"type"`    // "motion", "camera_offline", "camera_online", "recording_started", "recording_stopped", "recording_stalled", "recording_recovered", "recording_failed", "detection_frame"
+	Type       string          `json:"type"`    // "motion", "tampering", "line_crossing", "intrusion", "loitering", "object_count", "camera_offline", "camera_online", "recording_started", "recording_stopped", "recording_stalled", "recording_recovered", "recording_failed", "detection_frame"
 	Camera     string          `json:"camera"`  // camera name
 	Message    string          `json:"message"`
 	Time       string          `json:"time"`
@@ -133,6 +133,94 @@ func (b *EventBroadcaster) PublishTampering(cameraName string) {
 		Type:    "tampering",
 		Camera:  cameraName,
 		Message: fmt.Sprintf("Tampering detected on %s", cameraName),
+	})
+}
+
+// PublishLineCrossing publishes a line-crossing detection event.
+func (b *EventBroadcaster) PublishLineCrossing(cameraName string) {
+	b.Publish(Event{
+		Type:    "line_crossing",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Line crossing detected on %s", cameraName),
+	})
+}
+
+// PublishIntrusion publishes a field/intrusion detection event.
+func (b *EventBroadcaster) PublishIntrusion(cameraName string) {
+	b.Publish(Event{
+		Type:    "intrusion",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Intrusion detected on %s", cameraName),
+	})
+}
+
+// PublishLoitering publishes a loitering detection event.
+func (b *EventBroadcaster) PublishLoitering(cameraName string) {
+	b.Publish(Event{
+		Type:    "loitering",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Loitering detected on %s", cameraName),
+	})
+}
+
+// PublishObjectCount publishes an object counting event.
+func (b *EventBroadcaster) PublishObjectCount(cameraName string, count int) {
+	b.Publish(Event{
+		Type:    "object_count",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Object count on %s: %d", cameraName, count),
+	})
+}
+
+// PublishDigitalInput publishes a digital-input event for the given camera.
+func (b *EventBroadcaster) PublishDigitalInput(cameraName string, active bool) {
+	action := "triggered"
+	if !active {
+		action = "cleared"
+	}
+	b.Publish(Event{
+		Type:    "digital_input",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Digital input %s on %s", action, cameraName),
+	})
+}
+
+// PublishSignalLoss publishes a signal-loss event for the given camera.
+func (b *EventBroadcaster) PublishSignalLoss(cameraName string, active bool) {
+	action := "detected"
+	if !active {
+		action = "recovered"
+	}
+	b.Publish(Event{
+		Type:    "signal_loss",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Signal loss %s on %s", action, cameraName),
+	})
+}
+
+// PublishHardwareFailure publishes a hardware-failure event for the given camera.
+func (b *EventBroadcaster) PublishHardwareFailure(cameraName string, active bool) {
+	action := "detected"
+	if !active {
+		action = "cleared"
+	}
+	b.Publish(Event{
+		Type:    "hardware_failure",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Hardware failure %s on %s", action, cameraName),
+	})
+}
+
+// PublishRelay publishes a relay-output event for the given camera.
+func (b *EventBroadcaster) PublishRelay(cameraName string, active bool) {
+	action := "activated"
+	if !active {
+		action = "deactivated"
+	}
+	b.Publish(Event{
+		Type:    "relay",
+		Camera:  cameraName,
+		Message: fmt.Sprintf("Relay %s on %s", action, cameraName),
 	})
 }
 

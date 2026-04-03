@@ -1422,14 +1422,6 @@ func (h *CameraHandler) AudioCapabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, caps)
 }
 
-// imagingSettingsRequest is the JSON body for updating camera imaging settings.
-type imagingSettingsRequest struct {
-	Brightness float64 `json:"brightness"`
-	Contrast   float64 `json:"contrast"`
-	Saturation float64 `json:"saturation"`
-	Sharpness  float64 `json:"sharpness"`
-}
-
 // UpdateSettings applies imaging settings to a camera via ONVIF.
 func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 	id := c.Param("id")
@@ -1449,8 +1441,8 @@ func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
-	var req imagingSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var settings onvif.ImagingSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
@@ -1460,20 +1452,185 @@ func (h *CameraHandler) UpdateSettings(c *gin.Context) {
 		videoSourceToken = "000"
 	}
 
-	settings := &onvif.ImagingSettings{
-		Brightness: req.Brightness,
-		Contrast:   req.Contrast,
-		Saturation: req.Saturation,
-		Sharpness:  req.Sharpness,
-	}
-
-	if err := onvif.SetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), videoSourceToken, settings); err != nil {
+	if err := onvif.SetImagingSettings(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), videoSourceToken, &settings); err != nil {
 		nvrLogError("imaging", fmt.Sprintf("failed to apply imaging settings for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF device unreachable or settings update failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, settings)
+}
+
+// GetImagingOptions returns the valid ranges and modes for all imaging settings.
+//
+//	GET /cameras/:id/settings/options
+func (h *CameraHandler) GetImagingOptions(c *gin.Context) {
+	cam, password, ok := h.resolveONVIFCamera(c)
+	if !ok {
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	options, err := onvif.GetImagingOptions(cam.ONVIFEndpoint, cam.ONVIFUsername, password, videoSourceToken)
+	if err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support ONVIF imaging service"})
+			return
+		}
+		nvrLogError("imaging", fmt.Sprintf("failed to get imaging options for camera %s", cam.ID), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get imaging options"})
+		return
+	}
+
+	c.JSON(http.StatusOK, options)
+}
+
+// GetImagingStatus returns the current imaging status (focus position, movement state).
+//
+//	GET /cameras/:id/settings/status
+func (h *CameraHandler) GetImagingStatus(c *gin.Context) {
+	cam, password, ok := h.resolveONVIFCamera(c)
+	if !ok {
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	status, err := onvif.GetImagingStatus(cam.ONVIFEndpoint, cam.ONVIFUsername, password, videoSourceToken)
+	if err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support ONVIF imaging service"})
+			return
+		}
+		nvrLogError("imaging", fmt.Sprintf("failed to get imaging status for camera %s", cam.ID), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get imaging status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, status)
+}
+
+// GetFocusMoveOptions returns what kinds of focus movements the camera supports.
+//
+//	GET /cameras/:id/settings/focus/move-options
+func (h *CameraHandler) GetFocusMoveOptions(c *gin.Context) {
+	cam, password, ok := h.resolveONVIFCamera(c)
+	if !ok {
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	options, err := onvif.GetImagingMoveOptions(cam.ONVIFEndpoint, cam.ONVIFUsername, password, videoSourceToken)
+	if err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support ONVIF imaging service"})
+			return
+		}
+		nvrLogError("imaging", fmt.Sprintf("failed to get focus move options for camera %s", cam.ID), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get focus move options"})
+		return
+	}
+
+	c.JSON(http.StatusOK, options)
+}
+
+// MoveFocus issues a focus move command to the camera.
+//
+//	POST /cameras/:id/settings/focus/move
+func (h *CameraHandler) MoveFocus(c *gin.Context) {
+	cam, password, ok := h.resolveONVIFCamera(c)
+	if !ok {
+		return
+	}
+
+	var req onvif.FocusMoveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	if req.Absolute == nil && req.Relative == nil && req.Continuous == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one of absolute, relative, or continuous must be provided"})
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	if err := onvif.MoveFocus(cam.ONVIFEndpoint, cam.ONVIFUsername, password, videoSourceToken, &req); err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support ONVIF imaging service"})
+			return
+		}
+		nvrLogError("imaging", fmt.Sprintf("failed to move focus for camera %s", cam.ID), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to move focus"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// StopFocus stops any in-progress focus movement.
+//
+//	POST /cameras/:id/settings/focus/stop
+func (h *CameraHandler) StopFocus(c *gin.Context) {
+	cam, password, ok := h.resolveONVIFCamera(c)
+	if !ok {
+		return
+	}
+
+	videoSourceToken := cam.ONVIFProfileToken
+	if videoSourceToken == "" {
+		videoSourceToken = "000"
+	}
+
+	if err := onvif.StopFocus(cam.ONVIFEndpoint, cam.ONVIFUsername, password, videoSourceToken); err != nil {
+		if errors.Is(err, onvif.ErrImagingNotSupported) {
+			c.JSON(http.StatusNotImplemented, gin.H{"error": "camera does not support ONVIF imaging service"})
+			return
+		}
+		nvrLogError("imaging", fmt.Sprintf("failed to stop focus for camera %s", cam.ID), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to stop focus"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// resolveONVIFCamera is a helper that loads a camera by :id param, checks for ONVIF
+// endpoint, and decrypts the password. Returns false if it already wrote an error response.
+func (h *CameraHandler) resolveONVIFCamera(c *gin.Context) (*db.Camera, string, bool) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return nil, "", false
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return nil, "", false
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return nil, "", false
+	}
+
+	return cam, h.decryptPassword(cam.ONVIFPassword), true
 }
 
 // --- Analytics Rule Configuration API ---

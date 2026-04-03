@@ -287,11 +287,63 @@ func (h *CameraHandler) List(c *gin.Context) {
 		}
 	}
 
+	if c.Query("group_by") == "device" {
+		h.listGroupedByDevice(c, cameras)
+		return
+	}
+
 	responses := make([]cameraWithStreams, 0, len(cameras))
 	for _, cam := range cameras {
 		responses = append(responses, h.buildCameraWithStreams(cam))
 	}
 	c.JSON(http.StatusOK, responses)
+}
+
+type groupedDeviceEntry struct {
+	db.Device
+	Cameras []cameraWithStreams `json:"cameras"`
+}
+
+type groupedResponse struct {
+	Devices    []groupedDeviceEntry `json:"devices"`
+	Standalone []cameraWithStreams   `json:"standalone"`
+}
+
+func (h *CameraHandler) listGroupedByDevice(c *gin.Context, cameras []*db.Camera) {
+	deviceCameras := make(map[string][]*db.Camera)
+	var standalone []*db.Camera
+
+	for _, cam := range cameras {
+		if cam.DeviceID != "" {
+			deviceCameras[cam.DeviceID] = append(deviceCameras[cam.DeviceID], cam)
+		} else {
+			standalone = append(standalone, cam)
+		}
+	}
+
+	deviceEntries := make([]groupedDeviceEntry, 0, len(deviceCameras))
+	for deviceID, cams := range deviceCameras {
+		dev, err := h.DB.GetDevice(deviceID)
+		if err != nil {
+			continue
+		}
+		entry := groupedDeviceEntry{Device: *dev}
+		entry.Cameras = make([]cameraWithStreams, 0, len(cams))
+		for _, cam := range cams {
+			entry.Cameras = append(entry.Cameras, h.buildCameraWithStreams(cam))
+		}
+		deviceEntries = append(deviceEntries, entry)
+	}
+
+	standaloneResponses := make([]cameraWithStreams, 0, len(standalone))
+	for _, cam := range standalone {
+		standaloneResponses = append(standaloneResponses, h.buildCameraWithStreams(cam))
+	}
+
+	c.JSON(http.StatusOK, groupedResponse{
+		Devices:    deviceEntries,
+		Standalone: standaloneResponses,
+	})
 }
 
 // getPathStatuses fetches all paths from MediaMTX in one call and returns a

@@ -279,6 +279,47 @@ func TestDetections(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w3.Code)
 }
 
+func TestCameraListGroupByDevice(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a device with 2 cameras.
+	dev := &db.Device{Name: "Multi", ONVIFEndpoint: "http://x", ChannelCount: 2}
+	require.NoError(t, handler.DB.CreateDevice(dev))
+
+	cam1 := &db.Camera{Name: "Ch1", RTSPURL: "rtsp://x/ch1", MediaMTXPath: "nvr/c1/main", DeviceID: dev.ID, ChannelIndex: intPtr(0)}
+	cam2 := &db.Camera{Name: "Ch2", RTSPURL: "rtsp://x/ch2", MediaMTXPath: "nvr/c2/main", DeviceID: dev.ID, ChannelIndex: intPtr(1)}
+	require.NoError(t, handler.DB.CreateCamera(cam1))
+	require.NoError(t, handler.DB.CreateCamera(cam2))
+
+	// Create a standalone camera.
+	cam3 := &db.Camera{Name: "Standalone", RTSPURL: "rtsp://y", MediaMTXPath: "nvr/c3/main"}
+	require.NoError(t, handler.DB.CreateCamera(cam3))
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/cameras", handler.List)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/cameras?group_by=device", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var result struct {
+		Devices    []map[string]interface{} `json:"devices"`
+		Standalone []map[string]interface{} `json:"standalone"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+	require.Len(t, result.Devices, 1)
+	require.Len(t, result.Standalone, 1)
+
+	deviceEntry := result.Devices[0]
+	deviceCameras := deviceEntry["cameras"].([]interface{})
+	assert.Len(t, deviceCameras, 2)
+	assert.Equal(t, dev.ID, deviceEntry["id"])
+}
+
 func TestCreateMultiChannelCamera(t *testing.T) {
 	handler, cleanup := setupCameraTest(t)
 	defer cleanup()

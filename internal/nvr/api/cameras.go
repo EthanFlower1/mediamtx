@@ -1376,6 +1376,279 @@ func (h *CameraHandler) AudioCapabilities(c *gin.Context) {
 	c.JSON(http.StatusOK, caps)
 }
 
+// AudioSources returns all audio sources (microphones) on the camera.
+//
+//	GET /cameras/:id/audio/sources
+func (h *CameraHandler) AudioSources(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	sources, err := onvif.GetAudioSources(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get audio sources for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio sources from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, sources)
+}
+
+// AudioSourceConfigs returns all audio source configurations from the camera.
+//
+//	GET /cameras/:id/audio/source-configs
+func (h *CameraHandler) AudioSourceConfigs(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	configs, err := onvif.GetAudioSourceConfigurations(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get audio source configs for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio source configurations from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, configs)
+}
+
+// GetAudioSourceConfig returns a specific audio source configuration.
+//
+//	GET /cameras/:id/audio/source-configs/:token
+func (h *CameraHandler) GetAudioSourceConfig(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	cfg, err := onvif.GetAudioSourceConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token)
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get audio source config %s for camera %s", token, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio source configuration from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, cfg)
+}
+
+// AudioSourceConfigOptions returns the available options for an audio source configuration.
+//
+//	GET /cameras/:id/audio/source-configs/:token/options
+func (h *CameraHandler) AudioSourceConfigOptions(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	opts, err := onvif.GetAudioSourceConfigOptions(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), token, "")
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get audio source config options for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get audio source configuration options from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, opts)
+}
+
+// CompatibleAudioSourceConfigs returns audio source configurations compatible with a profile.
+//
+//	GET /cameras/:id/audio/source-configs/compatible/:profileToken
+func (h *CameraHandler) CompatibleAudioSourceConfigs(c *gin.Context) {
+	id := c.Param("id")
+	profileToken := c.Param("profileToken")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	configs, err := onvif.GetCompatibleAudioSourceConfigs(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), profileToken)
+	if err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to get compatible audio source configs for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get compatible audio source configurations from device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, configs)
+}
+
+// UpdateAudioSourceConfig updates an audio source configuration on the camera.
+//
+//	PUT /cameras/:id/audio/source-configs/:token
+func (h *CameraHandler) UpdateAudioSourceConfig(c *gin.Context) {
+	id := c.Param("id")
+	token := c.Param("token")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req onvif.AudioSourceConfig
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	req.Token = token
+
+	if err := onvif.SetAudioSourceConfiguration(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), &req); err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to set audio source config %s for camera %s", token, id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to update audio source configuration on device"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// AddAudioSourceToProfile adds an audio source configuration to a media profile.
+//
+//	POST /cameras/:id/audio/source-configs/add
+func (h *CameraHandler) AddAudioSourceToProfile(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req struct {
+		ProfileToken string `json:"profile_token"`
+		ConfigToken  string `json:"config_token"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.ProfileToken == "" || req.ConfigToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "profile_token and config_token are required"})
+		return
+	}
+
+	if err := onvif.AddAudioSourceToProfile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.ProfileToken, req.ConfigToken); err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to add audio source to profile for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to add audio source configuration to profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// RemoveAudioSourceFromProfile removes the audio source configuration from a media profile.
+//
+//	POST /cameras/:id/audio/source-configs/remove
+func (h *CameraHandler) RemoveAudioSourceFromProfile(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	var req struct {
+		ProfileToken string `json:"profile_token"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.ProfileToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "profile_token is required"})
+		return
+	}
+
+	if err := onvif.RemoveAudioSourceFromProfile(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.ProfileToken); err != nil {
+		nvrLogError("audio", fmt.Sprintf("failed to remove audio source from profile for camera %s", id), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to remove audio source configuration from profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 // imagingSettingsRequest is the JSON body for updating camera imaging settings.
 type imagingSettingsRequest struct {
 	Brightness float64 `json:"brightness"`

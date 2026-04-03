@@ -3,6 +3,8 @@ package onvif
 import (
 	"context"
 	"fmt"
+
+	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // AudioCapabilities summarises the audio capabilities of an ONVIF camera.
@@ -81,4 +83,41 @@ func GetAudioSources(xaddr, username, password string) ([]*AudioSourceInfo, erro
 		}
 	}
 	return result, nil
+}
+
+func convertAudioSourceConfigs(configs []*onvifgo.AudioSourceConfiguration) []*AudioSourceConfig {
+	result := make([]*AudioSourceConfig, len(configs))
+	for i, cfg := range configs {
+		result[i] = &AudioSourceConfig{
+			Token:       cfg.Token,
+			Name:        cfg.Name,
+			UseCount:    cfg.UseCount,
+			SourceToken: cfg.SourceToken,
+		}
+	}
+	return result
+}
+
+// GetAudioSourceConfigurations returns all audio source configurations.
+// It tries Media2 first and falls back to Media1.
+func GetAudioSourceConfigurations(xaddr, username, password string) ([]*AudioSourceConfig, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+
+	if client.HasService("media2") {
+		configs, err := client.Dev.GetMedia2AudioSourceConfigurations(ctx, nil, nil)
+		if err == nil {
+			return convertAudioSourceConfigs(configs), nil
+		}
+	}
+
+	configs, err := client.Dev.GetAudioSourceConfigurations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get audio source configurations: %w", err)
+	}
+	return convertAudioSourceConfigs(configs), nil
 }

@@ -278,3 +278,250 @@ func TestDetections(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w3.Code)
 }
+
+func TestCameraListGroupByDevice(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a device with 2 cameras.
+	dev := &db.Device{Name: "Multi", ONVIFEndpoint: "http://x", ChannelCount: 2}
+	require.NoError(t, handler.DB.CreateDevice(dev))
+
+	cam1 := &db.Camera{Name: "Ch1", RTSPURL: "rtsp://x/ch1", MediaMTXPath: "nvr/c1/main", DeviceID: dev.ID, ChannelIndex: intPtr(0)}
+	cam2 := &db.Camera{Name: "Ch2", RTSPURL: "rtsp://x/ch2", MediaMTXPath: "nvr/c2/main", DeviceID: dev.ID, ChannelIndex: intPtr(1)}
+	require.NoError(t, handler.DB.CreateCamera(cam1))
+	require.NoError(t, handler.DB.CreateCamera(cam2))
+
+	// Create a standalone camera.
+	cam3 := &db.Camera{Name: "Standalone", RTSPURL: "rtsp://y", MediaMTXPath: "nvr/c3/main"}
+	require.NoError(t, handler.DB.CreateCamera(cam3))
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/cameras", handler.List)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/cameras?group_by=device", nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var result struct {
+		Devices    []map[string]interface{} `json:"devices"`
+		Standalone []map[string]interface{} `json:"standalone"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+	require.Len(t, result.Devices, 1)
+	require.Len(t, result.Standalone, 1)
+
+	deviceEntry := result.Devices[0]
+	deviceCameras := deviceEntry["cameras"].([]interface{})
+	assert.Len(t, deviceCameras, 2)
+	assert.Equal(t, dev.ID, deviceEntry["id"])
+}
+
+func TestResolveDeviceCredentials(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+	handler.EncryptionKey = []byte("0123456789abcdef0123456789abcdef") // 32-byte AES key
+
+	dev := &db.Device{
+		Name:          "Multi",
+		ONVIFEndpoint: "http://192.168.1.50",
+		ONVIFUsername: "admin",
+		ONVIFPassword: handler.encryptPassword("secret"),
+		ChannelCount:  2,
+	}
+	require.NoError(t, handler.DB.CreateDevice(dev))
+
+	cam := &db.Camera{
+		Name:         "Ch1",
+		RTSPURL:      "rtsp://x",
+		MediaMTXPath: "nvr/c1/main",
+		DeviceID:     dev.ID,
+		ChannelIndex: intPtr(0),
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	endpoint, username, password := handler.resolveONVIFCredentials(cam)
+	assert.Equal(t, "http://192.168.1.50", endpoint)
+	assert.Equal(t, "admin", username)
+	assert.Equal(t, "secret", password)
+}
+
+func TestResolveStandaloneCredentials(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+	handler.EncryptionKey = []byte("0123456789abcdef0123456789abcdef")
+
+	cam := &db.Camera{
+		Name:          "Standalone",
+		RTSPURL:       "rtsp://y",
+		MediaMTXPath:  "nvr/s1/main",
+		ONVIFEndpoint: "http://192.168.1.100",
+		ONVIFUsername: "user",
+		ONVIFPassword: handler.encryptPassword("pwd"),
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	endpoint, username, password := handler.resolveONVIFCredentials(cam)
+	assert.Equal(t, "http://192.168.1.100", endpoint)
+	assert.Equal(t, "user", username)
+	assert.Equal(t, "pwd", password)
+}
+
+func TestCreateMultiChannelCamera(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/cameras/multi-channel", handler.CreateMultiChannel)
+
+	body := `{
+		"device": {
+			"name": "Front Multi-Sensor",
+			"onvif_endpoint": "http://192.168.1.50",
+			"onvif_username": "admin",
+			"onvif_password": "pass"
+		},
+		"channels": [
+			{
+				"name": "Front Left",
+				"rtsp_url": "rtsp://192.168.1.50/ch1",
+				"profiles": [{"name": "Main", "rtsp_url": "rtsp://192.168.1.50/ch1", "video_codec": "H264", "width": 2560, "height": 1440}],
+				"channel_index": 0
+			},
+			{
+				"name": "Front Right",
+				"rtsp_url": "rtsp://192.168.1.50/ch2",
+				"profiles": [{"name": "Main", "rtsp_url": "rtsp://192.168.1.50/ch2", "video_codec": "H264", "width": 2560, "height": 1440}],
+				"channel_index": 1
+			}
+		]
+	}`
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/cameras/multi-channel", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+
+	deviceID, ok := result["device_id"].(string)
+	require.True(t, ok, "response should include device_id")
+	require.NotEmpty(t, deviceID)
+
+	cameras, ok := result["cameras"].([]interface{})
+	require.True(t, ok, "response should include cameras array")
+	require.Len(t, cameras, 2)
+
+	dev, err := handler.DB.GetDevice(deviceID)
+	require.NoError(t, err)
+	require.Equal(t, "Front Multi-Sensor", dev.Name)
+	require.Equal(t, 2, dev.ChannelCount)
+}
+
+func TestRotateCredentials_CameraNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "nonexistent"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"admin","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRotateCredentials_NoONVIFEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a camera without ONVIF endpoint.
+	cam := &db.Camera{
+		ID:           "cam-no-onvif",
+		Name:         "No ONVIF",
+		RTSPURL:      "rtsp://192.168.1.100/stream",
+		MediaMTXPath: "cam-no-onvif",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-no-onvif"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"admin","password":"pass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "no ONVIF endpoint")
+}
+
+func TestRotateCredentials_EmptyCredentials(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	cam := &db.Camera{
+		ID:            "cam-empty-creds",
+		Name:          "Test Cam",
+		ONVIFEndpoint: "http://192.168.1.100:80/onvif/device_service",
+		MediaMTXPath:  "cam-empty-creds",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-empty-creds"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "at least one of username or password")
+}
+
+func TestRotateCredentials_ProbeFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	// Create a camera with an unreachable ONVIF endpoint — probe will fail.
+	cam := &db.Camera{
+		ID:            "cam-probe-fail",
+		Name:          "Probe Fail",
+		ONVIFEndpoint: "http://127.0.0.1:1/onvif/device_service", // port 1 — connection refused immediately
+		ONVIFUsername: "olduser",
+		ONVIFPassword: "oldpass",
+		MediaMTXPath:  "cam-probe-fail",
+	}
+	require.NoError(t, handler.DB.CreateCamera(cam))
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = gin.Params{{Key: "id", Value: "cam-probe-fail"}}
+	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"username":"newuser","password":"newpass"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.RotateCredentials(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "failed ONVIF authentication")
+
+	// Verify old credentials are unchanged.
+	updated, err := handler.DB.GetCamera("cam-probe-fail")
+	require.NoError(t, err)
+	assert.Equal(t, "olduser", updated.ONVIFUsername)
+	assert.Equal(t, "oldpass", updated.ONVIFPassword)
+}

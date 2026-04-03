@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -21,8 +23,9 @@ type MediaProfile struct {
 	StreamURI  string `json:"stream_uri"`
 	VideoCodec string `json:"video_codec,omitempty"`
 	AudioCodec string `json:"audio_codec,omitempty"`
-	Width      int    `json:"width,omitempty"`
-	Height     int    `json:"height,omitempty"`
+	Width            int    `json:"width,omitempty"`
+	Height           int    `json:"height,omitempty"`
+	VideoSourceToken string `json:"video_source_token,omitempty"`
 }
 
 // DiscoveredDevice represents an ONVIF device found during a WS-Discovery scan.
@@ -32,8 +35,17 @@ type DiscoveredDevice struct {
 	Model            string         `json:"model"`
 	Firmware         string         `json:"firmware"`
 	AuthRequired     bool           `json:"auth_required"`
-	ExistingCameraID string         `json:"existing_camera_id,omitempty"`
-	Profiles         []MediaProfile `json:"profiles,omitempty"`
+	ExistingCameraID string              `json:"existing_camera_id,omitempty"`
+	Profiles         []MediaProfile      `json:"profiles,omitempty"`
+	Channels         []DiscoveredChannel `json:"channels,omitempty"`
+	LastSeen         time.Time           `json:"last_seen"`
+}
+
+// DiscoveredChannel represents a single video channel on a multi-sensor device.
+type DiscoveredChannel struct {
+	VideoSourceToken string         `json:"video_source_token"`
+	Name             string         `json:"name"`
+	Profiles         []MediaProfile `json:"profiles"`
 }
 
 // ScanStatus represents the current state of a discovery scan.
@@ -51,15 +63,48 @@ type ScanResult struct {
 	Devices []DiscoveredDevice `json:"devices"`
 }
 
-// Discovery manages ONVIF WS-Discovery scans.
-type Discovery struct {
-	mu     sync.Mutex
-	result *ScanResult
+// DiscoveryConfig holds configuration for the Discovery engine.
+type DiscoveryConfig struct {
+	// StaleTimeout is how long a device can go unseen before removal.
+	// Zero means no stale cleanup (devices persist until next scan).
+	StaleTimeout time.Duration
+	// ProbeInterval is the delay between repeated probe packets per interface.
+	ProbeInterval time.Duration
+	// ProbeCount is the number of probe packets sent per interface.
+	ProbeCount int
+	// ListenDuration is how long to listen for responses after sending probes.
+	ListenDuration time.Duration
 }
 
-// NewDiscovery returns a new Discovery instance.
+// DefaultDiscoveryConfig returns sensible defaults for production use.
+func DefaultDiscoveryConfig() DiscoveryConfig {
+	return DiscoveryConfig{
+		StaleTimeout:   5 * time.Minute,
+		ProbeInterval:  100 * time.Millisecond,
+		ProbeCount:     3,
+		ListenDuration: 4 * time.Second,
+	}
+}
+
+// Discovery manages ONVIF WS-Discovery scans.
+type Discovery struct {
+	mu      sync.Mutex
+	result  *ScanResult
+	config  DiscoveryConfig
+	devices map[string]*DiscoveredDevice // keyed by host IP for dedup across scans
+}
+
+// NewDiscovery returns a new Discovery instance with default config.
 func NewDiscovery() *Discovery {
-	return &Discovery{}
+	return NewDiscoveryWithConfig(DefaultDiscoveryConfig())
+}
+
+// NewDiscoveryWithConfig returns a Discovery instance with the given config.
+func NewDiscoveryWithConfig(cfg DiscoveryConfig) *Discovery {
+	return &Discovery{
+		config:  cfg,
+		devices: make(map[string]*DiscoveredDevice),
+	}
 }
 
 // StartScan begins an asynchronous ONVIF discovery scan.
@@ -158,20 +203,90 @@ type probeMatch struct {
 }
 
 func (d *Discovery) runScan(scanID string) {
-	devices := d.wsDiscoverDevices()
+	now := time.Now()
+	rawDevices := d.wsDiscoverDevices()
 
-	// Enrich each device with profiles and stream URIs (no auth needed for many cameras).
-	for i := range devices {
-		d.enrichDevice(&devices[i])
+	// Merge newly discovered devices into the persistent device map,
+	// deduplicating by host IP across interfaces and scans.
+	d.mu.Lock()
+	for i := range rawDevices {
+		dev := &rawDevices[i]
+		dev.LastSeen = now
+		hostKey := normalizeHostKey(dev.XAddr)
+		if hostKey == "" {
+			continue
+		}
+		if existing, ok := d.devices[hostKey]; ok {
+			// Update the existing entry — prefer richer metadata.
+			existing.LastSeen = now
+			existing.XAddr = dev.XAddr
+			if dev.Manufacturer != "" {
+				existing.Manufacturer = dev.Manufacturer
+			}
+			if dev.Model != "" {
+				existing.Model = dev.Model
+			}
+			if dev.Firmware != "" {
+				existing.Firmware = dev.Firmware
+			}
+		} else {
+			d.devices[hostKey] = dev
+		}
 	}
 
+	// Remove stale devices that haven't been seen within the timeout.
+	if d.config.StaleTimeout > 0 {
+		cutoff := now.Add(-d.config.StaleTimeout)
+		for key, dev := range d.devices {
+			if dev.LastSeen.Before(cutoff) {
+				delete(d.devices, key)
+			}
+		}
+	}
+	d.mu.Unlock()
+
+	// Enrich each newly-discovered device outside the lock.
+	for i := range rawDevices {
+		d.enrichDevice(&rawDevices[i])
+	}
+
+	// Build final device list from the persistent map, applying enrichment.
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.result != nil && d.result.ScanID == scanID {
-		d.result.Devices = devices
-		d.result.Status = ScanStatusComplete
+	if d.result == nil || d.result.ScanID != scanID {
+		return
 	}
+
+	// Apply enrichment data back to persistent entries.
+	for i := range rawDevices {
+		dev := &rawDevices[i]
+		hostKey := normalizeHostKey(dev.XAddr)
+		if hostKey == "" {
+			continue
+		}
+		if existing, ok := d.devices[hostKey]; ok {
+			existing.AuthRequired = dev.AuthRequired
+			existing.Profiles = dev.Profiles
+			if dev.Manufacturer != "" {
+				existing.Manufacturer = dev.Manufacturer
+			}
+			if dev.Model != "" {
+				existing.Model = dev.Model
+			}
+			if dev.Firmware != "" {
+				existing.Firmware = dev.Firmware
+			}
+		}
+	}
+
+	devices := make([]DiscoveredDevice, 0, len(d.devices))
+	for _, dev := range d.devices {
+		devices = append(devices, *dev)
+	}
+
+	d.result.Devices = devices
+	d.result.Status = ScanStatusComplete
 }
 
 // enrichDevice connects to an ONVIF device and fetches its info, profiles, and stream URIs.
@@ -220,6 +335,37 @@ func (d *Discovery) enrichDevice(dev *DiscoveredDevice) {
 
 		dev.Profiles = append(dev.Profiles, mp)
 	}
+
+	// Group profiles by video source to detect multi-channel devices.
+	if len(dev.Profiles) > 0 {
+		channels := GroupProfilesByVideoSource(dev.Profiles)
+		if len(channels) > 1 {
+			dev.Channels = channels
+		}
+	}
+}
+
+// normalizeHostKey extracts a canonical host (IP or hostname, without port)
+// from an XAddr URL for deduplication across interfaces.
+func normalizeHostKey(xaddr string) string {
+	u, err := url.Parse(xaddr)
+	if err != nil {
+		return ""
+	}
+	host := u.Hostname() // strips port
+	if host == "" {
+		return ""
+	}
+	// Resolve to IP if possible for consistent dedup.
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+	// Hostname — try to resolve.
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return host
+	}
+	return ips[0].String()
 }
 
 // xaddrToHost extracts the host:port from an ONVIF XAddr URL.
@@ -231,13 +377,118 @@ func xaddrToHost(xaddr string) string {
 	return u.Host
 }
 
-func (d *Discovery) wsDiscoverDevices() []DiscoveredDevice {
-	addr, err := net.ResolveUDPAddr("udp4", wsDiscoveryAddr)
+// discoverableInterfaces returns all non-loopback, up, IPv4-capable interfaces.
+func discoverableInterfaces() []net.Interface {
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
 
-	conn, err := net.ListenUDP("udp4", nil)
+	var result []net.Interface
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		hasIPv4 := false
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if ok && ipNet.IP.To4() != nil {
+				hasIPv4 = true
+				break
+			}
+		}
+		if hasIPv4 {
+			result = append(result, iface)
+		}
+	}
+
+	return result
+}
+
+// interfaceIPv4Addr returns the first IPv4 address on the given interface.
+func interfaceIPv4Addr(iface net.Interface) net.IP {
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if ok && ipNet.IP.To4() != nil {
+			return ipNet.IP
+		}
+	}
+	return nil
+}
+
+func (d *Discovery) wsDiscoverDevices() []DiscoveredDevice {
+	mcastAddr, err := net.ResolveUDPAddr("udp4", wsDiscoveryAddr)
+	if err != nil {
+		return nil
+	}
+
+	ifaces := discoverableInterfaces()
+	if len(ifaces) == 0 {
+		// Fallback: bind to all interfaces if enumeration fails.
+		return d.probeOnAddr(nil, mcastAddr)
+	}
+
+	// Send probes on each interface concurrently, collect all responses.
+	type ifaceResult struct {
+		devices []DiscoveredDevice
+	}
+	results := make([]ifaceResult, len(ifaces))
+	var wg sync.WaitGroup
+
+	for i, iface := range ifaces {
+		wg.Add(1)
+		go func(idx int, ifc net.Interface) {
+			defer wg.Done()
+			localIP := interfaceIPv4Addr(ifc)
+			if localIP == nil {
+				return
+			}
+			localAddr := &net.UDPAddr{IP: localIP, Port: 0}
+			devs := d.probeOnAddr(localAddr, mcastAddr)
+			results[idx] = ifaceResult{devices: devs}
+			if len(devs) > 0 {
+				log.Printf("ONVIF discovery: found %d device(s) on interface %s (%s)",
+					len(devs), ifc.Name, localIP)
+			}
+		}(i, iface)
+	}
+	wg.Wait()
+
+	// Deduplicate across interfaces by host IP.
+	seen := make(map[string]bool)
+	var devices []DiscoveredDevice
+
+	for _, r := range results {
+		for _, dev := range r.devices {
+			key := normalizeHostKey(dev.XAddr)
+			if key == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			devices = append(devices, dev)
+		}
+	}
+
+	return devices
+}
+
+// probeOnAddr sends WS-Discovery probes from localAddr and collects responses.
+// If localAddr is nil, binds to all interfaces (fallback).
+func (d *Discovery) probeOnAddr(localAddr *net.UDPAddr, mcastAddr *net.UDPAddr) []DiscoveredDevice {
+	conn, err := net.ListenUDP("udp4", localAddr)
 	if err != nil {
 		return nil
 	}
@@ -246,12 +497,14 @@ func (d *Discovery) wsDiscoverDevices() []DiscoveredDevice {
 	messageID := uuid.New().String()
 	probe := probeMessage(messageID)
 
-	for i := 0; i < 3; i++ {
-		_, _ = conn.WriteToUDP(probe, addr)
-		time.Sleep(100 * time.Millisecond)
+	for i := 0; i < d.config.ProbeCount; i++ {
+		_, _ = conn.WriteToUDP(probe, mcastAddr)
+		if i < d.config.ProbeCount-1 {
+			time.Sleep(d.config.ProbeInterval)
+		}
 	}
 
-	conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(d.config.ListenDuration))
 
 	seen := make(map[string]bool)
 	var devices []DiscoveredDevice
@@ -312,4 +565,32 @@ func parseScopes(scopes string, dev *DiscoveredDevice) {
 			dev.Firmware = value
 		}
 	}
+}
+
+// GroupProfilesByVideoSource groups profiles by their VideoSourceToken.
+// Returns one DiscoveredChannel per unique video source, sorted by token.
+// If all profiles have empty VideoSourceToken, returns a single channel.
+func GroupProfilesByVideoSource(profiles []MediaProfile) []DiscoveredChannel {
+	groups := make(map[string][]MediaProfile)
+	var order []string
+
+	for _, p := range profiles {
+		token := p.VideoSourceToken
+		if _, seen := groups[token]; !seen {
+			order = append(order, token)
+		}
+		groups[token] = append(groups[token], p)
+	}
+
+	sort.Strings(order)
+
+	channels := make([]DiscoveredChannel, 0, len(order))
+	for i, token := range order {
+		channels = append(channels, DiscoveredChannel{
+			VideoSourceToken: token,
+			Name:             fmt.Sprintf("Channel %d", i+1),
+			Profiles:         groups[token],
+		})
+	}
+	return channels
 }

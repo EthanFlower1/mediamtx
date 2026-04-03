@@ -37,6 +37,7 @@ type Camera struct {
 	SupportsMedia2           bool   `json:"supports_media2"`
 	SupportsAnalytics        bool   `json:"supports_analytics"`
 	SupportsEdgeRecording    bool   `json:"supports_edge_recording"`
+	ServiceCapabilities      string `json:"service_capabilities,omitempty"`
 	MotionTimeoutSeconds     int    `json:"motion_timeout_seconds"`
 	SubStreamURL             string  `json:"sub_stream_url,omitempty"`
 	AIEnabled                bool    `json:"ai_enabled"`
@@ -49,6 +50,9 @@ type Camera struct {
 	QuotaBytes               int64  `json:"quota_bytes"`
 	QuotaWarningPercent      int    `json:"quota_warning_percent"`
 	QuotaCriticalPercent     int    `json:"quota_critical_percent"`
+	SupportedEventTopics     string `json:"supported_event_topics"`
+	DeviceID                 string `json:"device_id,omitempty"`
+	ChannelIndex             *int   `json:"channel_index,omitempty"`
 	MulticastEnabled         bool   `json:"multicast_enabled"`
 	MulticastAddress         string `json:"multicast_address"`
 	MulticastPort            int    `json:"multicast_port"`
@@ -79,6 +83,10 @@ func (d *DB) CreateCamera(cam *Camera) error {
 		cam.QuotaCriticalPercent = 90
 	}
 
+	var deviceID interface{}
+	if cam.DeviceID != "" {
+		deviceID = cam.DeviceID
+	}
 	_, err := d.Exec(`
 		INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
@@ -86,52 +94,79 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
 			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
+		cam.ServiceCapabilities,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath, cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.SupportedEventTopics,
+		deviceID, cam.ChannelIndex,
+		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
 		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
 }
 
-// GetCamera retrieves a camera by its ID. Returns ErrNotFound if no match.
-func (d *DB) GetCamera(id string) (*Camera, error) {
+// scanCamera scans a camera row into a Camera struct, handling nullable device_id.
+func scanCamera(scan func(...interface{}) error) (*Camera, error) {
 	cam := &Camera{}
-	err := d.QueryRow(`
-		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
-			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
-			retention_days, event_retention_days, detection_retention_days,
-			supports_ptz, supports_imaging, supports_events,
-			supports_relay, supports_audio_backchannel, snapshot_uri,
-			supports_media2, supports_analytics, supports_edge_recording,
-			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
-			storage_path, created_at, updated_at,
-			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
-			quota_bytes, quota_warning_percent, quota_critical_percent,
-			multicast_enabled, multicast_address, multicast_port, multicast_ttl
-		FROM cameras WHERE id = ?`, id,
-	).Scan(
+	var deviceID *string
+	err := scan(
 		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
 		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
 		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
 		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
 		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
 		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
+		&cam.ServiceCapabilities,
 		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
 		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
 		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
 		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
+		&cam.SupportedEventTopics,
+		&deviceID, &cam.ChannelIndex,
 		&cam.MulticastEnabled, &cam.MulticastAddress, &cam.MulticastPort, &cam.MulticastTTL,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if deviceID != nil {
+		cam.DeviceID = *deviceID
+	}
+	return cam, nil
+}
+
+// GetCamera retrieves a camera by its ID. Returns ErrNotFound if no match.
+func (d *DB) GetCamera(id string) (*Camera, error) {
+	row := d.QueryRow(`
+		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
+			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
+			retention_days, event_retention_days, detection_retention_days,
+			supports_ptz, supports_imaging, supports_events,
+			supports_relay, supports_audio_backchannel, snapshot_uri,
+			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
+			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
+			storage_path, created_at, updated_at,
+			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
+			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
+			device_id, channel_index,
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl
+		FROM cameras WHERE id = ?`, id)
+	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -143,33 +178,23 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 
 // GetCameraByPath retrieves a camera by its MediaMTX path. Returns ErrNotFound if no match.
 func (d *DB) GetCameraByPath(path string) (*Camera, error) {
-	cam := &Camera{}
-	err := d.QueryRow(`
+	row := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,
 			onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
 			retention_days, event_retention_days, detection_retention_days,
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
+			device_id, channel_index,
 			multicast_enabled, multicast_address, multicast_port, multicast_ttl
-		FROM cameras WHERE mediamtx_path = ?`, path,
-	).Scan(
-		&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
-		&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-		&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
-		&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
-		&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
-		&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
-		&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
-		&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
-		&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
-		&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
-		&cam.MulticastEnabled, &cam.MulticastAddress, &cam.MulticastPort, &cam.MulticastTTL,
-	)
+		FROM cameras WHERE mediamtx_path = ?`, path)
+	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -188,10 +213,13 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			supports_ptz, supports_imaging, supports_events,
 			supports_relay, supports_audio_backchannel, snapshot_uri,
 			supports_media2, supports_analytics, supports_edge_recording,
+			service_capabilities,
 			motion_timeout_seconds, sub_stream_url, ai_enabled, audio_transcode,
 			storage_path, created_at, updated_at,
 			ai_stream_id, ai_track_timeout, ai_confidence, recording_stream_id,
 			quota_bytes, quota_warning_percent, quota_critical_percent,
+			supported_event_topics,
+			device_id, channel_index,
 			multicast_enabled, multicast_address, multicast_port, multicast_ttl
 		FROM cameras ORDER BY name`)
 	if err != nil {
@@ -201,20 +229,8 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 
 	var cameras []*Camera
 	for rows.Next() {
-		cam := &Camera{}
-		if err := rows.Scan(
-			&cam.ID, &cam.Name, &cam.ONVIFEndpoint, &cam.ONVIFUsername, &cam.ONVIFPassword,
-			&cam.ONVIFProfileToken, &cam.RTSPURL, &cam.PTZCapable, &cam.MediaMTXPath,
-			&cam.Status, &cam.Tags, &cam.RetentionDays, &cam.EventRetentionDays, &cam.DetectionRetentionDays,
-			&cam.SupportsPTZ, &cam.SupportsImaging, &cam.SupportsEvents,
-			&cam.SupportsRelay, &cam.SupportsAudioBackchannel, &cam.SnapshotURI,
-			&cam.SupportsMedia2, &cam.SupportsAnalytics, &cam.SupportsEdgeRecording,
-			&cam.MotionTimeoutSeconds, &cam.SubStreamURL, &cam.AIEnabled, &cam.AudioTranscode,
-			&cam.StoragePath, &cam.CreatedAt, &cam.UpdatedAt,
-			&cam.AIStreamID, &cam.AITrackTimeout, &cam.AIConfidence, &cam.RecordingStreamID,
-			&cam.QuotaBytes, &cam.QuotaWarningPercent, &cam.QuotaCriticalPercent,
-			&cam.MulticastEnabled, &cam.MulticastAddress, &cam.MulticastPort, &cam.MulticastTTL,
-		); err != nil {
+		cam, err := scanCamera(rows.Scan)
+		if err != nil {
 			return nil, err
 		}
 		cameras = append(cameras, cam)
@@ -234,9 +250,11 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			supports_ptz = ?, supports_imaging = ?, supports_events = ?,
 			supports_relay = ?, supports_audio_backchannel = ?, snapshot_uri = ?,
 			supports_media2 = ?, supports_analytics = ?, supports_edge_recording = ?,
+			service_capabilities = ?,
 			motion_timeout_seconds = ?, sub_stream_url = ?, ai_enabled = ?,
 			audio_transcode = ?, storage_path = ?,
 			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
+			supported_event_topics = ?,
 			multicast_enabled = ?, multicast_address = ?, multicast_port = ?, multicast_ttl = ?,
 			updated_at = ?
 		WHERE id = ?`,
@@ -247,9 +265,11 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.SupportsPTZ, cam.SupportsImaging, cam.SupportsEvents,
 		cam.SupportsRelay, cam.SupportsAudioBackchannel, cam.SnapshotURI,
 		cam.SupportsMedia2, cam.SupportsAnalytics, cam.SupportsEdgeRecording,
+		cam.ServiceCapabilities,
 		cam.MotionTimeoutSeconds, cam.SubStreamURL, cam.AIEnabled, cam.AudioTranscode,
 		cam.StoragePath,
 		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
+		cam.SupportedEventTopics,
 		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
 		cam.UpdatedAt, cam.ID,
 	)

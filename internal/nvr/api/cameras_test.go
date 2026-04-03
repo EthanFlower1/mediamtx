@@ -278,3 +278,58 @@ func TestDetections(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w3.Code)
 }
+
+func TestCreateMultiChannelCamera(t *testing.T) {
+	handler, cleanup := setupCameraTest(t)
+	defer cleanup()
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/cameras/multi-channel", handler.CreateMultiChannel)
+
+	body := `{
+		"device": {
+			"name": "Front Multi-Sensor",
+			"onvif_endpoint": "http://192.168.1.50",
+			"onvif_username": "admin",
+			"onvif_password": "pass"
+		},
+		"channels": [
+			{
+				"name": "Front Left",
+				"rtsp_url": "rtsp://192.168.1.50/ch1",
+				"profiles": [{"name": "Main", "rtsp_url": "rtsp://192.168.1.50/ch1", "video_codec": "H264", "width": 2560, "height": 1440}],
+				"channel_index": 0
+			},
+			{
+				"name": "Front Right",
+				"rtsp_url": "rtsp://192.168.1.50/ch2",
+				"profiles": [{"name": "Main", "rtsp_url": "rtsp://192.168.1.50/ch2", "video_codec": "H264", "width": 2560, "height": 1440}],
+				"channel_index": 1
+			}
+		]
+	}`
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/cameras/multi-channel", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
+
+	deviceID, ok := result["device_id"].(string)
+	require.True(t, ok, "response should include device_id")
+	require.NotEmpty(t, deviceID)
+
+	cameras, ok := result["cameras"].([]interface{})
+	require.True(t, ok, "response should include cameras array")
+	require.Len(t, cameras, 2)
+
+	dev, err := handler.DB.GetDevice(deviceID)
+	require.NoError(t, err)
+	require.Equal(t, "Front Multi-Sensor", dev.Name)
+	require.Equal(t, 2, dev.ChannelCount)
+}

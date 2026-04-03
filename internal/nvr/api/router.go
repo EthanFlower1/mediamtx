@@ -188,6 +188,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Cameras.
 	protected.GET("/cameras", cameraHandler.List)
 	protected.POST("/cameras", cameraHandler.Create)
+	protected.POST("/cameras/multi-channel", cameraHandler.CreateMultiChannel)
 	protected.GET("/cameras/:id", cameraHandler.Get)
 	protected.PUT("/cameras/:id", cameraHandler.Update)
 	protected.DELETE("/cameras/:id", cameraHandler.Delete)

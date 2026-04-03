@@ -215,6 +215,34 @@ type cameraRequest struct {
 	} `json:"profiles"`
 }
 
+type multiChannelRequest struct {
+	Device   *deviceInfo   `json:"device"`
+	Channels []channelInfo `json:"channels"`
+}
+
+type deviceInfo struct {
+	Name          string `json:"name"`
+	ONVIFEndpoint string `json:"onvif_endpoint"`
+	ONVIFUsername  string `json:"onvif_username"`
+	ONVIFPassword string `json:"onvif_password"`
+}
+
+type channelInfo struct {
+	Name         string `json:"name"`
+	RTSPURL      string `json:"rtsp_url"`
+	ChannelIndex int    `json:"channel_index"`
+	Profiles     []struct {
+		Name         string `json:"name"`
+		RTSPURL      string `json:"rtsp_url"`
+		ProfileToken string `json:"profile_token"`
+		VideoCodec   string `json:"video_codec"`
+		AudioCodec   string `json:"audio_codec"`
+		Width        int    `json:"width"`
+		Height       int    `json:"height"`
+		Roles        string `json:"roles"`
+	} `json:"profiles"`
+}
+
 var nonAlphanumericDash = regexp.MustCompile(`[^a-z0-9-]`)
 
 // sanitizePath converts a camera name to a safe MediaMTX path component.
@@ -509,6 +537,130 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, h.buildCameraWithStreams(cam))
+}
+
+// CreateMultiChannel creates a device record plus one camera per channel.
+func (h *CameraHandler) CreateMultiChannel(c *gin.Context) {
+	var req multiChannelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.Device == nil || len(req.Channels) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "device and channels are required"})
+		return
+	}
+
+	dev := &db.Device{
+		Name:          req.Device.Name,
+		ONVIFEndpoint: req.Device.ONVIFEndpoint,
+		ONVIFUsername:  req.Device.ONVIFUsername,
+		ONVIFPassword: h.encryptPassword(req.Device.ONVIFPassword),
+		ChannelCount:  len(req.Channels),
+	}
+	if err := h.DB.CreateDevice(dev); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to create device", err)
+		return
+	}
+
+	storagePath := "./recordings"
+
+	var cameras []*db.Camera
+	for _, ch := range req.Channels {
+		if ch.RTSPURL == "" || !strings.HasPrefix(ch.RTSPURL, "rtsp://") {
+			for _, cam := range cameras {
+				_ = h.DB.DeleteCamera(cam.ID)
+				_ = h.YAMLWriter.RemovePath(cam.MediaMTXPath)
+			}
+			_ = h.DB.DeleteDevice(dev.ID)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("channel %d: rtsp_url must start with rtsp://", ch.ChannelIndex)})
+			return
+		}
+
+		camID := uuid.New().String()
+		pathName := "nvr/" + camID + "/main"
+		recordPath := storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+		chIdx := ch.ChannelIndex
+
+		cam := &db.Camera{
+			ID:           camID,
+			Name:         ch.Name,
+			ONVIFEndpoint: dev.ONVIFEndpoint,
+			ONVIFUsername: dev.ONVIFUsername,
+			ONVIFPassword: dev.ONVIFPassword,
+			RTSPURL:      ch.RTSPURL,
+			MediaMTXPath: pathName,
+			DeviceID:     dev.ID,
+			ChannelIndex: &chIdx,
+		}
+		if err := h.DB.CreateCamera(cam); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to create camera for channel", err)
+			return
+		}
+
+		for i, p := range ch.Profiles {
+			roles := p.Roles
+			if roles == "" {
+				switch {
+				case len(ch.Profiles) == 1:
+					roles = "live_view,recording,ai_detection,mobile"
+				case i == 0:
+					roles = "live_view"
+				case i == len(ch.Profiles)-1:
+					roles = "recording,ai_detection,mobile"
+				}
+			}
+			stream := &db.CameraStream{
+				CameraID:     cam.ID,
+				Name:         p.Name,
+				RTSPURL:      p.RTSPURL,
+				ProfileToken: p.ProfileToken,
+				VideoCodec:   p.VideoCodec,
+				AudioCodec:   p.AudioCodec,
+				Width:        p.Width,
+				Height:       p.Height,
+				Roles:        roles,
+			}
+			if err := h.DB.CreateCameraStream(stream); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to create stream for channel camera %s: %v", cam.ID, err))
+			}
+		}
+
+		yamlConfig := map[string]interface{}{
+			"source":     cam.RTSPURL,
+			"record":     false,
+			"recordPath": recordPath,
+		}
+		if err := h.YAMLWriter.AddPath(pathName, yamlConfig); err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to write config for channel camera %s: %v", cam.ID, err))
+		}
+
+		streams, _ := h.DB.ListCameraStreams(cam.ID)
+		for i, s := range streams {
+			if i == 0 {
+				continue
+			}
+			subPath := cameraStreamPath(cam, s.ID)
+			subConfig := map[string]interface{}{
+				"source":     s.RTSPURL,
+				"record":     false,
+				"recordPath": recordPath,
+			}
+			if err := h.YAMLWriter.AddPath(subPath, subConfig); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to write sub-stream path %s: %v", subPath, err))
+			}
+		}
+
+		cameras = append(cameras, cam)
+	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Created device %q (id=%s) with %d channels", dev.Name, dev.ID, len(cameras)))
+
+	c.JSON(http.StatusCreated, gin.H{
+		"device_id": dev.ID,
+		"device":    dev,
+		"cameras":   cameras,
+	})
 }
 
 // Update updates an existing camera in the database and YAML config.

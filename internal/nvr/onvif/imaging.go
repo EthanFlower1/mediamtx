@@ -290,15 +290,32 @@ func GetImagingMoveOptions(xaddr, username, password, videoSourceToken string) (
 }
 
 // MoveFocus issues a focus move command to the camera.
-// Note: the onvif-go FocusMove type is currently a stub; the SOAP call is sent
-// but individual move parameters (absolute/relative/continuous) await library support.
 func MoveFocus(xaddr, username, password, videoSourceToken string, req *FocusMoveRequest) error {
 	client, vsToken, err := newImagingClient(xaddr, username, password, videoSourceToken)
 	if err != nil {
 		return err
 	}
 
-	if err := client.Dev.Move(context.Background(), vsToken, &onvifgo.FocusMove{}); err != nil {
+	fm := &onvifgo.FocusMove{}
+	if req.Absolute != nil {
+		fm.Absolute = &onvifgo.AbsoluteFocusMove{
+			Position: req.Absolute.Position,
+			Speed:    req.Absolute.Speed,
+		}
+	}
+	if req.Relative != nil {
+		fm.Relative = &onvifgo.RelativeFocusMove{
+			Distance: req.Relative.Distance,
+			Speed:    req.Relative.Speed,
+		}
+	}
+	if req.Continuous != nil {
+		fm.Continuous = &onvifgo.ContinuousFocusMove{
+			Speed: req.Continuous.Speed,
+		}
+	}
+
+	if err := client.Dev.Move(context.Background(), vsToken, fm); err != nil {
 		return fmt.Errorf("move focus: %w", err)
 	}
 	return nil

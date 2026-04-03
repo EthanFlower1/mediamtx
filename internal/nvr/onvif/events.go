@@ -36,8 +36,9 @@ const (
 
 // DetectedEvent carries the type and active state of a single ONVIF event.
 type DetectedEvent struct {
-	Type   DetectedEventType
-	Active bool
+	Type     DetectedEventType
+	Active   bool
+	Metadata map[string]string // optional key-value metadata (e.g., direction, count)
 }
 
 // EventCallback is invoked when an ONVIF event is detected.
@@ -544,7 +545,7 @@ func classifyTopic(topic string) (DetectedEventType, bool) {
 }
 
 // parseEvents scans PullMessages or Notify responses for all recognized events.
-// It returns ALL detected events (motion, tampering, etc.), not just the first match.
+// It returns ALL detected events (motion, tampering, analytics, etc.).
 func parseEvents(body []byte) ([]DetectedEvent, error) {
 	var env soapEnvelope
 	if err := xml.Unmarshal(body, &env); err != nil {
@@ -564,16 +565,53 @@ func parseEvents(body []byte) ([]DetectedEvent, error) {
 			continue
 		}
 
-		for _, item := range msg.Message.InnerMessage.Data.SimpleItems {
-			nameLower := strings.ToLower(item.Name)
-			if nameLower == "ismotion" || nameLower == "state" {
-				valueLower := strings.ToLower(strings.TrimSpace(item.Value))
-				active := valueLower == "true" || valueLower == "1"
-				detected = append(detected, DetectedEvent{
-					Type:   eventType,
-					Active: active,
-				})
-				break // one state per message
+		items := msg.Message.InnerMessage.Data.SimpleItems
+
+		switch eventType {
+		case EventObjectCount:
+			evt := DetectedEvent{Type: eventType, Metadata: make(map[string]string)}
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "count" || nameLower == "objectcount" {
+					evt.Metadata["count"] = item.Value
+					count := 0
+					fmt.Sscanf(item.Value, "%d", &count)
+					evt.Active = count > 0
+				}
+			}
+			// If no count property found, treat as active (camera-dependent).
+			if _, hasCount := evt.Metadata["count"]; !hasCount {
+				evt.Active = true
+			}
+			detected = append(detected, evt)
+
+		case EventLineCrossing:
+			evt := DetectedEvent{Type: eventType, Metadata: make(map[string]string)}
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "state" || nameLower == "ismotion" {
+					valueLower := strings.ToLower(strings.TrimSpace(item.Value))
+					evt.Active = valueLower == "true" || valueLower == "1"
+				}
+				if nameLower == "direction" {
+					evt.Metadata["direction"] = item.Value
+				}
+			}
+			detected = append(detected, evt)
+
+		default:
+			// Motion, tampering, intrusion, loitering — standard state-based.
+			for _, item := range items {
+				nameLower := strings.ToLower(item.Name)
+				if nameLower == "ismotion" || nameLower == "state" {
+					valueLower := strings.ToLower(strings.TrimSpace(item.Value))
+					active := valueLower == "true" || valueLower == "1"
+					detected = append(detected, DetectedEvent{
+						Type:   eventType,
+						Active: active,
+					})
+					break
+				}
 			}
 		}
 	}

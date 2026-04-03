@@ -219,6 +219,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.PUT("/cameras/:id/media/video-encoder/:token", cameraHandler.UpdateVideoEncoder)
 	protected.GET("/cameras/:id/media/video-encoder/:token/options", cameraHandler.GetVideoEncoderOptions)
 
+	// Multicast streaming.
+	protected.GET("/cameras/:id/multicast", cameraHandler.GetMulticast)
+	protected.PUT("/cameras/:id/multicast", cameraHandler.UpdateMulticast)
+
 	// Device info.
 	protected.GET("/cameras/:id/device-info", cameraHandler.GetDeviceInfo)
 

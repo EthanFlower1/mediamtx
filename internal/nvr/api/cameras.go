@@ -192,6 +192,19 @@ func (h *CameraHandler) decryptPassword(stored string) string {
 	return string(pt)
 }
 
+// resolveONVIFCredentials returns the ONVIF endpoint, username, and decrypted
+// password for a camera. If the camera belongs to a device, credentials are
+// read from the device record.
+func (h *CameraHandler) resolveONVIFCredentials(cam *db.Camera) (endpoint, username, password string) {
+	if cam.DeviceID != "" {
+		dev, err := h.DB.GetDevice(cam.DeviceID)
+		if err == nil {
+			return dev.ONVIFEndpoint, dev.ONVIFUsername, h.decryptPassword(dev.ONVIFPassword)
+		}
+	}
+	return cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword)
+}
+
 // rotateCredentialsRequest is the JSON body for credential rotation.
 type rotateCredentialsRequest struct {
 	Username string `json:"username"`
@@ -301,6 +314,34 @@ type cameraRequest struct {
 	} `json:"profiles"`
 }
 
+type multiChannelRequest struct {
+	Device   *deviceInfo   `json:"device"`
+	Channels []channelInfo `json:"channels"`
+}
+
+type deviceInfo struct {
+	Name          string `json:"name"`
+	ONVIFEndpoint string `json:"onvif_endpoint"`
+	ONVIFUsername  string `json:"onvif_username"`
+	ONVIFPassword string `json:"onvif_password"`
+}
+
+type channelInfo struct {
+	Name         string `json:"name"`
+	RTSPURL      string `json:"rtsp_url"`
+	ChannelIndex int    `json:"channel_index"`
+	Profiles     []struct {
+		Name         string `json:"name"`
+		RTSPURL      string `json:"rtsp_url"`
+		ProfileToken string `json:"profile_token"`
+		VideoCodec   string `json:"video_codec"`
+		AudioCodec   string `json:"audio_codec"`
+		Width        int    `json:"width"`
+		Height       int    `json:"height"`
+		Roles        string `json:"roles"`
+	} `json:"profiles"`
+}
+
 var nonAlphanumericDash = regexp.MustCompile(`[^a-z0-9-]`)
 
 // sanitizePath converts a camera name to a safe MediaMTX path component.
@@ -345,11 +386,63 @@ func (h *CameraHandler) List(c *gin.Context) {
 		}
 	}
 
+	if c.Query("group_by") == "device" {
+		h.listGroupedByDevice(c, cameras)
+		return
+	}
+
 	responses := make([]cameraWithStreams, 0, len(cameras))
 	for _, cam := range cameras {
 		responses = append(responses, h.buildCameraWithStreams(cam))
 	}
 	c.JSON(http.StatusOK, responses)
+}
+
+type groupedDeviceEntry struct {
+	db.Device
+	Cameras []cameraWithStreams `json:"cameras"`
+}
+
+type groupedResponse struct {
+	Devices    []groupedDeviceEntry `json:"devices"`
+	Standalone []cameraWithStreams   `json:"standalone"`
+}
+
+func (h *CameraHandler) listGroupedByDevice(c *gin.Context, cameras []*db.Camera) {
+	deviceCameras := make(map[string][]*db.Camera)
+	var standalone []*db.Camera
+
+	for _, cam := range cameras {
+		if cam.DeviceID != "" {
+			deviceCameras[cam.DeviceID] = append(deviceCameras[cam.DeviceID], cam)
+		} else {
+			standalone = append(standalone, cam)
+		}
+	}
+
+	deviceEntries := make([]groupedDeviceEntry, 0, len(deviceCameras))
+	for deviceID, cams := range deviceCameras {
+		dev, err := h.DB.GetDevice(deviceID)
+		if err != nil {
+			continue
+		}
+		entry := groupedDeviceEntry{Device: *dev}
+		entry.Cameras = make([]cameraWithStreams, 0, len(cams))
+		for _, cam := range cams {
+			entry.Cameras = append(entry.Cameras, h.buildCameraWithStreams(cam))
+		}
+		deviceEntries = append(deviceEntries, entry)
+	}
+
+	standaloneResponses := make([]cameraWithStreams, 0, len(standalone))
+	for _, cam := range standalone {
+		standaloneResponses = append(standaloneResponses, h.buildCameraWithStreams(cam))
+	}
+
+	c.JSON(http.StatusOK, groupedResponse{
+		Devices:    deviceEntries,
+		Standalone: standaloneResponses,
+	})
 }
 
 // getPathStatuses fetches all paths from MediaMTX in one call and returns a
@@ -561,7 +654,8 @@ func (h *CameraHandler) Create(c *gin.Context) {
 			var probeErr error
 			go func() {
 				defer close(done)
-				result, probeErr = onvif.ProbeDeviceFull(camCopy.ONVIFEndpoint, camCopy.ONVIFUsername, h.decryptPassword(camCopy.ONVIFPassword))
+				endpoint, user, pass := h.resolveONVIFCredentials(&camCopy)
+				result, probeErr = onvif.ProbeDeviceFull(endpoint, user, pass)
 			}()
 			select {
 			case <-done:
@@ -596,6 +690,130 @@ func (h *CameraHandler) Create(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, h.buildCameraWithStreams(cam))
+}
+
+// CreateMultiChannel creates a device record plus one camera per channel.
+func (h *CameraHandler) CreateMultiChannel(c *gin.Context) {
+	var req multiChannelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.Device == nil || len(req.Channels) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "device and channels are required"})
+		return
+	}
+
+	dev := &db.Device{
+		Name:          req.Device.Name,
+		ONVIFEndpoint: req.Device.ONVIFEndpoint,
+		ONVIFUsername:  req.Device.ONVIFUsername,
+		ONVIFPassword: h.encryptPassword(req.Device.ONVIFPassword),
+		ChannelCount:  len(req.Channels),
+	}
+	if err := h.DB.CreateDevice(dev); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to create device", err)
+		return
+	}
+
+	storagePath := "./recordings"
+
+	var cameras []*db.Camera
+	for _, ch := range req.Channels {
+		if ch.RTSPURL == "" || !strings.HasPrefix(ch.RTSPURL, "rtsp://") {
+			for _, cam := range cameras {
+				_ = h.DB.DeleteCamera(cam.ID)
+				_ = h.YAMLWriter.RemovePath(cam.MediaMTXPath)
+			}
+			_ = h.DB.DeleteDevice(dev.ID)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("channel %d: rtsp_url must start with rtsp://", ch.ChannelIndex)})
+			return
+		}
+
+		camID := uuid.New().String()
+		pathName := "nvr/" + camID + "/main"
+		recordPath := storagePath + "/%path/%Y-%m/%d/%H-%M-%S-%f"
+		chIdx := ch.ChannelIndex
+
+		cam := &db.Camera{
+			ID:           camID,
+			Name:         ch.Name,
+			ONVIFEndpoint: dev.ONVIFEndpoint,
+			ONVIFUsername: dev.ONVIFUsername,
+			ONVIFPassword: dev.ONVIFPassword,
+			RTSPURL:      ch.RTSPURL,
+			MediaMTXPath: pathName,
+			DeviceID:     dev.ID,
+			ChannelIndex: &chIdx,
+		}
+		if err := h.DB.CreateCamera(cam); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to create camera for channel", err)
+			return
+		}
+
+		for i, p := range ch.Profiles {
+			roles := p.Roles
+			if roles == "" {
+				switch {
+				case len(ch.Profiles) == 1:
+					roles = "live_view,recording,ai_detection,mobile"
+				case i == 0:
+					roles = "live_view"
+				case i == len(ch.Profiles)-1:
+					roles = "recording,ai_detection,mobile"
+				}
+			}
+			stream := &db.CameraStream{
+				CameraID:     cam.ID,
+				Name:         p.Name,
+				RTSPURL:      p.RTSPURL,
+				ProfileToken: p.ProfileToken,
+				VideoCodec:   p.VideoCodec,
+				AudioCodec:   p.AudioCodec,
+				Width:        p.Width,
+				Height:       p.Height,
+				Roles:        roles,
+			}
+			if err := h.DB.CreateCameraStream(stream); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to create stream for channel camera %s: %v", cam.ID, err))
+			}
+		}
+
+		yamlConfig := map[string]interface{}{
+			"source":     cam.RTSPURL,
+			"record":     false,
+			"recordPath": recordPath,
+		}
+		if err := h.YAMLWriter.AddPath(pathName, yamlConfig); err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to write config for channel camera %s: %v", cam.ID, err))
+		}
+
+		streams, _ := h.DB.ListCameraStreams(cam.ID)
+		for i, s := range streams {
+			if i == 0 {
+				continue
+			}
+			subPath := cameraStreamPath(cam, s.ID)
+			subConfig := map[string]interface{}{
+				"source":     s.RTSPURL,
+				"record":     false,
+				"recordPath": recordPath,
+			}
+			if err := h.YAMLWriter.AddPath(subPath, subConfig); err != nil {
+				nvrLogWarn("cameras", fmt.Sprintf("failed to write sub-stream path %s: %v", subPath, err))
+			}
+		}
+
+		cameras = append(cameras, cam)
+	}
+
+	nvrLogInfo("cameras", fmt.Sprintf("Created device %q (id=%s) with %d channels", dev.Name, dev.ID, len(cameras)))
+
+	c.JSON(http.StatusCreated, gin.H{
+		"device_id": dev.ID,
+		"device":    dev,
+		"cameras":   cameras,
+	})
 }
 
 // Update updates an existing camera in the database and YAML config.
@@ -852,9 +1070,9 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		return
 	}
 
-	password := h.decryptPassword(cam.ONVIFPassword)
-	nvrLogInfo("cameras", fmt.Sprintf("Refreshing camera %q: endpoint=%s user=%q passLen=%d", cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, len(password)))
-	result, err := onvif.ProbeDeviceFull(cam.ONVIFEndpoint, cam.ONVIFUsername, password)
+	endpoint, username, password := h.resolveONVIFCredentials(cam)
+	nvrLogInfo("cameras", fmt.Sprintf("Refreshing camera %q: endpoint=%s user=%q passLen=%d", cam.Name, endpoint, username, len(password)))
+	result, err := onvif.ProbeDeviceFull(endpoint, username, password)
 	if err != nil {
 		nvrLogError("cameras", fmt.Sprintf("refresh probe failed for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ONVIF probe failed: " + err.Error()})

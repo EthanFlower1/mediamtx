@@ -190,6 +190,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Cameras.
 	protected.GET("/cameras", cameraHandler.List)
 	protected.POST("/cameras", cameraHandler.Create)
+	protected.POST("/cameras/multi-channel", cameraHandler.CreateMultiChannel)
 	protected.GET("/cameras/:id", cameraHandler.Get)
 	protected.PUT("/cameras/:id", cameraHandler.Update)
 	protected.DELETE("/cameras/:id", cameraHandler.Delete)
@@ -461,6 +462,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/camera-groups/:id", groupHandler.Get)
 	protected.PUT("/camera-groups/:id", groupHandler.Update)
 	protected.DELETE("/camera-groups/:id", groupHandler.Delete)
+
+	// Devices.
+	deviceHandler := &DeviceHandler{
+		DB:         cfg.DB,
+		YAMLWriter: cfg.YAMLWriter,
+		Scheduler:  cfg.Scheduler,
+	}
+	protected.GET("/devices", deviceHandler.List)
+	protected.GET("/devices/:id", deviceHandler.Get)
+	protected.DELETE("/devices/:id", deviceHandler.Delete)
 
 	// Tours.
 	tourHandler := &TourHandler{DB: cfg.DB, Audit: audit}

@@ -59,6 +59,7 @@ func ProbeDevice(xaddr, username, password string) ([]MediaProfile, error) {
 // by a full device probe.
 type ProbeResult struct {
 	Profiles             []MediaProfile        `json:"profiles"`
+	VideoSources         []*VideoSourceInfo    `json:"video_sources,omitempty"`
 	SnapshotURI          string                `json:"snapshot_uri,omitempty"`
 	Capabilities         Capabilities          `json:"capabilities"`
 	ServiceInfos         []ServiceInfo         `json:"service_infos,omitempty"`
@@ -91,6 +92,20 @@ func ProbeDeviceFull(xaddr, username, password string) (*ProbeResult, error) {
 		log.Printf("onvif probe [%s]: WARNING: 0 profiles returned (camera may not support GetProfiles or auth failed)", xaddr)
 	}
 	result.Profiles = profiles
+
+	// Get video sources for multi-channel detection.
+	ctx2 := context.Background()
+	sources, err := client.Dev.GetVideoSources(ctx2)
+	if err == nil && len(sources) > 0 {
+		for _, s := range sources {
+			vs := &VideoSourceInfo{Token: s.Token, Framerate: s.Framerate}
+			if s.Resolution != nil {
+				vs.Width = s.Resolution.Width
+				vs.Height = s.Resolution.Height
+			}
+			result.VideoSources = append(result.VideoSources, vs)
+		}
+	}
 
 	if usedMedia2 {
 		log.Printf("onvif probe [%s]: used Media2 service", xaddr)
@@ -146,6 +161,9 @@ func profileToMediaProfile(p *onvifgo.Profile) MediaProfile {
 	mp := MediaProfile{
 		Token: p.Token,
 		Name:  p.Name,
+	}
+	if p.VideoSourceConfiguration != nil {
+		mp.VideoSourceToken = p.VideoSourceConfiguration.SourceToken
 	}
 	if p.VideoEncoderConfiguration != nil {
 		mp.VideoCodec = p.VideoEncoderConfiguration.Encoding

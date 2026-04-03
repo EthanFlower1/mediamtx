@@ -70,7 +70,8 @@ type getSnapshotUri2Response struct {
 func media2SOAP(innerBody string) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
-            xmlns:tr2="http://www.onvif.org/ver20/media/wsdl">
+            xmlns:tr2="http://www.onvif.org/ver20/media/wsdl"
+            xmlns:tt="http://www.onvif.org/ver10/schema">
   <s:Header></s:Header>
   <s:Body>
     %s

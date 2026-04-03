@@ -2839,9 +2839,10 @@ func (h *CameraHandler) UpdateMulticast(c *gin.Context) {
 
 		// Configure multicast on the camera.
 		mcCfg := &onvif.MulticastConfig{
-			Address: req.Address,
-			Port:    req.Port,
-			TTL:     req.TTL,
+			Address:   req.Address,
+			Port:      req.Port,
+			TTL:       req.TTL,
+			AutoStart: true, // Camera must auto-start multicast when enabled.
 		}
 		if err := onvif.SetMulticastConfig(cam.ONVIFEndpoint, cam.ONVIFUsername, password, cam.ONVIFProfileToken, mcCfg); err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to configure multicast on camera: " + err.Error()})

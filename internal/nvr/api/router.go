@@ -279,6 +279,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/cameras/:id/analytics/rules/:name", cameraHandler.DeleteAnalyticsRule)
 	protected.GET("/cameras/:id/analytics/modules", cameraHandler.GetAnalyticsModules)
 
+	// OSD (On-Screen Display) management.
+	protected.GET("/cameras/:id/osd", cameraHandler.GetOSDs)
+	protected.GET("/cameras/:id/osd/options", cameraHandler.GetOSDOptions)
+	protected.POST("/cameras/:id/osd", cameraHandler.CreateOSD)
+	protected.PUT("/cameras/:id/osd/:token", cameraHandler.SetOSD)
+	protected.DELETE("/cameras/:id/osd/:token", cameraHandler.DeleteOSD)
+
 	// Recordings.
 	protected.GET("/recordings", recordingHandler.Query)
 	protected.GET("/recordings/:id/download", recordingHandler.Download)

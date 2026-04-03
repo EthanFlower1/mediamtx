@@ -452,9 +452,47 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
-	// Migration 31: Add metadata column for analytics event details (KAI-20).
+	// Migration 31: Service capabilities cache (KAI-112).
 	{
 		version: 31,
+		sql:     `ALTER TABLE cameras ADD COLUMN service_capabilities TEXT DEFAULT '';`,
+	},
+	// Migration 32: Connection resilience — event history and command queue (KAI-24).
+	{
+		version: 32,
+		sql: `
+		CREATE TABLE connection_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			camera_id TEXT NOT NULL,
+			state TEXT NOT NULL,
+			error_message TEXT,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_connection_events_camera ON connection_events(camera_id, created_at);
+
+		CREATE TABLE queued_commands (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			command_type TEXT NOT NULL,
+			payload TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			error_message TEXT,
+			queued_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			executed_at TEXT,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_queued_commands_camera ON queued_commands(camera_id, status);
+		`,
+	},
+	// Migration 33: Supported event topics from GetEventProperties (KAI-110).
+	{
+		version: 33,
+		sql:     `ALTER TABLE cameras ADD COLUMN supported_event_topics TEXT DEFAULT '';`,
+	},
+	// Migration 34: Add metadata column for analytics event details (KAI-20).
+	{
+		version: 34,
 		sql:     `ALTER TABLE motion_events ADD COLUMN metadata TEXT;`,
 	},
 }

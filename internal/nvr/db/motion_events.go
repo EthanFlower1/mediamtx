@@ -44,13 +44,26 @@ func (d *DB) InsertMotionEvent(event *MotionEvent) error {
 }
 
 // EndMotionEvent sets ended_at on all open (ended_at IS NULL) motion
-// events for the given camera.
+// events for the given camera. This closes events of ALL types — use
+// EndMotionEventByType to close only a specific event type.
 func (d *DB) EndMotionEvent(cameraID string, endTime string) error {
 	_, err := d.Exec(`
 		UPDATE motion_events
 		SET ended_at = ?
 		WHERE camera_id = ? AND ended_at IS NULL`,
 		endTime, cameraID,
+	)
+	return err
+}
+
+// EndMotionEventByType sets ended_at on open events matching the given
+// camera AND event_type. This prevents closing unrelated concurrent events.
+func (d *DB) EndMotionEventByType(cameraID, eventType, endTime string) error {
+	_, err := d.Exec(`
+		UPDATE motion_events
+		SET ended_at = ?
+		WHERE camera_id = ? AND event_type = ? AND ended_at IS NULL`,
+		endTime, cameraID, eventType,
 	)
 	return err
 }

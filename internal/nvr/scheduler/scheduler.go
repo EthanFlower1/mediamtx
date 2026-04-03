@@ -31,6 +31,10 @@ type EventPublisher interface {
 	PublishIntrusion(cameraName string)
 	PublishLoitering(cameraName string)
 	PublishObjectCount(cameraName string, count int)
+	PublishDigitalInput(cameraName string, active bool)
+	PublishSignalLoss(cameraName string, active bool)
+	PublishHardwareFailure(cameraName string, active bool)
+	PublishRelay(cameraName string, active bool)
 	PublishCameraOffline(cameraName string)
 	PublishCameraOnline(cameraName string)
 	PublishRecordingStarted(cameraName string)
@@ -85,8 +89,9 @@ type Scheduler struct {
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 
-	motionSMs map[string]*MotionSM             // camera ID -> motion state machine
-	eventSubs map[string]*onvif.EventSubscriber // camera ID -> event subscriber
+	motionSMs    map[string]*MotionSM                      // camera ID -> motion state machine
+	eventSubs    map[string]*onvif.EventSubscriber          // camera ID -> event subscriber
+	metadataSubs map[string]*onvif.MetadataStreamSubscriber // camera ID -> metadata subscriber
 
 	pendingWrites   map[string]bool // mediamtx path -> desired record state
 	pendingWritesMu sync.Mutex
@@ -113,6 +118,7 @@ func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr 
 		pendingWrites: make(map[string]bool),
 		motionSMs:     make(map[string]*MotionSM),
 		eventSubs:     make(map[string]*onvif.EventSubscriber),
+		metadataSubs:  make(map[string]*onvif.MetadataStreamSubscriber),
 		motionTimers:  make(map[string]*time.Timer),
 		healthStates: make(map[string]*RecordingHealth),
 	}
@@ -137,10 +143,13 @@ func (s *Scheduler) Stop() {
 	close(s.stopCh)
 	s.wg.Wait()
 
-	// Stop all event subscribers and motion state machines.
+	// Stop all event subscribers, metadata streams, and motion state machines.
 	s.mu.Lock()
 	for camID := range s.eventSubs {
 		s.stopEventPipelineLocked(camID)
+	}
+	for _, sub := range s.metadataSubs {
+		sub.Stop()
 	}
 	s.mu.Unlock()
 
@@ -1030,20 +1039,8 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 				s.CancelMotionTimer(camID)
 				_ = s.db.EndMotionEvent(camID, now)
 			}
-		case onvif.EventTampering:
-			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if event.Active {
-				_ = s.db.InsertMotionEvent(&db.MotionEvent{
-					CameraID:  camID,
-					StartedAt: now,
-					EventType: "tampering",
-				})
-				if s.eventPub != nil {
-					s.eventPub.PublishTampering(cam.Name)
-				}
-			} else {
-				_ = s.db.EndMotionEvent(camID, now)
-			}
+		case onvif.EventTampering, onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			s.handleInfoEvent(camID, cam.Name, event.Type, event.Active)
 		case onvif.EventLineCrossing, onvif.EventIntrusion, onvif.EventLoitering, onvif.EventObjectCount:
 			// Analytics events: drive recording like motion and persist to DB.
 			s.mu.Lock()
@@ -1111,6 +1108,41 @@ func (s *Scheduler) startEventPipelineLocked(camID string, cam *db.Camera, activ
 
 	log.Printf("scheduler: starting ONVIF event subscription for camera %s at %s", camID, cam.ONVIFEndpoint)
 	go sub.Start(context.Background())
+
+	s.startMetadataStreamLocked(camID, cam)
+}
+
+// handleInfoEvent handles informational event types (tampering, digital_input,
+// signal_loss, hardware_failure, relay) — insert/end in DB and publish via SSE.
+// Unlike motion, these don't trigger recording or manage MotionSMs.
+func (s *Scheduler) handleInfoEvent(camID, camName string, eventType onvif.DetectedEventType, active bool) {
+	now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	evtStr := string(eventType)
+	if active {
+		_ = s.db.InsertMotionEvent(&db.MotionEvent{
+			CameraID:  camID,
+			StartedAt: now,
+			EventType: evtStr,
+		})
+	} else {
+		_ = s.db.EndMotionEventByType(camID, evtStr, now)
+	}
+	if s.eventPub != nil {
+		switch eventType {
+		case onvif.EventTampering:
+			if active {
+				s.eventPub.PublishTampering(camName)
+			}
+		case onvif.EventDigitalInput:
+			s.eventPub.PublishDigitalInput(camName, active)
+		case onvif.EventSignalLoss:
+			s.eventPub.PublishSignalLoss(camName, active)
+		case onvif.EventHardwareFailure:
+			s.eventPub.PublishHardwareFailure(camName, active)
+		case onvif.EventRelay:
+			s.eventPub.PublishRelay(camName, active)
+		}
+	}
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted.
@@ -1193,20 +1225,8 @@ func (s *Scheduler) startMotionAlertSubscription(cam *db.Camera) {
 				s.CancelMotionTimer(cam.ID)
 				_ = s.db.EndMotionEvent(cam.ID, now)
 			}
-		case onvif.EventTampering:
-			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-			if event.Active {
-				_ = s.db.InsertMotionEvent(&db.MotionEvent{
-					CameraID:  cam.ID,
-					StartedAt: now,
-					EventType: "tampering",
-				})
-				if s.eventPub != nil {
-					s.eventPub.PublishTampering(cam.Name)
-				}
-			} else {
-				_ = s.db.EndMotionEvent(cam.ID, now)
-			}
+		case onvif.EventTampering, onvif.EventDigitalInput, onvif.EventSignalLoss, onvif.EventHardwareFailure, onvif.EventRelay:
+			s.handleInfoEvent(cam.ID, cam.Name, event.Type, event.Active)
 		case onvif.EventLineCrossing, onvif.EventIntrusion, onvif.EventLoitering, onvif.EventObjectCount:
 			s.mu.Lock()
 			for sk, msm := range s.motionSMs {
@@ -1281,12 +1301,114 @@ func (s *Scheduler) stopEventPipelineLocked(camID string) {
 			s.callbackMgr.Unregister(camID)
 		}
 	}
+	s.stopMetadataStreamLocked(camID)
 	// Stop all MotionSMs for this camera (default + per-stream).
 	for sk, sm := range s.motionSMs {
 		if sk == camID || strings.HasPrefix(sk, camID+":") {
 			sm.Stop()
 			delete(s.motionSMs, sk)
 		}
+	}
+}
+
+// startMetadataStreamLocked creates and starts a MetadataStreamSubscriber
+// for the given camera. Must be called with s.mu held.
+func (s *Scheduler) startMetadataStreamLocked(camID string, cam *db.Camera) {
+	if cam.ONVIFEndpoint == "" || cam.ONVIFProfileToken == "" {
+		return
+	}
+	if _, ok := s.metadataSubs[camID]; ok {
+		return
+	}
+
+	streamURI, err := onvif.GetMetadataStreamURI(
+		cam.ONVIFEndpoint,
+		cam.ONVIFUsername,
+		s.decryptPassword(cam.ONVIFPassword),
+		cam.ONVIFProfileToken,
+	)
+	if err != nil {
+		log.Printf("scheduler: metadata stream URI for camera %s: %v (metadata streaming disabled)", camID, err)
+		return
+	}
+
+	// Event callback routes metadata events into the same event processing
+	// as the WS-BaseNotification subscriber.
+	eventCb := func(event onvif.DetectedEvent) {
+		s.mu.Lock()
+		if event.Type == onvif.EventMotion {
+			for sk, msm := range s.motionSMs {
+				if sk == camID || strings.HasPrefix(sk, camID+":") {
+					msm.OnMotion(event.Active)
+				}
+			}
+		}
+		s.mu.Unlock()
+
+		switch event.Type {
+		case onvif.EventMotion:
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if event.Active {
+				s.StartMotionTimer(camID, cam.MotionTimeoutSeconds)
+				if !s.db.HasOpenMotionEvent(camID) {
+					_ = s.db.InsertMotionEvent(&db.MotionEvent{
+						CameraID:  camID,
+						StartedAt: now,
+					})
+					if s.eventPub != nil {
+						s.eventPub.PublishMotion(cam.Name)
+					}
+				}
+			} else {
+				s.CancelMotionTimer(camID)
+				_ = s.db.EndMotionEvent(camID, now)
+			}
+		case onvif.EventTampering:
+			now := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+			if event.Active {
+				_ = s.db.InsertMotionEvent(&db.MotionEvent{
+					CameraID:  camID,
+					StartedAt: now,
+					EventType: "tampering",
+				})
+				if s.eventPub != nil {
+					s.eventPub.PublishTampering(cam.Name)
+				}
+			} else {
+				_ = s.db.EndMotionEvent(camID, now)
+			}
+		}
+	}
+
+	frameCb := func(frame *onvif.MetadataFrame) {
+		if len(frame.Objects) > 0 {
+			log.Printf("scheduler: metadata stream [%s]: %d analytics objects at %s",
+				cam.Name, len(frame.Objects), frame.UtcTime)
+		}
+	}
+
+	sub, err := onvif.NewMetadataStreamSubscriber(
+		streamURI,
+		cam.ONVIFUsername,
+		s.decryptPassword(cam.ONVIFPassword),
+		eventCb,
+		frameCb,
+	)
+	if err != nil {
+		log.Printf("scheduler: create metadata subscriber for camera %s: %v", camID, err)
+		return
+	}
+
+	s.metadataSubs[camID] = sub
+	go sub.Start(context.Background())
+	log.Printf("scheduler: metadata stream started for camera %s at %s", camID, streamURI)
+}
+
+func (s *Scheduler) stopMetadataStreamLocked(camID string) {
+	if sub, ok := s.metadataSubs[camID]; ok {
+		sub.Stop()
+		delete(s.metadataSubs, camID)
+		log.Printf("scheduler: metadata stream stopped for camera %s", camID)
 	}
 }
 

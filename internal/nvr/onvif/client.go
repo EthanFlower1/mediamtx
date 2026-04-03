@@ -3,17 +3,18 @@ package onvif
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	onvifgo "github.com/EthanFlower1/onvif-go"
 )
 
 // Client wraps an ONVIF device connection and exposes service discovery.
 type Client struct {
-	Dev      *onvifgo.Client
-	Services map[string]string
-	Username string
-	Password string
+	Dev                  *onvifgo.Client
+	Services             map[string]string
+	ServiceInfos         []ServiceInfo
+	DetailedCapabilities *DetailedCapabilities
+	Username             string
+	Password             string
 }
 
 // NewClient connects to an ONVIF device at xaddr with the given credentials
@@ -34,52 +35,31 @@ func NewClient(xaddr, username, password string) (*Client, error) {
 		return nil, fmt.Errorf("connect to ONVIF device: %w", err)
 	}
 
-	services := buildServiceMap(ctx, dev)
+	serviceInfos := getServicesDetailed(ctx, dev)
+	services := buildServiceMapFromInfos(serviceInfos)
 
-	return &Client{
-		Dev:      dev,
-		Services: services,
-		Username: username,
-		Password: password,
-	}, nil
+	c := &Client{
+		Dev:          dev,
+		Services:     services,
+		ServiceInfos: serviceInfos,
+		Username:     username,
+		Password:     password,
+	}
+
+	c.DetailedCapabilities = queryDetailedCapabilities(ctx, c)
+
+	return c, nil
 }
 
-// buildServiceMap queries the device for service endpoints and maps
-// namespace URLs to friendly names used by the custom SOAP code.
-func buildServiceMap(ctx context.Context, dev *onvifgo.Client) map[string]string {
+// buildServiceMapFromInfos builds a friendly-name → XAddr map from ServiceInfo entries.
+func buildServiceMapFromInfos(infos []ServiceInfo) map[string]string {
 	services := make(map[string]string)
-
-	svcs, err := dev.GetServices(ctx, false)
-	if err != nil {
-		return services
-	}
-
-	for _, svc := range svcs {
-		ns := strings.ToLower(svc.Namespace)
-		switch {
-		case strings.Contains(ns, "ver20/media"):
-			services["media2"] = svc.XAddr
-		case strings.Contains(ns, "media"):
-			services["media"] = svc.XAddr
-		case strings.Contains(ns, "ptz"):
-			services["ptz"] = svc.XAddr
-		case strings.Contains(ns, "imaging"):
-			services["imaging"] = svc.XAddr
-		case strings.Contains(ns, "events") || strings.Contains(ns, "event"):
-			services["events"] = svc.XAddr
-		case strings.Contains(ns, "analytics"):
-			services["analytics"] = svc.XAddr
-		case strings.Contains(ns, "deviceio"):
-			services["deviceio"] = svc.XAddr
-		case strings.Contains(ns, "recording"):
-			services["recording"] = svc.XAddr
-		case strings.Contains(ns, "replay"):
-			services["replay"] = svc.XAddr
-		case strings.Contains(ns, "search"):
-			services["search"] = svc.XAddr
+	for _, info := range infos {
+		name := friendlyServiceName(info.Namespace)
+		if name != "" {
+			services[name] = info.XAddr
 		}
 	}
-
 	return services
 }
 

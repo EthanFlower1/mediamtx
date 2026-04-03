@@ -44,3 +44,89 @@ func TestClassifyTopic(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEvents_AllTypes(t *testing.T) {
+	// SOAP Notify body with one message per event type.
+	body := []byte(`<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2">
+  <s:Body>
+    <wsnt:Notify>
+      <wsnt:NotificationMessage>
+        <wsnt:Topic>tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic>
+        <wsnt:Message>
+          <tt:Message xmlns:tt="http://www.onvif.org/ver10/schema">
+            <tt:Data>
+              <tt:SimpleItem Name="IsMotion" Value="true"/>
+            </tt:Data>
+          </tt:Message>
+        </wsnt:Message>
+      </wsnt:NotificationMessage>
+      <wsnt:NotificationMessage>
+        <wsnt:Topic>tns1:Device/Trigger/DigitalInput</wsnt:Topic>
+        <wsnt:Message>
+          <tt:Message xmlns:tt="http://www.onvif.org/ver10/schema">
+            <tt:Data>
+              <tt:SimpleItem Name="State" Value="true"/>
+            </tt:Data>
+          </tt:Message>
+        </wsnt:Message>
+      </wsnt:NotificationMessage>
+      <wsnt:NotificationMessage>
+        <wsnt:Topic>tns1:VideoSource/SignalLoss</wsnt:Topic>
+        <wsnt:Message>
+          <tt:Message xmlns:tt="http://www.onvif.org/ver10/schema">
+            <tt:Data>
+              <tt:SimpleItem Name="State" Value="false"/>
+            </tt:Data>
+          </tt:Message>
+        </wsnt:Message>
+      </wsnt:NotificationMessage>
+      <wsnt:NotificationMessage>
+        <wsnt:Topic>tns1:Device/HardwareFailure/StorageFailure</wsnt:Topic>
+        <wsnt:Message>
+          <tt:Message xmlns:tt="http://www.onvif.org/ver10/schema">
+            <tt:Data>
+              <tt:SimpleItem Name="State" Value="true"/>
+            </tt:Data>
+          </tt:Message>
+        </wsnt:Message>
+      </wsnt:NotificationMessage>
+      <wsnt:NotificationMessage>
+        <wsnt:Topic>tns1:Device/Trigger/Relay</wsnt:Topic>
+        <wsnt:Message>
+          <tt:Message xmlns:tt="http://www.onvif.org/ver10/schema">
+            <tt:Data>
+              <tt:SimpleItem Name="State" Value="true"/>
+            </tt:Data>
+          </tt:Message>
+        </wsnt:Message>
+      </wsnt:NotificationMessage>
+    </wsnt:Notify>
+  </s:Body>
+</s:Envelope>`)
+
+	events, err := parseEvents(body)
+	if err != nil {
+		t.Fatalf("parseEvents error: %v", err)
+	}
+	if len(events) != 5 {
+		t.Fatalf("got %d events, want 5", len(events))
+	}
+
+	expected := []DetectedEvent{
+		{Type: EventMotion, Active: true},
+		{Type: EventDigitalInput, Active: true},
+		{Type: EventSignalLoss, Active: false},
+		{Type: EventHardwareFailure, Active: true},
+		{Type: EventRelay, Active: true},
+	}
+	for i, want := range expected {
+		if events[i].Type != want.Type {
+			t.Errorf("event[%d] type = %q, want %q", i, events[i].Type, want.Type)
+		}
+		if events[i].Active != want.Active {
+			t.Errorf("event[%d] active = %v, want %v", i, events[i].Active, want.Active)
+		}
+	}
+}

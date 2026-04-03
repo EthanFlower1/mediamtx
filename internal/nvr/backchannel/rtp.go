@@ -58,6 +58,7 @@ type RTPPacker struct {
 	sequenceNumber uint16
 	timestamp      uint32
 	ssrc           uint32
+	samplesPerFrame int // 0 means use len(audioData); >0 means fixed frame size (e.g. AAC = 1024)
 }
 
 // NewRTPPacker creates an RTPPacker for the given codec and sample rate.
@@ -67,6 +68,7 @@ func NewRTPPacker(codec string, sampleRate int) *RTPPacker {
 	upper := strings.ToUpper(codec)
 
 	var pt uint8
+	var samplesPerFrame int
 	switch upper {
 	case "G711":
 		pt = 0
@@ -74,6 +76,7 @@ func NewRTPPacker(codec string, sampleRate int) *RTPPacker {
 		pt = 8
 	case "AAC":
 		pt = 96
+		samplesPerFrame = 1024
 	default:
 		pt = 96
 	}
@@ -83,9 +86,10 @@ func NewRTPPacker(codec string, sampleRate int) *RTPPacker {
 	ssrc := binary.BigEndian.Uint32(ssrcBytes[:])
 
 	return &RTPPacker{
-		PayloadType: pt,
-		ClockRate:   uint32(sampleRate),
-		ssrc:        ssrc,
+		PayloadType:     pt,
+		ClockRate:       uint32(sampleRate),
+		ssrc:            ssrc,
+		samplesPerFrame: samplesPerFrame,
 	}
 }
 
@@ -105,7 +109,11 @@ func (p *RTPPacker) Pack(audioData []byte) *RTPPacket {
 		Payload: audioData,
 	}
 
-	p.timestamp += uint32(len(audioData))
+	if p.samplesPerFrame > 0 {
+		p.timestamp += uint32(p.samplesPerFrame)
+	} else {
+		p.timestamp += uint32(len(audioData))
+	}
 
 	return pkt
 }

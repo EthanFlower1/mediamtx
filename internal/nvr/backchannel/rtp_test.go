@@ -73,3 +73,15 @@ func TestRTPPackerG711ALaw(t *testing.T) {
 		t.Fatalf("expected PT 8 for A-law, got %d", p.PayloadType)
 	}
 }
+
+func TestRTPPackerAACTimestamp(t *testing.T) {
+	p := NewRTPPacker("AAC", 16000)
+	pkt1 := p.Pack(make([]byte, 200)) // compressed size doesn't matter
+	pkt2 := p.Pack(make([]byte, 150))
+	if pkt1.Header.Timestamp != 0 {
+		t.Fatalf("expected 0, got %d", pkt1.Header.Timestamp)
+	}
+	if pkt2.Header.Timestamp != 1024 {
+		t.Fatalf("expected 1024, got %d", pkt2.Header.Timestamp)
+	}
+}

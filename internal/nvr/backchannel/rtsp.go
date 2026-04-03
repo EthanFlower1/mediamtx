@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,6 +37,7 @@ type RTSPConn struct {
 	packer          *RTPPacker
 	state           rtspState
 	mu              sync.Mutex
+	writeMu         sync.Mutex
 	keepAliveCancel context.CancelFunc
 }
 
@@ -112,10 +114,13 @@ func (c *RTSPConn) SendAudio(audioData []byte) error {
 	packer := c.packer
 	c.mu.Unlock()
 
+	c.writeMu.Lock()
 	pkt := packer.Pack(audioData)
 	raw := pkt.Marshal()
+	err := writeInterleavedFrame(conn, 0, raw)
+	c.writeMu.Unlock()
 
-	return writeInterleavedFrame(conn, 0, raw)
+	return err
 }
 
 // Close cancels the keep-alive goroutine and shuts down the TCP connection.
@@ -167,26 +172,25 @@ func (c *RTSPConn) keepAlive(ctx context.Context) {
 
 			cseq++
 			msg := fmt.Sprintf("OPTIONS %s RTSP/1.0\r\nCSeq: %d\r\n\r\n", uri, cseq)
-			if _, err := fmt.Fprint(conn, msg); err != nil {
+			c.writeMu.Lock()
+			_, err := fmt.Fprint(conn, msg)
+			c.writeMu.Unlock()
+			if err != nil {
 				log.Printf("backchannel: keep-alive OPTIONS failed: %v", err)
 			}
 		}
 	}
 }
 
-// writeInterleavedFrame writes an RTSP interleaved binary frame to conn.
+// writeInterleavedFrame writes an RTSP interleaved binary frame to conn as a single write.
 // Format: '$' (0x24) + channel (1 byte) + length (2 bytes big-endian) + payload.
 func writeInterleavedFrame(conn net.Conn, channel byte, payload []byte) error {
-	header := [4]byte{
-		0x24,    // '$' interleaved frame marker
-		channel, // channel number
-		0, 0,    // length (big-endian, filled below)
-	}
-	binary.BigEndian.PutUint16(header[2:4], uint16(len(payload)))
-	if _, err := conn.Write(header[:]); err != nil {
-		return err
-	}
-	_, err := conn.Write(payload)
+	frame := make([]byte, 4+len(payload))
+	frame[0] = 0x24
+	frame[1] = channel
+	binary.BigEndian.PutUint16(frame[2:4], uint16(len(payload)))
+	copy(frame[4:], payload)
+	_, err := conn.Write(frame)
 	return err
 }
 
@@ -202,12 +206,12 @@ func hostFromRTSPURI(uri string) (string, error) {
 	rest = rest[7:]
 
 	// Strip path.
-	if idx := indexByte(rest, '/'); idx >= 0 {
+	if idx := strings.IndexByte(rest, '/'); idx >= 0 {
 		rest = rest[:idx]
 	}
 
 	// Strip credentials.
-	if idx := indexByte(rest, '@'); idx >= 0 {
+	if idx := strings.IndexByte(rest, '@'); idx >= 0 {
 		rest = rest[idx+1:]
 	}
 
@@ -219,12 +223,3 @@ func hostFromRTSPURI(uri string) (string, error) {
 	return rest, nil
 }
 
-// indexByte returns the index of the first occurrence of b in s, or -1.
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}

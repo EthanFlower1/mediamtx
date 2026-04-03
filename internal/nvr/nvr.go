@@ -134,17 +134,16 @@ func (n *NVR) Initialize() error {
 	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
 	// Initialize backchannel audio session manager.
-	credKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 	n.backchannelMgr = backchannel.NewManager(func(cameraID string) (string, string, string, error) {
 		cam, err := n.database.GetCamera(cameraID)
 		if err != nil {
 			return "", "", "", err
 		}
 		password := cam.ONVIFPassword
-		if len(credKey) > 0 && strings.HasPrefix(password, "enc:") {
+		if len(encKey) > 0 && strings.HasPrefix(password, "enc:") {
 			ct, decErr := base64.StdEncoding.DecodeString(strings.TrimPrefix(password, "enc:"))
 			if decErr == nil {
-				if pt, decErr2 := crypto.Decrypt(credKey, ct); decErr2 == nil {
+				if pt, decErr2 := crypto.Decrypt(encKey, ct); decErr2 == nil {
 					password = string(pt)
 				}
 			}

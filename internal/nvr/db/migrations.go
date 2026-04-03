@@ -452,4 +452,26 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
+	// Migration 31: Multi-channel camera support (KAI-26).
+	{
+		version: 31,
+		sql: `
+		CREATE TABLE IF NOT EXISTS devices (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			manufacturer TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			firmware_version TEXT NOT NULL DEFAULT '',
+			onvif_endpoint TEXT NOT NULL DEFAULT '',
+			onvif_username TEXT NOT NULL DEFAULT '',
+			onvif_password TEXT NOT NULL DEFAULT '',
+			channel_count INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+		ALTER TABLE cameras ADD COLUMN device_id TEXT DEFAULT NULL REFERENCES devices(id);
+		ALTER TABLE cameras ADD COLUMN channel_index INTEGER DEFAULT NULL;
+		CREATE INDEX IF NOT EXISTS idx_cameras_device ON cameras(device_id);
+		`,
+	},
 }

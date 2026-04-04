@@ -373,6 +373,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/recordings/export", recordingHandler.Export)
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
+	protected.GET("/timeline/multi", recordingHandler.MultiTimeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
 
 	// Recording integrity.

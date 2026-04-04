@@ -244,6 +244,38 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password changed"})
 }
 
+// Unlock clears the account lockout for a user. Admin only.
+//
+//	POST /api/nvr/users/:id/unlock
+func (h *UserHandler) Unlock(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	id := c.Param("id")
+
+	user, err := h.DB.GetUser(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve user", err)
+		return
+	}
+
+	if err := h.DB.UnlockUser(id); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to unlock user", err)
+		return
+	}
+
+	if h.Audit != nil {
+		h.Audit.logAction(c, "unlock", "user", id, "Unlocked account for user "+user.Username)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "account unlocked", "username": user.Username})
+}
+
 // Delete deletes a user by ID. Prevents self-deletion.
 func (h *UserHandler) Delete(c *gin.Context) {
 	if !requireAdmin(c) {

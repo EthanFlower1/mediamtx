@@ -240,6 +240,31 @@ class _CameraPlayerState extends State<CameraPlayer> {
   Widget _buildVideoContent(VideoPlayerController? vc, bool isInGap) {
     if (isInGap) return const SizedBox.expand();
     if (vc == null || !vc.value.isInitialized) {
+      // If the controller has segments loaded but this camera has no
+      // coverage at the current position, show a "no recording" state
+      // instead of an infinite spinner.
+      final hasSegments = _ctrl.segments.isNotEmpty;
+      final hasCoverage = _ctrl.hasCoverageAtPosition(_camId);
+      if (hasSegments && !hasCoverage && !_ctrl.isSeeking) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.videocam_off,
+                  color: NvrColors.of(context).textMuted, size: 32),
+              const SizedBox(height: 6),
+              Text(
+                'No recording at this time',
+                style: TextStyle(
+                  color: NvrColors.of(context).textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
       return Center(
         child: CircularProgressIndicator(color: NvrColors.of(context).accent),
       );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/theme_provider.dart';
 import 'theme/nvr_theme.dart';
 import 'router/app_router.dart';
+import 'providers/user_preferences_provider.dart';
 
 class NvrApp extends ConsumerWidget {
   const NvrApp({super.key});

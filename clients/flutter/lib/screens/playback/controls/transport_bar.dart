@@ -58,7 +58,7 @@ class TransportBar extends StatelessWidget {
   /// Playback speed — one of [0.25, 0.5, 1.0, 2.0, 4.0, 8.0].
   final double speed;
 
-  /// Index into the zoom preset list {0: 1H, 1: 30M, 2: 10M, 3: 5M}.
+  /// Index into the zoom preset list {0: 24H, 1: 12H, 2: 4H, 3: 1H}.
   final int zoomLevel;
 
   final VoidCallback onPlayPause;
@@ -156,7 +156,7 @@ class TransportBar extends StatelessWidget {
 
           // ── 5. Zoom HudSegmentedControl ──────────────────────────────────
           HudSegmentedControl<int>(
-            segments: const {0: '1H', 1: '30M', 2: '10M', 3: '5M'},
+            segments: const {0: '24H', 1: '12H', 2: '4H', 3: '1H'},
             selected: zoomLevel,
             onChanged: onZoomChanged,
           ),

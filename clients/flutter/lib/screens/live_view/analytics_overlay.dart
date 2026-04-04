@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/detection_frame.dart';
 import '../../providers/detection_stream_provider.dart';
+import '../../providers/overlay_settings_provider.dart';
 import '../../theme/nvr_colors.dart';
 
 String _labelForBox(DetectionBox box) {
@@ -32,6 +33,12 @@ class AnalyticsOverlay extends ConsumerStatefulWidget {
 class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
   @override
   Widget build(BuildContext context) {
+    // Respect global overlay visibility toggle.
+    final overlayVisible = ref.watch(
+      overlaySettingsProvider.select((s) => s.overlayVisible),
+    );
+    if (!overlayVisible) return const SizedBox.expand();
+
     final frameAsync = ref.watch(detectionStreamProvider(
       (cameraId: widget.cameraId, cameraName: widget.cameraName),
     ));

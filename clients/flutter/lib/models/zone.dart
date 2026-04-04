@@ -69,22 +69,51 @@ class DetectionZone {
     required this.rules,
   });
 
+  /// Safely parse a single polygon point into [x, y].
+  /// Returns null if the element is not a valid 2-element numeric list.
+  static List<double>? _parsePoint(dynamic p) {
+    if (p is! List || p.length < 2) return null;
+    try {
+      final x = (p[0] as num).toDouble();
+      final y = (p[1] as num).toDouble();
+      return [x, y];
+    } catch (_) {
+      return null;
+    }
+  }
+
   factory DetectionZone.fromJson(Map<String, dynamic> json) {
     final rawPoly = json['polygon'];
     List<List<double>> poly = [];
     if (rawPoly is String) {
       try {
-        final parsed = jsonDecode(rawPoly) as List;
-        poly = parsed.map((p) => (p as List).map((v) => (v as num).toDouble()).toList()).toList();
-      } catch (_) {}
+        final parsed = jsonDecode(rawPoly);
+        if (parsed is List) {
+          for (final p in parsed) {
+            final pt = _parsePoint(p);
+            if (pt != null) poly.add(pt);
+          }
+        }
+      } catch (_) {
+        // Malformed JSON string -- leave poly empty
+      }
     } else if (rawPoly is List) {
-      poly = rawPoly.map((p) => (p as List).map((v) => (v as num).toDouble()).toList()).toList();
+      for (final p in rawPoly) {
+        final pt = _parsePoint(p);
+        if (pt != null) poly.add(pt);
+      }
     }
 
     final rawRules = json['rules'] as List<dynamic>? ?? [];
-    final rules = rawRules
-        .map((r) => AlertRule.fromJson(r as Map<String, dynamic>))
-        .toList();
+    List<AlertRule> rules;
+    try {
+      rules = rawRules
+          .map((r) => AlertRule.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      // Malformed rules array -- treat as empty
+      rules = [];
+    }
 
     return DetectionZone(
       id: json['id']?.toString() ?? '',

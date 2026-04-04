@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/nvr_colors.dart';
 import '../theme/nvr_typography.dart';
 import '../providers/notifications_provider.dart';
@@ -128,7 +129,14 @@ class _AlertsPanelContent extends ConsumerWidget {
                     final event = history[index];
                     return _NotificationItem(
                       event: event,
-                      onTap: () => notifier.markRead(index),
+                      onTap: () {
+                        notifier.markRead(index);
+                        final route = event.navigationRoute;
+                        if (route != null) {
+                          onClose();
+                          context.go(route);
+                        }
+                      },
                     );
                   },
                 ),
@@ -213,7 +221,7 @@ class _NotificationItem extends StatelessWidget {
   final NotificationEvent event;
   final VoidCallback onTap;
 
-  Color _dotColor(BuildContext context) {
+  Color _iconColor(BuildContext context) {
     switch (event.type) {
       case 'motion':
         return NvrColors.of(context).accent;
@@ -221,6 +229,8 @@ class _NotificationItem extends StatelessWidget {
         return NvrColors.of(context).danger;
       case 'camera_online':
         return NvrColors.of(context).success;
+      case 'alert':
+        return NvrColors.of(context).warning;
       default:
         return NvrColors.of(context).textSecondary;
     }
@@ -237,28 +247,26 @@ class _NotificationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = event.isRead ? NvrColors.of(context).bgSecondary : NvrColors.of(context).bgTertiary;
+    final hasRoute = event.navigationRoute != null;
 
     return Material(
       color: bg,
       child: InkWell(
         onTap: onTap,
-        splashColor: NvrColors.of(context).accent.withOpacity(0.08),
-        highlightColor: NvrColors.of(context).accent.withOpacity(0.04),
+        splashColor: NvrColors.of(context).accent.withValues(alpha: 0.08),
+        highlightColor: NvrColors.of(context).accent.withValues(alpha: 0.04),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Status dot
+              // Type icon
               Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _dotColor(context),
-                    shape: BoxShape.circle,
-                  ),
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  event.typeIcon,
+                  size: 16,
+                  color: _iconColor(context),
                 ),
               ),
               const SizedBox(width: 10),
@@ -277,14 +285,23 @@ class _NotificationItem extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${event.camera} · ${_timeAgo(event.time)}',
+                      '${event.camera} \u00b7 ${_timeAgo(event.time)}',
                       style: NvrTypography.of(context).monoLabel,
                     ),
                   ],
                 ),
               ),
-              // Unread indicator dot on right edge
-              if (!event.isRead)
+              // Navigate arrow for actionable notifications
+              if (hasRoute && !event.isRead)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, left: 8),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 14,
+                    color: NvrColors.of(context).textMuted,
+                  ),
+                )
+              else if (!event.isRead)
                 Padding(
                   padding: const EdgeInsets.only(top: 4, left: 8),
                   child: Container(

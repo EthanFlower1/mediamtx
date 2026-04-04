@@ -70,6 +70,14 @@ class PlaybackController extends ChangeNotifier {
   Map<String, VideoPlayerController> get videoControllers => _players;
   String? get error => _error;
 
+  /// Whether the given camera has a recording segment covering the current
+  /// playback position.  Used by the camera player to distinguish between
+  /// "loading" and "no recording at this time" when the player is null.
+  bool hasCoverageAtPosition(String cameraId) {
+    final targetTime = _dayStart.add(_position);
+    return _findSegmentForCamera(cameraId, targetTime) != null;
+  }
+
   Map<String, List<PlaybackDetection>> get detectionCache => _detectionCache;
   bool isOverlayDisabled(String cameraId) =>
       _overlayDisabledCameras.contains(cameraId);

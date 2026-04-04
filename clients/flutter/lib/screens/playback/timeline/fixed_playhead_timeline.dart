@@ -13,10 +13,10 @@ import 'timeline_painter.dart';
 
 /// Zoom presets for the timeline. Each defines a visible duration.
 enum TimelineZoom {
-  oneHour(Duration(hours: 1), '1H'),
-  thirtyMinutes(Duration(minutes: 30), '30M'),
-  tenMinutes(Duration(minutes: 10), '10M'),
-  fiveMinutes(Duration(minutes: 5), '5M');
+  twentyFourHours(Duration(hours: 24), '24H'),
+  twelveHours(Duration(hours: 12), '12H'),
+  fourHours(Duration(hours: 4), '4H'),
+  oneHour(Duration(hours: 1), '1H');
 
   final Duration visibleDuration;
   final String label;
@@ -103,10 +103,10 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   double _scrollOffset = 0;
 
   /// Current zoom level. Seeded from widget.zoomLevel when provided.
-  TimelineZoom _zoomLevel = TimelineZoom.thirtyMinutes;
+  TimelineZoom _zoomLevel = TimelineZoom.fourHours;
 
   /// Pixels per second at the current zoom level. Calculated from widget width.
-  double _pixelsPerSecond = 0.22; // Default for 30min at ~400px
+  double _pixelsPerSecond = 0.028; // Default for 4h at ~400px
 
   /// Whether the user is dragging the playhead.
   bool _isDragging = false;

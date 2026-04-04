@@ -65,14 +65,24 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
       final data = res.data as List<dynamic>? ?? [];
       setState(() {
         _zones = data
-            .map((e) => DetectionZone.fromJson(e as Map<String, dynamic>))
+            .whereType<Map<String, dynamic>>()
+            .map((e) => DetectionZone.fromJson(e))
             .toList();
         _loading = false;
       });
     } catch (e) {
+      // If the endpoint doesn't exist yet (404) or network error,
+      // show the editor with an empty zone list rather than crashing.
+      final errStr = e.toString();
+      final is404 = errStr.contains('404') || errStr.contains('Not Found');
       setState(() {
-        _error = e.toString();
-        _loading = false;
+        if (is404) {
+          _zones = [];
+          _loading = false;
+        } else {
+          _error = errStr;
+          _loading = false;
+        }
       });
     }
   }
@@ -362,16 +372,20 @@ class _ZonesPainter extends CustomPainter {
         ..strokeWidth = 2;
 
       final path = Path();
+      var validPoints = 0;
       for (var j = 0; j < zone.polygon.length; j++) {
         final pt = zone.polygon[j];
+        if (pt.length < 2) continue; // skip malformed points
         final x = pt[0] * size.width;
         final y = pt[1] * size.height;
-        if (j == 0) {
+        if (validPoints == 0) {
           path.moveTo(x, y);
         } else {
           path.lineTo(x, y);
         }
+        validPoints++;
       }
+      if (validPoints < 3) continue; // need at least 3 points for a polygon
       path.close();
       canvas.drawPath(path, fillPaint);
       canvas.drawPath(path, strokePaint);

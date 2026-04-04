@@ -25,6 +25,7 @@ import '../../widgets/onvif/audio_section.dart';
 import '../../widgets/onvif/media_config_section.dart';
 import '../../widgets/onvif/device_mgmt_section.dart';
 import '../live_view/camera_tile.dart';
+import 'zone_editor_screen.dart';
 
 class CameraDetailScreen extends ConsumerStatefulWidget {
   final String cameraId;
@@ -864,7 +865,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _ExpandableSection(
           title: 'DETECTION ZONES',
           children: [
-            Text('Detection zone editor coming soon.', style: NvrTypography.of(context).body),
+            ZoneEditorScreen(cameraId: widget.cameraId),
           ],
         ),
 

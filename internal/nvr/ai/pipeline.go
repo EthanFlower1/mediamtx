@@ -5,6 +5,7 @@ import (
 	"context"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
@@ -16,6 +17,7 @@ type Pipeline struct {
 	embedder *Embedder
 	database *db.DB
 	eventPub EventPublisher
+	metrics  *DetectionMetrics
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -36,6 +38,11 @@ func NewPipeline(
 		database: database,
 		eventPub: eventPub,
 	}
+}
+
+// SetMetrics sets the detection metrics collector for this pipeline.
+func (p *Pipeline) SetMetrics(m *DetectionMetrics) {
+	p.metrics = m
 }
 
 // Start launches all pipeline stages as goroutines.
@@ -131,6 +138,11 @@ func (p *Pipeline) runDetector(
 	onvifSrc *ONVIFSrc,
 	confThresh float32,
 ) {
+	modelName := p.config.ModelName
+	if modelName == "" {
+		modelName = "yolov8n"
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,9 +152,20 @@ func (p *Pipeline) runDetector(
 				return
 			}
 
+			// Track queue depth.
+			if p.metrics != nil {
+				p.metrics.SetQueueDepth(int64(len(in)))
+			}
+
+			start := time.Now()
 			yoloDets, err := p.detector.Detect(frame.Image, confThresh)
+			elapsed := time.Since(start)
+
 			if err != nil {
 				log.Printf("[ai][%s] detect error: %v", p.config.CameraName, err)
+				if p.metrics != nil {
+					p.metrics.RecordFrameDrop(p.config.CameraID, p.config.CameraName)
+				}
 				continue
 			}
 
@@ -163,6 +186,11 @@ func (p *Pipeline) runDetector(
 				dets = MergeDetections(dets, onvifDets)
 			}
 
+			// Record inference metrics.
+			if p.metrics != nil {
+				p.metrics.RecordInference(modelName, p.config.CameraID, p.config.CameraName, elapsed, len(dets))
+			}
+
 			df := DetectionFrame{
 				Timestamp:  frame.Timestamp,
 				Image:      frame.Image,
@@ -172,6 +200,11 @@ func (p *Pipeline) runDetector(
 			case out <- df:
 			case <-ctx.Done():
 				return
+			default:
+				// Output channel full — frame dropped.
+				if p.metrics != nil {
+					p.metrics.RecordFrameDrop(p.config.CameraID, p.config.CameraName)
+				}
 			}
 		}
 	}

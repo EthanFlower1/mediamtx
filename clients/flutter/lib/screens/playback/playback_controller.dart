@@ -561,7 +561,51 @@ class PlaybackController extends ChangeNotifier {
     _gapTimer = null;
   }
 
+  /// Clock drift tolerance — segments whose boundaries are within this
+  /// duration of the target time are considered to contain it.  This accounts
+  /// for minor clock differences between cameras.
+  static const _clockDriftTolerance = Duration(seconds: 2);
+
+  /// Find the best segment for [cameraId] that contains (or is closest to)
+  /// [time], accounting for clock drift tolerance.
+  RecordingSegment? _findSegmentForCamera(String cameraId, DateTime time) {
+    RecordingSegment? best;
+    Duration bestDistance = const Duration(days: 1);
+
+    for (final seg in _segments) {
+      if (seg.cameraId != cameraId) continue;
+
+      // Exact containment.
+      if (!time.isBefore(seg.startTime) && !time.isAfter(seg.endTime)) {
+        return seg;
+      }
+
+      // Within drift tolerance.
+      final startDiff = seg.startTime.difference(time).abs();
+      final endDiff = seg.endTime.difference(time).abs();
+      final minDiff = startDiff < endDiff ? startDiff : endDiff;
+      if (minDiff <= _clockDriftTolerance && minDiff < bestDistance) {
+        bestDistance = minDiff;
+        best = seg;
+      }
+    }
+    return best;
+  }
+
+  /// Find the next segment for [cameraId] at or after [time].
+  RecordingSegment? _findNextSegmentForCamera(String cameraId, DateTime time) {
+    for (final seg in _segments) {
+      if (seg.cameraId != cameraId) continue;
+      if (seg.contains(time) || seg.startTime.isAfter(time)) {
+        return seg;
+      }
+    }
+    return null;
+  }
+
   /// Open the recording segment that contains [wallClock].
+  /// Each camera gets its own segment lookup so cameras with different
+  /// recording boundaries are handled correctly.
   /// Serves the raw fMP4 file via HTTP with Range support — fully seekable.
   Future<void> _openSegmentAt(Duration wallClock) async {
     _disposeAllPlayers();
@@ -572,48 +616,61 @@ class PlaybackController extends ChangeNotifier {
 
     final targetTime = _dayStart.add(wallClock);
 
-    // Find the segment containing the target, or the next one.
-    var seg = _findSegmentForTime(targetTime);
+    // Use the primary camera to determine gap/segment state.
+    final primaryCam =
+        _selectedCameraIds.isNotEmpty ? _selectedCameraIds.first : null;
+    if (primaryCam == null) {
+      _error = 'No cameras selected';
+      notifyListeners();
+      return;
+    }
+
+    // Find the segment containing the target for the primary camera.
+    var primarySeg = _findSegmentForCamera(primaryCam, targetTime);
     DateTime seekTarget = targetTime;
 
-    if (seg == null) {
-      seg = _findNextSegmentForTime(targetTime);
-      if (seg == null) {
+    if (primarySeg == null) {
+      primarySeg = _findNextSegmentForCamera(primaryCam, targetTime);
+      if (primarySeg == null) {
         _isInGap = false;
         _error = 'No recordings at this time';
         notifyListeners();
         return;
       }
       // We're in a gap — if playing, advance through it with timer
-      if (_isPlaying && seg.startTime.difference(targetTime) > const Duration(seconds: 1)) {
+      if (_isPlaying &&
+          primarySeg.startTime.difference(targetTime) >
+              const Duration(seconds: 1)) {
         _isInGap = true;
         notifyListeners();
-        _startGapTimer(seg);
+        _startGapTimer(primarySeg);
         return;
       }
-      seekTarget = seg.startTime;
+      seekTarget = primarySeg.startTime;
       _position = seekTarget.difference(_dayStart);
     }
 
     _isInGap = false;
+    _currentSegment = primarySeg;
 
-    _currentSegment = seg;
-
-    if (seg.filePath == null || seg.filePath!.isEmpty) {
-      _error = 'Recording has no file path';
-      notifyListeners();
-      return;
-    }
-
-    final url = _segmentFileUrl(seg, token);
-    final wallOffset = seekTarget.difference(seg.startTime);
-
-    debugPrint(
-        'Opening file: segment ${seg.id}, '
-        'start=${seg.startTime}, url=$url, wallOffset=$wallOffset');
-
-    // Open for each selected camera.
+    // Open a player for each selected camera using its own segment.
     for (final camId in _selectedCameraIds) {
+      // Find the best segment for this specific camera.
+      var camSeg = _findSegmentForCamera(camId, seekTarget);
+      camSeg ??= _findNextSegmentForCamera(camId, seekTarget);
+
+      if (camSeg == null || camSeg.filePath == null || camSeg.filePath!.isEmpty) {
+        debugPrint('No segment available for camera $camId at $seekTarget');
+        continue;
+      }
+
+      final url = _segmentFileUrl(camSeg, token);
+      final wallOffset = seekTarget.difference(camSeg.startTime);
+
+      debugPrint(
+          'Opening file: camera=$camId, segment ${camSeg.id}, '
+          'start=${camSeg.startTime}, url=$url, wallOffset=$wallOffset');
+
       try {
         final controller = VideoPlayerController.networkUrl(
           Uri.parse(url),
@@ -629,7 +686,8 @@ class PlaybackController extends ChangeNotifier {
         // Seek to the target position within the file.
         if (wallOffset > Duration.zero) {
           final mediaDuration = controller.value.duration;
-          final wallClockDuration = seg.endTime.difference(seg.startTime);
+          final wallClockDuration =
+              camSeg.endTime.difference(camSeg.startTime);
           final startOffset = mediaDuration > Duration.zero
               ? wallClockDuration - mediaDuration
               : Duration.zero;
@@ -656,8 +714,8 @@ class PlaybackController extends ChangeNotifier {
       return;
     }
 
-    // Fetch detections for the segment (non-blocking).
-    _fetchDetectionsForSegment(seg);
+    // Fetch detections for the primary segment (non-blocking).
+    _fetchDetectionsForSegment(primarySeg);
 
     notifyListeners();
   }

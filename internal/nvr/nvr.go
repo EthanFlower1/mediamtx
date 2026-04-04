@@ -72,7 +72,8 @@ type NVR struct {
 	integrityScanner *integrity.Scanner
 	connMgr          *connmgr.Manager
 
-	backchannelMgr *backchannel.Manager
+	backchannelMgr  *backchannel.Manager
+	exportHandler   *api.ExportHandler
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -569,6 +570,9 @@ func (n *NVR) Close() {
 		n.backchannelMgr.CloseAll()
 	}
 
+	if n.exportHandler != nil {
+		n.exportHandler.Stop()
+	}
 	if n.connMgr != nil {
 		n.connMgr.Stop()
 	}
@@ -864,7 +868,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		}
 	}
 
-	api.RegisterRoutes(engine, &api.RouterConfig{
+	n.exportHandler = api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
 		JWKSJSON:       n.jwksJSON,

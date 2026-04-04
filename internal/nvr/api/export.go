@@ -3,11 +3,12 @@ package api
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,10 +23,10 @@ type ExportHandler struct {
 	RecordingsPath string // base path for recording files
 	ExportsPath    string // directory where exported files are written
 
-	mu       sync.Mutex
-	running  bool
-	cancelCh chan string // job IDs to cancel
-	stopCh   chan struct{}
+	mu        sync.Mutex
+	running   bool
+	stopCh    chan struct{}
+	startedAt map[string]time.Time // job ID -> time processing started
 }
 
 // Start begins the background export queue processor. It processes up to
@@ -37,8 +38,8 @@ func (h *ExportHandler) Start(maxConcurrent int) {
 		return
 	}
 	h.running = true
-	h.cancelCh = make(chan string, 64)
 	h.stopCh = make(chan struct{})
+	h.startedAt = make(map[string]time.Time)
 	h.mu.Unlock()
 
 	if maxConcurrent < 1 {
@@ -96,11 +97,19 @@ func (h *ExportHandler) Stop() {
 // processJob executes a single export job: queries recordings, concatenates
 // segments into a single output file, and updates progress.
 func (h *ExportHandler) processJob(job *db.ExportJob) {
-	// Mark as processing.
+	// Mark as processing and record start time for ETA calculation.
 	if err := h.DB.UpdateExportJobStatus(job.ID, "processing", 0, ""); err != nil {
 		log.Printf("[NVR] [EXPORT] failed to update job %s to processing: %v", job.ID, err)
 		return
 	}
+	h.mu.Lock()
+	h.startedAt[job.ID] = time.Now()
+	h.mu.Unlock()
+	defer func() {
+		h.mu.Lock()
+		delete(h.startedAt, job.ID)
+		h.mu.Unlock()
+	}()
 
 	start, err := time.Parse(time.RFC3339, job.StartTime)
 	if err != nil {
@@ -156,41 +165,61 @@ func (h *ExportHandler) processJob(job *db.ExportJob) {
 	log.Printf("[NVR] [EXPORT] job %s completed: %s", job.ID, outputPath)
 }
 
-// concatenateSegments copies recording file data sequentially into the output
-// file, updating progress as each segment is written. Gaps between segments
-// are handled gracefully (the output is simply the concatenation of available
-// data — gap markers are not inserted).
+// concatenateSegments uses ffmpeg's concat demuxer to merge recording segments
+// into a single valid MP4 file. It writes a concat list file, then runs ffmpeg
+// with "-c copy" so no re-encoding occurs. Progress is updated after ffmpeg
+// completes (since ffmpeg handles the actual muxing atomically).
 func (h *ExportHandler) concatenateSegments(jobID string, recordings []*db.Recording, outputPath string) error {
-	out, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("create output file: %w", err)
-	}
-	defer out.Close()
-
-	totalSegments := len(recordings)
-	for i, rec := range recordings {
-		if h.isCancelled(jobID) {
-			return fmt.Errorf("job cancelled")
-		}
-
-		src, err := os.Open(rec.FilePath)
-		if err != nil {
+	// Filter out segments whose files don't exist on disk.
+	var validPaths []string
+	for _, rec := range recordings {
+		if _, err := os.Stat(rec.FilePath); err != nil {
 			log.Printf("[NVR] [EXPORT] job %s: skipping missing segment %s: %v", jobID, rec.FilePath, err)
-			// Update progress even for skipped segments.
-			progress := float64(i+1) / float64(totalSegments) * 100
-			_ = h.DB.UpdateExportJobStatus(jobID, "processing", progress, "")
 			continue
 		}
-
-		_, err = io.Copy(out, src)
-		src.Close()
-		if err != nil {
-			return fmt.Errorf("copy segment %d: %w", rec.ID, err)
-		}
-
-		progress := float64(i+1) / float64(totalSegments) * 100
-		_ = h.DB.UpdateExportJobStatus(jobID, "processing", progress, "")
+		validPaths = append(validPaths, rec.FilePath)
 	}
+	if len(validPaths) == 0 {
+		return fmt.Errorf("no valid segment files found on disk")
+	}
+
+	// Write the ffmpeg concat list file.
+	concatListPath := outputPath + ".concat.txt"
+	defer os.Remove(concatListPath)
+
+	var listContent strings.Builder
+	for _, p := range validPaths {
+		// Escape single quotes in paths for ffmpeg concat format.
+		escaped := strings.ReplaceAll(p, "'", "'\\''")
+		fmt.Fprintf(&listContent, "file '%s'\n", escaped)
+	}
+	if err := os.WriteFile(concatListPath, []byte(listContent.String()), 0o644); err != nil {
+		return fmt.Errorf("write concat list: %w", err)
+	}
+
+	// Update progress to indicate concatenation is starting.
+	_ = h.DB.UpdateExportJobStatus(jobID, "processing", 10, "")
+
+	if h.isCancelled(jobID) {
+		return fmt.Errorf("job cancelled")
+	}
+
+	// Run ffmpeg concat demuxer.
+	cmd := exec.Command("ffmpeg",
+		"-y",             // overwrite output
+		"-f", "concat",   // concat demuxer
+		"-safe", "0",     // allow absolute paths
+		"-i", concatListPath,
+		"-c", "copy",     // no re-encoding
+		outputPath,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ffmpeg concat failed: %w\noutput: %s", err, string(output))
+	}
+
+	// Update progress to 95% (completed will be set by caller).
+	_ = h.DB.UpdateExportJobStatus(jobID, "processing", 95, "")
 
 	return nil
 }
@@ -274,7 +303,13 @@ func (h *ExportHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, jobs)
 }
 
-// Get returns a single export job by ID.
+// ExportJobResponse extends ExportJob with a computed ETA field.
+type ExportJobResponse struct {
+	*db.ExportJob
+	ETASeconds *float64 `json:"eta_seconds,omitempty"`
+}
+
+// Get returns a single export job by ID, including computed ETA for in-progress jobs.
 // GET /api/nvr/exports/:id
 func (h *ExportHandler) Get(c *gin.Context) {
 	id := c.Param("id")
@@ -289,7 +324,21 @@ func (h *ExportHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, job)
+	resp := ExportJobResponse{ExportJob: job}
+
+	// Compute ETA for in-progress jobs.
+	if job.Status == "processing" && job.Progress > 0 {
+		h.mu.Lock()
+		started, ok := h.startedAt[job.ID]
+		h.mu.Unlock()
+		if ok {
+			elapsed := time.Since(started).Seconds()
+			remaining := elapsed / job.Progress * (100 - job.Progress)
+			resp.ETASeconds = &remaining
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // Delete cancels a pending/processing export job or deletes a completed/failed one.

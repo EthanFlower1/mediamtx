@@ -51,11 +51,13 @@ type RouterConfig struct {
 	QuarantineBase  string              // quarantine directory for corrupted recordings
 	BackchannelMgr  *backchannel.Manager // backchannel audio session manager (may be nil)
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
-	ExportsPath     string              // directory for exported clip files
+	ExportsPath        string              // directory for exported clip files
+	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
-func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
+// It returns the ExportHandler so the caller can call Stop() on shutdown.
+func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	audit := &AuditLogger{DB: cfg.DB}
 
 	authHandler := &AuthHandler{
@@ -545,7 +547,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		RecordingsPath: cfg.RecordingsPath,
 		ExportsPath:    exportsPath,
 	}
-	exportHandler.Start(2)
+	maxConcurrent := cfg.ExportMaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 2
+	}
+	exportHandler.Start(maxConcurrent)
 	protected.POST("/exports", exportHandler.Create)
 	protected.GET("/exports", exportHandler.List)
 	protected.GET("/exports/:id", exportHandler.Get)
@@ -580,4 +586,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	}
+
+	return exportHandler
 }

@@ -317,6 +317,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// Edge recordings (camera SD card / Profile G).
 	protected.GET("/cameras/:id/edge-recordings", cameraHandler.EdgeRecordings)
 	protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
+	protected.POST("/cameras/:id/edge-recordings/replay-session", cameraHandler.EdgeReplaySession)
 	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
 
 	// Recording control (Profile G — manage recordings and jobs on device).

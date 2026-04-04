@@ -21,17 +21,17 @@ class SavedClip {
 
   factory SavedClip.fromJson(Map<String, dynamic> json) {
     return SavedClip(
-      id: json['id'] as String,
-      cameraId: json['camera_id'] as String,
-      name: json['name'] as String,
-      startTime: json['start_time'] as String,
-      endTime: json['end_time'] as String,
+      id: json['id']?.toString() ?? '',
+      cameraId: json['camera_id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      startTime: json['start_time']?.toString() ?? '',
+      endTime: json['end_time']?.toString() ?? '',
       tags: (json['tags'] as List<dynamic>?)
-              ?.map((t) => t as String)
+              ?.map((t) => t.toString())
               .toList() ??
           [],
-      notes: json['notes'] as String?,
-      createdAt: json['created_at'] as String,
+      notes: json['notes']?.toString(),
+      createdAt: json['created_at']?.toString() ?? '',
     );
   }
 }

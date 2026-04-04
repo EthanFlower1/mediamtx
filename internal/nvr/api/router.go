@@ -181,8 +181,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		JWKSJSON: cfg.JWKSJSON,
 	}
 
+	sessionHandler := &SessionHandler{
+		DB:    cfg.DB,
+		Audit: audit,
+	}
+
 	middleware := &Middleware{
 		PrivateKey: cfg.PrivateKey,
+		DB:         cfg.DB,
 	}
 
 	nvr := engine.Group("/api/nvr")
@@ -474,12 +480,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)
 
+	// Sessions.
+	protected.GET("/sessions", sessionHandler.List)
+	protected.DELETE("/sessions/:id", sessionHandler.Revoke)
+	protected.GET("/sessions/timeout", sessionHandler.GetTimeout)
+	protected.PUT("/sessions/timeout", sessionHandler.SetTimeout)
+
 	// Users.
 	protected.GET("/users", userHandler.List)
 	protected.POST("/users", userHandler.Create)
 	protected.GET("/users/:id", userHandler.Get)
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
+	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
 
 	// System.
 	protected.GET("/system/info", systemHandler.Info)

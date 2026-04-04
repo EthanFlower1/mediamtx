@@ -527,29 +527,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-<<<<<<< HEAD
-	// Migration 37: Export jobs queue (KAI-33).
-	{
-		version: 37,
-		sql: `
-		CREATE TABLE export_jobs (
-			id TEXT PRIMARY KEY,
-			camera_id TEXT NOT NULL,
-			start_time TEXT NOT NULL,
-			end_time TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'pending',
-			progress REAL NOT NULL DEFAULT 0,
-			output_path TEXT NOT NULL DEFAULT '',
-			error TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL,
-			completed_at TEXT NOT NULL DEFAULT '',
-			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
-		);
-		CREATE INDEX idx_export_jobs_camera ON export_jobs(camera_id);
-		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
-		`,
-	},
-=======
 	// Migration 37: Evidence export tracking (KAI-38).
 	{
 		version: 37,
@@ -576,5 +553,66 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 38,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
->>>>>>> origin/main
+	// Migration 39: Export jobs queue (KAI-33).
+	{
+		version: 39,
+		sql: `
+		CREATE TABLE export_jobs (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			progress REAL NOT NULL DEFAULT 0,
+			output_path TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			completed_at TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_export_jobs_camera ON export_jobs(camera_id);
+		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
+		`,
+	},
+	// Migration 40: Bulk export jobs and items.
+	{
+		version: 40,
+		sql: `
+		CREATE TABLE bulk_export_jobs (
+			id TEXT PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'pending',
+			total_items INTEGER NOT NULL DEFAULT 0,
+			zip_path TEXT,
+			error TEXT,
+			created_at TEXT NOT NULL,
+			completed_at TEXT
+		);
+		CREATE TABLE bulk_export_items (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_bulk_export_items_job ON bulk_export_items(job_id);
+		`,
+	},
+	// Migration 41: Session management — add device info, IP, and activity tracking (KAI-76).
+	{
+		version: 41,
+		sql: `
+		ALTER TABLE refresh_tokens ADD COLUMN ip_address TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN user_agent TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN device_name TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN last_activity TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN created_at TEXT NOT NULL DEFAULT '';
+		CREATE INDEX idx_refresh_tokens_last_activity ON refresh_tokens(last_activity);
+		`,
+	},
 }

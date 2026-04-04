@@ -157,6 +157,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
 
+	thumbnailHandler := &ThumbnailHandler{
+		DB:             cfg.DB,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+
 	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 
 	jwksHandler := &JWKSHandler{
@@ -406,6 +411,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/screenshots", screenshotHandler.List)
 	protected.GET("/screenshots/:id/download", screenshotHandler.Download)
 	protected.DELETE("/screenshots/:id", screenshotHandler.Delete)
+
+	// Timeline thumbnails.
+	protected.GET("/cameras/:id/thumbnails", thumbnailHandler.List)
+	protected.GET("/cameras/:id/thumbnails/:filename", thumbnailHandler.Serve)
 
 	// Camera streams.
 	protected.GET("/cameras/:id/streams", streamHandler.List)

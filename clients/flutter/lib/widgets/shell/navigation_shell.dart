@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/nvr_colors.dart';
 import '../../providers/camera_panel_provider.dart';
 import '../alerts_panel.dart';
+import '../connection_status_banner.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
 import 'camera_panel.dart';
@@ -42,10 +43,18 @@ class NavigationShell extends ConsumerWidget {
         mobileIndex = selectedIndex.clamp(0, 3);
       }
       return Scaffold(
-        body: Stack(
+        body: Column(
           children: [
-            child,
-            const TourActivePill(),
+            const ConnectionStatusBanner(),
+            const ReconnectedBanner(),
+            Expanded(
+              child: Stack(
+                children: [
+                  child,
+                  const TourActivePill(),
+                ],
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: MobileBottomNav(
@@ -68,45 +77,53 @@ class NavigationShell extends ConsumerWidget {
     final alertsOpen = ref.watch(alertsPanelOpenProvider);
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          IconRail(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            onAlertsTap: () => _onAlertsTap(context, ref),
-            onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
-          ),
-          Container(width: 1, color: NvrColors.border),
-          // Camera panel (push or overlay based on breakpoint)
-          if (usePushPanel && panelState.isOpen) ...[
-            const CameraPanel(),
-            Container(width: 1, color: NvrColors.border),
-          ],
-          // Main content
+          const ConnectionStatusBanner(),
+          const ReconnectedBanner(),
           Expanded(
-            child: Stack(
+            child: Row(
               children: [
-                child,
-                // Overlay panel for tablet portrait (600-1024)
-                if (!usePushPanel && panelState.isOpen) ...[
-                  // Scrim
-                  GestureDetector(
-                    onTap: () => ref.read(cameraPanelProvider.notifier).close(),
-                    child: Container(color: Colors.black54),
-                  ),
-                  // Panel
-                  const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
+                IconRail(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: onDestinationSelected,
+                  onAlertsTap: () => _onAlertsTap(context, ref),
+                  onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
+                ),
+                Container(width: 1, color: NvrColors.border),
+                // Camera panel (push or overlay based on breakpoint)
+                if (usePushPanel && panelState.isOpen) ...[
+                  const CameraPanel(),
+                  Container(width: 1, color: NvrColors.border),
                 ],
-                // Alerts scrim (desktop overlay)
-                if (alertsOpen)
-                  GestureDetector(
-                    onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
-                    child: Container(color: Colors.black45),
+                // Main content
+                Expanded(
+                  child: Stack(
+                    children: [
+                      child,
+                      // Overlay panel for tablet portrait (600-1024)
+                      if (!usePushPanel && panelState.isOpen) ...[
+                        // Scrim
+                        GestureDetector(
+                          onTap: () => ref.read(cameraPanelProvider.notifier).close(),
+                          child: Container(color: Colors.black54),
+                        ),
+                        // Panel
+                        const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
+                      ],
+                      // Alerts scrim (desktop overlay)
+                      if (alertsOpen)
+                        GestureDetector(
+                          onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
+                          child: Container(color: Colors.black45),
+                        ),
+                      // Alerts panel overlay (desktop)
+                      const AlertsPanelOverlay(),
+                      // Tour active pill (all screens)
+                      const TourActivePill(),
+                    ],
                   ),
-                // Alerts panel overlay (desktop)
-                const AlertsPanelOverlay(),
-                // Tour active pill (all screens)
-                const TourActivePill(),
+                ),
               ],
             ),
           ),

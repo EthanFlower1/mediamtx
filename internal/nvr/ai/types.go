@@ -114,6 +114,10 @@ type PipelineConfig struct {
 	ConfidenceThresh float32 // YOLO confidence threshold, default 0.5
 	TrackTimeout     int     // seconds before lost track marked "left", default 5
 
+	// DedupWindow is the time window for suppressing duplicate detection
+	// events. Zero uses the default (3s). Negative disables dedup.
+	DedupWindow time.Duration
+
 	// ONVIF metadata endpoint (empty = disabled).
 	ONVIFMetadataURL string
 	ONVIFUsername    string

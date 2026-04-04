@@ -9,7 +9,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
-// Pipeline orchestrates the four detection stages for a single camera.
+// Pipeline orchestrates the five detection stages for a single camera.
 type Pipeline struct {
 	config   PipelineConfig
 	detector *Detector
@@ -103,8 +103,21 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 		tracker.Run(ctx)
 	}()
 
-	// Stage 4: Publisher
-	publisher := NewPublisher(trackCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
+	// Stage 4: Dedup — suppress duplicate detection events within a time window.
+	dedupOut := trackCh // default: no dedup, pass trackCh directly to publisher
+	if p.config.DedupWindow >= 0 {
+		dedupCh := make(chan TrackedFrame, 1)
+		dedup := NewDedup(trackCh, dedupCh, DedupConfig{Window: p.config.DedupWindow})
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			dedup.Run(ctx)
+		}()
+		dedupOut = dedupCh
+	}
+
+	// Stage 5: Publisher
+	publisher := NewPublisher(dedupOut, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()

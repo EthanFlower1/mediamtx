@@ -532,6 +532,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+	// CLIP search index management.
+	clipIndexHandler := &CLIPIndexHandler{
+		DB:       cfg.DB,
+		Embedder: cfg.Embedder,
+	}
+	protected.GET("/ai/clip/status", clipIndexHandler.Status)
+	protected.POST("/ai/clip/reindex", clipIndexHandler.Reindex)
+
 	// Evidence exports.
 	evidenceHandler := &EvidenceHandler{
 		DB:             cfg.DB,

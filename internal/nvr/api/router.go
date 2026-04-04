@@ -140,6 +140,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		Audit: audit,
 	}
 
+	roleHandler := &RoleHandler{
+		DB:    cfg.DB,
+		Audit: audit,
+	}
+
+	cameraPermHandler := &CameraPermissionHandler{
+		DB:    cfg.DB,
+		Audit: audit,
+	}
+
 	ruleHandler := &RecordingRuleHandler{
 		DB:        cfg.DB,
 		Scheduler: cfg.Scheduler,
@@ -514,6 +524,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
 	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
+
+	// Roles (RBAC).
+	protected.GET("/roles", roleHandler.List)
+	protected.POST("/roles", roleHandler.Create)
+	protected.GET("/roles/:id", roleHandler.Get)
+	protected.PUT("/roles/:id", roleHandler.Update)
+	protected.DELETE("/roles/:id", roleHandler.Delete)
+
+	// Per-camera permissions.
+	protected.GET("/users/:id/camera-permissions", cameraPermHandler.List)
+	protected.POST("/users/:id/camera-permissions", cameraPermHandler.Set)
+	protected.PUT("/users/:id/camera-permissions", cameraPermHandler.SetBulk)
+	protected.DELETE("/users/:id/camera-permissions/:cameraId", cameraPermHandler.Delete)
 
 	// System.
 	protected.GET("/system/info", systemHandler.Info)

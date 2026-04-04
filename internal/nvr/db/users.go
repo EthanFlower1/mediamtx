@@ -14,6 +14,7 @@ type User struct {
 	Username          string `json:"username"`
 	PasswordHash      string `json:"-"`
 	Role              string `json:"role"`
+	RoleID            string `json:"role_id"`
 	CameraPermissions string `json:"camera_permissions"`
 	CreatedAt         string `json:"created_at"`
 	UpdatedAt         string `json:"updated_at"`
@@ -35,9 +36,9 @@ func (d *DB) CreateUser(u *User) error {
 	u.UpdatedAt = now
 
 	_, err := d.Exec(`
-		INSERT INTO users (id, username, password_hash, role, camera_permissions, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, u.Username, u.PasswordHash, u.Role, u.CameraPermissions,
+		INSERT INTO users (id, username, password_hash, role, role_id, camera_permissions, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.Username, u.PasswordHash, u.Role, u.RoleID, u.CameraPermissions,
 		u.CreatedAt, u.UpdatedAt,
 	)
 	return err
@@ -47,9 +48,9 @@ func (d *DB) CreateUser(u *User) error {
 func (d *DB) GetUser(id string) (*User, error) {
 	u := &User{}
 	err := d.QueryRow(`
-		SELECT id, username, password_hash, role, camera_permissions, created_at, updated_at
+		SELECT id, username, password_hash, role, COALESCE(role_id, ''), camera_permissions, created_at, updated_at
 		FROM users WHERE id = ?`, id,
-	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CameraPermissions,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.RoleID, &u.CameraPermissions,
 		&u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -64,9 +65,9 @@ func (d *DB) GetUser(id string) (*User, error) {
 func (d *DB) GetUserByUsername(username string) (*User, error) {
 	u := &User{}
 	err := d.QueryRow(`
-		SELECT id, username, password_hash, role, camera_permissions, created_at, updated_at
+		SELECT id, username, password_hash, role, COALESCE(role_id, ''), camera_permissions, created_at, updated_at
 		FROM users WHERE username = ?`, username,
-	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CameraPermissions,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.RoleID, &u.CameraPermissions,
 		&u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -80,7 +81,7 @@ func (d *DB) GetUserByUsername(username string) (*User, error) {
 // ListUsers returns all users ordered by username.
 func (d *DB) ListUsers() ([]*User, error) {
 	rows, err := d.Query(`
-		SELECT id, username, password_hash, role, camera_permissions, created_at, updated_at
+		SELECT id, username, password_hash, role, COALESCE(role_id, ''), camera_permissions, created_at, updated_at
 		FROM users ORDER BY username`)
 	if err != nil {
 		return nil, err
@@ -90,7 +91,7 @@ func (d *DB) ListUsers() ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		u := &User{}
-		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.RoleID,
 			&u.CameraPermissions, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
@@ -104,10 +105,10 @@ func (d *DB) UpdateUser(u *User) error {
 	u.UpdatedAt = time.Now().UTC().Format(timeFormat)
 
 	res, err := d.Exec(`
-		UPDATE users SET username = ?, password_hash = ?, role = ?,
+		UPDATE users SET username = ?, password_hash = ?, role = ?, role_id = ?,
 			camera_permissions = ?, updated_at = ?
 		WHERE id = ?`,
-		u.Username, u.PasswordHash, u.Role, u.CameraPermissions, u.UpdatedAt, u.ID,
+		u.Username, u.PasswordHash, u.Role, u.RoleID, u.CameraPermissions, u.UpdatedAt, u.ID,
 	)
 	if err != nil {
 		return err

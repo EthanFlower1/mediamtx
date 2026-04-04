@@ -71,6 +71,49 @@ type AuthHandler struct {
 	Audit      *AuditLogger
 }
 
+// buildRolePermissions retrieves the permissions string for the user's assigned role.
+func (h *AuthHandler) buildRolePermissions(user *db.User) string {
+	if user.Role == "admin" {
+		return `["view_live","view_playback","export","ptz_control","admin"]`
+	}
+
+	// Try role_id first (new granular RBAC).
+	if user.RoleID != "" {
+		role, err := h.DB.GetRole(user.RoleID)
+		if err == nil {
+			return role.Permissions
+		}
+	}
+
+	// Fall back to legacy role name lookup.
+	role, err := h.DB.GetRoleByName(user.Role)
+	if err == nil {
+		return role.Permissions
+	}
+
+	return "[]"
+}
+
+// buildPerCameraPermissions returns a JSON-encoded map of camera_id -> permissions
+// for embedding in the JWT.
+func (h *AuthHandler) buildPerCameraPermissions(userID string) string {
+	perms, err := h.DB.ListCameraPermissions(userID)
+	if err != nil || len(perms) == 0 {
+		return ""
+	}
+
+	result := make(map[string]json.RawMessage, len(perms))
+	for _, p := range perms {
+		result[p.CameraID] = json.RawMessage(p.Permissions)
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // setupRequest is the JSON body for the initial admin setup.
 type setupRequest struct {
 	Username string `json:"username" binding:"required"`
@@ -308,6 +351,16 @@ func (h *AuthHandler) buildAccessTokenWithSession(user *db.User, now time.Time, 
 	}
 	if sessionID != "" {
 		claims["session_id"] = sessionID
+	}
+
+	// Add granular RBAC claims.
+	rolePerms := h.buildRolePermissions(user)
+	if rolePerms != "" {
+		claims["role_permissions"] = rolePerms
+	}
+	pcPerms := h.buildPerCameraPermissions(user.ID)
+	if pcPerms != "" {
+		claims["per_camera_permissions"] = pcPerms
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

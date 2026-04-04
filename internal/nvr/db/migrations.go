@@ -622,4 +622,39 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
 		`,
 	},
+	// Migration 42: Role-based access control (KAI-75).
+	{
+		version: 42,
+		sql: `
+		CREATE TABLE roles (
+			id TEXT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			permissions TEXT NOT NULL DEFAULT '[]',
+			is_system INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE camera_permissions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			permissions TEXT NOT NULL DEFAULT '[]',
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+			UNIQUE(user_id, camera_id)
+		);
+		CREATE INDEX idx_camera_permissions_user ON camera_permissions(user_id);
+		CREATE INDEX idx_camera_permissions_camera ON camera_permissions(camera_id);
+
+		ALTER TABLE users ADD COLUMN role_id TEXT DEFAULT '';
+
+		INSERT INTO roles (id, name, permissions, is_system) VALUES
+			('role-admin', 'admin', '["view_live","view_playback","export","ptz_control","admin"]', 1),
+			('role-operator', 'operator', '["view_live","view_playback","export","ptz_control"]', 1),
+			('role-viewer', 'viewer', '["view_live","view_playback"]', 1),
+			('role-live-only', 'live_only', '["view_live"]', 1);
+		`,
+	},
 }

@@ -20,10 +20,18 @@ import (
 // access the given camera. It reads camera_permissions from the gin context
 // (set by JWT middleware). "*" grants access to all cameras; otherwise the value
 // is expected to be a JSON array of allowed camera IDs.
+// Admins always have access to all cameras.
 func hasCameraPermission(c *gin.Context, cameraID string) bool {
+	// Admins always have full access.
+	role, _ := c.Get("role")
+	if role == "admin" {
+		return true
+	}
+
 	permsRaw, exists := c.Get("camera_permissions")
 	if !exists {
-		return false
+		// Fall back to per-camera permissions from JWT.
+		return hasCameraInPerCameraPerms(c, cameraID)
 	}
 	perms, ok := permsRaw.(string)
 	if !ok {
@@ -41,7 +49,93 @@ func hasCameraPermission(c *gin.Context, cameraID string) bool {
 			return true
 		}
 	}
+
+	// Fall back to per-camera permissions.
+	return hasCameraInPerCameraPerms(c, cameraID)
+}
+
+// hasCameraInPerCameraPerms checks the per_camera_permissions JWT claim
+// for the given camera ID.
+func hasCameraInPerCameraPerms(c *gin.Context, cameraID string) bool {
+	pcpRaw, exists := c.Get("per_camera_permissions")
+	if !exists {
+		return false
+	}
+	pcp, ok := pcpRaw.(string)
+	if !ok || pcp == "" {
+		return false
+	}
+	var camPerms map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(pcp), &camPerms); err != nil {
+		return false
+	}
+	_, found := camPerms[cameraID]
+	return found
+}
+
+// hasCameraAction checks whether the user has a specific permission action for a camera.
+// It first checks the role-level permissions from the JWT, then falls back to
+// per-camera permissions from the JWT claims.
+func hasCameraAction(c *gin.Context, cameraID, action string) bool {
+	// Admins always have full access.
+	role, _ := c.Get("role")
+	if role == "admin" {
+		return true
+	}
+
+	// Check role_permissions claim (set from the user's assigned role).
+	if rpRaw, exists := c.Get("role_permissions"); exists {
+		if rp, ok := rpRaw.(string); ok {
+			if containsAction(rp, action) && hasCameraPermission(c, cameraID) {
+				return true
+			}
+		}
+	}
+
+	// Check per-camera permissions from JWT claims.
+	if pcpRaw, exists := c.Get("per_camera_permissions"); exists {
+		if pcp, ok := pcpRaw.(string); ok && pcp != "" {
+			var camPerms map[string][]string
+			if err := json.Unmarshal([]byte(pcp), &camPerms); err == nil {
+				if perms, found := camPerms[cameraID]; found {
+					for _, p := range perms {
+						if p == action {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return false
+}
+
+// containsAction checks if a JSON permission array contains the given action.
+func containsAction(permsJSON, action string) bool {
+	if permsJSON == "" || permsJSON == "[]" {
+		return false
+	}
+	var perms []string
+	if err := json.Unmarshal([]byte(permsJSON), &perms); err != nil {
+		return false
+	}
+	for _, p := range perms {
+		if p == action {
+			return true
+		}
+	}
+	return false
+}
+
+// requireCameraAction checks that the user has a specific permission for a camera.
+// Returns true if the request should proceed, false if it was aborted with 403.
+func requireCameraAction(c *gin.Context, cameraID, action string) bool {
+	if !hasCameraAction(c, cameraID, action) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied: requires " + action})
+		return false
+	}
+	return true
 }
 
 // RecordingHandler implements HTTP endpoints for recording queries.

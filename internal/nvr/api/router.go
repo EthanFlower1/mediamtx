@@ -51,10 +51,13 @@ type RouterConfig struct {
 	QuarantineBase  string              // quarantine directory for corrupted recordings
 	BackchannelMgr  *backchannel.Manager // backchannel audio session manager (may be nil)
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
+	ExportsPath        string              // directory for exported clip files
+	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
-func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
+// It returns the ExportHandler so the caller can call Stop() on shutdown.
+func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	audit := &AuditLogger{DB: cfg.DB}
 
 	authHandler := &AuthHandler{
@@ -547,6 +550,27 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/tours/:id", tourHandler.Delete)
 
 	// Camera connection resilience.
+	// Export jobs.
+	exportsPath := cfg.ExportsPath
+	if exportsPath == "" {
+		exportsPath = filepath.Join(cfg.RecordingsPath, "exports")
+	}
+	exportHandler := &ExportHandler{
+		DB:             cfg.DB,
+		RecordingsPath: cfg.RecordingsPath,
+		ExportsPath:    exportsPath,
+	}
+	maxConcurrent := cfg.ExportMaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 2
+	}
+	exportHandler.Start(maxConcurrent)
+	protected.POST("/exports", exportHandler.Create)
+	protected.GET("/exports", exportHandler.List)
+	protected.GET("/exports/:id", exportHandler.Get)
+	protected.DELETE("/exports/:id", exportHandler.Delete)
+	protected.GET("/exports/:id/download", exportHandler.Download)
+
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)
 	protected.GET("/cameras/:id/connection/history", connHandler.History)
@@ -575,4 +599,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	}
+
+	return exportHandler
 }

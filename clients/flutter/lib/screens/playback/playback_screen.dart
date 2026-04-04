@@ -13,6 +13,7 @@ import '../../providers/timeline_intensity_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_player.dart';
 import 'controls/transport_bar.dart';
@@ -402,63 +403,119 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = Responsive.isPhone(context);
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
-        left: 16,
-        right: 16,
+        left: isPhone ? 12 : 16,
+        right: isPhone ? 12 : 16,
         bottom: 8,
       ),
       decoration: const BoxDecoration(
         color: NvrColors.bgSecondary,
         border: Border(bottom: BorderSide(color: NvrColors.border)),
       ),
+      child: isPhone ? _buildMobileBar() : _buildDesktopBar(),
+    );
+  }
+
+  Widget _buildDesktopBar() {
+    return Row(
+      children: [
+        // Title
+        const Text('Playback', style: NvrTypography.pageTitle),
+        const SizedBox(width: 20),
+
+        // Date picker
+        _DateButton(date: date, onTap: onDateTap),
+
+        const Spacer(),
+
+        // Export button
+        _SecondaryButton(
+          icon: Icons.download,
+          label: 'Export',
+          onTap: () {}, // TODO: wire export
+        ),
+        const SizedBox(width: 8),
+
+        // Bookmark button
+        _AccentButton(
+          icon: Icons.bookmark,
+          label: 'Bookmark',
+          onTap: () {}, // TODO: wire add-bookmark
+        ),
+        const SizedBox(width: 12),
+
+        // Grid selector
+        HudSegmentedControl<int>(
+          segments: const {1: '1\u00D71', 2: '2\u00D72'},
+          selected: gridMode,
+          onChanged: onGridChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileBar() {
+    return Row(
+      children: [
+        // Title
+        const Text('Playback', style: NvrTypography.pageTitle),
+        const SizedBox(width: 12),
+
+        // Date picker
+        _DateButton(date: date, onTap: onDateTap),
+
+        const Spacer(),
+
+        // Icon-only buttons on mobile
+        GestureDetector(
+          onTap: () {}, // TODO: wire export
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.download, size: 18, color: NvrColors.textSecondary),
+          ),
+        ),
+        GestureDetector(
+          onTap: () {}, // TODO: wire add-bookmark
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.bookmark, size: 18, color: NvrColors.accent),
+          ),
+        ),
+        const SizedBox(width: 4),
+
+        // Grid selector
+        HudSegmentedControl<int>(
+          segments: const {1: '1\u00D71', 2: '2\u00D72'},
+          selected: gridMode,
+          onChanged: onGridChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _DateButton extends StatelessWidget {
+  final String date;
+  final VoidCallback onTap;
+  const _DateButton({required this.date, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Title
-          const Text('Playback', style: NvrTypography.pageTitle),
-          const SizedBox(width: 20),
-
-          // Date picker
-          GestureDetector(
-            onTap: onDateTap,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.calendar_today,
-                    size: 14, color: NvrColors.accent),
-                const SizedBox(width: 6),
-                Text(
-                  date,
-                  style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // Export button
-          _SecondaryButton(
-            icon: Icons.download,
-            label: 'Export',
-            onTap: onExport,
-          ),
-          const SizedBox(width: 8),
-
-          // Bookmark button
-          _AccentButton(
-            icon: Icons.bookmark,
-            label: 'Bookmark',
-            onTap: () {}, // TODO: wire add-bookmark
-          ),
-          const SizedBox(width: 12),
-
-          // Grid selector
-          HudSegmentedControl<int>(
-            segments: const {1: '1\u00D71', 2: '2\u00D72'},
-            selected: gridMode,
-            onChanged: onGridChanged,
+          const Icon(Icons.calendar_today,
+              size: 14, color: NvrColors.accent),
+          const SizedBox(width: 6),
+          Text(
+            date,
+            style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
           ),
         ],
       ),

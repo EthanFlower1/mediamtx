@@ -10,6 +10,7 @@ import '../../providers/overlay_settings_provider.dart';
 import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_tile.dart';
@@ -22,15 +23,20 @@ class LiveViewScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
-  static const _gridOptions = <int, String>{
-    1: '1x1',
-    2: '2x2',
-    3: '3x3',
-    4: '4x4',
-  };
-
   void _openFullscreen(Camera camera) {
     context.push('/live/fullscreen', extra: camera);
+  }
+
+  /// Grid options available per device type.
+  Map<int, String> _gridOptionsForDevice(DeviceType device) {
+    switch (device) {
+      case DeviceType.phone:
+        return const {1: '1\u00D71', 2: '2\u00D72'};
+      case DeviceType.tablet:
+        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73'};
+      case DeviceType.desktop:
+        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73', 4: '4\u00D74'};
+    }
   }
 
   // ── Layout save/load ──────────────────────────────────────────────────────
@@ -159,14 +165,26 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final gridLayout = layoutState.active;
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
+    final device = Responsive.of(context);
+    final isPhone = device == DeviceType.phone;
+
+    final gridOptions = _gridOptionsForDevice(device);
+
+    // Clamp current grid size to valid options for this breakpoint.
+    final effectiveGridSize = gridOptions.containsKey(gridLayout.gridSize)
+        ? gridLayout.gridSize
+        : gridOptions.keys.last;
 
     return Scaffold(
       backgroundColor: NvrColors.bgPrimary,
       body: Column(
         children: [
-          // ── Top bar ───────────────────────────────────────────────────────
+          // -- Top bar --
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: isPhone ? 12 : 16,
+              vertical: isPhone ? 8 : 12,
+            ),
             decoration: const BoxDecoration(
               color: NvrColors.bgPrimary,
               border: Border(
@@ -177,28 +195,29 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
               children: [
                 // Page title
                 const Text('Live View', style: NvrTypography.pageTitle),
-                const SizedBox(width: 12),
-
-                // Active layout name pill (or ALL CAMERAS)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: NvrColors.accentWith(0.07),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    gridLayout.name.isNotEmpty
-                        ? gridLayout.name.toUpperCase()
-                        : 'ALL CAMERAS',
-                    style: const TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.5,
-                      color: NvrColors.accent,
+                if (!isPhone) ...[
+                  const SizedBox(width: 12),
+                  // Active layout name pill (or ALL CAMERAS)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: NvrColors.accentWith(0.07),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      gridLayout.name.isNotEmpty
+                          ? gridLayout.name.toUpperCase()
+                          : 'ALL CAMERAS',
+                      style: const TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.5,
+                        color: NvrColors.accent,
+                      ),
                     ),
                   ),
-                ),
+                ],
 
                 const Spacer(),
 
@@ -238,8 +257,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
                 // Grid size control
                 HudSegmentedControl<int>(
-                  segments: _gridOptions,
-                  selected: gridLayout.gridSize,
+                  segments: gridOptions,
+                  selected: effectiveGridSize,
                   onChanged: (value) =>
                       ref.read(gridLayoutProvider.notifier).setGridSize(value),
                 ),
@@ -247,7 +266,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             ),
           ),
 
-          // ── Body ─────────────────────────────────────────────────────────
+          // -- Body --
           Expanded(
             child: camerasAsync.when(
               loading: () => const Center(
@@ -296,12 +315,13 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                     );
                   },
                   child: _LiveGrid(
-                    key: ValueKey(gridLayout.gridSize),
-                    gridSize: gridLayout.gridSize,
-                    totalSlots: gridLayout.totalSlots,
+                    key: ValueKey(effectiveGridSize),
+                    gridSize: effectiveGridSize,
+                    totalSlots: effectiveGridSize * effectiveGridSize,
                     slots: gridLayout.slots,
                     cameras: cameras,
                     serverUrl: serverUrl,
+                    isPhone: isPhone,
                     onDoubleTap: _openFullscreen,
                     onAssignCamera: (index, cameraId) =>
                         ref.read(gridLayoutProvider.notifier).assignCamera(index, cameraId),
@@ -330,6 +350,7 @@ class _LiveGrid extends StatelessWidget {
     required this.onDoubleTap,
     required this.onAssignCamera,
     required this.onSwapSlots,
+    this.isPhone = false,
   });
 
   final int gridSize;
@@ -340,15 +361,16 @@ class _LiveGrid extends StatelessWidget {
   final void Function(Camera) onDoubleTap;
   final void Function(int index, String cameraId) onAssignCamera;
   final void Function(int from, int to) onSwapSlots;
+  final bool isPhone;
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(isPhone ? 6 : 10),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: gridSize,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
+        crossAxisSpacing: isPhone ? 4 : 8,
+        mainAxisSpacing: isPhone ? 4 : 8,
         childAspectRatio: 16 / 9,
       ),
       itemCount: totalSlots,

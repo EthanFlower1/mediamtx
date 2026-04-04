@@ -6,6 +6,7 @@ import '../../providers/cameras_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/responsive.dart';
 import 'audit_panel.dart';
 import 'backup_panel.dart';
 import 'performance_panel.dart';
@@ -52,8 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 600;
+    final isDesktop = !Responsive.isPhone(context);
 
     return Scaffold(
       backgroundColor: NvrColors.bgPrimary,

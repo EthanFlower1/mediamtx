@@ -60,6 +60,7 @@ type RouterConfig struct {
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
+	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -592,6 +593,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
+
+	// AI model management.
+	if cfg.ModelManager != nil {
+		modelHandler := &ModelHandler{Manager: cfg.ModelManager}
+		protected.GET("/ai/models", modelHandler.ListModels)
+		protected.POST("/ai/models/activate", modelHandler.ActivateModel)
+		protected.POST("/ai/models/rollback", modelHandler.RollbackModel)
+	}
 
 	// Evidence exports.
 	evidenceHandler := &EvidenceHandler{

@@ -534,6 +534,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
+	protected.GET("/audit/export", auditHandler.Export)
+	protected.GET("/audit/retention", auditHandler.GetRetention)
+	protected.PUT("/audit/retention", auditHandler.UpdateRetention)
 
 	// Camera Groups.
 	groupHandler := &GroupHandler{DB: cfg.DB, Audit: audit}

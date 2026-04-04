@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -26,8 +27,54 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     4: '4×4',
   };
 
+  final FocusNode _focusNode = FocusNode();
+
   void _openFullscreen(Camera camera) {
     context.push('/live/fullscreen', extra: camera);
+  }
+
+  /// Maps digit key labels to grid slot indices.
+  int? _digitToSlot(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.digit1) return 0;
+    if (key == LogicalKeyboardKey.digit2) return 1;
+    if (key == LogicalKeyboardKey.digit3) return 2;
+    if (key == LogicalKeyboardKey.digit4) return 3;
+    if (key == LogicalKeyboardKey.digit5) return 4;
+    if (key == LogicalKeyboardKey.digit6) return 5;
+    if (key == LogicalKeyboardKey.digit7) return 6;
+    if (key == LogicalKeyboardKey.digit8) return 7;
+    if (key == LogicalKeyboardKey.digit9) return 8;
+    return null;
+  }
+
+  void _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final slotIndex = _digitToSlot(event.logicalKey);
+    if (slotIndex != null) {
+      final gridLayout = ref.read(gridLayoutProvider);
+      if (slotIndex < gridLayout.totalSlots) {
+        // If there's a camera in that slot, open it fullscreen.
+        final camerasAsync = ref.read(camerasProvider);
+        final cameras = camerasAsync.valueOrNull;
+        if (cameras != null) {
+          final cameraId = gridLayout.slots[slotIndex];
+          if (cameraId != null) {
+            final camera =
+                cameras.where((c) => c.id == cameraId).firstOrNull;
+            if (camera != null) {
+              _openFullscreen(camera);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -37,7 +84,11 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
 
-    return Scaffold(
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Scaffold(
       backgroundColor: NvrColors.bgPrimary,
       body: Column(
         children: [
@@ -230,6 +281,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 }

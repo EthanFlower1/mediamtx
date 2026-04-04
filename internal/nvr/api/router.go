@@ -149,6 +149,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Embedder: cfg.Embedder,
 	}
 
+	edgeSearchHandler := &EdgeSearchHandler{
+		DB:            cfg.DB,
+		EncryptionKey: cfg.EncryptionKey,
+	}
+
 	auditHandler := &AuditHandler{
 		DB: cfg.DB,
 	}
@@ -156,6 +161,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	streamHandler := &StreamHandler{DB: cfg.DB, APIAddress: cfg.APIAddress}
 
 	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
+
+	thumbnailHandler := &ThumbnailHandler{
+		DB:             cfg.DB,
+		RecordingsPath: cfg.RecordingsPath,
+	}
 
 	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 
@@ -320,6 +330,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/cameras/:id/edge-recordings/replay-session", cameraHandler.EdgeReplaySession)
 	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
 
+	// Replay control (Profile G — RTSP playback with Range/Scale/Speed).
+	protected.POST("/cameras/:id/replay/session", cameraHandler.StartReplaySession)
+	protected.GET("/cameras/:id/replay/uri", cameraHandler.GetReplayURI)
+	protected.GET("/cameras/:id/replay/capabilities", cameraHandler.GetReplayCapabilities)
+
 	// Recording control (Profile G — manage recordings and jobs on device).
 	protected.GET("/cameras/:id/recording-control/config", cameraHandler.GetRecordingConfig)
 	protected.POST("/cameras/:id/recording-control/recordings", cameraHandler.CreateEdgeRecording)
@@ -369,6 +384,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.POST("/recordings/export", recordingHandler.Export)
 	protected.DELETE("/recordings/cleanup", recordingHandler.Cleanup)
 	protected.GET("/timeline", recordingHandler.Timeline)
+	protected.GET("/timeline/multi", recordingHandler.MultiTimeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
 
 	// Recording integrity.
@@ -407,6 +423,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/screenshots", screenshotHandler.List)
 	protected.GET("/screenshots/:id/download", screenshotHandler.Download)
 	protected.DELETE("/screenshots/:id", screenshotHandler.Delete)
+
+	// Timeline thumbnails.
+	protected.GET("/cameras/:id/thumbnails", thumbnailHandler.List)
+	protected.GET("/cameras/:id/thumbnails/:filename", thumbnailHandler.Serve)
 
 	// Camera streams.
 	protected.GET("/cameras/:id/streams", streamHandler.List)
@@ -479,6 +499,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
+
+	// Edge search (ONVIF Profile G — search recordings and events on device).
+	protected.GET("/edge-search/recordings", edgeSearchHandler.Recordings)
+	protected.GET("/edge-search/events", edgeSearchHandler.Events)
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)

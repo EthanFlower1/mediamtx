@@ -153,7 +153,7 @@ func (n *NVR) Initialize() error {
 		return cam.ONVIFEndpoint, cam.ONVIFUsername, password, nil
 	})
 
-	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress)
+	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress, n.RecordingsPath)
 	n.sched.SetEventBroadcaster(n.events)
 	n.sched.Start()
 

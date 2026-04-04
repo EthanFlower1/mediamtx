@@ -123,6 +123,30 @@ class _CameraPlayerState extends State<CameraPlayer> {
                 ),
               ),
 
+            // Top-right: speed indicator (when not 1x)
+            if (!isInGap && _ctrl.speed != 1.0)
+              Positioned(
+                top: 10,
+                right: 80,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: NvrColors.accent.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    '${_ctrl.speed}×',
+                    style: const TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
             // Bottom-left: detection event info pill
             if (!isInGap) _buildEventPill(),
 

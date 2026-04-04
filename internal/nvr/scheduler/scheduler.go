@@ -19,6 +19,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/nvr/thumbnail"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -83,6 +84,7 @@ type Scheduler struct {
 	encryptionKey   []byte // for decrypting ONVIF passwords from DB
 	callbackMgr     *onvif.CallbackManager
 	apiAddress      string // e.g., ":9997" for building callback URLs
+	recordingsPath  string // base directory for recordings and thumbnails
 
 	mu     sync.Mutex
 	states map[string]*CameraState // camera ID -> state
@@ -106,13 +108,18 @@ type Scheduler struct {
 }
 
 // New creates a new Scheduler.
-func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr *onvif.CallbackManager, apiAddress string) *Scheduler {
+func New(database *db.DB, writer *yamlwriter.Writer, encKey []byte, callbackMgr *onvif.CallbackManager, apiAddress string, recordingsPath ...string) *Scheduler {
+	recPath := ""
+	if len(recordingsPath) > 0 {
+		recPath = recordingsPath[0]
+	}
 	return &Scheduler{
-		db:            database,
-		yamlWriter:    writer,
-		encryptionKey: encKey,
-		callbackMgr:   callbackMgr,
-		apiAddress:    apiAddress,
+		db:             database,
+		yamlWriter:     writer,
+		encryptionKey:  encKey,
+		callbackMgr:    callbackMgr,
+		apiAddress:     apiAddress,
+		recordingsPath: recPath,
 		states:        make(map[string]*CameraState),
 		stopCh:        make(chan struct{}),
 		pendingWrites: make(map[string]bool),
@@ -807,6 +814,15 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 			} else if n > 0 {
 				removeFiles(thumbs)
 				log.Printf("scheduler: event data cleanup for %s: deleted %d events", cam.Name, n)
+			}
+		}
+
+		// Step 3b: Clean timeline thumbnails matching the recording retention cutoff.
+		if s.recordingsPath != "" && cam.RetentionDays > 0 {
+			thumbCutoff := now.AddDate(0, 0, -cam.RetentionDays)
+			removed := thumbnail.CleanupThumbnails(s.recordingsPath, cam.ID, thumbCutoff)
+			if removed > 0 {
+				log.Printf("scheduler: thumbnail cleanup for %s: deleted %d files", cam.Name, removed)
 			}
 		}
 	}

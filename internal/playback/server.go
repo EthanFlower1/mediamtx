@@ -47,6 +47,7 @@ func (s *Server) Initialize() error {
 
 	router.GET("/list", s.onList)
 	router.GET("/get", s.onGet)
+	router.GET("/seek", s.onSeek)
 
 	s.httpServer = &httpp.Server{
 		Address:           s.Address,

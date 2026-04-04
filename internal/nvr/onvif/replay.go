@@ -215,3 +215,93 @@ func GetReplayUri(xaddr, username, password, recordingToken string) (string, err
 
 	return uri, nil
 }
+
+// ReplaySessionRequest holds the parameters for starting a replay session
+// via the API (used by the camera handler's EdgeReplaySession endpoint).
+type ReplaySessionRequest struct {
+	RecordingToken string  `json:"recording_token"`
+	StartTime      string  `json:"start_time,omitempty"`
+	Scale          float64 `json:"scale,omitempty"`
+}
+
+// BuildReplaySessionFromRequest is a convenience wrapper that resolves
+// the replay URI from the device and delegates to BuildReplaySession.
+func BuildReplaySessionFromRequest(xaddr, username, password string, req *ReplaySessionRequest) (*ReplaySession, error) {
+	if req.RecordingToken == "" {
+		return nil, fmt.Errorf("BuildReplaySessionFromRequest: recording_token is required")
+	}
+
+	replayURI, err := GetReplayUri(xaddr, username, password, req.RecordingToken)
+	if err != nil {
+		return nil, fmt.Errorf("BuildReplaySessionFromRequest: %w", err)
+	}
+
+	startTime := time.Now().UTC()
+	if req.StartTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.StartTime); err == nil {
+			startTime = t
+		}
+	}
+
+	scale := req.Scale
+	if scale == 0 {
+		scale = 1
+	}
+
+	return BuildReplaySession(replayURI, req.RecordingToken, startTime, scale)
+}
+
+// buildRangeHeader formats an RTSP Range header using the "clock" format
+// expected by ONVIF Profile G replay.
+//
+// Examples:
+//
+//	clock=20240101T120000Z-20240101T130000Z   (bounded)
+//	clock=20240101T120000Z-                    (open-ended)
+//	""                                          (no range = play from start)
+func buildRangeHeader(startTime, endTime string) string {
+	if startTime == "" {
+		return ""
+	}
+
+	start, err := time.Parse(time.RFC3339, startTime)
+	if err != nil {
+		// Fall back to using the raw string if parsing fails.
+		if endTime != "" {
+			return fmt.Sprintf("clock=%s-%s", startTime, endTime)
+		}
+		return fmt.Sprintf("clock=%s-", startTime)
+	}
+
+	clockStart := start.UTC().Format("20060102T150405Z")
+
+	if endTime == "" {
+		return fmt.Sprintf("clock=%s-", clockStart)
+	}
+
+	end, err := time.Parse(time.RFC3339, endTime)
+	if err != nil {
+		return fmt.Sprintf("clock=%s-%s", clockStart, endTime)
+	}
+
+	clockEnd := end.UTC().Format("20060102T150405Z")
+	return fmt.Sprintf("clock=%s-%s", clockStart, clockEnd)
+}
+
+// GetReplayCapabilities returns the replay service capabilities for a device.
+func GetReplayCapabilities(xaddr, username, password string) (*ReplayCapabilities, error) {
+	client, err := NewClient(xaddr, username, password)
+	if err != nil {
+		return nil, fmt.Errorf("GetReplayCapabilities: %w", err)
+	}
+
+	if !client.HasService("replay") {
+		return nil, fmt.Errorf("GetReplayCapabilities: device does not support replay service")
+	}
+
+	if client.DetailedCapabilities != nil && client.DetailedCapabilities.Replay != nil {
+		return client.DetailedCapabilities.Replay, nil
+	}
+
+	return &ReplayCapabilities{}, nil
+}

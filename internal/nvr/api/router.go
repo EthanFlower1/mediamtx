@@ -20,6 +20,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
+	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -54,6 +55,7 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
 }
 
@@ -493,6 +495,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// System updates.
+	if cfg.UpdateManager != nil {
+		updateHandler := &UpdateHandler{DB: cfg.DB, Manager: cfg.UpdateManager}
+		protected.GET("/system/updates/check", updateHandler.Check)
+		protected.POST("/system/updates/apply", updateHandler.Apply)
+		protected.POST("/system/updates/rollback", updateHandler.Rollback)
+		protected.GET("/system/updates/history", updateHandler.History)
+	}
 
 	// TLS certificate management.
 	if cfg.TLSManager != nil {

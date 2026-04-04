@@ -574,4 +574,24 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
+	// Migration 40: System update history (KAI-80).
+	{
+		version: 40,
+		sql: `
+		CREATE TABLE update_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			from_version TEXT NOT NULL,
+			to_version TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			started_at TEXT NOT NULL,
+			completed_at TEXT,
+			error_message TEXT,
+			initiated_by TEXT NOT NULL DEFAULT '',
+			sha256_checksum TEXT NOT NULL DEFAULT '',
+			rollback_available INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE INDEX idx_update_history_status ON update_history(status);
+		CREATE INDEX idx_update_history_started ON update_history(started_at);
+		`,
+	},
 }

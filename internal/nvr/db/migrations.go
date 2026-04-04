@@ -527,9 +527,30 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-	// Migration 37: Evidence export tracking (KAI-38).
+	// Migration 37: Export jobs queue (KAI-33).
 	{
 		version: 37,
+		sql: `
+		CREATE TABLE export_jobs (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			progress REAL NOT NULL DEFAULT 0,
+			output_path TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			completed_at TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_export_jobs_camera ON export_jobs(camera_id);
+		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
+		`,
+	},
+	// Migration 38: Evidence export tracking (KAI-38).
+	{
+		version: 38,
 		sql: `
 		CREATE TABLE evidence_exports (
 			id TEXT PRIMARY KEY,
@@ -548,30 +569,29 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
 		`,
 	},
-	// Migration 38: Add notes column to bookmarks (KAI-35).
-	{
-		version: 38,
-		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
-	},
-	// Migration 39: Export jobs queue (KAI-33).
+	// Migration 39: Add notes column to bookmarks (KAI-35).
 	{
 		version: 39,
+		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
+	},
+	// Migration 40: System update history (KAI-80).
+	{
+		version: 40,
 		sql: `
-		CREATE TABLE IF NOT EXISTS export_jobs (
-			id TEXT PRIMARY KEY,
-			camera_id TEXT NOT NULL,
-			start_time TEXT NOT NULL,
-			end_time TEXT NOT NULL,
+		CREATE TABLE update_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			from_version TEXT NOT NULL,
+			to_version TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'pending',
-			progress REAL NOT NULL DEFAULT 0,
-			output_path TEXT NOT NULL DEFAULT '',
-			error TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL,
-			completed_at TEXT NOT NULL DEFAULT '',
-			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+			started_at TEXT NOT NULL,
+			completed_at TEXT,
+			error_message TEXT,
+			initiated_by TEXT NOT NULL DEFAULT '',
+			sha256_checksum TEXT NOT NULL DEFAULT '',
+			rollback_available INTEGER NOT NULL DEFAULT 0
 		);
-		CREATE INDEX IF NOT EXISTS idx_export_jobs_camera ON export_jobs(camera_id);
-		CREATE INDEX IF NOT EXISTS idx_export_jobs_status ON export_jobs(status);
+		CREATE INDEX idx_update_history_status ON update_history(status);
+		CREATE INDEX idx_update_history_started ON update_history(started_at);
 		`,
 	},
 }

@@ -602,4 +602,24 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
 		`,
 	},
+	// Migration 42: Detection event aggregation (KAI-44).
+	{
+		version: 42,
+		sql: `
+		CREATE TABLE detection_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			camera_id TEXT NOT NULL,
+			zone_id TEXT NOT NULL DEFAULT '',
+			class TEXT NOT NULL,
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			peak_confidence REAL NOT NULL DEFAULT 0,
+			thumbnail_path TEXT NOT NULL DEFAULT '',
+			detection_count INTEGER NOT NULL DEFAULT 0,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_detection_events_camera_time ON detection_events(camera_id, start_time);
+		CREATE INDEX idx_detection_events_class ON detection_events(camera_id, class);
+		`,
+	},
 }

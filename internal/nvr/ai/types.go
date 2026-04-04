@@ -118,4 +118,12 @@ type PipelineConfig struct {
 	ONVIFMetadataURL string
 	ONVIFUsername    string
 	ONVIFPassword    string
+
+	// Auto-scaling thresholds (zero values use defaults).
+	CPUHighThreshold  float64 // CPU% to trigger frame skipping (default 80)
+	CPULowThreshold   float64 // CPU% to restore full rate (default 50)
+	MemHighThreshold  float64 // Memory% to trigger frame skipping (default 80)
+	MemLowThreshold   float64 // Memory% to restore full rate (default 60)
+	MaxSkipFactor     int     // max frames to skip, e.g. 8 = keep 1 in 8 (default 8)
+	ScalerPollSecs    int     // load sampling interval in seconds (default 5)
 }

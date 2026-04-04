@@ -16,6 +16,7 @@ type Pipeline struct {
 	embedder *Embedder
 	database *db.DB
 	eventPub EventPublisher
+	scaler   *Scaler
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -54,6 +55,11 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 		}
 		log.Printf("[ai][%s] probed resolution: %dx%d", p.config.CameraName, width, height)
 	}
+
+	// Initialize auto-scaler.
+	scalerCfg := scalerConfigFromPipeline(p.config)
+	p.scaler = NewScaler(p.config.CameraName, scalerCfg, nil)
+	p.scaler.Start()
 
 	// Create channels between stages.
 	frameCh := make(chan Frame, 1)
@@ -121,6 +127,9 @@ func (p *Pipeline) Stop() {
 		p.cancel()
 	}
 	p.wg.Wait()
+	if p.scaler != nil {
+		p.scaler.Stop()
+	}
 	log.Printf("[ai][%s] pipeline stopped", p.config.CameraName)
 }
 
@@ -138,6 +147,11 @@ func (p *Pipeline) runDetector(
 		case frame, ok := <-in:
 			if !ok {
 				return
+			}
+
+			// Auto-scaling: skip frames when system load is high.
+			if p.scaler != nil && !p.scaler.ShouldProcess() {
+				continue
 			}
 
 			yoloDets, err := p.detector.Detect(frame.Image, confThresh)
@@ -175,5 +189,29 @@ func (p *Pipeline) runDetector(
 			}
 		}
 	}
+}
+
+// scalerConfigFromPipeline builds a ScalerConfig, applying defaults for zero values.
+func scalerConfigFromPipeline(pc PipelineConfig) ScalerConfig {
+	cfg := DefaultScalerConfig()
+	if pc.CPUHighThreshold > 0 {
+		cfg.CPUHighThreshold = pc.CPUHighThreshold
+	}
+	if pc.CPULowThreshold > 0 {
+		cfg.CPULowThreshold = pc.CPULowThreshold
+	}
+	if pc.MemHighThreshold > 0 {
+		cfg.MemHighThreshold = pc.MemHighThreshold
+	}
+	if pc.MemLowThreshold > 0 {
+		cfg.MemLowThreshold = pc.MemLowThreshold
+	}
+	if pc.MaxSkipFactor > 0 {
+		cfg.MaxSkipFactor = pc.MaxSkipFactor
+	}
+	if pc.ScalerPollSecs > 0 {
+		cfg.PollIntervalSecs = pc.ScalerPollSecs
+	}
+	return cfg
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
@@ -56,10 +57,14 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+<<<<<<< HEAD
+	EmailSender        *alerts.EmailSender // email sender for alerts (may be nil)
+=======
 	BackupService      *backup.Service    // backup and restore service (may be nil)
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
+>>>>>>> origin/main
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -526,6 +531,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
 
+<<<<<<< HEAD
+	// System alerts and SMTP configuration.
+	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}
+	protected.GET("/system/smtp/config", alertHandler.GetSMTPConfig)
+	protected.POST("/system/smtp/config", alertHandler.UpdateSMTPConfig)
+	protected.POST("/system/smtp/test", alertHandler.TestSMTP)
+	protected.GET("/alert-rules", alertHandler.ListAlertRules)
+	protected.POST("/alert-rules", alertHandler.CreateAlertRule)
+	protected.PUT("/alert-rules/:id", alertHandler.UpdateAlertRule)
+	protected.DELETE("/alert-rules/:id", alertHandler.DeleteAlertRule)
+	protected.GET("/alerts", alertHandler.ListAlerts)
+	protected.POST("/alerts/:id/acknowledge", alertHandler.AcknowledgeAlert)
+=======
 	// Backups.
 	if cfg.BackupService != nil {
 		backupHandler := &BackupHandler{Service: cfg.BackupService}
@@ -578,6 +596,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/upload", tlsHandler.Upload)
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
+>>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

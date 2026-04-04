@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/backup"
@@ -75,10 +76,17 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
+<<<<<<< HEAD
+	backchannelMgr   *backchannel.Manager
+	exportHandler    *api.ExportHandler
+	emailSender      *alerts.EmailSender
+	alertEvaluator   *alerts.Evaluator
+=======
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
 	backupSvc       *backup.Service
 	tlsManager      *crypto.TLSManager
+>>>>>>> origin/main
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -342,6 +350,15 @@ func (n *NVR) Initialize() error {
 		},
 	}
 	go n.integrityScanner.Run(n.ctx)
+
+	// Start the alert evaluator and email sender.
+	n.emailSender = &alerts.EmailSender{DB: n.database}
+	n.alertEvaluator = &alerts.Evaluator{
+		DB:             n.database,
+		RecordingsPath: n.RecordingsPath,
+		EmailSender:    n.emailSender,
+	}
+	n.alertEvaluator.Start(n.ctx)
 
 	return nil
 }
@@ -611,6 +628,9 @@ func (n *NVR) Close() {
 	}
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
+	}
+	if n.alertEvaluator != nil {
+		n.alertEvaluator.Stop()
 	}
 	if n.connMgr != nil {
 		n.connMgr.Stop()
@@ -932,10 +952,14 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+<<<<<<< HEAD
+		EmailSender:     n.emailSender,
+=======
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,
+>>>>>>> origin/main
 	})
 }
 

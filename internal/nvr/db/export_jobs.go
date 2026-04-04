@@ -8,92 +8,51 @@ import (
 	"github.com/google/uuid"
 )
 
-// BulkExportJob tracks a batch export containing multiple camera/time-range items.
-type BulkExportJob struct {
-	ID             string  `json:"id"`
-	Status         string  `json:"status"` // pending, processing, completed, failed
-	TotalItems     int     `json:"total_items"`
-	CompletedItems int     `json:"completed_items"`
-	FailedItems    int     `json:"failed_items"`
-	ZipPath        *string `json:"zip_path"`
-	TotalBytes     int64   `json:"total_bytes"`
-	ErrorMessage   *string `json:"error_message"`
-	CreatedAt      string  `json:"created_at"`
-	CompletedAt    *string `json:"completed_at"`
+// ExportJob represents an asynchronous clip export job.
+type ExportJob struct {
+	ID          string  `json:"id"`
+	CameraID    string  `json:"camera_id"`
+	StartTime   string  `json:"start_time"`
+	EndTime     string  `json:"end_time"`
+	Status      string  `json:"status"` // pending, processing, completed, failed, cancelled
+	Progress    float64 `json:"progress"`
+	OutputPath  string  `json:"output_path"`
+	Error       string  `json:"error"`
+	CreatedAt   string  `json:"created_at"`
+	CompletedAt string  `json:"completed_at,omitempty"`
 }
 
-// BulkExportItem is a single camera/time-range entry within a bulk export job.
-type BulkExportItem struct {
-	ID           string  `json:"id"`
-	JobID        string  `json:"job_id"`
-	CameraID     string  `json:"camera_id"`
-	CameraName   string  `json:"camera_name"`
-	StartTime    string  `json:"start_time"`
-	EndTime      string  `json:"end_time"`
-	Status       string  `json:"status"` // pending, completed, failed
-	FileCount    int     `json:"file_count"`
-	TotalBytes   int64   `json:"total_bytes"`
-	ErrorMessage *string `json:"error_message"`
-}
-
-// CreateBulkExportJob inserts a new bulk export job with its items in a single transaction.
-func (d *DB) CreateBulkExportJob(job *BulkExportJob, items []*BulkExportItem) error {
+// CreateExportJob inserts a new export job into the database.
+// If job.ID is empty, a new UUID is generated.
+func (d *DB) CreateExportJob(job *ExportJob) error {
 	if job.ID == "" {
 		job.ID = uuid.New().String()
+	}
+	if job.Status == "" {
+		job.Status = "pending"
 	}
 	if job.CreatedAt == "" {
 		job.CreatedAt = time.Now().UTC().Format(timeFormat)
 	}
-	job.Status = "pending"
-	job.TotalItems = len(items)
 
-	tx, err := d.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(`
-		INSERT INTO bulk_export_jobs (id, status, total_items, completed_items, failed_items, total_bytes, created_at)
-		VALUES (?, ?, ?, 0, 0, 0, ?)`,
-		job.ID, job.Status, job.TotalItems, job.CreatedAt,
+	_, err := d.Exec(`
+		INSERT INTO export_jobs (id, camera_id, start_time, end_time, status, progress, output_path, error, created_at, completed_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		job.ID, job.CameraID, job.StartTime, job.EndTime, job.Status,
+		job.Progress, job.OutputPath, job.Error, job.CreatedAt, job.CompletedAt,
 	)
-	if err != nil {
-		return err
-	}
-
-	stmt, err := tx.Prepare(`
-		INSERT INTO bulk_export_items (id, job_id, camera_id, camera_name, start_time, end_time, status)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending')`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for _, item := range items {
-		if item.ID == "" {
-			item.ID = uuid.New().String()
-		}
-		item.JobID = job.ID
-		item.Status = "pending"
-		_, err = stmt.Exec(item.ID, item.JobID, item.CameraID, item.CameraName, item.StartTime, item.EndTime)
-		if err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
+	return err
 }
 
-// GetBulkExportJob retrieves a bulk export job by ID. Returns ErrNotFound if no match.
-func (d *DB) GetBulkExportJob(id string) (*BulkExportJob, error) {
-	job := &BulkExportJob{}
+// GetExportJob retrieves an export job by its ID. Returns ErrNotFound if no match.
+func (d *DB) GetExportJob(id string) (*ExportJob, error) {
+	job := &ExportJob{}
 	err := d.QueryRow(`
-		SELECT id, status, total_items, completed_items, failed_items, zip_path, total_bytes, error_message, created_at, completed_at
-		FROM bulk_export_jobs WHERE id = ?`, id,
+		SELECT id, camera_id, start_time, end_time, status, progress, output_path, error, created_at, completed_at
+		FROM export_jobs WHERE id = ?`, id,
 	).Scan(
-		&job.ID, &job.Status, &job.TotalItems, &job.CompletedItems, &job.FailedItems,
-		&job.ZipPath, &job.TotalBytes, &job.ErrorMessage, &job.CreatedAt, &job.CompletedAt,
+		&job.ID, &job.CameraID, &job.StartTime, &job.EndTime, &job.Status,
+		&job.Progress, &job.OutputPath, &job.Error, &job.CreatedAt, &job.CompletedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -104,106 +63,34 @@ func (d *DB) GetBulkExportJob(id string) (*BulkExportJob, error) {
 	return job, nil
 }
 
-// GetBulkExportItems returns all items for a given job.
-func (d *DB) GetBulkExportItems(jobID string) ([]*BulkExportItem, error) {
-	rows, err := d.Query(`
-		SELECT id, job_id, camera_id, camera_name, start_time, end_time, status, file_count, total_bytes, error_message
-		FROM bulk_export_items WHERE job_id = ?
-		ORDER BY camera_name, start_time`, jobID)
+// ListExportJobs returns export jobs, optionally filtered by camera ID and/or status.
+func (d *DB) ListExportJobs(cameraID, status string) ([]*ExportJob, error) {
+	query := `SELECT id, camera_id, start_time, end_time, status, progress, output_path, error, created_at, completed_at
+		FROM export_jobs WHERE 1=1`
+	var args []interface{}
+
+	if cameraID != "" {
+		query += " AND camera_id = ?"
+		args = append(args, cameraID)
+	}
+	if status != "" {
+		query += " AND status = ?"
+		args = append(args, status)
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := d.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var items []*BulkExportItem
+	var jobs []*ExportJob
 	for rows.Next() {
-		item := &BulkExportItem{}
+		job := &ExportJob{}
 		if err := rows.Scan(
-			&item.ID, &item.JobID, &item.CameraID, &item.CameraName,
-			&item.StartTime, &item.EndTime, &item.Status,
-			&item.FileCount, &item.TotalBytes, &item.ErrorMessage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	return items, rows.Err()
-}
-
-// UpdateBulkExportItemStatus updates the status and file metadata for a single export item,
-// and increments the parent job's completed/failed counters accordingly.
-func (d *DB) UpdateBulkExportItemStatus(itemID, status string, fileCount int, totalBytes int64, errMsg *string) error {
-	tx, err := d.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(`
-		UPDATE bulk_export_items SET status = ?, file_count = ?, total_bytes = ?, error_message = ?
-		WHERE id = ?`,
-		status, fileCount, totalBytes, errMsg, itemID,
-	)
-	if err != nil {
-		return err
-	}
-
-	// Look up the job_id for counter updates.
-	var jobID string
-	err = tx.QueryRow("SELECT job_id FROM bulk_export_items WHERE id = ?", itemID).Scan(&jobID)
-	if err != nil {
-		return err
-	}
-
-	switch status {
-	case "completed":
-		_, err = tx.Exec(`
-			UPDATE bulk_export_jobs SET completed_items = completed_items + 1, total_bytes = total_bytes + ?
-			WHERE id = ?`, totalBytes, jobID)
-	case "failed":
-		_, err = tx.Exec(`
-			UPDATE bulk_export_jobs SET failed_items = failed_items + 1
-			WHERE id = ?`, jobID)
-	}
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
-}
-
-// CompleteBulkExportJob marks a job as completed or failed with optional zip path and error.
-func (d *DB) CompleteBulkExportJob(jobID, status string, zipPath *string, errMsg *string) error {
-	now := time.Now().UTC().Format(timeFormat)
-	_, err := d.Exec(`
-		UPDATE bulk_export_jobs SET status = ?, zip_path = ?, error_message = ?, completed_at = ?
-		WHERE id = ?`,
-		status, zipPath, errMsg, now, jobID,
-	)
-	return err
-}
-
-// ListBulkExportJobs returns recent bulk export jobs, newest first.
-func (d *DB) ListBulkExportJobs(limit int) ([]*BulkExportJob, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	rows, err := d.Query(`
-		SELECT id, status, total_items, completed_items, failed_items, zip_path, total_bytes, error_message, created_at, completed_at
-		FROM bulk_export_jobs
-		ORDER BY created_at DESC
-		LIMIT ?`, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var jobs []*BulkExportJob
-	for rows.Next() {
-		job := &BulkExportJob{}
-		if err := rows.Scan(
-			&job.ID, &job.Status, &job.TotalItems, &job.CompletedItems, &job.FailedItems,
-			&job.ZipPath, &job.TotalBytes, &job.ErrorMessage, &job.CreatedAt, &job.CompletedAt,
+			&job.ID, &job.CameraID, &job.StartTime, &job.EndTime, &job.Status,
+			&job.Progress, &job.OutputPath, &job.Error, &job.CreatedAt, &job.CompletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -212,9 +99,19 @@ func (d *DB) ListBulkExportJobs(limit int) ([]*BulkExportJob, error) {
 	return jobs, rows.Err()
 }
 
-// DeleteBulkExportJob deletes a job and its items. Returns ErrNotFound if no match.
-func (d *DB) DeleteBulkExportJob(id string) error {
-	res, err := d.Exec("DELETE FROM bulk_export_jobs WHERE id = ?", id)
+// UpdateExportJobStatus updates the status and progress of an export job.
+func (d *DB) UpdateExportJobStatus(id, status string, progress float64, errMsg string) error {
+	var completedAt string
+	if status == "completed" || status == "failed" || status == "cancelled" {
+		completedAt = time.Now().UTC().Format(timeFormat)
+	}
+
+	res, err := d.Exec(`
+		UPDATE export_jobs
+		SET status = ?, progress = ?, error = ?, completed_at = ?
+		WHERE id = ?`,
+		status, progress, errMsg, completedAt, id,
+	)
 	if err != nil {
 		return err
 	}
@@ -226,4 +123,61 @@ func (d *DB) DeleteBulkExportJob(id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// UpdateExportJobOutput sets the output path for a completed export job.
+func (d *DB) UpdateExportJobOutput(id, outputPath string) error {
+	res, err := d.Exec(`UPDATE export_jobs SET output_path = ? WHERE id = ?`, outputPath, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteExportJob deletes an export job by its ID. Returns ErrNotFound if no match.
+func (d *DB) DeleteExportJob(id string) error {
+	res, err := d.Exec("DELETE FROM export_jobs WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetPendingExportJobs returns export jobs with status 'pending', oldest first.
+func (d *DB) GetPendingExportJobs() ([]*ExportJob, error) {
+	rows, err := d.Query(`
+		SELECT id, camera_id, start_time, end_time, status, progress, output_path, error, created_at, completed_at
+		FROM export_jobs WHERE status = 'pending'
+		ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []*ExportJob
+	for rows.Next() {
+		job := &ExportJob{}
+		if err := rows.Scan(
+			&job.ID, &job.CameraID, &job.StartTime, &job.EndTime, &job.Status,
+			&job.Progress, &job.OutputPath, &job.Error, &job.CreatedAt, &job.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, rows.Err()
 }

@@ -67,7 +67,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(path: 'fullscreen', builder: (_, state) =>
               FullscreenView(camera: state.extra as Camera)),
           ]),
-          GoRoute(path: '/playback', builder: (_, __) => const PlaybackScreen()),
+          GoRoute(
+            path: '/playback',
+            builder: (_, state) {
+              final cameraId = state.uri.queryParameters['cameraId'];
+              final timestamp = state.uri.queryParameters['timestamp'];
+              return PlaybackScreen(
+                initialCameraId: cameraId,
+                initialTimestamp: timestamp != null
+                    ? DateTime.tryParse(timestamp)
+                    : null,
+              );
+            },
+          ),
           GoRoute(path: '/search', builder: (_, __) => const ClipSearchScreen()),
           GoRoute(
             path: '/screenshots',

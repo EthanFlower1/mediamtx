@@ -1,151 +1,181 @@
 package db
 
 import (
-	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func openExportTestDB(t *testing.T) *DB {
-	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	d, err := Open(dbPath)
-	require.NoError(t, err)
-	t.Cleanup(func() { d.Close() })
-	return d
-}
+func TestExportJobCreate(t *testing.T) {
+	d := newTestDB(t)
 
-func TestCreateAndGetBulkExportJob(t *testing.T) {
-	d := openExportTestDB(t)
+	// Create a camera first (foreign key).
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
 
-	items := []*BulkExportItem{
-		{CameraID: "cam-1", CameraName: "Front Door", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-		{CameraID: "cam-2", CameraName: "Back Yard", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T02:00:00Z"},
+	job := &ExportJob{
+		CameraID:  cam.ID,
+		StartTime: "2025-01-01T00:00:00Z",
+		EndTime:   "2025-01-01T01:00:00Z",
 	}
-
-	job := &BulkExportJob{}
-	err := d.CreateBulkExportJob(job, items)
+	err := d.CreateExportJob(job)
 	require.NoError(t, err)
 	require.NotEmpty(t, job.ID)
-	require.Equal(t, "pending", job.Status)
-	require.Equal(t, 2, job.TotalItems)
+	assert.Equal(t, "pending", job.Status)
+	assert.NotEmpty(t, job.CreatedAt)
+}
 
-	// Items should have IDs assigned.
-	for _, item := range items {
-		require.NotEmpty(t, item.ID)
-		require.Equal(t, job.ID, item.JobID)
+func TestExportJobGet(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job := &ExportJob{
+		CameraID:  cam.ID,
+		StartTime: "2025-01-01T00:00:00Z",
+		EndTime:   "2025-01-01T01:00:00Z",
 	}
+	require.NoError(t, d.CreateExportJob(job))
 
-	// Retrieve job.
-	got, err := d.GetBulkExportJob(job.ID)
+	got, err := d.GetExportJob(job.ID)
 	require.NoError(t, err)
-	require.Equal(t, job.ID, got.ID)
-	require.Equal(t, 2, got.TotalItems)
-	require.Equal(t, 0, got.CompletedItems)
-
-	// Retrieve items.
-	gotItems, err := d.GetBulkExportItems(job.ID)
-	require.NoError(t, err)
-	require.Len(t, gotItems, 2)
+	assert.Equal(t, job.ID, got.ID)
+	assert.Equal(t, cam.ID, got.CameraID)
+	assert.Equal(t, "pending", got.Status)
 }
 
-func TestUpdateBulkExportItemStatus(t *testing.T) {
-	d := openExportTestDB(t)
+func TestExportJobGetNotFound(t *testing.T) {
+	d := newTestDB(t)
 
-	items := []*BulkExportItem{
-		{CameraID: "cam-1", CameraName: "Cam 1", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-	}
-	job := &BulkExportJob{}
-	require.NoError(t, d.CreateBulkExportJob(job, items))
-
-	// Mark item as completed.
-	err := d.UpdateBulkExportItemStatus(items[0].ID, "completed", 3, 1024, nil)
-	require.NoError(t, err)
-
-	// Job counters should update.
-	got, err := d.GetBulkExportJob(job.ID)
-	require.NoError(t, err)
-	require.Equal(t, 1, got.CompletedItems)
-	require.Equal(t, int64(1024), got.TotalBytes)
-}
-
-func TestUpdateBulkExportItemStatusFailed(t *testing.T) {
-	d := openExportTestDB(t)
-
-	items := []*BulkExportItem{
-		{CameraID: "cam-1", CameraName: "Cam 1", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-	}
-	job := &BulkExportJob{}
-	require.NoError(t, d.CreateBulkExportJob(job, items))
-
-	errMsg := "disk full"
-	err := d.UpdateBulkExportItemStatus(items[0].ID, "failed", 0, 0, &errMsg)
-	require.NoError(t, err)
-
-	got, err := d.GetBulkExportJob(job.ID)
-	require.NoError(t, err)
-	require.Equal(t, 1, got.FailedItems)
-}
-
-func TestCompleteBulkExportJob(t *testing.T) {
-	d := openExportTestDB(t)
-
-	job := &BulkExportJob{}
-	require.NoError(t, d.CreateBulkExportJob(job, []*BulkExportItem{
-		{CameraID: "cam-1", CameraName: "Cam 1", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-	}))
-
-	zipPath := "/tmp/export.zip"
-	err := d.CompleteBulkExportJob(job.ID, "completed", &zipPath, nil)
-	require.NoError(t, err)
-
-	got, err := d.GetBulkExportJob(job.ID)
-	require.NoError(t, err)
-	require.Equal(t, "completed", got.Status)
-	require.NotNil(t, got.ZipPath)
-	require.Equal(t, zipPath, *got.ZipPath)
-	require.NotNil(t, got.CompletedAt)
-}
-
-func TestListBulkExportJobs(t *testing.T) {
-	d := openExportTestDB(t)
-
-	// Create two jobs.
-	for i := 0; i < 2; i++ {
-		job := &BulkExportJob{}
-		require.NoError(t, d.CreateBulkExportJob(job, []*BulkExportItem{
-			{CameraID: "cam-1", CameraName: "Cam 1", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-		}))
-	}
-
-	jobs, err := d.ListBulkExportJobs(10)
-	require.NoError(t, err)
-	require.Len(t, jobs, 2)
-}
-
-func TestDeleteBulkExportJob(t *testing.T) {
-	d := openExportTestDB(t)
-
-	job := &BulkExportJob{}
-	require.NoError(t, d.CreateBulkExportJob(job, []*BulkExportItem{
-		{CameraID: "cam-1", CameraName: "Cam 1", StartTime: "2026-01-01T00:00:00Z", EndTime: "2026-01-01T01:00:00Z"},
-	}))
-
-	err := d.DeleteBulkExportJob(job.ID)
-	require.NoError(t, err)
-
-	_, err = d.GetBulkExportJob(job.ID)
+	_, err := d.GetExportJob("nonexistent-id")
 	require.ErrorIs(t, err, ErrNotFound)
-
-	// Items should also be deleted (cascade).
-	items, err := d.GetBulkExportItems(job.ID)
-	require.NoError(t, err)
-	require.Empty(t, items)
 }
 
-func TestDeleteBulkExportJobNotFound(t *testing.T) {
-	d := openExportTestDB(t)
-	err := d.DeleteBulkExportJob("nonexistent")
+func TestExportJobList(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job1 := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-01T00:00:00Z", EndTime: "2025-01-01T01:00:00Z"}
+	job2 := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-02T00:00:00Z", EndTime: "2025-01-02T01:00:00Z"}
+	require.NoError(t, d.CreateExportJob(job1))
+	require.NoError(t, d.CreateExportJob(job2))
+
+	// List all.
+	jobs, err := d.ListExportJobs("", "")
+	require.NoError(t, err)
+	assert.Len(t, jobs, 2)
+
+	// List by camera.
+	jobs, err = d.ListExportJobs(cam.ID, "")
+	require.NoError(t, err)
+	assert.Len(t, jobs, 2)
+
+	// List by status.
+	jobs, err = d.ListExportJobs("", "pending")
+	require.NoError(t, err)
+	assert.Len(t, jobs, 2)
+
+	// List by non-matching status.
+	jobs, err = d.ListExportJobs("", "completed")
+	require.NoError(t, err)
+	assert.Len(t, jobs, 0)
+}
+
+func TestExportJobUpdateStatus(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-01T00:00:00Z", EndTime: "2025-01-01T01:00:00Z"}
+	require.NoError(t, d.CreateExportJob(job))
+
+	// Update to processing.
+	err := d.UpdateExportJobStatus(job.ID, "processing", 50, "")
+	require.NoError(t, err)
+
+	got, err := d.GetExportJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "processing", got.Status)
+	assert.InDelta(t, 50.0, got.Progress, 0.01)
+
+	// Update to completed.
+	err = d.UpdateExportJobStatus(job.ID, "completed", 100, "")
+	require.NoError(t, err)
+
+	got, err = d.GetExportJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "completed", got.Status)
+	assert.NotEmpty(t, got.CompletedAt)
+}
+
+func TestExportJobUpdateStatusNotFound(t *testing.T) {
+	d := newTestDB(t)
+
+	err := d.UpdateExportJobStatus("nonexistent-id", "processing", 0, "")
 	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestExportJobDelete(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-01T00:00:00Z", EndTime: "2025-01-01T01:00:00Z"}
+	require.NoError(t, d.CreateExportJob(job))
+
+	err := d.DeleteExportJob(job.ID)
+	require.NoError(t, err)
+
+	_, err = d.GetExportJob(job.ID)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestExportJobDeleteNotFound(t *testing.T) {
+	d := newTestDB(t)
+
+	err := d.DeleteExportJob("nonexistent-id")
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestExportJobGetPending(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job1 := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-01T00:00:00Z", EndTime: "2025-01-01T01:00:00Z"}
+	job2 := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-02T00:00:00Z", EndTime: "2025-01-02T01:00:00Z"}
+	require.NoError(t, d.CreateExportJob(job1))
+	require.NoError(t, d.CreateExportJob(job2))
+
+	// Mark job1 as processing.
+	require.NoError(t, d.UpdateExportJobStatus(job1.ID, "processing", 0, ""))
+
+	pending, err := d.GetPendingExportJobs()
+	require.NoError(t, err)
+	assert.Len(t, pending, 1)
+	assert.Equal(t, job2.ID, pending[0].ID)
+}
+
+func TestExportJobUpdateOutput(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Test Cam", RTSPURL: "rtsp://localhost/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	job := &ExportJob{CameraID: cam.ID, StartTime: "2025-01-01T00:00:00Z", EndTime: "2025-01-01T01:00:00Z"}
+	require.NoError(t, d.CreateExportJob(job))
+
+	err := d.UpdateExportJobOutput(job.ID, "/exports/test.mp4")
+	require.NoError(t, err)
+
+	got, err := d.GetExportJob(job.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "/exports/test.mp4", got.OutputPath)
 }

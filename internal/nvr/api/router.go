@@ -479,6 +479,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+	// Evidence exports.
+	evidenceHandler := &EvidenceHandler{
+		DB:             cfg.DB,
+		Audit:          audit,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+	protected.POST("/exports/evidence", evidenceHandler.Create)
+	protected.GET("/exports/evidence", evidenceHandler.List)
+	protected.GET("/exports/evidence/:id/download", evidenceHandler.Download)
+
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
 

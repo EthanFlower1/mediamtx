@@ -527,4 +527,25 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
+	// Migration 37: Evidence export tracking (KAI-38).
+	{
+		version: 37,
+		sql: `
+		CREATE TABLE evidence_exports (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			exported_by TEXT NOT NULL DEFAULT '',
+			exported_at TEXT NOT NULL,
+			sha256_hash TEXT NOT NULL DEFAULT '',
+			zip_path TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_evidence_exports_camera ON evidence_exports(camera_id);
+		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
+		`,
+	},
 }

@@ -55,6 +55,7 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
 }
@@ -62,6 +63,20 @@ type RouterConfig struct {
 // RegisterRoutes registers all NVR API routes on the given gin engine.
 // It returns the ExportHandler so the caller can call Stop() on shutdown.
 func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
+	// Apply security middleware globally.
+	engine.Use(CORSMiddleware(cfg.SecurityConfig))
+	engine.Use(SecurityHeadersMiddleware(cfg.SecurityConfig))
+
+	var rateLimiter *RateLimiter
+	if cfg.SecurityConfig.RateLimitEnabled {
+		rateLimiter = NewRateLimiter(
+			cfg.SecurityConfig.RateLimitPerSecond,
+			cfg.SecurityConfig.RateLimitBurst,
+			cfg.SecurityConfig.RateLimitCleanupSec,
+		)
+		engine.Use(RateLimitMiddleware(rateLimiter))
+	}
+
 	audit := &AuditLogger{DB: cfg.DB}
 
 	authHandler := &AuthHandler{
@@ -495,6 +510,29 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// Security configuration (read-only view of active security settings).
+	securityCfg := cfg.SecurityConfig
+	protected.GET("/system/security/config", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"cors": gin.H{
+				"allowedOrigins": securityCfg.CORSAllowedOrigins,
+				"allowedMethods": securityCfg.CORSAllowedMethods,
+				"allowedHeaders": securityCfg.CORSAllowedHeaders,
+				"maxAge":         securityCfg.CORSMaxAge,
+			},
+			"csp": gin.H{
+				"contentSecurityPolicy": securityCfg.ContentSecurityPolicy,
+				"frameOptions":          securityCfg.FrameOptions,
+			},
+			"rateLimit": gin.H{
+				"enabled":    securityCfg.RateLimitEnabled,
+				"perSecond":  securityCfg.RateLimitPerSecond,
+				"burst":      securityCfg.RateLimitBurst,
+				"cleanupSec": securityCfg.RateLimitCleanupSec,
+			},
+		})
+	})
 
 	// System updates.
 	if cfg.UpdateManager != nil {

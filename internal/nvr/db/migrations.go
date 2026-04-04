@@ -594,4 +594,32 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_update_history_started ON update_history(started_at);
 		`,
 	},
+	// Migration 41: Bulk export jobs and items (KAI-81).
+	{
+		version: 41,
+		sql: `
+		CREATE TABLE IF NOT EXISTS bulk_export_jobs (
+			id TEXT PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'pending',
+			zip_path TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			completed_at TEXT NOT NULL DEFAULT ''
+		);
+		CREATE TABLE IF NOT EXISTS bulk_export_items (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
+		`,
+	},
 }

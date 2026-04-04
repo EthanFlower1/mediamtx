@@ -10,6 +10,7 @@ import Playback from './pages/Playback'
 import ClipSearch from './pages/ClipSearch'
 import Settings from './pages/Settings'
 import UserManagement from './pages/UserManagement'
+import SystemHealth from './pages/SystemHealth'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -241,6 +242,12 @@ const IconSettings = (
   </svg>
 )
 
+const IconHealth = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Main layout shell                                                  */
 /* ------------------------------------------------------------------ */
@@ -290,6 +297,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { to: '/recordings', icon: IconRecordings, label: 'Recordings' },
     { to: '/playback', icon: IconPlayback, label: 'Playback' },
     { to: '/clips', icon: IconClips, label: 'Clips' },
+    { to: '/health', icon: IconHealth, label: 'Health' },
     { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
   ]
 
@@ -466,6 +474,7 @@ function AppRoutes() {
       <Route path="/recordings" element={<ProtectedRoute><Layout><Recordings /></Layout></ProtectedRoute>} />
       <Route path="/playback" element={<ProtectedRoute><Layout><Playback /></Layout></ProtectedRoute>} />
       <Route path="/clips" element={<ProtectedRoute><Layout><ClipSearch /></Layout></ProtectedRoute>} />
+      <Route path="/health" element={<ProtectedRoute><Layout><SystemHealth /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/live" replace />} />

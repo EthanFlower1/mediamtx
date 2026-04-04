@@ -158,6 +158,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		DB: cfg.DB,
 	}
 
+	bulkExportHandler := &BulkExportHandler{
+		DB:             cfg.DB,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+
 	streamHandler := &StreamHandler{DB: cfg.DB, APIAddress: cfg.APIAddress}
 
 	screenshotHandler := &ScreenshotHandler{DB: cfg.DB, EncryptionKey: cfg.EncryptionKey}
@@ -386,6 +391,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/timeline", recordingHandler.Timeline)
 	protected.GET("/timeline/multi", recordingHandler.MultiTimeline)
 	protected.GET("/timeline/intensity", recordingHandler.Intensity)
+
+	// Bulk export.
+	protected.POST("/exports/bulk", bulkExportHandler.Create)
+	protected.GET("/exports/bulk", bulkExportHandler.List)
+	protected.GET("/exports/bulk/:id", bulkExportHandler.Status)
+	protected.GET("/exports/bulk/:id/download", bulkExportHandler.Download)
+	protected.DELETE("/exports/bulk/:id", bulkExportHandler.Delete)
 
 	// Recording integrity.
 	protected.GET("/recordings/integrity", recordingHandler.IntegritySummary)

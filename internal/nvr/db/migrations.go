@@ -527,4 +527,37 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
+	// Migration 37: Bulk export jobs (KAI-34).
+	{
+		version: 37,
+		sql: `
+		CREATE TABLE bulk_export_jobs (
+			id TEXT PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'pending',
+			total_items INTEGER NOT NULL DEFAULT 0,
+			completed_items INTEGER NOT NULL DEFAULT 0,
+			failed_items INTEGER NOT NULL DEFAULT 0,
+			zip_path TEXT,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error_message TEXT,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			completed_at TEXT
+		);
+
+		CREATE TABLE bulk_export_items (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error_message TEXT,
+			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_bulk_export_items_job ON bulk_export_items(job_id);
+		`,
+	},
 }

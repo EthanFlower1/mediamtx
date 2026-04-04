@@ -274,13 +274,24 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         _CameraChips(
           cameras: cameras,
           selectedIds: _selectedCameraIds,
+          maxCameras: 4,
           onToggle: (id) => setState(() {
             if (_selectedCameraIds.contains(id)) {
               if (_selectedCameraIds.length > 1) {
                 _selectedCameraIds.remove(id);
+                // Auto-switch back to 1x1 when only one camera remains.
+                if (_selectedCameraIds.length == 1) {
+                  _gridMode = 1;
+                }
               }
             } else {
+              // Cap at 4 cameras for synchronized playback.
+              if (_selectedCameraIds.length >= 4) return;
               _selectedCameraIds.add(id);
+              // Auto-switch to 2x2 grid when multiple cameras are selected.
+              if (_selectedCameraIds.length > 1) {
+                _gridMode = 2;
+              }
             }
           }),
         ),
@@ -509,45 +520,88 @@ class _AccentButton extends StatelessWidget {
 class _CameraChips extends StatelessWidget {
   final List<Camera> cameras;
   final Set<String> selectedIds;
+  final int maxCameras;
   final ValueChanged<String> onToggle;
 
   const _CameraChips({
     required this.cameras,
     required this.selectedIds,
     required this.onToggle,
+    this.maxCameras = 4,
   });
 
   @override
   Widget build(BuildContext context) {
+    final atCapacity = selectedIds.length >= maxCameras;
     return Container(
       color: NvrColors.bgSecondary,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: SizedBox(
         height: 32,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: cameras.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            final c = cameras[i];
-            final sel = selectedIds.contains(c.id);
-            return FilterChip(
-              label: Text(c.name,
-                  style: TextStyle(
-                    color: sel ? Colors.white : NvrColors.textSecondary,
-                    fontSize: 11,
-                  )),
-              selected: sel,
-              onSelected: (_) => onToggle(c.id),
-              backgroundColor: NvrColors.bgTertiary,
-              selectedColor: NvrColors.accent,
-              checkmarkColor: Colors.white,
-              side: BorderSide(
-                  color: sel ? NvrColors.accent : NvrColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            );
-          },
+        child: Row(
+          children: [
+            // Camera count indicator
+            if (selectedIds.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: NvrColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${selectedIds.length}/$maxCameras',
+                    style: const TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: NvrColors.accent,
+                    ),
+                  ),
+                ),
+              ),
+            // Camera chips
+            Expanded(
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: cameras.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final c = cameras[i];
+                  final sel = selectedIds.contains(c.id);
+                  // Dim unselected chips when at capacity.
+                  final disabled = atCapacity && !sel;
+                  return FilterChip(
+                    label: Text(c.name,
+                        style: TextStyle(
+                          color: sel
+                              ? Colors.white
+                              : disabled
+                                  ? NvrColors.textMuted
+                                  : NvrColors.textSecondary,
+                          fontSize: 11,
+                        )),
+                    selected: sel,
+                    onSelected: disabled ? null : (_) => onToggle(c.id),
+                    backgroundColor: NvrColors.bgTertiary,
+                    selectedColor: NvrColors.accent,
+                    disabledColor: NvrColors.bgTertiary,
+                    checkmarkColor: Colors.white,
+                    side: BorderSide(
+                        color: sel
+                            ? NvrColors.accent
+                            : disabled
+                                ? NvrColors.border.withValues(alpha: 0.5)
+                                : NvrColors.border),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

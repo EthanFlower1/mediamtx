@@ -1,7 +1,9 @@
 package db
 
 import (
+	"encoding/csv"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -102,9 +104,157 @@ func (d *DB) QueryAuditLog(limit, offset int, userID, action string) ([]*AuditEn
 	return entries, total, nil
 }
 
+// SecurityActions lists audit actions classified as security events.
+// These are retained longer than general audit entries.
+var SecurityActions = []string{
+	"login_failed",
+	"login",
+	"logout",
+	"permission_change",
+	"password_change",
+	"user_create",
+	"user_delete",
+}
+
+// isSecurityAction returns true if the action is a security event.
+func isSecurityAction(action string) bool {
+	for _, sa := range SecurityActions {
+		if action == sa {
+			return true
+		}
+	}
+	return false
+}
+
+// securityActionPlaceholders returns the SQL placeholder string and args for
+// SecurityActions (e.g. "?,?,?" and the slice of interface{} values).
+func securityActionPlaceholders() (string, []interface{}) {
+	placeholders := make([]string, len(SecurityActions))
+	args := make([]interface{}, len(SecurityActions))
+	for i, a := range SecurityActions {
+		placeholders[i] = "?"
+		args[i] = a
+	}
+	return strings.Join(placeholders, ","), args
+}
+
 // DeleteAuditEntriesBefore deletes all audit log entries created before the
 // given time. This is used for retention cleanup.
 func (d *DB) DeleteAuditEntriesBefore(before time.Time) error {
 	_, err := d.Exec("DELETE FROM audit_log WHERE created_at < ?", before.UTC().Format(timeFormat))
 	return err
+}
+
+// DeleteGeneralAuditEntriesBefore deletes non-security audit entries older
+// than the given time. Security events (login, logout, login_failed, etc.)
+// are preserved for separate, longer retention.
+func (d *DB) DeleteGeneralAuditEntriesBefore(before time.Time) (int64, error) {
+	ph, phArgs := securityActionPlaceholders()
+	query := fmt.Sprintf(
+		"DELETE FROM audit_log WHERE created_at < ? AND action NOT IN (%s)", ph)
+	args := append([]interface{}{before.UTC().Format(timeFormat)}, phArgs...)
+	res, err := d.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// DeleteSecurityAuditEntriesBefore deletes security audit entries older
+// than the given time. Security events have a separate (typically longer)
+// retention period.
+func (d *DB) DeleteSecurityAuditEntriesBefore(before time.Time) (int64, error) {
+	ph, phArgs := securityActionPlaceholders()
+	query := fmt.Sprintf(
+		"DELETE FROM audit_log WHERE created_at < ? AND action IN (%s)", ph)
+	args := append([]interface{}{before.UTC().Format(timeFormat)}, phArgs...)
+	res, err := d.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// QueryAuditLogByDateRange returns all audit log entries within the given time
+// range, with optional action and user filters. Used for export.
+func (d *DB) QueryAuditLogByDateRange(from, to time.Time, userID, action string) ([]*AuditEntry, error) {
+	var conditions []string
+	var args []interface{}
+
+	conditions = append(conditions, "created_at >= ?")
+	args = append(args, from.UTC().Format(timeFormat))
+
+	conditions = append(conditions, "created_at <= ?")
+	args = append(args, to.UTC().Format(timeFormat))
+
+	if userID != "" {
+		conditions = append(conditions, "user_id = ?")
+		args = append(args, userID)
+	}
+	if action != "" {
+		conditions = append(conditions, "action = ?")
+		args = append(args, action)
+	}
+
+	where := "WHERE " + strings.Join(conditions, " AND ")
+
+	query := fmt.Sprintf(`
+		SELECT id, user_id, username, action, resource_type, resource_id, details, ip_address, created_at
+		FROM audit_log %s
+		ORDER BY created_at ASC`, where)
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []*AuditEntry
+	for rows.Next() {
+		e := &AuditEntry{}
+		if err := rows.Scan(
+			&e.ID, &e.UserID, &e.Username, &e.Action, &e.ResourceType,
+			&e.ResourceID, &e.Details, &e.IPAddress, &e.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}
+
+// WriteAuditCSV writes audit entries to the given writer in CSV format.
+func WriteAuditCSV(w io.Writer, entries []*AuditEntry) error {
+	cw := csv.NewWriter(w)
+	defer cw.Flush()
+
+	// Header row.
+	if err := cw.Write([]string{
+		"id", "user_id", "username", "action", "resource_type",
+		"resource_id", "details", "ip_address", "created_at",
+	}); err != nil {
+		return err
+	}
+
+	for _, e := range entries {
+		if err := cw.Write([]string{
+			fmt.Sprintf("%d", e.ID),
+			e.UserID,
+			e.Username,
+			e.Action,
+			e.ResourceType,
+			e.ResourceID,
+			e.Details,
+			e.IPAddress,
+			e.CreatedAt,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return cw.Error()
 }

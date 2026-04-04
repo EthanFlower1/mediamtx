@@ -25,6 +25,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -34,6 +35,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -69,11 +71,14 @@ type NVR struct {
 
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 
-	integrityScanner *integrity.Scanner
-	connMgr          *connmgr.Manager
+	integrityScanner  *integrity.Scanner
+	connMgr           *connmgr.Manager
+	maintenanceRunner *db.MaintenanceRunner
 
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
+	backupSvc       *backup.Service
+	tlsManager      *crypto.TLSManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -124,6 +129,17 @@ func (n *NVR) Initialize() error {
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
 
+	// Start database maintenance (integrity check, WAL checkpoint, VACUUM).
+	n.maintenanceRunner = n.database.StartMaintenance(db.DefaultMaintenanceConfig(), func(alertType, message string) {
+		log.Printf("[NVR] [db-maintenance] ALERT [%s]: %s", alertType, message)
+		if n.events != nil {
+			n.events.Publish(api.Event{
+				Type:    alertType,
+				Message: message,
+			})
+		}
+	})
+
 	if err := n.database.SeedDefaultTemplates(); err != nil {
 		log.Printf("nvr: failed to seed default templates: %v", err)
 	}
@@ -165,6 +181,13 @@ func (n *NVR) Initialize() error {
 	n.metricsCollector = metrics.New(360, 10*time.Second)
 	n.metricsCollector.Start()
 
+	// Initialize backup service.
+	backupDir := filepath.Join(filepath.Dir(n.DatabasePath), "backups")
+	n.backupSvc = backup.New(n.DatabasePath, n.ConfigPath, backupDir)
+	if err := n.backupSvc.Init(); err != nil {
+		log.Printf("[NVR] [WARN] backup service init: %v", err)
+	}
+
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
 	n.startNotificationServer()
@@ -196,6 +219,19 @@ func (n *NVR) Initialize() error {
 		n.database.Close()
 		return fmt.Errorf("load or generate keys: %w", err)
 	}
+
+	// Initialize TLS certificate manager.
+	certDir := filepath.Join(filepath.Dir(n.DatabasePath), "tls")
+	n.tlsManager = crypto.NewTLSManager(certDir)
+	generated, err := n.tlsManager.EnsureCertificate()
+	if err != nil {
+		log.Printf("[NVR] [WARN] TLS certificate auto-generation failed: %v", err)
+	} else if generated {
+		log.Printf("[NVR] [INFO] auto-generated self-signed TLS certificate in %s", certDir)
+	}
+
+	// Start background certificate expiry monitor.
+	go n.runCertExpiryMonitor()
 
 	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
 	n.aiPipelines = make(map[string]*ai.Pipeline)
@@ -570,6 +606,9 @@ func (n *NVR) Close() {
 		n.backchannelMgr.CloseAll()
 	}
 
+	if n.backupSvc != nil {
+		n.backupSvc.StopSchedule()
+	}
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
 	}
@@ -587,6 +626,9 @@ func (n *NVR) Close() {
 	}
 	if n.sched != nil {
 		n.sched.Stop()
+	}
+	if n.maintenanceRunner != nil {
+		n.maintenanceRunner.Stop()
 	}
 	if n.database != nil {
 		n.database.Close()
@@ -890,6 +932,10 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+		BackupService:   n.backupSvc,
+		SecurityConfig:  api.DefaultSecurityConfig(),
+		UpdateManager:   updater.New(n.database, version),
+		TLSManager:      n.tlsManager,
 	})
 }
 
@@ -1165,4 +1211,65 @@ func (n *NVR) loadOrGenerateKeys() error {
 	}
 
 	return nil
+}
+
+// runCertExpiryMonitor checks TLS certificate expiry every 12 hours and
+// publishes warning events via the notification system when nearing expiry.
+func (n *NVR) runCertExpiryMonitor() {
+	if n.tlsManager == nil {
+		return
+	}
+
+	ticker := time.NewTicker(12 * time.Hour)
+	defer ticker.Stop()
+
+	check := func() {
+		if !n.tlsManager.HasCertificate() {
+			return
+		}
+		level, daysLeft, err := n.tlsManager.CheckExpiry()
+		if err != nil {
+			log.Printf("[NVR] [WARN] [tls] failed to check certificate expiry: %v", err)
+			return
+		}
+
+		switch level {
+		case "expired":
+			log.Printf("[NVR] [ERROR] [tls] TLS certificate has expired")
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expired",
+					Message: "TLS certificate has expired",
+				})
+			}
+		case "critical":
+			log.Printf("[NVR] [WARN] [tls] TLS certificate expires in %d days", daysLeft)
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expiring",
+					Message: fmt.Sprintf("TLS certificate expires in %d days", daysLeft),
+				})
+			}
+		case "warning":
+			log.Printf("[NVR] [INFO] [tls] TLS certificate expires in %d days", daysLeft)
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expiring",
+					Message: fmt.Sprintf("TLS certificate expires in %d days", daysLeft),
+				})
+			}
+		}
+	}
+
+	// Check once at startup.
+	check()
+
+	for {
+		select {
+		case <-n.ctx.Done():
+			return
+		case <-ticker.C:
+			check()
+		}
+	}
 }

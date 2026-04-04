@@ -490,6 +490,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+	protected.GET("/system/network", systemHandler.NetworkConfig)
+	protected.GET("/system/tls", systemHandler.TLSStatus)
+	protected.GET("/system/backup/database", systemHandler.BackupDatabase)
+	protected.POST("/system/backup/restore", systemHandler.RestoreDatabase)
+	protected.GET("/system/updates/check", systemHandler.CheckForUpdates)
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

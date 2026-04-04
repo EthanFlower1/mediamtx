@@ -527,7 +527,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-<<<<<<< HEAD
 	// Migration 37: Export jobs queue (KAI-33).
 	{
 		version: 37,
@@ -549,10 +548,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
 		`,
 	},
-=======
-	// Migration 37: Evidence export tracking (KAI-38).
+	// Migration 38: Evidence export tracking (KAI-38).
 	{
-		version: 37,
+		version: 38,
 		sql: `
 		CREATE TABLE evidence_exports (
 			id TEXT PRIMARY KEY,
@@ -571,10 +569,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
 		`,
 	},
-	// Migration 38: Add notes column to bookmarks (KAI-35).
+	// Migration 39: Add notes column to bookmarks (KAI-35).
 	{
-		version: 38,
+		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
->>>>>>> origin/main
 }

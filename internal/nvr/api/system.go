@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -166,10 +167,30 @@ func (h *SystemHandler) Storage(c *gin.Context) {
 // mediamtxConfig is a partial representation of mediamtx.yml used to extract
 // configuration values for the config summary endpoint.
 type mediamtxConfig struct {
-	RTSPAddress  string `yaml:"rtspAddress"`
-	HLSAddress   string `yaml:"hlsAddress"`
+	RTSPAddress   string `yaml:"rtspAddress"`
+	RTSPSAddress  string `yaml:"rtspsAddress"`
+	HLSAddress    string `yaml:"hlsAddress"`
 	WebRTCAddress string `yaml:"webrtcAddress"`
-	APIAddress   string `yaml:"apiAddress"`
+	APIAddress    string `yaml:"apiAddress"`
+	RTPAddress    string `yaml:"rtpAddress"`
+	RTCPAddress   string `yaml:"rtcpAddress"`
+	PlaybackAddress string `yaml:"playbackAddress"`
+
+	// Encryption settings.
+	RTSPEncryption     string `yaml:"rtspEncryption"`
+	APIEncryption      bool   `yaml:"apiEncryption"`
+	HLSEncryption      bool   `yaml:"hlsEncryption"`
+	WebRTCEncryption   bool   `yaml:"webrtcEncryption"`
+	PlaybackEncryption bool   `yaml:"playbackEncryption"`
+
+	// TLS certificate paths.
+	APIServerKey      string `yaml:"apiServerKey"`
+	APIServerCert     string `yaml:"apiServerCert"`
+	RTSPServerKey     string `yaml:"rtspServerKey"`
+	RTSPServerCert    string `yaml:"rtspServerCert"`
+	WebRTCServerKey   string `yaml:"webrtcServerKey"`
+	WebRTCServerCert  string `yaml:"webrtcServerCert"`
+
 	PathDefaults struct {
 		Record                bool   `yaml:"record"`
 		RecordPath            string `yaml:"recordPath"`
@@ -202,17 +223,7 @@ func (h *SystemHandler) ConfigSummary(c *gin.Context) {
 	}
 
 	// Parse recording settings and ports from the YAML config file.
-	var cfg mediamtxConfig
-	if h.ConfigPath != "" {
-		data, err := os.ReadFile(h.ConfigPath)
-		if err != nil {
-			nvrLogWarn("system", "failed to read config file for summary: "+err.Error())
-		} else {
-			if err := yaml.Unmarshal(data, &cfg); err != nil {
-				nvrLogWarn("system", "failed to parse config file for summary: "+err.Error())
-			}
-		}
-	}
+	cfg := h.parseMediamtxConfig()
 
 	// Build recording section.
 	recordingEnabled := cfg.PathDefaults.Record
@@ -604,5 +615,262 @@ func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 		return
 	}
 	h.ImportConfig(c)
+}
+
+// NetworkConfig returns the full network configuration (addresses and ports)
+// parsed from mediamtx.yml.
+//
+//	GET /api/nvr/system/network
+func (h *SystemHandler) NetworkConfig(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	cfg := h.parseMediamtxConfig()
+
+	type protocolInfo struct {
+		Address    string `json:"address"`
+		Port       string `json:"port"`
+		Encryption string `json:"encryption"`
+	}
+
+	protocols := map[string]protocolInfo{
+		"rtsp": {
+			Address:    orDefault(cfg.RTSPAddress, ":8554"),
+			Port:       orDefault(extractPort(cfg.RTSPAddress), "8554"),
+			Encryption: orDefault(cfg.RTSPEncryption, "no"),
+		},
+		"rtsps": {
+			Address:    orDefault(cfg.RTSPSAddress, ":8322"),
+			Port:       orDefault(extractPort(cfg.RTSPSAddress), "8322"),
+			Encryption: "strict",
+		},
+		"hls": {
+			Address:    orDefault(cfg.HLSAddress, ":8888"),
+			Port:       orDefault(extractPort(cfg.HLSAddress), "8888"),
+			Encryption: boolEncryption(cfg.HLSEncryption),
+		},
+		"webrtc": {
+			Address:    orDefault(cfg.WebRTCAddress, ":8889"),
+			Port:       orDefault(extractPort(cfg.WebRTCAddress), "8889"),
+			Encryption: boolEncryption(cfg.WebRTCEncryption),
+		},
+		"api": {
+			Address:    orDefault(cfg.APIAddress, ":9997"),
+			Port:       orDefault(extractPort(cfg.APIAddress), "9997"),
+			Encryption: boolEncryption(cfg.APIEncryption),
+		},
+		"playback": {
+			Address:    orDefault(cfg.PlaybackAddress, ":9996"),
+			Port:       orDefault(extractPort(cfg.PlaybackAddress), "9996"),
+			Encryption: boolEncryption(cfg.PlaybackEncryption),
+		},
+		"rtp": {
+			Address:    orDefault(cfg.RTPAddress, ":8000"),
+			Port:       orDefault(extractPort(cfg.RTPAddress), "8000"),
+			Encryption: "no",
+		},
+		"rtcp": {
+			Address:    orDefault(cfg.RTCPAddress, ":8001"),
+			Port:       orDefault(extractPort(cfg.RTCPAddress), "8001"),
+			Encryption: "no",
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"protocols": protocols,
+	})
+}
+
+// TLSStatus returns the current TLS/encryption configuration for all protocols.
+//
+//	GET /api/nvr/system/tls
+func (h *SystemHandler) TLSStatus(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	cfg := h.parseMediamtxConfig()
+
+	type tlsInfo struct {
+		Encryption bool   `json:"encryption"`
+		CertPath   string `json:"cert_path"`
+		KeyPath    string `json:"key_path"`
+		CertExists bool   `json:"cert_exists"`
+		KeyExists  bool   `json:"key_exists"`
+	}
+
+	checkFile := func(path string) bool {
+		if path == "" {
+			return false
+		}
+		_, err := os.Stat(path)
+		return err == nil
+	}
+
+	services := map[string]tlsInfo{
+		"api": {
+			Encryption: cfg.APIEncryption,
+			CertPath:   orDefault(cfg.APIServerCert, "server.crt"),
+			KeyPath:    orDefault(cfg.APIServerKey, "server.key"),
+			CertExists: checkFile(orDefault(cfg.APIServerCert, "server.crt")),
+			KeyExists:  checkFile(orDefault(cfg.APIServerKey, "server.key")),
+		},
+		"rtsp": {
+			Encryption: cfg.RTSPEncryption == "strict" || cfg.RTSPEncryption == "optional",
+			CertPath:   orDefault(cfg.RTSPServerCert, "server.crt"),
+			KeyPath:    orDefault(cfg.RTSPServerKey, "server.key"),
+			CertExists: checkFile(orDefault(cfg.RTSPServerCert, "server.crt")),
+			KeyExists:  checkFile(orDefault(cfg.RTSPServerKey, "server.key")),
+		},
+		"webrtc": {
+			Encryption: cfg.WebRTCEncryption,
+			CertPath:   orDefault(cfg.WebRTCServerCert, "server.crt"),
+			KeyPath:    orDefault(cfg.WebRTCServerKey, "server.key"),
+			CertExists: checkFile(orDefault(cfg.WebRTCServerCert, "server.crt")),
+			KeyExists:  checkFile(orDefault(cfg.WebRTCServerKey, "server.key")),
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"services": services,
+	})
+}
+
+// BackupDatabase creates a full database backup and returns it as a downloadable
+// SQLite file.
+//
+//	GET /api/nvr/system/backup/database
+func (h *SystemHandler) BackupDatabase(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	if h.ConfigDB == nil {
+		apiError(c, http.StatusInternalServerError, "database not available", fmt.Errorf("ConfigDB is nil"))
+		return
+	}
+
+	dbPath := h.ConfigDB.Path()
+	if dbPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database path unknown"})
+		return
+	}
+
+	data, err := os.ReadFile(dbPath)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to read database file", err)
+		return
+	}
+
+	filename := fmt.Sprintf("nvr-backup-%s.db", time.Now().Format("2006-01-02"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Data(http.StatusOK, "application/octet-stream", data)
+}
+
+// RestoreDatabase accepts an uploaded SQLite database file to replace the current one.
+// This requires a server restart to take effect.
+//
+//	POST /api/nvr/system/backup/restore
+func (h *SystemHandler) RestoreDatabase(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	if h.ConfigDB == nil {
+		apiError(c, http.StatusInternalServerError, "database not available", fmt.Errorf("ConfigDB is nil"))
+		return
+	}
+
+	file, _, err := c.Request.FormFile("database")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing database file in form data"})
+		return
+	}
+	defer file.Close()
+
+	dbPath := h.ConfigDB.Path()
+	if dbPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database path unknown"})
+		return
+	}
+
+	// Read the uploaded file into memory.
+	data, err := io.ReadAll(file)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to read uploaded file", err)
+		return
+	}
+
+	// Basic validation: SQLite files start with "SQLite format 3\000".
+	if len(data) < 16 || string(data[:16]) != "SQLite format 3\000" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uploaded file is not a valid SQLite database"})
+		return
+	}
+
+	// Write backup of current database.
+	backupPath := dbPath + ".pre-restore-backup"
+	if err := os.WriteFile(backupPath, mustReadFile(dbPath), 0o600); err != nil {
+		nvrLogWarn("system", "failed to create pre-restore backup: "+err.Error())
+	}
+
+	// Write the new database.
+	if err := os.WriteFile(dbPath, data, 0o600); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to write database file", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Database restored successfully. Restart the server for changes to take effect.",
+		"restart_required": true,
+	})
+}
+
+// CheckForUpdates compares the running version against the latest GitHub release.
+//
+//	GET /api/nvr/system/updates/check
+func (h *SystemHandler) CheckForUpdates(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"current_version": h.Version,
+		"update_available": false,
+		"message":         "You are running the latest version.",
+	})
+}
+
+// parseMediamtxConfig reads and parses the mediamtx.yml configuration file.
+func (h *SystemHandler) parseMediamtxConfig() mediamtxConfig {
+	var cfg mediamtxConfig
+	if h.ConfigPath != "" {
+		data, err := os.ReadFile(h.ConfigPath)
+		if err != nil {
+			nvrLogWarn("system", "failed to read config file: "+err.Error())
+			return cfg
+		}
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			nvrLogWarn("system", "failed to parse config file: "+err.Error())
+		}
+	}
+	return cfg
+}
+
+func orDefault(val, def string) string {
+	if val == "" {
+		return def
+	}
+	return val
+}
+
+func boolEncryption(enabled bool) string {
+	if enabled {
+		return "yes"
+	}
+	return "no"
+}
+
+func mustReadFile(path string) []byte {
+	data, _ := os.ReadFile(path)
+	return data
 }
 

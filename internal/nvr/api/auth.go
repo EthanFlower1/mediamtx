@@ -288,10 +288,55 @@ func (h *AuthHandler) buildAccessToken(user *db.User, now time.Time) (string, er
 		"kid":                  "nvr-signing-key",
 	}
 
+	// Include role permissions from the roles table.
+	rolePerms, camSpecificPerms := h.buildRolePermissions(user)
+	if rolePerms != "" {
+		claims["role_permissions"] = rolePerms
+	}
+	if camSpecificPerms != "" {
+		claims["camera_specific_permissions"] = camSpecificPerms
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = "nvr-signing-key"
 
 	return token.SignedString(h.PrivateKey)
+}
+
+// buildRolePermissions looks up the user's role and per-camera permissions
+// from the database and returns JSON strings for JWT claims.
+func (h *AuthHandler) buildRolePermissions(user *db.User) (rolePerms string, camSpecificPerms string) {
+	// Try to find role by role_id first, then fall back to role name.
+	var role *db.Role
+	var err error
+
+	if user.RoleID != "" {
+		role, err = h.DB.GetRole(user.RoleID)
+	}
+	if role == nil {
+		role, err = h.DB.GetRoleByName(user.Role)
+	}
+	if err == nil && role != nil {
+		permsJSON, err := json.Marshal(role.Permissions)
+		if err == nil {
+			rolePerms = string(permsJSON)
+		}
+	}
+
+	// Get per-camera permissions.
+	camPerms, err := h.DB.GetUserCameraPermissions(user.ID)
+	if err == nil && len(camPerms) > 0 {
+		camMap := make(map[string][]string)
+		for _, cp := range camPerms {
+			camMap[cp.CameraID] = cp.Permissions
+		}
+		camJSON, err := json.Marshal(camMap)
+		if err == nil {
+			camSpecificPerms = string(camJSON)
+		}
+	}
+
+	return
 }
 
 // buildMediaMTXPermissions returns a permissions array for JWT claims

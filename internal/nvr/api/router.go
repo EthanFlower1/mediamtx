@@ -381,6 +381,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
 
+	// Detection zones.
+	zoneHandler := &DetectionZoneHandler{DB: cfg.DB}
+	protected.GET("/cameras/:id/detection-zones", zoneHandler.List)
+	protected.POST("/cameras/:id/detection-zones", zoneHandler.Create)
+	protected.PUT("/detection-zones/:zoneId", zoneHandler.Update)
+	protected.DELETE("/detection-zones/:zoneId", zoneHandler.Delete)
+
 	// Real-time detections for live overlay.
 	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
 	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)

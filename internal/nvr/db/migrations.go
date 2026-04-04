@@ -622,4 +622,22 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
 		`,
 	},
+	// Migration 42: Detection zones with polygon, class filter, and per-camera lookup (KAI-41).
+	{
+		version: 42,
+		sql: `
+		CREATE TABLE IF NOT EXISTS detection_zones (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			points TEXT NOT NULL DEFAULT '[]',
+			class_filter TEXT NOT NULL DEFAULT '[]',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_detection_zones_camera ON detection_zones(camera_id);
+		`,
+	},
 }

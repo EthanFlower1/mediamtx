@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/nvr_colors.dart';
 import '../../providers/camera_panel_provider.dart';
+import '../../providers/notifications_provider.dart';
 import '../alerts_panel.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
@@ -42,6 +43,34 @@ class NavigationShell extends ConsumerWidget {
         mobileIndex = selectedIndex.clamp(0, 3);
       }
       return Scaffold(
+        appBar: AppBar(
+          backgroundColor: NvrColors.bgSecondary,
+          elevation: 0,
+          toolbarHeight: 44,
+          titleSpacing: 12,
+          title: Transform.rotate(
+            angle: 0.785398,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                border: Border.all(color: NvrColors.accent, width: 2),
+              ),
+            ),
+          ),
+          centerTitle: false,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _MobileNotificationBell(
+                unreadCount: ref.watch(
+                  notificationsProvider.select((s) => s.unreadCount),
+                ),
+                onTap: () => _onAlertsTap(context, ref),
+              ),
+            ),
+          ],
+        ),
         body: Stack(
           children: [
             child,
@@ -111,6 +140,61 @@ class NavigationShell extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MobileNotificationBell extends StatelessWidget {
+  const _MobileNotificationBell({
+    required this.unreadCount,
+    required this.onTap,
+  });
+
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(
+              Icons.notifications_outlined,
+              size: 22,
+              color: NvrColors.textSecondary,
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 4,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: NvrColors.danger,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: NvrColors.bgSecondary,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    unreadCount > 9 ? '9+' : '$unreadCount',
+                    style: const TextStyle(
+                      fontSize: 7,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -2535,6 +2535,82 @@ func (h *CameraHandler) EdgePlayback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"replay_uri": replayUri})
 }
 
+// EdgeReplaySession builds a full replay session with RTSP headers for trick-play,
+// including forward and reverse playback at various speeds per ONVIF Profile G.
+//
+//	POST /cameras/:id/edge-recordings/replay-session
+//
+// Request body:
+//
+//	{
+//	  "recording_token": "token123",
+//	  "start_time": "2026-01-15T10:30:00Z",
+//	  "scale": -1         // -4, -2, -1, 1, 2, 4
+//	}
+//
+// Response:
+//
+//	{
+//	  "replay_uri": "rtsp://...",
+//	  "recording_token": "token123",
+//	  "start_time": "2026-01-15T10:30:00Z",
+//	  "scale": -1,
+//	  "reverse": true,
+//	  "rtsp_headers": {
+//	    "Range": "clock=20260115T103000.000Z-",
+//	    "Scale": "-1"
+//	  }
+//	}
+func (h *CameraHandler) EdgeReplaySession(c *gin.Context) {
+	id := c.Param("id")
+
+	var req struct {
+		RecordingToken string  `json:"recording_token" binding:"required"`
+		StartTime      string  `json:"start_time" binding:"required"`
+		Scale          float64 `json:"scale" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "recording_token, start_time, and scale are required"})
+		return
+	}
+
+	startTime, err := time.Parse(time.RFC3339, req.StartTime)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "start_time must be in RFC 3339 format (e.g. 2026-01-15T10:30:00Z)"})
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve camera for replay session", err)
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	replayUri, err := onvif.GetReplayUri(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword), req.RecordingToken)
+	if err != nil {
+		nvrLogError("edge-recordings", fmt.Sprintf("failed to get replay URI for camera %s token %s", id, req.RecordingToken), err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to get replay URI from device"})
+		return
+	}
+
+	session, err := onvif.BuildReplaySession(replayUri, req.RecordingToken, startTime, req.Scale)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, session)
+}
+
 // EdgeImport returns the replay URI for importing an edge recording.
 // In v1 this simply returns the URI; future versions may download and re-mux locally.
 //

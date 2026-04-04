@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -225,6 +227,14 @@ func (h *BulkExportHandler) Delete(c *gin.Context) {
 
 // runExport processes all items, collects recording files, and builds the zip.
 func (h *BulkExportHandler) runExport(jobID string, items []*db.BulkExportItem) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic in runExport for job %s: %v\n%s", jobID, r, debug.Stack())
+			errMsg := fmt.Sprintf("internal error: %v", r)
+			h.DB.CompleteBulkExportJob(jobID, "failed", nil, &errMsg)
+		}
+	}()
+
 	// Mark job as processing.
 	_ = h.DB.CompleteBulkExportJob(jobID, "processing", nil, nil)
 
@@ -256,7 +266,9 @@ func (h *BulkExportHandler) runExport(jobID string, items []*db.BulkExportItem) 
 		recordings, err := h.DB.QueryRecordings(item.CameraID, start, end)
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to query recordings: %v", err)
-			h.DB.UpdateBulkExportItemStatus(item.ID, "failed", 0, 0, &errMsg)
+			if updErr := h.DB.UpdateBulkExportItemStatus(item.ID, "failed", 0, 0, &errMsg); updErr != nil {
+				log.Printf("bulk export job %s: failed to update item %s progress: %v", jobID, item.ID, updErr)
+			}
 			continue
 		}
 
@@ -313,7 +325,9 @@ func (h *BulkExportHandler) runExport(jobID string, items []*db.BulkExportItem) 
 			})
 		}
 
-		h.DB.UpdateBulkExportItemStatus(item.ID, "completed", itemFileCount, itemBytes, nil)
+		if updErr := h.DB.UpdateBulkExportItemStatus(item.ID, "completed", itemFileCount, itemBytes, nil); updErr != nil {
+			log.Printf("bulk export job %s: failed to update item %s progress: %v", jobID, item.ID, updErr)
+		}
 	}
 
 	// Write manifest.json into the zip.

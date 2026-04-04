@@ -41,6 +41,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 		"screenshots",
 		"connection_events",
 		"queued_commands",
+		"evidence_exports",
 		"bulk_export_jobs",
 		"bulk_export_items",
 	}

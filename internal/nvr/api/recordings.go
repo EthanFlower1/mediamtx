@@ -133,6 +133,80 @@ func (h *RecordingHandler) Timeline(c *gin.Context) {
 	c.JSON(http.StatusOK, ranges)
 }
 
+// MultiTimelineEntry holds timeline segments for a single camera.
+type MultiTimelineEntry struct {
+	CameraID string         `json:"camera_id"`
+	Segments []db.TimeRange `json:"segments"`
+}
+
+// MultiTimeline returns aligned timeline data for multiple cameras on a given
+// date. Each camera's segments are returned independently so the client can
+// identify per-camera gaps and synchronize playback across cameras with
+// different recording boundaries.
+// Query params: cameras (comma-separated camera IDs, required), date (YYYY-MM-DD, required).
+func (h *RecordingHandler) MultiTimeline(c *gin.Context) {
+	camerasParam := c.Query("cameras")
+	if camerasParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cameras query parameter is required"})
+		return
+	}
+
+	cameraIDs := strings.Split(camerasParam, ",")
+	if len(cameraIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one camera ID is required"})
+		return
+	}
+
+	// Verify permissions for every requested camera.
+	for _, camID := range cameraIDs {
+		camID = strings.TrimSpace(camID)
+		if camID == "" {
+			continue
+		}
+		if !hasCameraPermission(c, camID) {
+			c.JSON(http.StatusForbidden, gin.H{"error": fmt.Sprintf("no permission for camera %s", camID)})
+			return
+		}
+	}
+
+	dateStr := c.Query("date")
+	date, err := time.ParseInLocation("2006-01-02", dateStr, time.Now().Location())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date, expected YYYY-MM-DD"})
+		return
+	}
+
+	start := date
+	end := date.Add(24 * time.Hour)
+
+	entries := make([]MultiTimelineEntry, 0, len(cameraIDs))
+	for _, camID := range cameraIDs {
+		camID = strings.TrimSpace(camID)
+		if camID == "" {
+			continue
+		}
+
+		ranges, err := h.DB.GetTimeline(camID, start, end)
+		if err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to query timeline for camera "+camID, err)
+			return
+		}
+		if ranges == nil {
+			ranges = []db.TimeRange{}
+		}
+
+		entries = append(entries, MultiTimelineEntry{
+			CameraID: camID,
+			Segments: ranges,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"date":    dateStr,
+		"cameras": entries,
+	})
+}
+
 // Download serves a recording file as a download attachment.
 // Path param: id (recording ID, integer).
 func (h *RecordingHandler) Download(c *gin.Context) {

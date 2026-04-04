@@ -41,7 +41,7 @@ class CameraPanelGroups extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
           child: Row(
             children: [
-              Text('GROUPS', style: NvrTypography.monoSection),
+              Text('GROUPS', style: NvrTypography.of(context).monoSection),
               const Spacer(),
               HudButton(
                 label: '+ GROUP',
@@ -57,7 +57,7 @@ class CameraPanelGroups extends ConsumerWidget {
             if (groups.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Text('No groups yet', style: NvrTypography.body),
+                child: Text('No groups yet', style: NvrTypography.of(context).body),
               );
             }
 
@@ -98,21 +98,21 @@ class CameraPanelGroups extends ConsumerWidget {
               }).toList(),
             );
           },
-          loading: () => const Padding(
+          loading: () => Padding(
             padding: EdgeInsets.all(10),
             child: Center(
               child: CircularProgressIndicator(
-                  color: NvrColors.accent, strokeWidth: 1.5),
+                  color: NvrColors.of(context).accent, strokeWidth: 1.5),
             ),
           ),
           error: (e, _) => Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text('Error loading groups', style: NvrTypography.alert),
+            child: Text('Error loading groups', style: NvrTypography.of(context).alert),
           ),
         ),
 
         // Thin separator before camera list
-        const Divider(height: 1, thickness: 1, color: NvrColors.border),
+        Divider(height: 1, thickness: 1, color: NvrColors.of(context).border),
       ],
     );
   }
@@ -171,20 +171,20 @@ class CameraPanelGroups extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
+        backgroundColor: NvrColors.of(context).bgSecondary,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
-          side: const BorderSide(color: NvrColors.border),
+          side: BorderSide(color: NvrColors.of(context).border),
         ),
-        title: Text('DELETE GROUP', style: NvrTypography.monoSection),
+        title: Text('DELETE GROUP', style: NvrTypography.of(context).monoSection),
         content: Text(
           'Delete "${group.name}"? Cameras will not be removed.',
-          style: NvrTypography.body,
+          style: NvrTypography.of(context).body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('CANCEL', style: NvrTypography.monoControl),
+            child: Text('CANCEL', style: NvrTypography.of(context).monoControl),
           ),
           TextButton(
             onPressed: () async {
@@ -196,8 +196,8 @@ class CameraPanelGroups extends ConsumerWidget {
               if (ctx.mounted) Navigator.of(ctx).pop();
             },
             child: Text('DELETE',
-                style: NvrTypography.monoControl
-                    .copyWith(color: NvrColors.danger)),
+                style: NvrTypography.of(context).monoControl
+                    .copyWith(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -244,7 +244,7 @@ class _GroupSection extends StatelessWidget {
           onLongPress: () => _showContextMenu(context),
           child: Container(
             color: isActive
-                ? NvrColors.accent.withOpacity(0.06)
+                ? NvrColors.of(context).accent.withOpacity(0.06)
                 : Colors.transparent,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             child: Row(
@@ -255,7 +255,7 @@ class _GroupSection extends StatelessWidget {
                   child: Icon(
                     isCollapsed ? Icons.chevron_right : Icons.expand_more,
                     size: 16,
-                    color: NvrColors.textMuted,
+                    color: NvrColors.of(context).textMuted,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -265,10 +265,10 @@ class _GroupSection extends StatelessWidget {
                     onTap: onTapFilter,
                     child: Text(
                       group.name.toUpperCase(),
-                      style: NvrTypography.monoLabel.copyWith(
+                      style: NvrTypography.of(context).monoLabel.copyWith(
                         color: isActive
-                            ? NvrColors.accent
-                            : NvrColors.textPrimary,
+                            ? NvrColors.of(context).accent
+                            : NvrColors.of(context).textPrimary,
                         fontSize: 10,
                         letterSpacing: 1.2,
                       ),
@@ -280,16 +280,16 @@ class _GroupSection extends StatelessWidget {
                 // Camera count
                 Text(
                   '${cameras.length}',
-                  style: NvrTypography.monoLabel,
+                  style: NvrTypography.of(context).monoLabel,
                 ),
                 const SizedBox(width: 8),
                 // Play-group button
                 GestureDetector(
                   onTap: onPlayGroup,
-                  child: const Icon(
+                  child: Icon(
                     Icons.play_circle_outline,
                     size: 16,
-                    color: NvrColors.accent,
+                    color: NvrColors.of(context).accent,
                   ),
                 ),
               ],
@@ -302,7 +302,7 @@ class _GroupSection extends StatelessWidget {
           if (cameras.isEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 28, bottom: 4),
-              child: Text('No cameras', style: NvrTypography.body),
+              child: Text('No cameras', style: NvrTypography.of(context).body),
             )
           else
             ...cameras.map((cam) => _GroupCameraItem(camera: cam, serverUrl: serverUrl)),
@@ -317,10 +317,10 @@ class _GroupSection extends StatelessWidget {
 
     showMenu<String>(
       context: context,
-      color: NvrColors.bgSecondary,
+      color: NvrColors.of(context).bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: NvrColors.border),
+        side: BorderSide(color: NvrColors.of(context).border),
       ),
       position: RelativeRect.fromLTRB(
         offset.dx,
@@ -331,12 +331,12 @@ class _GroupSection extends StatelessWidget {
       items: [
         PopupMenuItem(
           value: 'rename',
-          child: Text('Rename', style: NvrTypography.body),
+          child: Text('Rename', style: NvrTypography.of(context).body),
         ),
         PopupMenuItem(
           value: 'delete',
           child: Text('Delete',
-              style: NvrTypography.body.copyWith(color: NvrColors.danger)),
+              style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger)),
         ),
       ],
     ).then((value) {
@@ -370,19 +370,19 @@ class _GroupCameraItem extends StatelessWidget {
               width: 160,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
-                border: Border.all(color: NvrColors.accent),
+                color: NvrColors.of(context).bgSecondary,
+                border: Border.all(color: NvrColors.of(context).accent),
                 borderRadius: BorderRadius.circular(6),
                 boxShadow: [
-                  BoxShadow(color: NvrColors.accent.withOpacity(0.2), blurRadius: 12),
+                  BoxShadow(color: NvrColors.of(context).accent.withOpacity(0.2), blurRadius: 12),
                 ],
               ),
               child: Text(
                 camera.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: NvrColors.textPrimary,
+                  color: NvrColors.of(context).textPrimary,
                   decoration: TextDecoration.none,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -396,13 +396,13 @@ class _GroupCameraItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
-              color: NvrColors.bgTertiary,
-              border: Border.all(color: NvrColors.border),
+              color: NvrColors.of(context).bgTertiary,
+              border: Border.all(color: NvrColors.of(context).border),
             ),
             child: Row(
               children: [
                 const SizedBox(width: 6 + 8 + 44 + 8),
-                Expanded(child: Text(camera.name, style: const TextStyle(fontSize: 11, color: NvrColors.textMuted))),
+                Expanded(child: Text(camera.name, style: TextStyle(fontSize: 11, color: NvrColors.of(context).textMuted))),
               ],
             ),
           ),
@@ -411,8 +411,8 @@ class _GroupCameraItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            color: NvrColors.bgTertiary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgTertiary,
+            border: Border.all(color: NvrColors.of(context).border),
           ),
           child: Row(
             children: [
@@ -422,11 +422,11 @@ class _GroupCameraItem extends StatelessWidget {
                 height: 6,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isOnline ? NvrColors.success : NvrColors.danger,
+                  color: isOnline ? NvrColors.of(context).success : NvrColors.of(context).danger,
                   boxShadow: isOnline
                       ? [
                           BoxShadow(
-                              color: NvrColors.success.withOpacity(0.5),
+                              color: NvrColors.of(context).success.withOpacity(0.5),
                               blurRadius: 4)
                         ]
                       : null,
@@ -447,25 +447,25 @@ class _GroupCameraItem extends StatelessWidget {
                   children: [
                     Text(
                       camera.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: NvrColors.textPrimary,
+                        color: NvrColors.of(context).textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       camera.id.substring(0, 8).toUpperCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'JetBrainsMono',
                         fontSize: 8,
-                        color: NvrColors.textMuted,
+                        color: NvrColors.of(context).textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.drag_handle, size: 14, color: NvrColors.border),
+              Icon(Icons.drag_handle, size: 14, color: NvrColors.of(context).border),
             ],
           ),
         ),
@@ -492,33 +492,33 @@ class _GroupNameDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: NvrColors.border),
+        side: BorderSide(color: NvrColors.of(context).border),
       ),
-      title: Text(title, style: NvrTypography.monoSection),
+      title: Text(title, style: NvrTypography.of(context).monoSection),
       content: TextField(
         controller: controller,
         autofocus: true,
-        style: const TextStyle(fontSize: 13, color: NvrColors.textPrimary),
-        cursorColor: NvrColors.accent,
+        style: TextStyle(fontSize: 13, color: NvrColors.of(context).textPrimary),
+        cursorColor: NvrColors.of(context).accent,
         decoration: InputDecoration(
           hintText: 'Group name',
           hintStyle:
-              const TextStyle(color: NvrColors.textMuted, fontSize: 13),
+              TextStyle(color: NvrColors.of(context).textMuted, fontSize: 13),
           isDense: true,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           filled: true,
-          fillColor: NvrColors.bgTertiary,
+          fillColor: NvrColors.of(context).bgTertiary,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: NvrColors.border),
+            borderSide: BorderSide(color: NvrColors.of(context).border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: NvrColors.accent),
+            borderSide: BorderSide(color: NvrColors.of(context).accent),
           ),
         ),
         onSubmitted: (_) => onConfirm(),
@@ -526,13 +526,13 @@ class _GroupNameDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('CANCEL', style: NvrTypography.monoControl),
+          child: Text('CANCEL', style: NvrTypography.of(context).monoControl),
         ),
         TextButton(
           onPressed: onConfirm,
           child: Text(
             'CONFIRM',
-            style: NvrTypography.monoControl.copyWith(color: NvrColors.accent),
+            style: NvrTypography.of(context).monoControl.copyWith(color: NvrColors.of(context).accent),
           ),
         ),
       ],

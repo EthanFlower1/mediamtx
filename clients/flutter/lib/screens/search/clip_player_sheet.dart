@@ -25,7 +25,7 @@ class ClipPlayerSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
       ),
@@ -58,7 +58,7 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: NvrColors.bgSecondary,
+      color: NvrColors.of(context).bgSecondary,
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -71,7 +71,7 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: NvrColors.bgTertiary,
+                    color: NvrColors.of(context).bgTertiary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -85,13 +85,13 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
                   Expanded(
                     child: Text(
                       widget.title,
-                      style: NvrTypography.monoSection,
+                      style: NvrTypography.of(context).monoSection,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close,
-                        color: NvrColors.textSecondary, size: 18),
+                    icon: Icon(Icons.close,
+                        color: NvrColors.of(context).textSecondary, size: 18),
                     onPressed: () => Navigator.of(context).pop(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -100,7 +100,7 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
                 ],
               ),
             ),
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
             // Video player wrapped in CornerBrackets (16:9)
             Padding(
               padding: const EdgeInsets.symmetric(
@@ -108,7 +108,7 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
               child: CornerBrackets(
                 bracketSize: 14,
                 strokeWidth: 1.5,
-                color: NvrColors.accent.withValues(alpha: 0.6),
+                color: NvrColors.of(context).accent.withValues(alpha: 0.6),
                 padding: 4,
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
@@ -131,8 +131,8 @@ class _ClipPlayerSheetState extends State<ClipPlayerSheet> {
                         context.go('/playback');
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: NvrColors.accent,
-                        foregroundColor: NvrColors.bgPrimary,
+                        backgroundColor: NvrColors.of(context).accent,
+                        foregroundColor: NvrColors.of(context).bgPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4),

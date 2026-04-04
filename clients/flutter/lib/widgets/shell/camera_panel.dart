@@ -36,17 +36,17 @@ class CameraPanel extends ConsumerWidget {
           // ── Header ──────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: NvrColors.border)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: NvrColors.of(context).border)),
             ),
             child: Row(
               children: [
-                Text('CAMERAS', style: NvrTypography.monoSection),
+                Text('CAMERAS', style: NvrTypography.of(context).monoSection),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => ref.read(cameraPanelProvider.notifier).close(),
-                  child: const Icon(Icons.close,
-                      size: 16, color: NvrColors.textMuted),
+                  child: Icon(Icons.close,
+                      size: 16, color: NvrColors.of(context).textMuted),
                 ),
               ],
             ),
@@ -58,20 +58,20 @@ class CameraPanel extends ConsumerWidget {
             child: TextField(
               onChanged: (q) =>
                   ref.read(cameraPanelProvider.notifier).setSearch(q),
-              style: const TextStyle(
-                  fontSize: 12, color: NvrColors.textPrimary),
+              style: TextStyle(
+                  fontSize: 12, color: NvrColors.of(context).textPrimary),
               decoration: InputDecoration(
                 hintText: 'Search cameras...',
-                prefixIcon: const Icon(Icons.search,
-                    size: 16, color: NvrColors.textMuted),
+                prefixIcon: Icon(Icons.search,
+                    size: 16, color: NvrColors.of(context).textMuted),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 filled: true,
-                fillColor: NvrColors.bgTertiary,
+                fillColor: NvrColors.of(context).bgTertiary,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: NvrColors.border),
+                  borderSide: BorderSide(color: NvrColors.of(context).border),
                 ),
               ),
             ),
@@ -88,21 +88,21 @@ class CameraPanel extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: NvrColors.accent.withOpacity(0.08),
+                      color: NvrColors.of(context).accent.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
-                          color: NvrColors.accent.withOpacity(0.3)),
+                          color: NvrColors.of(context).accent.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.folder_outlined,
-                            size: 11, color: NvrColors.accent),
+                        Icon(Icons.folder_outlined,
+                            size: 11, color: NvrColors.of(context).accent),
                         const SizedBox(width: 4),
                         Text(
                           activeGroupName.toUpperCase(),
-                          style: NvrTypography.monoLabel
-                              .copyWith(color: NvrColors.accent),
+                          style: NvrTypography.of(context).monoLabel
+                              .copyWith(color: NvrColors.of(context).accent),
                         ),
                       ],
                     ),
@@ -112,8 +112,8 @@ class CameraPanel extends ConsumerWidget {
                     onTap: () => ref
                         .read(cameraPanelProvider.notifier)
                         .setGroupFilter(panelState.activeGroupId),
-                    child: const Icon(Icons.close,
-                        size: 13, color: NvrColors.textMuted),
+                    child: Icon(Icons.close,
+                        size: 13, color: NvrColors.of(context).textMuted),
                   ),
                 ],
               ),
@@ -149,7 +149,7 @@ class CameraPanel extends ConsumerWidget {
                 if (filtered.isEmpty) {
                   return Center(
                       child: Text('No cameras found',
-                          style: NvrTypography.body));
+                          style: NvrTypography.of(context).body));
                 }
 
                 return ListView.builder(
@@ -171,12 +171,12 @@ class CameraPanel extends ConsumerWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: NvrColors.bgSecondary,
-                                border: Border.all(color: NvrColors.accent),
+                                color: NvrColors.of(context).bgSecondary,
+                                border: Border.all(color: NvrColors.of(context).accent),
                                 borderRadius: BorderRadius.circular(6),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: NvrColors.accent.withOpacity(0.2),
+                                    color: NvrColors.of(context).accent.withOpacity(0.2),
                                     blurRadius: 12,
                                   ),
                                 ],
@@ -190,18 +190,18 @@ class CameraPanel extends ConsumerWidget {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: isOnline
-                                          ? NvrColors.success
-                                          : NvrColors.danger,
+                                          ? NvrColors.of(context).success
+                                          : NvrColors.of(context).danger,
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Flexible(
                                     child: Text(
                                       cam.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
-                                        color: NvrColors.textPrimary,
+                                        color: NvrColors.of(context).textPrimary,
                                         decoration: TextDecoration.none,
                                       ),
                                       overflow: TextOverflow.ellipsis,
@@ -219,17 +219,17 @@ class CameraPanel extends ConsumerWidget {
                                 horizontal: 8, vertical: 6),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(6),
-                              color: NvrColors.bgTertiary,
-                              border: Border.all(color: NvrColors.border),
+                              color: NvrColors.of(context).bgTertiary,
+                              border: Border.all(color: NvrColors.of(context).border),
                             ),
                             child: Row(
                               children: [
                                 const SizedBox(width: 6 + 8 + 44 + 8),
                                 Expanded(
                                   child: Text(cam.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
-                                          color: NvrColors.textMuted)),
+                                          color: NvrColors.of(context).textMuted)),
                                 ),
                               ],
                             ),
@@ -240,8 +240,8 @@ class CameraPanel extends ConsumerWidget {
                               horizontal: 8, vertical: 6),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
-                            color: NvrColors.bgTertiary,
-                            border: Border.all(color: NvrColors.border),
+                            color: NvrColors.of(context).bgTertiary,
+                            border: Border.all(color: NvrColors.of(context).border),
                           ),
                           child: Row(
                             children: [
@@ -251,12 +251,12 @@ class CameraPanel extends ConsumerWidget {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: isOnline
-                                      ? NvrColors.success
-                                      : NvrColors.danger,
+                                      ? NvrColors.of(context).success
+                                      : NvrColors.of(context).danger,
                                   boxShadow: isOnline
                                       ? [
                                           BoxShadow(
-                                            color: NvrColors.success
+                                            color: NvrColors.of(context).success
                                                 .withOpacity(0.5),
                                             blurRadius: 4,
                                           )
@@ -280,26 +280,26 @@ class CameraPanel extends ConsumerWidget {
                                   children: [
                                     Text(
                                       cam.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
-                                        color: NvrColors.textPrimary,
+                                        color: NvrColors.of(context).textPrimary,
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       cam.id.substring(0, 8).toUpperCase(),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontFamily: 'JetBrainsMono',
                                         fontSize: 8,
-                                        color: NvrColors.textMuted,
+                                        color: NvrColors.of(context).textMuted,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.drag_handle,
-                                  size: 14, color: NvrColors.border),
+                              Icon(Icons.drag_handle,
+                                  size: 14, color: NvrColors.of(context).border),
                             ],
                           ),
                         ),
@@ -308,12 +308,12 @@ class CameraPanel extends ConsumerWidget {
                   },
                 );
               },
-              loading: () => const Center(
+              loading: () => Center(
                   child: CircularProgressIndicator(
-                      color: NvrColors.accent)),
+                      color: NvrColors.of(context).accent)),
               error: (e, _) => Center(
                   child: Text('Error loading cameras',
-                      style: NvrTypography.alert)),
+                      style: NvrTypography.of(context).alert)),
             ),
           ),
 

@@ -149,17 +149,17 @@ class StreamCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         border: Border.all(
-          color: expanded ? NvrColors.accent : NvrColors.border,
+          color: expanded ? NvrColors.of(context).accent : NvrColors.of(context).border,
         ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildHeader(),
-          if (expanded) _buildExpandedContent(),
+          _buildHeader(context),
+          if (expanded) _buildExpandedContent(context),
         ],
       ),
     );
@@ -167,7 +167,7 @@ class StreamCard extends StatelessWidget {
 
   // ---- Header (collapsed row) --------------------------------------------
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return GestureDetector(
       onTap: onToggleExpand,
       behavior: HitTestBehavior.opaque,
@@ -179,14 +179,14 @@ class StreamCard extends StatelessWidget {
             Icon(
               expanded ? Icons.expand_more : Icons.chevron_right,
               size: 16,
-              color: NvrColors.textSecondary,
+              color: NvrColors.of(context).textSecondary,
             ),
             const SizedBox(width: 8),
             // Stream name + resolution
             Expanded(
               child: Text(
                 stream.displayLabel,
-                style: NvrTypography.monoData,
+                style: NvrTypography.of(context).monoData,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -194,15 +194,15 @@ class StreamCard extends StatelessWidget {
             // Schedule + retention summary
             Text(
               _summaryText(),
-              style: NvrTypography.monoLabel,
+              style: NvrTypography.of(context).monoLabel,
             ),
             const SizedBox(width: 8),
             // Total storage estimate
             if (estimate != null)
               Text(
                 '~${_formatBytes(estimate!.totalBytes)}',
-                style: NvrTypography.monoLabel.copyWith(
-                  color: NvrColors.accent,
+                style: NvrTypography.of(context).monoLabel.copyWith(
+                  color: NvrColors.of(context).accent,
                 ),
               ),
           ],
@@ -213,20 +213,20 @@ class StreamCard extends StatelessWidget {
 
   // ---- Expanded content --------------------------------------------------
 
-  Widget _buildExpandedContent() {
+  Widget _buildExpandedContent(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: NvrColors.border)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: NvrColors.of(context).border)),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildRolesSection(),
+          _buildRolesSection(context),
           const SizedBox(height: 16),
-          _buildScheduleSection(),
+          _buildScheduleSection(context),
           const SizedBox(height: 16),
-          _buildRetentionSection(),
+          _buildRetentionSection(context),
         ],
       ),
     );
@@ -234,13 +234,13 @@ class StreamCard extends StatelessWidget {
 
   // ---- Roles section -----------------------------------------------------
 
-  Widget _buildRolesSection() {
+  Widget _buildRolesSection(BuildContext context) {
     const allRoles = ['live_view', 'recording', 'ai_detection', 'mobile'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ROLES', style: NvrTypography.monoSection),
+        Text('ROLES', style: NvrTypography.of(context).monoSection),
         const SizedBox(height: 8),
         Wrap(
           spacing: 6,
@@ -264,10 +264,10 @@ class StreamCard extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: active
-                      ? NvrColors.accent
+                      ? NvrColors.of(context).accent
                       : Colors.transparent,
                   border: Border.all(
-                    color: active ? NvrColors.accent : NvrColors.border,
+                    color: active ? NvrColors.of(context).accent : NvrColors.of(context).border,
                   ),
                   borderRadius: BorderRadius.circular(3),
                 ),
@@ -278,8 +278,8 @@ class StreamCard extends StatelessWidget {
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
                     color: active
-                        ? NvrColors.bgPrimary
-                        : NvrColors.textSecondary,
+                        ? NvrColors.of(context).bgPrimary
+                        : NvrColors.of(context).textSecondary,
                   ),
                 ),
               ),
@@ -292,7 +292,7 @@ class StreamCard extends StatelessWidget {
 
   // ---- Recording schedule section ----------------------------------------
 
-  Widget _buildScheduleSection() {
+  Widget _buildScheduleSection(BuildContext context) {
     // Build dropdown items: None + templates + Custom
     final items = <DropdownMenuItem<String>>[
       const DropdownMenuItem(
@@ -314,7 +314,7 @@ class StreamCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('RECORDING SCHEDULE', style: NvrTypography.monoSection),
+        Text('RECORDING SCHEDULE', style: NvrTypography.of(context).monoSection),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: items.any((i) => i.value == settings.templateId)
@@ -326,26 +326,26 @@ class StreamCard extends StatelessWidget {
               onChanged(settings.copyWith(templateId: value));
             }
           },
-          dropdownColor: NvrColors.bgTertiary,
-          style: NvrTypography.monoData,
-          icon: const Icon(
+          dropdownColor: NvrColors.of(context).bgTertiary,
+          style: NvrTypography.of(context).monoData,
+          icon: Icon(
             Icons.expand_more,
-            color: NvrColors.textSecondary,
+            color: NvrColors.of(context).textSecondary,
             size: 16,
           ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: NvrColors.bgTertiary,
+            fillColor: NvrColors.of(context).bgTertiary,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 10,
               vertical: 8,
             ),
             enabledBorder: OutlineInputBorder(
-              borderSide: const BorderSide(color: NvrColors.border),
+              borderSide: BorderSide(color: NvrColors.of(context).border),
               borderRadius: BorderRadius.circular(4),
             ),
             focusedBorder: OutlineInputBorder(
-              borderSide: const BorderSide(color: NvrColors.accent),
+              borderSide: BorderSide(color: NvrColors.of(context).accent),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -356,11 +356,11 @@ class StreamCard extends StatelessWidget {
 
   // ---- Retention section -------------------------------------------------
 
-  Widget _buildRetentionSection() {
+  Widget _buildRetentionSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('RETENTION', style: NvrTypography.monoSection),
+        Text('RETENTION', style: NvrTypography.of(context).monoSection),
         const SizedBox(height: 12),
         // No-event recordings slider
         AnalogSlider(
@@ -376,7 +376,7 @@ class StreamCard extends StatelessWidget {
             return days == 0 ? 'OFF' : '${days}d';
           },
         ),
-        if (estimate != null) _buildEstimateRow(
+        if (estimate != null) _buildEstimateRow(context, 
           bytes: estimate!.noEventBytes,
           frequency: null,
         ),
@@ -397,7 +397,7 @@ class StreamCard extends StatelessWidget {
             return days == 0 ? 'OFF' : '${days}d';
           },
         ),
-        if (estimate != null) _buildEstimateRow(
+        if (estimate != null) _buildEstimateRow(context, 
           bytes: estimate!.eventBytes,
           frequency: estimate!.eventFrequency,
         ),
@@ -405,7 +405,7 @@ class StreamCard extends StatelessWidget {
     );
   }
 
-  Widget _buildEstimateRow({
+  Widget _buildEstimateRow(BuildContext context, {
     required int bytes,
     required double? frequency,
   }) {
@@ -415,19 +415,19 @@ class StreamCard extends StatelessWidget {
         children: [
           Text(
             '~${_formatBytes(bytes)}',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'JetBrainsMono',
               fontSize: 9,
-              color: NvrColors.accent,
+              color: NvrColors.of(context).accent,
             ),
           ),
           if (frequency != null) ...[
             Text(
               ' \u00B7 ${frequency.toStringAsFixed(1)} events/day',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'JetBrainsMono',
                 fontSize: 9,
-                color: NvrColors.textMuted,
+                color: NvrColors.of(context).textMuted,
               ),
             ),
           ],

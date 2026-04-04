@@ -213,8 +213,8 @@ class _CameraTileState extends State<CameraTile> {
       onTap: widget.onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
-          border: Border.all(color: NvrColors.border, width: 1),
+          color: NvrColors.of(context).bgSecondary,
+          border: Border.all(color: NvrColors.of(context).border, width: 1),
           borderRadius: BorderRadius.circular(6),
         ),
         child: ClipRRect(
@@ -240,8 +240,8 @@ class _CameraTileState extends State<CameraTile> {
                 top: 8,
                 left: 8,
                 child: isOnline
-                    ? StatusBadge.live()
-                    : StatusBadge.offline(),
+                    ? StatusBadge.live(context)
+                    : StatusBadge.offline(context),
               ),
 
               // Top-right: stream picker + REC badge.
@@ -259,7 +259,7 @@ class _CameraTileState extends State<CameraTile> {
                       ),
                     if (camera.streamPaths.length > 1 && camera.aiEnabled)
                       const SizedBox(width: 4),
-                    if (camera.aiEnabled) StatusBadge.recording(),
+                    if (camera.aiEnabled) StatusBadge.recording(context),
                   ],
                 ),
               ),
@@ -273,11 +273,11 @@ class _CameraTileState extends State<CameraTile> {
                   camera.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'IBMPlexSans',
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
-                    color: NvrColors.textPrimary,
+                    color: NvrColors.of(context).textPrimary,
                   ),
                 ),
               ),
@@ -288,10 +288,10 @@ class _CameraTileState extends State<CameraTile> {
                 bottom: 8,
                 child: Text(
                   timestampStr,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'JetBrainsMono',
                     fontSize: 8,
-                    color: NvrColors.textMuted,
+                    color: NvrColors.of(context).textMuted,
                   ),
                 ),
               ),
@@ -319,12 +319,12 @@ class _CameraTileState extends State<CameraTile> {
             height: 90,
             child: Container(
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
-                border: Border.all(color: NvrColors.accent),
+                color: NvrColors.of(context).bgSecondary,
+                border: Border.all(color: NvrColors.of(context).accent),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Center(
-                child: Text(camera.name, style: NvrTypography.cameraName),
+                child: Text(camera.name, style: NvrTypography.of(context).cameraName),
               ),
             ),
           ),
@@ -332,8 +332,8 @@ class _CameraTileState extends State<CameraTile> {
       ),
       childWhenDragging: Container(
         decoration: BoxDecoration(
-          color: NvrColors.bgPrimary,
-          border: Border.all(color: NvrColors.border),
+          color: NvrColors.of(context).bgPrimary,
+          border: Border.all(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(6),
         ),
       ),
@@ -344,14 +344,14 @@ class _CameraTileState extends State<CameraTile> {
   Widget _buildVideoLayer(bool isOnline) {
     if (!isOnline) {
       return Container(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.videocam_off,
-                color: NvrColors.textMuted,
+                color: NvrColors.of(context).textMuted,
                 size: 32,
               ),
               const SizedBox(height: 6),
@@ -359,11 +359,11 @@ class _CameraTileState extends State<CameraTile> {
                 widget.camera.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'IBMPlexSans',
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
-                  color: NvrColors.textMuted,
+                  color: NvrColors.of(context).textMuted,
                 ),
               ),
             ],
@@ -375,20 +375,20 @@ class _CameraTileState extends State<CameraTile> {
     final hasConnection = _useRtsp ? _rtspConnection != null : _whepConnection != null;
     if (!hasConnection) {
       return Container(
-        color: NvrColors.bgSecondary,
-        child: const Center(
-          child: Icon(Icons.videocam_off, color: NvrColors.textMuted, size: 32),
+        color: NvrColors.of(context).bgSecondary,
+        child: Center(
+          child: Icon(Icons.videocam_off, color: NvrColors.of(context).textMuted, size: 32),
         ),
       );
     }
 
     if (_isConnecting) {
       return Container(
-        color: NvrColors.bgSecondary,
-        child: const Center(
+        color: NvrColors.of(context).bgSecondary,
+        child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: NvrColors.accent,
+            color: NvrColors.of(context).accent,
           ),
         ),
       );
@@ -399,28 +399,28 @@ class _CameraTileState extends State<CameraTile> {
         final vc = _rtspConnection?.videoController;
         if (vc == null) {
           return Container(
-            color: NvrColors.bgSecondary,
-            child: const Center(
+            color: NvrColors.of(context).bgSecondary,
+            child: Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
               ),
             ),
           );
         }
         return Video(
           controller: vc,
-          fill: NvrColors.bgSecondary,
+          fill: NvrColors.of(context).bgSecondary,
         );
       } else {
         final renderer = _whepConnection!.renderer;
         if (renderer == null) {
           return Container(
-            color: NvrColors.bgSecondary,
-            child: const Center(
+            color: NvrColors.of(context).bgSecondary,
+            child: Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
               ),
             ),
           );
@@ -434,21 +434,21 @@ class _CameraTileState extends State<CameraTile> {
 
     if (_isFailed) {
       return Container(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
-                color: NvrColors.danger,
+                color: NvrColors.of(context).danger,
                 size: 28,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Connection failed',
                 style: TextStyle(
-                  color: NvrColors.textSecondary,
+                  color: NvrColors.of(context).textSecondary,
                   fontSize: 11,
                 ),
               ),
@@ -461,9 +461,9 @@ class _CameraTileState extends State<CameraTile> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: _retry,
-                child: const Text(
+                child: Text(
                   'Retry',
-                  style: TextStyle(color: NvrColors.accent, fontSize: 11),
+                  style: TextStyle(color: NvrColors.of(context).accent, fontSize: 11),
                 ),
               ),
             ],
@@ -472,7 +472,7 @@ class _CameraTileState extends State<CameraTile> {
       );
     }
 
-    return Container(color: NvrColors.bgSecondary);
+    return Container(color: NvrColors.of(context).bgSecondary);
   }
 }
 
@@ -507,10 +507,10 @@ class _StreamPickerButton extends StatelessWidget {
             offset.dx + box.size.width,
             0,
           ),
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: NvrColors.border),
+            side: BorderSide(color: NvrColors.of(context).border),
           ),
           items: streamPaths.map((sp) {
             final isActive = sp.path == activePath;
@@ -522,7 +522,7 @@ class _StreamPickerButton extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 10,
-                  color: isActive ? NvrColors.accent : NvrColors.textMuted,
+                  color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
                 ),
               ),
             );
@@ -533,16 +533,16 @@ class _StreamPickerButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
-          color: NvrColors.bgPrimary.withValues(alpha: 0.7),
+          color: NvrColors.of(context).bgPrimary.withValues(alpha: 0.7),
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: NvrColors.of(context).border),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.videocam, color: NvrColors.textMuted, size: 10),
+            Icon(Icons.videocam, color: NvrColors.of(context).textMuted, size: 10),
             SizedBox(width: 2),
-            Icon(Icons.keyboard_arrow_down, color: NvrColors.textMuted, size: 10),
+            Icon(Icons.keyboard_arrow_down, color: NvrColors.of(context).textMuted, size: 10),
           ],
         ),
       ),

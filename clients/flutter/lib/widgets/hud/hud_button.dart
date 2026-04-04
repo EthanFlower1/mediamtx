@@ -20,10 +20,10 @@ class HudButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (bg, fg, border) = switch (style) {
-      HudButtonStyle.primary => (NvrColors.accent, NvrColors.bgPrimary, Colors.transparent),
-      HudButtonStyle.secondary => (NvrColors.bgTertiary, NvrColors.textPrimary, NvrColors.border),
-      HudButtonStyle.danger => (NvrColors.danger.withOpacity(0.13), NvrColors.danger, NvrColors.danger.withOpacity(0.27)),
-      HudButtonStyle.tactical => (NvrColors.bgTertiary, NvrColors.accent, NvrColors.accent.withOpacity(0.27)),
+      HudButtonStyle.primary => (NvrColors.of(context).accent, NvrColors.of(context).bgPrimary, Colors.transparent),
+      HudButtonStyle.secondary => (NvrColors.of(context).bgTertiary, NvrColors.of(context).textPrimary, NvrColors.of(context).border),
+      HudButtonStyle.danger => (NvrColors.of(context).danger.withOpacity(0.13), NvrColors.of(context).danger, NvrColors.of(context).danger.withOpacity(0.27)),
+      HudButtonStyle.tactical => (NvrColors.of(context).bgTertiary, NvrColors.of(context).accent, NvrColors.of(context).accent.withOpacity(0.27)),
     };
 
     final textStyle = style == HudButtonStyle.tactical

@@ -469,7 +469,7 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
                       _onScaleUpdate(details, width),
                   onScaleEnd: _onScaleEnd,
                   child: Container(
-                    color: NvrColors.bgSecondary,
+                    color: NvrColors.of(context).bgSecondary,
                     child: Stack(
                       children: [
                         // Scrolling timeline content
@@ -483,6 +483,7 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
                             intensityBuckets: widget.intensityBuckets,
                             bucketDuration: widget.bucketDuration,
                             dayStart: widget.dayStart,
+                            colors: NvrColors.of(context),
                           ),
                           size: Size(width, _timelineHeight),
                         ),
@@ -547,16 +548,16 @@ class _PlayheadWidget extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 borderRadius: BorderRadius.circular(3),
               ),
               child: Text(
                 timeLabel,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: NvrColors.bgPrimary,
+                  color: NvrColors.of(context).bgPrimary,
                 ),
               ),
             ),
@@ -570,15 +571,15 @@ class _PlayheadWidget extends StatelessWidget {
               width: handleSize,
               height: handleSize,
               decoration: BoxDecoration(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: NvrColors.bgPrimary,
+                  color: NvrColors.of(context).bgPrimary,
                   width: 3,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: NvrColors.accent.withValues(alpha: isDragging ? 0.5 : 0.3),
+                    color: NvrColors.of(context).accent.withValues(alpha: isDragging ? 0.5 : 0.3),
                     blurRadius: isDragging ? 12 : 6,
                     spreadRadius: isDragging ? 2 : 0,
                   ),
@@ -593,10 +594,10 @@ class _PlayheadWidget extends StatelessWidget {
             child: Container(
               width: 2,
               decoration: BoxDecoration(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 boxShadow: [
                   BoxShadow(
-                    color: NvrColors.accent.withValues(alpha: 0.4),
+                    color: NvrColors.of(context).accent.withValues(alpha: 0.4),
                     blurRadius: 4,
                   ),
                 ],
@@ -624,10 +625,10 @@ class _ZoomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 28,
-      decoration: const BoxDecoration(
-        color: NvrColors.bgTertiary,
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgTertiary,
         border: Border(
-          top: BorderSide(color: NvrColors.border, width: 0.5),
+          top: BorderSide(color: NvrColors.of(context).border, width: 0.5),
         ),
       ),
       child: Row(
@@ -641,12 +642,12 @@ class _ZoomBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: isActive
-                    ? NvrColors.accent.withValues(alpha: 0.15)
+                    ? NvrColors.of(context).accent.withValues(alpha: 0.15)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
                 border: isActive
                     ? Border.all(
-                        color: NvrColors.accent.withValues(alpha: 0.4),
+                        color: NvrColors.of(context).accent.withValues(alpha: 0.4),
                         width: 0.5,
                       )
                     : null,
@@ -658,7 +659,7 @@ class _ZoomBar extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                   letterSpacing: 1.0,
-                  color: isActive ? NvrColors.accent : NvrColors.textMuted,
+                  color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
                 ),
               ),
             ),

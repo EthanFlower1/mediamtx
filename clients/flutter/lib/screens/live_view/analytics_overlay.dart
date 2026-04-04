@@ -45,7 +45,7 @@ class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
 
     return SizedBox.expand(
       child: CustomPaint(
-        painter: _DetectionPainter(detections),
+        painter: _DetectionPainter(detections, NvrColors.of(context)),
       ),
     );
   }
@@ -53,14 +53,15 @@ class _AnalyticsOverlayState extends ConsumerState<AnalyticsOverlay> {
 
 class _DetectionPainter extends CustomPainter {
   final List<DetectionBox> detections;
+  final NvrColors colors;
 
-  const _DetectionPainter(this.detections);
+  const _DetectionPainter(this.detections, this.colors);
 
   @override
   void paint(Canvas canvas, Size size) {
-    const boxColor = NvrColors.accent;
-    const labelTextColor = NvrColors.bgPrimary;
-    const labelBgColor = NvrColors.accent;
+    final boxColor = colors.accent;
+    final labelTextColor = colors.bgPrimary;
+    final labelBgColor = colors.accent;
 
     final boxPaint = Paint()
       ..color = boxColor
@@ -74,7 +75,7 @@ class _DetectionPainter extends CustomPainter {
       final bottom = top + box.h * size.height;
       final rect = Rect.fromLTRB(left, top, right, bottom);
 
-      // Draw bounding box — 2px solid accent
+      // Draw bounding box -- 2px solid accent
       canvas.drawRect(rect, boxPaint);
 
       // Draw label above box: class + confidence on accent background pill
@@ -88,7 +89,7 @@ class _DetectionPainter extends CustomPainter {
 
       final labelSpan = TextSpan(
         text: label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 8,
           fontWeight: FontWeight.w700,
@@ -116,5 +117,6 @@ class _DetectionPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DetectionPainter old) => old.detections != detections;
+  bool shouldRepaint(_DetectionPainter old) =>
+      old.detections != detections || old.colors != colors;
 }

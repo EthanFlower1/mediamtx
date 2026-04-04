@@ -48,20 +48,20 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
   InputDecoration _hudInputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: NvrTypography.monoLabel,
+      labelStyle: NvrTypography.of(context).monoLabel,
       filled: true,
-      fillColor: NvrColors.bgTertiary,
+      fillColor: NvrColors.of(context).bgTertiary,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: NvrColors.accent),
+        borderSide: BorderSide(color: NvrColors.of(context).accent),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
@@ -85,11 +85,11 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
             return AlertDialog(
-              backgroundColor: NvrColors.bgSecondary,
+              backgroundColor: NvrColors.of(context).bgSecondary,
               title: Text(
                 isEdit ? 'EDIT TEMPLATE' : 'NEW TEMPLATE',
-                style: const TextStyle(
-                    color: NvrColors.textPrimary,
+                style: TextStyle(
+                    color: NvrColors.of(context).textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600),
               ),
@@ -102,23 +102,23 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                     children: [
                       TextFormField(
                         controller: nameController,
-                        style: NvrTypography.monoData,
+                        style: NvrTypography.of(context).monoData,
                         decoration: _hudInputDecoration('NAME'),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedMode,
-                        dropdownColor: NvrColors.bgTertiary,
-                        style: NvrTypography.monoData,
+                        dropdownColor: NvrColors.of(context).bgTertiary,
+                        style: NvrTypography.of(context).monoData,
                         decoration: _hudInputDecoration('MODE'),
-                        items: const [
+                        items: [
                           DropdownMenuItem(
                             value: 'always',
-                            child: Text('Continuous', style: NvrTypography.monoData),
+                            child: Text('Continuous', style: NvrTypography.of(context).monoData),
                           ),
                           DropdownMenuItem(
                             value: 'events',
-                            child: Text('Motion', style: NvrTypography.monoData),
+                            child: Text('Motion', style: NvrTypography.of(context).monoData),
                           ),
                         ],
                         onChanged: (v) {
@@ -128,8 +128,8 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                       const SizedBox(height: 12),
                       Text(
                         'DAYS',
-                        style: NvrTypography.monoLabel
-                            .copyWith(color: NvrColors.textSecondary),
+                        style: NvrTypography.of(context).monoLabel
+                            .copyWith(color: NvrColors.of(context).textSecondary),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -152,13 +152,13 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: selected
-                                    ? NvrColors.accent
-                                    : NvrColors.bgTertiary,
+                                    ? NvrColors.of(context).accent
+                                    : NvrColors.of(context).bgTertiary,
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(
                                   color: selected
-                                      ? NvrColors.accent
-                                      : NvrColors.border,
+                                      ? NvrColors.of(context).accent
+                                      : NvrColors.of(context).border,
                                 ),
                               ),
                               child: Text(
@@ -168,8 +168,8 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                   color: selected
-                                      ? NvrColors.bgPrimary
-                                      : NvrColors.textSecondary,
+                                      ? NvrColors.of(context).bgPrimary
+                                      : NvrColors.of(context).textSecondary,
                                 ),
                               ),
                             ),
@@ -200,7 +200,7 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: postEventController,
-                          style: NvrTypography.monoData,
+                          style: NvrTypography.of(context).monoData,
                           keyboardType: TextInputType.number,
                           decoration:
                               _hudInputDecoration('POST-EVENT BUFFER (SECONDS)'),
@@ -213,12 +213,12 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel',
-                      style: TextStyle(color: NvrColors.textSecondary)),
+                  child: Text('Cancel',
+                      style: TextStyle(color: NvrColors.of(context).textSecondary)),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: NvrColors.accent),
+                      backgroundColor: NvrColors.of(context).accent),
                   onPressed: () async {
                     final name = nameController.text.trim();
                     if (name.isEmpty) return;
@@ -275,7 +275,7 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+              backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -285,23 +285,23 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('Delete Template',
-            style: TextStyle(color: NvrColors.textPrimary)),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('Delete Template',
+            style: TextStyle(color: NvrColors.of(context).textPrimary)),
         content: Text(
           'Delete template "${template.name}"?',
-          style: const TextStyle(color: NvrColors.textSecondary),
+          style: TextStyle(color: NvrColors.of(context).textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel',
-                style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('Cancel',
+                style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child:
-                const Text('Delete', style: TextStyle(color: NvrColors.danger)),
+                Text('Delete', style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -319,7 +319,7 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
         final isConflict = msg.contains('409') || msg.contains('conflict');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text(
               isConflict
                   ? 'Template is assigned to streams, remove assignments first'
@@ -347,7 +347,7 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -357,7 +357,7 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('RECORDING SCHEDULES', style: NvrTypography.pageTitle),
+                Text('RECORDING SCHEDULES', style: NvrTypography.of(context).pageTitle),
                 HudButton(
                   label: '+ NEW TEMPLATE',
                   style: HudButtonStyle.tactical,
@@ -369,13 +369,13 @@ class _SchedulesScreenState extends ConsumerState<SchedulesScreen> {
             // Body
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: NvrColors.accent))
+                  ? Center(
+                      child: CircularProgressIndicator(color: NvrColors.of(context).accent))
                   : _templates.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'No schedule templates. Tap + NEW TEMPLATE to create one.',
-                            style: TextStyle(color: NvrColors.textMuted),
+                            style: TextStyle(color: NvrColors.of(context).textMuted),
                             textAlign: TextAlign.center,
                           ),
                         )
@@ -416,7 +416,7 @@ class _TemplateRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dotColor = template.mode == 'always'
-        ? NvrColors.accent
+        ? NvrColors.of(context).accent
         : const Color(0xFF22c55e);
 
     return GestureDetector(
@@ -424,9 +424,9 @@ class _TemplateRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: NvrColors.border, width: 1),
+          border: Border.all(color: NvrColors.of(context).border, width: 1),
         ),
         child: Row(
           children: [
@@ -443,23 +443,23 @@ class _TemplateRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(template.name, style: NvrTypography.cameraName),
+                  Text(template.name, style: NvrTypography.of(context).cameraName),
                   const SizedBox(height: 2),
-                  Text(template.description, style: NvrTypography.monoLabel),
+                  Text(template.description, style: NvrTypography.of(context).monoLabel),
                 ],
               ),
             ),
             if (onDelete != null)
               GestureDetector(
                 onTap: onDelete,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.only(right: 4),
                   child: Icon(Icons.delete_outline,
-                      color: NvrColors.danger, size: 18),
+                      color: NvrColors.of(context).danger, size: 18),
                 ),
               ),
-            const Icon(Icons.chevron_right,
-                color: NvrColors.textMuted, size: 16),
+            Icon(Icons.chevron_right,
+                color: NvrColors.of(context).textMuted, size: 16),
           ],
         ),
       ),
@@ -490,9 +490,9 @@ class _TimePickerRow extends StatelessWidget {
           initialTime: time,
           builder: (context, child) => Theme(
             data: ThemeData.dark().copyWith(
-              colorScheme: const ColorScheme.dark(
-                primary: NvrColors.accent,
-                surface: NvrColors.bgSecondary,
+              colorScheme: ColorScheme.dark(
+                primary: NvrColors.of(context).accent,
+                surface: NvrColors.of(context).bgSecondary,
               ),
             ),
             child: child!,
@@ -503,15 +503,15 @@ class _TimePickerRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: NvrColors.bgTertiary,
+          color: NvrColors.of(context).bgTertiary,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: NvrColors.of(context).border),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: NvrTypography.monoLabel),
-            Text(display, style: NvrTypography.monoData),
+            Text(label, style: NvrTypography.of(context).monoLabel),
+            Text(display, style: NvrTypography.of(context).monoData),
           ],
         ),
       ),

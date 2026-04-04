@@ -60,25 +60,25 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
       builder: (ctx) {
         final ctrl = TextEditingController();
         return AlertDialog(
-          backgroundColor: NvrColors.bgSecondary,
+          backgroundColor: NvrColors.of(context).bgSecondary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: NvrColors.border),
+            side: BorderSide(color: NvrColors.of(context).border),
           ),
-          title: Text('SAVE PRESET', style: NvrTypography.monoSection),
+          title: Text('SAVE PRESET', style: NvrTypography.of(context).monoSection),
           content: TextField(
             controller: ctrl,
             autofocus: true,
-            style: NvrTypography.monoData,
-            cursorColor: NvrColors.accent,
+            style: NvrTypography.of(context).monoData,
+            cursorColor: NvrColors.of(context).accent,
             decoration: InputDecoration(
               hintText: 'Preset name',
-              hintStyle: NvrTypography.monoLabel,
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: NvrColors.border),
+              hintStyle: NvrTypography.of(context).monoLabel,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: NvrColors.of(context).border),
               ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: NvrColors.accent),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: NvrColors.of(context).accent),
               ),
             ),
           ),
@@ -86,13 +86,13 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text('CANCEL',
-                  style: NvrTypography.monoLabel.copyWith(
-                    color: NvrColors.textSecondary,
+                  style: NvrTypography.of(context).monoLabel.copyWith(
+                    color: NvrColors.of(context).textSecondary,
                   )),
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
-              child: Text('SAVE', style: NvrTypography.monoSection),
+              child: Text('SAVE', style: NvrTypography.of(context).monoSection),
             ),
           ],
         );
@@ -123,8 +123,8 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
     final status = _status;
     return Container(
       decoration: BoxDecoration(
-        color: NvrColors.bgTertiary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgTertiary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -139,8 +139,8 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
           if (status?.isMoving == true)
             Text(
               'MOVING',
-              style: NvrTypography.monoSection.copyWith(
-                color: NvrColors.accent,
+              style: NvrTypography.of(context).monoSection.copyWith(
+                color: NvrColors.of(context).accent,
                 fontSize: 9,
               ),
             ),
@@ -197,7 +197,7 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                const Divider(height: 1, color: NvrColors.border),
+                Divider(height: 1, color: NvrColors.of(context).border),
                 const SizedBox(height: 12),
                 ...presets.map((preset) => Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -211,12 +211,12 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
                                   preset.name.isNotEmpty
                                       ? preset.name
                                       : preset.token,
-                                  style: NvrTypography.monoData,
+                                  style: NvrTypography.of(context).monoData,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   preset.token,
-                                  style: NvrTypography.monoLabel,
+                                  style: NvrTypography.of(context).monoLabel,
                                 ),
                               ],
                             ),
@@ -231,10 +231,10 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.delete_outline,
                               size: 16,
-                              color: NvrColors.danger,
+                              color: NvrColors.of(context).danger,
                             ),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
@@ -267,9 +267,9 @@ class _PositionColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: NvrTypography.monoLabel),
+        Text(label, style: NvrTypography.of(context).monoLabel),
         const SizedBox(height: 2),
-        Text(display, style: NvrTypography.monoData),
+        Text(display, style: NvrTypography.of(context).monoData),
       ],
     );
   }

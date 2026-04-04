@@ -37,6 +37,9 @@ class TimelinePainter extends CustomPainter {
   /// The start of the selected day (midnight).
   final DateTime dayStart;
 
+  /// Theme colors (passed from the widget that owns context).
+  final NvrColors colors;
+
   TimelinePainter({
     required this.centerTime,
     required this.pixelsPerSecond,
@@ -46,6 +49,7 @@ class TimelinePainter extends CustomPainter {
     required this.intensityBuckets,
     required this.bucketDuration,
     required this.dayStart,
+    required this.colors,
   });
 
   // Layout constants
@@ -104,11 +108,11 @@ class TimelinePainter extends CustomPainter {
     ({double startSeconds, double endSeconds}) range,
   ) {
     final majorPaint = Paint()
-      ..color = NvrColors.border
+      ..color = colors.border
       ..strokeWidth = 0.5;
 
     final minorPaint = Paint()
-      ..color = NvrColors.bgTertiary
+      ..color = colors.bgTertiary
       ..strokeWidth = 0.5;
 
     // Choose grid intervals based on zoom level.
@@ -155,7 +159,7 @@ class TimelinePainter extends CustomPainter {
             majorIntervalSeconds;
 
     final labelStyle = ui.TextStyle(
-      color: NvrColors.textMuted,
+      color: colors.textMuted,
       fontSize: 9,
       fontFamily: 'JetBrainsMono',
       fontWeight: FontWeight.w500,
@@ -198,11 +202,11 @@ class TimelinePainter extends CustomPainter {
   ) {
     if (segments.isEmpty) return;
 
-    final fillPaint = Paint()..color = NvrColors.accent.withValues(alpha: 0.20);
+    final fillPaint = Paint()..color = colors.accent.withValues(alpha: 0.20);
 
     // Diagonal hash paint for gaps.
     final gapPaint = Paint()
-      ..color = NvrColors.textMuted.withValues(alpha: 0.15)
+      ..color = colors.textMuted.withValues(alpha: 0.15)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
@@ -314,7 +318,7 @@ class TimelinePainter extends CustomPainter {
       final opacity = 0.15 + normalizedIntensity * 0.70;
 
       final paint = Paint()
-        ..color = NvrColors.danger.withValues(alpha: opacity);
+        ..color = colors.danger.withValues(alpha: opacity);
 
       final x1 = _timeToX(bucketStartSeconds, size.width)
           .clamp(0.0, size.width);
@@ -382,7 +386,7 @@ class TimelinePainter extends CustomPainter {
     if (bookmarks.isEmpty) return;
 
     final paint = Paint()
-      ..color = NvrColors.accent
+      ..color = colors.accent
       ..style = PaintingStyle.fill;
 
     const triangleSize = 6.0;
@@ -421,6 +425,7 @@ class TimelinePainter extends CustomPainter {
         oldDelegate.bookmarks != bookmarks ||
         oldDelegate.intensityBuckets != intensityBuckets ||
         oldDelegate.bucketDuration != bucketDuration ||
-        oldDelegate.dayStart != dayStart;
+        oldDelegate.dayStart != dayStart ||
+        oldDelegate.colors != colors;
   }
 }

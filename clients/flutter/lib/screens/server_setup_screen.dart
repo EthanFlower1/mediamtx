@@ -58,7 +58,7 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -66,9 +66,9 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
             constraints: const BoxConstraints(maxWidth: 400),
             child: Container(
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
+                color: NvrColors.of(context).bgSecondary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: NvrColors.border),
+                border: Border.all(color: NvrColors.of(context).border),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -87,7 +87,7 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                             height: 18,
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: NvrColors.accent,
+                                color: NvrColors.of(context).accent,
                                 width: 2,
                               ),
                             ),
@@ -95,66 +95,66 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Center(
+                      Center(
                         child: Text(
                           'MEDIAMTX NVR',
-                          style: NvrTypography.monoSection,
+                          style: NvrTypography.of(context).monoSection,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Center(
+                      Center(
                         child: Text(
                           'Connect to your NVR server',
-                          style: NvrTypography.body,
+                          style: NvrTypography.of(context).body,
                           textAlign: TextAlign.center,
                         ),
                       ),
                       const SizedBox(height: 32),
 
                       // Server URL field
-                      const Text('SERVER URL', style: NvrTypography.monoLabel),
+                      Text('SERVER URL', style: NvrTypography.of(context).monoLabel),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _urlController,
                         keyboardType: TextInputType.url,
                         autocorrect: false,
-                        style: const TextStyle(
-                          color: NvrColors.textPrimary,
+                        style: TextStyle(
+                          color: NvrColors.of(context).textPrimary,
                           fontFamily: 'IBMPlexSans',
                           fontSize: 14,
                         ),
                         decoration: InputDecoration(
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           hintText: 'http://192.168.1.100:8888',
-                          hintStyle: const TextStyle(color: NvrColors.textMuted),
+                          hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 14,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.accent, width: 2),
+                                BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.danger),
+                            borderSide: BorderSide(color: NvrColors.of(context).danger),
                           ),
                           focusedErrorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.danger, width: 2),
+                                BorderSide(color: NvrColors.of(context).danger, width: 2),
                           ),
-                          errorStyle: NvrTypography.alert,
+                          errorStyle: NvrTypography.of(context).alert,
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -173,7 +173,7 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                       // Error message
                       if (_error != null) ...[
                         const SizedBox(height: 12),
-                        Text(_error!, style: NvrTypography.alert),
+                        Text(_error!, style: NvrTypography.of(context).alert),
                       ],
 
                       const SizedBox(height: 24),

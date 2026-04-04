@@ -27,7 +27,7 @@ class HudToggle extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(label!, style: TextStyle(
               fontFamily: 'JetBrainsMono', fontSize: 9,
-              letterSpacing: 1, color: NvrColors.textMuted,
+              letterSpacing: 1, color: NvrColors.of(context).textMuted,
             )),
           ),
         GestureDetector(
@@ -37,14 +37,14 @@ class HudToggle extends StatelessWidget {
             curve: NvrAnimations.microCurve,
             width: 44, height: 22,
             decoration: BoxDecoration(
-              color: NvrColors.bgTertiary,
+              color: NvrColors.of(context).bgTertiary,
               borderRadius: BorderRadius.circular(11),
               border: Border.all(
-                color: value ? NvrColors.accent : NvrColors.border,
+                color: value ? NvrColors.of(context).accent : NvrColors.of(context).border,
                 width: 2,
               ),
               boxShadow: value ? [
-                BoxShadow(color: NvrColors.accent.withOpacity(0.2), blurRadius: 8),
+                BoxShadow(color: NvrColors.of(context).accent.withOpacity(0.2), blurRadius: 8),
               ] : null,
             ),
             child: AnimatedAlign(
@@ -57,9 +57,9 @@ class HudToggle extends StatelessWidget {
                   width: 14, height: 14,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: value ? NvrColors.accent : NvrColors.textMuted,
+                    color: value ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
                     boxShadow: value ? [
-                      BoxShadow(color: NvrColors.accent.withOpacity(0.4), blurRadius: 6),
+                      BoxShadow(color: NvrColors.of(context).accent.withOpacity(0.4), blurRadius: 6),
                     ] : null,
                   ),
                 ),
@@ -75,7 +75,7 @@ class HudToggle extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'JetBrainsMono', fontSize: 8,
                 letterSpacing: 1,
-                color: value ? NvrColors.accent : NvrColors.textMuted,
+                color: value ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
               ),
             ),
           ),

@@ -152,13 +152,13 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
       await api.post<dynamic>('/cameras/${widget.camera.id}/screenshot');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Screenshot saved')),
+          SnackBar(backgroundColor: NvrColors.of(context).success, content: Text('Screenshot saved')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Screenshot failed: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Screenshot failed: $e')),
         );
       }
     } finally {
@@ -255,17 +255,17 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Live status badge
-            StatusBadge.live(),
+            StatusBadge.live(context),
             const SizedBox(width: 10),
 
             // Camera name
             Text(
               camera.name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'IBMPlexSans',
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: NvrColors.textPrimary,
+                color: NvrColors.of(context).textPrimary,
               ),
             ),
             const SizedBox(width: 10),
@@ -273,13 +273,13 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
             // Camera ID
             Text(
               camera.id,
-              style: NvrTypography.monoControl,
+              style: NvrTypography.of(context).monoControl,
             ),
 
             const Spacer(),
 
             // REC indicator
-            StatusBadge.recording(),
+            StatusBadge.recording(context),
             const SizedBox(width: 10),
 
             // Timestamp
@@ -357,8 +357,8 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
   Widget _buildVideoLayer() {
     if (_isConnecting) {
-      return const Center(
-        child: CircularProgressIndicator(color: NvrColors.accent),
+      return Center(
+        child: CircularProgressIndicator(color: NvrColors.of(context).accent),
       );
     }
 
@@ -366,8 +366,8 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
       if (_useRtsp) {
         final vc = _rtspConnection?.videoController;
         if (vc == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: NvrColors.accent),
+          return Center(
+            child: CircularProgressIndicator(color: NvrColors.of(context).accent),
           );
         }
         return Video(
@@ -377,8 +377,8 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
       } else {
         final renderer = _whepConnection?.renderer;
         if (renderer == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: NvrColors.accent),
+          return Center(
+            child: CircularProgressIndicator(color: NvrColors.of(context).accent),
           );
         }
         return RTCVideoView(
@@ -393,11 +393,11 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: NvrColors.danger, size: 48),
+            Icon(Icons.error_outline, color: NvrColors.of(context).danger, size: 48),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Connection failed',
-              style: TextStyle(color: NvrColors.textSecondary),
+              style: TextStyle(color: NvrColors.of(context).textSecondary),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -444,19 +444,19 @@ class _PillButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: NvrColors.bgSecondary.withValues(alpha: 0.75),
+              color: NvrColors.of(context).bgSecondary.withValues(alpha: 0.75),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: NvrColors.border,
+                color: NvrColors.of(context).border,
                 width: 1,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 14, color: NvrColors.textPrimary),
+                Icon(icon, size: 14, color: NvrColors.of(context).textPrimary),
                 const SizedBox(width: 6),
-                Text(label, style: NvrTypography.button.copyWith(fontSize: 11)),
+                Text(label, style: NvrTypography.of(context).button.copyWith(fontSize: 11)),
               ],
             ),
           ),
@@ -481,10 +481,10 @@ class _AiTogglePill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary.withValues(alpha: 0.75),
+            color: NvrColors.of(context).bgSecondary.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: enabled ? NvrColors.accent.withValues(alpha: 0.4) : NvrColors.border,
+              color: enabled ? NvrColors.of(context).accent.withValues(alpha: 0.4) : NvrColors.of(context).border,
               width: 1,
             ),
           ),
@@ -493,7 +493,7 @@ class _AiTogglePill extends StatelessWidget {
             children: [
               Text(
                 'AI',
-                style: NvrTypography.monoSection.copyWith(fontSize: 10),
+                style: NvrTypography.of(context).monoSection.copyWith(fontSize: 10),
               ),
               const SizedBox(width: 8),
               HudToggle(
@@ -538,6 +538,6 @@ class _LiveTimestampState extends State<_LiveTimestamp> {
     final h = _now.hour.toString().padLeft(2, '0');
     final m = _now.minute.toString().padLeft(2, '0');
     final s = _now.second.toString().padLeft(2, '0');
-    return Text('$h:$m:$s', style: NvrTypography.monoTimestamp);
+    return Text('$h:$m:$s', style: NvrTypography.of(context).monoTimestamp);
   }
 }

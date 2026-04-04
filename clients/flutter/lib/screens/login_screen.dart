@@ -48,7 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final error = authState.error;
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -56,9 +56,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             constraints: const BoxConstraints(maxWidth: 400),
             child: Container(
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
+                color: NvrColors.of(context).bgSecondary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: NvrColors.border),
+                border: Border.all(color: NvrColors.of(context).border),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -77,7 +77,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             height: 18,
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: NvrColors.accent,
+                                color: NvrColors.of(context).accent,
                                 width: 2,
                               ),
                             ),
@@ -85,60 +85,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      const Center(
+                      Center(
                         child: Text(
                           'MEDIAMTX NVR',
-                          style: NvrTypography.monoSection,
+                          style: NvrTypography.of(context).monoSection,
                         ),
                       ),
                       const SizedBox(height: 32),
 
                       // Username field
-                      const Text('USERNAME', style: NvrTypography.monoLabel),
+                      Text('USERNAME', style: NvrTypography.of(context).monoLabel),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _usernameController,
                         keyboardType: TextInputType.text,
                         autocorrect: false,
                         textInputAction: TextInputAction.next,
-                        style: const TextStyle(
-                          color: NvrColors.textPrimary,
+                        style: TextStyle(
+                          color: NvrColors.of(context).textPrimary,
                           fontFamily: 'IBMPlexSans',
                           fontSize: 14,
                         ),
                         decoration: InputDecoration(
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           hintText: 'Enter username',
-                          hintStyle: const TextStyle(color: NvrColors.textMuted),
+                          hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 14,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.accent, width: 2),
+                                BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.danger),
+                                BorderSide(color: NvrColors.of(context).danger),
                           ),
                           focusedErrorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.danger, width: 2),
+                                BorderSide(color: NvrColors.of(context).danger, width: 2),
                           ),
-                          errorStyle: NvrTypography.alert,
+                          errorStyle: NvrTypography.of(context).alert,
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -150,50 +150,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 16),
 
                       // Password field
-                      const Text('PASSWORD', style: NvrTypography.monoLabel),
+                      Text('PASSWORD', style: NvrTypography.of(context).monoLabel),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
-                        style: const TextStyle(
-                          color: NvrColors.textPrimary,
+                        style: TextStyle(
+                          color: NvrColors.of(context).textPrimary,
                           fontFamily: 'IBMPlexSans',
                           fontSize: 14,
                         ),
                         decoration: InputDecoration(
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           hintText: 'Enter password',
-                          hintStyle: const TextStyle(color: NvrColors.textMuted),
+                          hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 14,
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.accent, width: 2),
+                                BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.danger),
+                                BorderSide(color: NvrColors.of(context).danger),
                           ),
                           focusedErrorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(4),
                             borderSide:
-                                const BorderSide(color: NvrColors.danger, width: 2),
+                                BorderSide(color: NvrColors.of(context).danger, width: 2),
                           ),
-                          errorStyle: NvrTypography.alert,
+                          errorStyle: NvrTypography.of(context).alert,
                           suffixIcon: SizedBox(
                             width: 44,
                             height: 44,
@@ -202,7 +202,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 _obscurePassword
                                     ? Icons.visibility_off
                                     : Icons.visibility,
-                                color: NvrColors.textMuted,
+                                color: NvrColors.of(context).textMuted,
                                 size: 18,
                               ),
                               onPressed: () =>
@@ -222,7 +222,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       // Error message
                       if (error != null) ...[
                         const SizedBox(height: 12),
-                        Text(error, style: NvrTypography.alert),
+                        Text(error, style: NvrTypography.of(context).alert),
                       ],
 
                       const SizedBox(height: 24),
@@ -255,8 +255,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Flexible(
                             child: Text(
                               authState.serverUrl ?? '',
-                              style: NvrTypography.monoLabel.copyWith(
-                                color: NvrColors.textMuted,
+                              style: NvrTypography.of(context).monoLabel.copyWith(
+                                color: NvrColors.of(context).textMuted,
                                 letterSpacing: 0.5,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -282,8 +282,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               child: Text(
                                 'CHANGE',
-                                style: NvrTypography.monoLabel.copyWith(
-                                  color: NvrColors.accent,
+                                style: NvrTypography.of(context).monoLabel.copyWith(
+                                  color: NvrColors.of(context).accent,
                                   letterSpacing: 1.5,
                                 ),
                               ),

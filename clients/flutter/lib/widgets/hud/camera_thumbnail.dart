@@ -23,7 +23,7 @@ class CameraThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (serverUrl.isEmpty) return _placeholder();
+    if (serverUrl.isEmpty) return _placeholder(context);
 
     final authService = ref.watch(authServiceProvider);
 
@@ -36,7 +36,7 @@ class CameraThumbnail extends ConsumerWidget {
           future: authService.getAccessToken(),
           builder: (context, snapshot) {
             final token = snapshot.data;
-            if (token == null) return _placeholder();
+            if (token == null) return _placeholder(context);
 
             final now = DateTime.now().toUtc().toIso8601String();
             final url =
@@ -45,10 +45,10 @@ class CameraThumbnail extends ConsumerWidget {
             return Image.network(
               url,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _placeholder(),
+              errorBuilder: (_, __, ___) => _placeholder(context),
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
-                return _placeholder();
+                return _placeholder(context);
               },
             );
           },
@@ -57,15 +57,15 @@ class CameraThumbnail extends ConsumerWidget {
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(BuildContext context) {
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: NvrColors.border,
+        color: NvrColors.of(context).border,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
-      child: const Icon(Icons.videocam, size: 12, color: NvrColors.textMuted),
+      child: Icon(Icons.videocam, size: 12, color: NvrColors.of(context).textMuted),
     );
   }
 }

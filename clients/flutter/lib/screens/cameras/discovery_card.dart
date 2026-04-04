@@ -100,17 +100,17 @@ class DiscoveryCard extends StatelessWidget {
     // Status badge
     final Widget statusBadge;
     if (alreadyAdded) {
-      statusBadge = const _Pill(label: 'ADDED', color: NvrColors.accent);
+      statusBadge = _Pill(label: 'ADDED', color: NvrColors.of(context).accent);
     } else if (authRequired) {
-      statusBadge = const _Pill(label: 'AUTH REQUIRED', color: NvrColors.danger);
+      statusBadge = _Pill(label: 'AUTH REQUIRED', color: NvrColors.of(context).danger);
     } else {
-      statusBadge = const _Pill(label: 'OPEN', color: NvrColors.success);
+      statusBadge = _Pill(label: 'OPEN', color: NvrColors.of(context).success);
     }
 
     return Opacity(
       opacity: alreadyAdded ? 0.5 : 1.0,
       child: Material(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: onTap,
@@ -118,7 +118,7 @@ class DiscoveryCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              border: Border.all(color: NvrColors.border),
+              border: Border.all(color: NvrColors.of(context).border),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -129,7 +129,7 @@ class DiscoveryCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 2),
                   child: Icon(
                     Icons.videocam_outlined,
-                    color: alreadyAdded ? NvrColors.textMuted : NvrColors.accent,
+                    color: alreadyAdded ? NvrColors.of(context).textMuted : NvrColors.of(context).accent,
                     size: 20,
                   ),
                 ),
@@ -147,7 +147,7 @@ class DiscoveryCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               cameraName,
-                              style: NvrTypography.cameraName,
+                              style: NvrTypography.of(context).cameraName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -160,8 +160,8 @@ class DiscoveryCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           subtitle,
-                          style: NvrTypography.monoLabel.copyWith(
-                            color: NvrColors.textSecondary,
+                          style: NvrTypography.of(context).monoLabel.copyWith(
+                            color: NvrColors.of(context).textSecondary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -172,12 +172,12 @@ class DiscoveryCard extends StatelessWidget {
                       if (!authRequired && profiles.isNotEmpty)
                         _Pill(
                           label: '${profiles.length} STREAM${profiles.length == 1 ? '' : 'S'}',
-                          color: NvrColors.textSecondary,
+                          color: NvrColors.of(context).textSecondary,
                         )
                       else if (authRequired)
                         Text(
                           'Enter credentials to see streams',
-                          style: NvrTypography.body.copyWith(
+                          style: NvrTypography.of(context).body.copyWith(
                             fontStyle: FontStyle.italic,
                             fontSize: 11,
                           ),
@@ -187,11 +187,11 @@ class DiscoveryCard extends StatelessWidget {
                 ),
 
                 // Chevron
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 2),
                   child: Icon(
                     Icons.chevron_right,
-                    color: NvrColors.textMuted,
+                    color: NvrColors.of(context).textMuted,
                     size: 18,
                   ),
                 ),

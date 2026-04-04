@@ -60,8 +60,8 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.success,
+          SnackBar(
+            backgroundColor: NvrColors.of(context).success,
             content: Text('Encoder configuration saved'),
           ),
         );
@@ -71,7 +71,7 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Save failed: $e'),
           ),
         );
@@ -92,7 +92,7 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Delete failed: $e'),
           ),
         );
@@ -105,19 +105,19 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('ADD PROFILE', style: NvrTypography.monoSection),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('ADD PROFILE', style: NvrTypography.of(context).monoSection),
         content: TextField(
           controller: nameCtrl,
-          style: const TextStyle(color: NvrColors.textPrimary),
-          decoration: const InputDecoration(
+          style: TextStyle(color: NvrColors.of(context).textPrimary),
+          decoration: InputDecoration(
             labelText: 'Profile Name',
-            labelStyle: TextStyle(color: NvrColors.textMuted, fontSize: 12),
+            labelStyle: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 12),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: NvrColors.border),
+              borderSide: BorderSide(color: NvrColors.of(context).border),
             ),
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: NvrColors.accent),
+              borderSide: BorderSide(color: NvrColors.of(context).accent),
             ),
           ),
           autofocus: true,
@@ -125,13 +125,13 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('CANCEL',
-                style: TextStyle(color: NvrColors.textMuted, fontSize: 11)),
+            child: Text('CANCEL',
+                style: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 11)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('CREATE',
-                style: TextStyle(color: NvrColors.accent, fontSize: 11)),
+            child: Text('CREATE',
+                style: TextStyle(color: NvrColors.of(context).accent, fontSize: 11)),
           ),
         ],
       ),
@@ -154,7 +154,7 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Create failed: $e'),
           ),
         );
@@ -167,7 +167,7 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
     final profilesAsync = ref.watch(mediaProfilesProvider(widget.cameraId));
 
     return profilesAsync.when(
-      loading: () => const Padding(
+      loading: () => Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
         child: Center(
           child: SizedBox(
@@ -175,7 +175,7 @@ class _MediaConfigSectionState extends ConsumerState<MediaConfigSection> {
             height: 16,
             child: CircularProgressIndicator(
               strokeWidth: 1.5,
-              color: NvrColors.accent,
+              color: NvrColors.of(context).accent,
             ),
           ),
         ),
@@ -255,9 +255,9 @@ class _ProfileCard extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: NvrColors.bgTertiary,
+        color: NvrColors.of(context).bgTertiary,
         border: Border.all(
-          color: isExpanded ? NvrColors.accent.withValues(alpha: 0.5) : NvrColors.border,
+          color: isExpanded ? NvrColors.of(context).accent.withValues(alpha: 0.5) : NvrColors.of(context).border,
         ),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -275,11 +275,11 @@ class _ProfileCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(profile.name, style: NvrTypography.cameraName),
+                        Text(profile.name, style: NvrTypography.of(context).cameraName),
                         if (_summary.isNotEmpty && _summary != profile.name)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Text(_summary, style: NvrTypography.monoLabel),
+                            child: Text(_summary, style: NvrTypography.of(context).monoLabel),
                           ),
                       ],
                     ),
@@ -287,7 +287,7 @@ class _ProfileCard extends ConsumerWidget {
                   Icon(
                     isExpanded ? Icons.expand_less : Icons.expand_more,
                     size: 16,
-                    color: NvrColors.textMuted,
+                    color: NvrColors.of(context).textMuted,
                   ),
                   const SizedBox(width: 4),
                   InkWell(
@@ -296,7 +296,7 @@ class _ProfileCard extends ConsumerWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Icon(Icons.delete_outline,
-                          size: 16, color: NvrColors.danger.withValues(alpha: 0.7)),
+                          size: 16, color: NvrColors.of(context).danger.withValues(alpha: 0.7)),
                     ),
                   ),
                 ],
@@ -343,25 +343,25 @@ class _EncoderEditor extends ConsumerWidget {
     final optionsAsync = ref.watch(videoEncoderOptionsProvider(optionsKey));
 
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: NvrColors.border)),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: NvrColors.of(context).border)),
       ),
       padding: const EdgeInsets.all(12),
       child: optionsAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: SizedBox(
             width: 14,
             height: 14,
             child: CircularProgressIndicator(
-                strokeWidth: 1.5, color: NvrColors.accent),
+                strokeWidth: 1.5, color: NvrColors.of(context).accent),
           ),
         ),
-        error: (_, __) => const Text('Failed to load options',
-            style: TextStyle(color: NvrColors.danger, fontSize: 11)),
+        error: (_, __) => Text('Failed to load options',
+            style: TextStyle(color: NvrColors.of(context).danger, fontSize: 11)),
         data: (options) {
           if (options == null) {
-            return const Text('No options available',
-                style: TextStyle(color: NvrColors.textMuted, fontSize: 11));
+            return Text('No options available',
+                style: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 11));
           }
 
           final encodings = options.encodings.toSet().toList();
@@ -392,7 +392,7 @@ class _EncoderEditor extends ConsumerWidget {
             children: [
               // Encoding dropdown
               if (encodings.isNotEmpty) ...[
-                const Text('ENCODING', style: NvrTypography.monoLabel),
+                Text('ENCODING', style: NvrTypography.of(context).monoLabel),
                 const SizedBox(height: 6),
                 _NvrDropdown<String>(
                   value: currentEncoding,
@@ -408,7 +408,7 @@ class _EncoderEditor extends ConsumerWidget {
               ],
               // Resolution dropdown
               if (resolutions.isNotEmpty) ...[
-                const Text('RESOLUTION', style: NvrTypography.monoLabel),
+                Text('RESOLUTION', style: NvrTypography.of(context).monoLabel),
                 const SizedBox(height: 6),
                 _NvrDropdown<Resolution>(
                   value: currentRes,
@@ -477,20 +477,20 @@ class _NvrDropdown<T> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
           isExpanded: true,
-          dropdownColor: NvrColors.bgSecondary,
-          iconEnabledColor: NvrColors.textMuted,
-          style: const TextStyle(
+          dropdownColor: NvrColors.of(context).bgSecondary,
+          iconEnabledColor: NvrColors.of(context).textMuted,
+          style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 11,
-            color: NvrColors.textPrimary,
+            color: NvrColors.of(context).textPrimary,
             letterSpacing: 0.5,
           ),
           items: items

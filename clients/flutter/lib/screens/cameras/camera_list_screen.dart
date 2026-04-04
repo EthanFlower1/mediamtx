@@ -23,23 +23,23 @@ class CameraListScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text(
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text(
           'Delete Camera',
-          style: TextStyle(color: NvrColors.textPrimary),
+          style: TextStyle(color: NvrColors.of(context).textPrimary),
         ),
         content: Text(
           'Remove "${camera.name}" from the system? This cannot be undone.',
-          style: const TextStyle(color: NvrColors.textSecondary),
+          style: TextStyle(color: NvrColors.of(context).textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: NvrColors.danger)),
+            child: Text('Delete', style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -58,7 +58,7 @@ class CameraListScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to delete camera: $e'),
           ),
         );
@@ -72,7 +72,7 @@ class CameraListScreen extends ConsumerWidget {
     final serverUrl = ref.watch(authProvider).serverUrl ?? '';
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: SafeArea(
         child: Column(
           children: [
@@ -81,12 +81,12 @@ class CameraListScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Row(
                 children: [
-                  const Text('Devices', style: NvrTypography.pageTitle),
+                  Text('Devices', style: NvrTypography.of(context).pageTitle),
                   const SizedBox(width: 10),
                   camerasAsync.maybeWhen(
                     data: (cameras) => Text(
                       '${cameras.length} CAMERAS',
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                     ),
                     orElse: () => const SizedBox.shrink(),
                   ),
@@ -109,28 +109,28 @@ class CameraListScreen extends ConsumerWidget {
             ),
 
             // ── Divider ────────────────────────────────────────────────
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
 
             // ── Body ───────────────────────────────────────────────────
             Expanded(
               child: camerasAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: NvrColors.accent),
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: NvrColors.of(context).accent),
                 ),
                 error: (err, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline, color: NvrColors.danger, size: 48),
+                      Icon(Icons.error_outline, color: NvrColors.of(context).danger, size: 48),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Failed to load cameras',
-                        style: TextStyle(color: NvrColors.textPrimary, fontSize: 16),
+                        style: TextStyle(color: NvrColors.of(context).textPrimary, fontSize: 16),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         err.toString(),
-                        style: const TextStyle(color: NvrColors.textMuted, fontSize: 12),
+                        style: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -146,8 +146,8 @@ class CameraListScreen extends ConsumerWidget {
                     return _EmptyState(onAdd: () => context.push('/devices/add'));
                   }
                   return RefreshIndicator(
-                    color: NvrColors.accent,
-                    backgroundColor: NvrColors.bgSecondary,
+                    color: NvrColors.of(context).accent,
+                    backgroundColor: NvrColors.of(context).bgSecondary,
                     onRefresh: () async => ref.invalidate(camerasProvider),
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
@@ -163,7 +163,7 @@ class CameraListScreen extends ConsumerWidget {
                             return false;
                           },
                           background: Container(
-                            color: NvrColors.danger,
+                            color: NvrColors.of(context).danger,
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.only(right: 20),
                             child: const Icon(Icons.delete, color: Colors.white),
@@ -197,15 +197,15 @@ class _DeviceCard extends StatelessWidget {
 
   const _DeviceCard({required this.camera, required this.serverUrl, required this.onTap});
 
-  StatusBadge _statusBadge(String status) {
+  StatusBadge _statusBadge(BuildContext context, String status) {
     switch (status) {
       case 'online':
       case 'connected':
-        return StatusBadge.online();
+        return StatusBadge.online(context);
       case 'degraded':
-        return StatusBadge.degraded();
+        return StatusBadge.degraded(context);
       default:
-        return StatusBadge.offline();
+        return StatusBadge.offline(context);
     }
   }
 
@@ -223,12 +223,12 @@ class _DeviceCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
+            color: NvrColors.of(context).bgSecondary,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: offline
-                  ? NvrColors.danger.withOpacity(0.35)
-                  : NvrColors.border,
+                  ? NvrColors.of(context).danger.withOpacity(0.35)
+                  : NvrColors.of(context).border,
             ),
           ),
           padding: const EdgeInsets.all(10),
@@ -260,13 +260,13 @@ class _DeviceCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             camera.name,
-                            style: NvrTypography.cameraName,
+                            style: NvrTypography.of(context).cameraName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        _statusBadge(camera.status),
+                        _statusBadge(context, camera.status),
                       ],
                     ),
 
@@ -275,7 +275,7 @@ class _DeviceCard extends StatelessWidget {
                     // Connection metadata
                     Text(
                       'ID: ${camera.id.length > 8 ? camera.id.substring(0, 8) : camera.id}',
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -303,7 +303,7 @@ class _DeviceCard extends StatelessWidget {
               const SizedBox(width: 8),
 
               // ── Chevron ─────────────────────────────────────────────
-              const Icon(Icons.chevron_right, color: NvrColors.textMuted, size: 18),
+              Icon(Icons.chevron_right, color: NvrColors.of(context).textMuted, size: 18),
             ],
           ),
         ),
@@ -322,18 +322,18 @@ class _CapabilityBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: NvrColors.accent.withOpacity(0.12),
+        color: NvrColors.of(context).accent.withOpacity(0.12),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: NvrColors.accent.withOpacity(0.35)),
+        border: Border.all(color: NvrColors.of(context).accent.withOpacity(0.35)),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 8,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
-          color: NvrColors.accent,
+          color: NvrColors.of(context).accent,
         ),
       ),
     );
@@ -354,16 +354,16 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.videocam_off, size: 56, color: NvrColors.textMuted.withOpacity(0.4)),
+          Icon(Icons.videocam_off, size: 56, color: NvrColors.of(context).textMuted.withOpacity(0.4)),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No cameras added yet',
-            style: NvrTypography.pageTitle,
+            style: NvrTypography.of(context).pageTitle,
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Add a camera to start recording and monitoring',
-            style: NvrTypography.body,
+            style: NvrTypography.of(context).body,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),

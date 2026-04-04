@@ -104,17 +104,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Card(
-              color: NvrColors.bgSecondary,
+              color: NvrColors.of(context).bgSecondary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: NvrColors.border),
+                side: BorderSide(color: NvrColors.of(context).border),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -123,16 +123,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.admin_panel_settings,
                         size: 56,
-                        color: NvrColors.accent,
+                        color: NvrColors.of(context).accent,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'Initial Setup',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: NvrColors.textPrimary,
+                              color: NvrColors.of(context).textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                       ),
@@ -140,7 +140,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                       Text(
                         'Create an administrator account to get started',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: NvrColors.textSecondary,
+                              color: NvrColors.of(context).textSecondary,
                             ),
                         textAlign: TextAlign.center,
                       ),
@@ -150,25 +150,25 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         keyboardType: TextInputType.text,
                         autocorrect: false,
                         textInputAction: TextInputAction.next,
-                        style: const TextStyle(color: NvrColors.textPrimary),
+                        style: TextStyle(color: NvrColors.of(context).textPrimary),
                         decoration: InputDecoration(
                           labelText: 'Username',
-                          labelStyle: const TextStyle(color: NvrColors.textSecondary),
+                          labelStyle: TextStyle(color: NvrColors.of(context).textSecondary),
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.accent, width: 2),
+                            borderSide: BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
-                          prefixIcon: const Icon(Icons.person_outline, color: NvrColors.textMuted),
+                          prefixIcon: Icon(Icons.person_outline, color: NvrColors.of(context).textMuted),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -185,29 +185,29 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         textInputAction: TextInputAction.next,
-                        style: const TextStyle(color: NvrColors.textPrimary),
+                        style: TextStyle(color: NvrColors.of(context).textPrimary),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          labelStyle: const TextStyle(color: NvrColors.textSecondary),
+                          labelStyle: TextStyle(color: NvrColors.of(context).textSecondary),
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.accent, width: 2),
+                            borderSide: BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
-                          prefixIcon: const Icon(Icons.lock_outline, color: NvrColors.textMuted),
+                          prefixIcon: Icon(Icons.lock_outline, color: NvrColors.of(context).textMuted),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: NvrColors.textMuted,
+                              color: NvrColors.of(context).textMuted,
                             ),
                             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
@@ -227,29 +227,29 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         controller: _confirmPasswordController,
                         obscureText: _obscureConfirm,
                         textInputAction: TextInputAction.done,
-                        style: const TextStyle(color: NvrColors.textPrimary),
+                        style: TextStyle(color: NvrColors.of(context).textPrimary),
                         decoration: InputDecoration(
                           labelText: 'Confirm Password',
-                          labelStyle: const TextStyle(color: NvrColors.textSecondary),
+                          labelStyle: TextStyle(color: NvrColors.of(context).textSecondary),
                           filled: true,
-                          fillColor: NvrColors.bgInput,
+                          fillColor: NvrColors.of(context).bgInput,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.border),
+                            borderSide: BorderSide(color: NvrColors.of(context).border),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: NvrColors.accent, width: 2),
+                            borderSide: BorderSide(color: NvrColors.of(context).accent, width: 2),
                           ),
-                          prefixIcon: const Icon(Icons.lock_outline, color: NvrColors.textMuted),
+                          prefixIcon: Icon(Icons.lock_outline, color: NvrColors.of(context).textMuted),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                              color: NvrColors.textMuted,
+                              color: NvrColors.of(context).textMuted,
                             ),
                             onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                           ),
@@ -270,18 +270,18 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: NvrColors.danger.withAlpha(26),
+                            color: NvrColors.of(context).danger.withAlpha(26),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: NvrColors.danger.withAlpha(77)),
+                            border: Border.all(color: NvrColors.of(context).danger.withAlpha(77)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: NvrColors.danger, size: 18),
+                              Icon(Icons.error_outline, color: NvrColors.of(context).danger, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: const TextStyle(color: NvrColors.danger, fontSize: 13),
+                                  style: TextStyle(color: NvrColors.of(context).danger, fontSize: 13),
                                 ),
                               ),
                             ],
@@ -293,18 +293,18 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: NvrColors.success.withAlpha(26),
+                            color: NvrColors.of(context).success.withAlpha(26),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: NvrColors.success.withAlpha(77)),
+                            border: Border.all(color: NvrColors.of(context).success.withAlpha(77)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_outline, color: NvrColors.success, size: 18),
+                              Icon(Icons.check_circle_outline, color: NvrColors.of(context).success, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _successMessage!,
-                                  style: const TextStyle(color: NvrColors.success, fontSize: 13),
+                                  style: TextStyle(color: NvrColors.of(context).success, fontSize: 13),
                                 ),
                               ),
                             ],
@@ -318,8 +318,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         child: FilledButton(
                           onPressed: _isLoading ? null : _createAdmin,
                           style: FilledButton.styleFrom(
-                            backgroundColor: NvrColors.accent,
-                            disabledBackgroundColor: NvrColors.accent.withAlpha(128),
+                            backgroundColor: NvrColors.of(context).accent,
+                            disabledBackgroundColor: NvrColors.of(context).accent.withAlpha(128),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),

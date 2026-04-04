@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import 'audit_panel.dart';
@@ -53,15 +54,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isDesktop = width >= 600;
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       appBar: AppBar(
-        backgroundColor: NvrColors.bgSecondary,
+        backgroundColor: NvrColors.of(context).bgSecondary,
         elevation: 0,
-        title: Text('SETTINGS', style: NvrTypography.pageTitle),
+        title: Text('SETTINGS', style: NvrTypography.of(context).pageTitle),
         actions: const [],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: NvrColors.border),
+          child: Container(height: 1, color: NvrColors.of(context).border),
         ),
       ),
       body: isDesktop ? _buildDesktopLayout() : _buildMobileLayout(),
@@ -76,9 +77,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         SizedBox(
           width: 180,
           child: Container(
-            decoration: const BoxDecoration(
-              color: NvrColors.bgSecondary,
-              border: Border(right: BorderSide(color: NvrColors.border)),
+            decoration: BoxDecoration(
+              color: NvrColors.of(context).bgSecondary,
+              border: Border(right: BorderSide(color: NvrColors.of(context).border)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -109,7 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       children: [
         // Horizontal pill tabs
         Container(
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -126,17 +127,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isActive
-                            ? NvrColors.accent.withOpacity(0.12)
+                            ? NvrColors.of(context).accent.withOpacity(0.12)
                             : Colors.transparent,
                         border: Border.all(
-                          color: isActive ? NvrColors.accent : NvrColors.border,
+                          color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).border,
                         ),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         label.toUpperCase(),
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: isActive ? NvrColors.accent : NvrColors.textSecondary,
+                        style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
                           letterSpacing: 1.0,
                         ),
                       ),
@@ -147,7 +148,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ),
-        Container(height: 1, color: NvrColors.border),
+        Container(height: 1, color: NvrColors.of(context).border),
         // Content
         Expanded(child: _buildContent()),
       ],
@@ -177,10 +178,10 @@ class _SidebarItem extends StatelessWidget {
       child: Container(
         height: 44,
         decoration: BoxDecoration(
-          color: isActive ? NvrColors.accent.withOpacity(0.07) : Colors.transparent,
+          color: isActive ? NvrColors.of(context).accent.withOpacity(0.07) : Colors.transparent,
           border: Border(
             right: BorderSide(
-              color: isActive ? NvrColors.accent : Colors.transparent,
+              color: isActive ? NvrColors.of(context).accent : Colors.transparent,
               width: 2,
             ),
           ),
@@ -189,8 +190,8 @@ class _SidebarItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Text(
           label.toUpperCase(),
-          style: NvrTypography.monoLabel.copyWith(
-            color: isActive ? NvrColors.accent : NvrColors.textSecondary,
+          style: NvrTypography.of(context).monoLabel.copyWith(
+            color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
             letterSpacing: 1.2,
           ),
         ),
@@ -218,21 +219,21 @@ class _SystemPanel extends ConsumerWidget {
       children: [
         // ── Stats grid ──
         systemAsync.when(
-          loading: () => const Center(
+          loading: () => Center(
             child: Padding(
               padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(color: NvrColors.accent),
+              child: CircularProgressIndicator(color: NvrColors.of(context).accent),
             ),
           ),
           error: (e, _) => _HudCard(
             child: Row(
               children: [
-                const Icon(Icons.error_outline, color: NvrColors.danger, size: 16),
+                Icon(Icons.error_outline, color: NvrColors.of(context).danger, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Failed to load system info: $e',
-                    style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                    style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
                   ),
                 ),
               ],
@@ -257,7 +258,7 @@ class _SystemPanel extends ConsumerWidget {
                         label: 'VERSION',
                         child: Text(
                           info.version.isNotEmpty ? info.version : '—',
-                          style: NvrTypography.monoDataLarge,
+                          style: NvrTypography.of(context).monoDataLarge,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -268,8 +269,8 @@ class _SystemPanel extends ConsumerWidget {
                         label: 'UPTIME',
                         child: Text(
                           info.uptimeFormatted,
-                          style: NvrTypography.monoDataLarge.copyWith(
-                            color: NvrColors.success,
+                          style: NvrTypography.of(context).monoDataLarge.copyWith(
+                            color: NvrColors.of(context).success,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -284,23 +285,23 @@ class _SystemPanel extends ConsumerWidget {
                           children: [
                             Text(
                               '$onlineCount',
-                              style: NvrTypography.monoDataLarge.copyWith(
-                                color: NvrColors.success,
+                              style: NvrTypography.of(context).monoDataLarge.copyWith(
+                                color: NvrColors.of(context).success,
                               ),
                             ),
                             const SizedBox(width: 4),
                             Icon(
                               Icons.arrow_upward,
                               size: 12,
-                              color: NvrColors.success,
+                              color: NvrColors.of(context).success,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               '$offlineCount',
-                              style: NvrTypography.monoDataLarge.copyWith(
+                              style: NvrTypography.of(context).monoDataLarge.copyWith(
                                 color: offlineCount > 0
-                                    ? NvrColors.danger
-                                    : NvrColors.textMuted,
+                                    ? NvrColors.of(context).danger
+                                    : NvrColors.of(context).textMuted,
                               ),
                             ),
                             const SizedBox(width: 4),
@@ -308,8 +309,8 @@ class _SystemPanel extends ConsumerWidget {
                               Icons.arrow_downward,
                               size: 12,
                               color: offlineCount > 0
-                                  ? NvrColors.danger
-                                  : NvrColors.textMuted,
+                                  ? NvrColors.of(context).danger
+                                  : NvrColors.of(context).textMuted,
                             ),
                           ],
                         ),
@@ -323,17 +324,17 @@ class _SystemPanel extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('SYSTEM INFO', style: NvrTypography.monoSection),
+                      Text('SYSTEM INFO', style: NvrTypography.of(context).monoSection),
                       const SizedBox(height: 12),
-                      Container(height: 1, color: NvrColors.border),
+                      Container(height: 1, color: NvrColors.of(context).border),
                       const SizedBox(height: 10),
                       _DataRow(label: 'PLATFORM', value: info.platform.isNotEmpty ? info.platform : '—'),
                       _DataRow(
                         label: 'CLIP SEARCH',
                         value: info.clipSearchAvailable ? 'AVAILABLE' : 'UNAVAILABLE',
                         valueColor: info.clipSearchAvailable
-                            ? NvrColors.success
-                            : NvrColors.textMuted,
+                            ? NvrColors.of(context).success
+                            : NvrColors.of(context).textMuted,
                       ),
                     ],
                   ),
@@ -348,9 +349,9 @@ class _SystemPanel extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('CONNECTION', style: NvrTypography.monoSection),
+              Text('CONNECTION', style: NvrTypography.of(context).monoSection),
               const SizedBox(height: 12),
-              Container(height: 1, color: NvrColors.border),
+              Container(height: 1, color: NvrColors.of(context).border),
               const SizedBox(height: 10),
               _DataRow(label: 'SERVER URL', value: serverUrl),
             ],
@@ -363,23 +364,111 @@ class _SystemPanel extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('CURRENT USER', style: NvrTypography.monoSection),
+                Text('CURRENT USER', style: NvrTypography.of(context).monoSection),
                 const SizedBox(height: 12),
-                Container(height: 1, color: NvrColors.border),
+                Container(height: 1, color: NvrColors.of(context).border),
                 const SizedBox(height: 10),
                 _DataRow(label: 'USERNAME', value: auth.user!.username),
                 _DataRow(
                   label: 'ROLE',
                   value: auth.user!.role.toUpperCase(),
                   valueColor: auth.user!.role == 'admin'
-                      ? NvrColors.accent
-                      : NvrColors.textSecondary,
+                      ? NvrColors.of(context).accent
+                      : NvrColors.of(context).textSecondary,
                 ),
               ],
             ),
           ),
         ],
+        // Appearance card
+        const SizedBox(height: 20),
+        _AppearanceCard(),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Appearance card — theme toggle
+// ─────────────────────────────────────────────
+
+class _AppearanceCard extends ConsumerWidget {
+  const _AppearanceCard();
+
+  static const _modes = [
+    (mode: ThemeMode.system, label: 'SYSTEM', icon: Icons.brightness_auto),
+    (mode: ThemeMode.dark, label: 'DARK', icon: Icons.dark_mode),
+    (mode: ThemeMode.light, label: 'LIGHT', icon: Icons.light_mode),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+    final currentMode = ref.watch(themeModeProvider);
+
+    return _HudCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('APPEARANCE', style: typo.monoSection),
+          const SizedBox(height: 12),
+          Container(height: 1, color: colors.border),
+          const SizedBox(height: 14),
+          Row(
+            children: _modes.map((entry) {
+              final isActive = currentMode == entry.mode;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: () => ref
+                        .read(themeModeProvider.notifier)
+                        .setThemeMode(entry.mode),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? colors.accent.withOpacity(0.12)
+                            : Colors.transparent,
+                        border: Border.all(
+                          color:
+                              isActive ? colors.accent : colors.border,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            entry.icon,
+                            size: 20,
+                            color: isActive
+                                ? colors.accent
+                                : colors.textSecondary,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            entry.label,
+                            style: typo.monoLabel.copyWith(
+                              color: isActive
+                                  ? colors.accent
+                                  : colors.textSecondary,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -398,8 +487,8 @@ class _HudCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: child,
@@ -418,14 +507,14 @@ class _StatTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: NvrTypography.monoLabel),
+          Text(label, style: NvrTypography.of(context).monoLabel),
           const SizedBox(height: 8),
           child,
         ],
@@ -453,13 +542,13 @@ class _DataRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 130,
-            child: Text(label, style: NvrTypography.monoLabel),
+            child: Text(label, style: NvrTypography.of(context).monoLabel),
           ),
           Expanded(
             child: Text(
               value,
-              style: NvrTypography.monoData.copyWith(
-                color: valueColor ?? NvrColors.textPrimary,
+              style: NvrTypography.of(context).monoData.copyWith(
+                color: valueColor ?? NvrColors.of(context).textPrimary,
               ),
               overflow: TextOverflow.ellipsis,
             ),

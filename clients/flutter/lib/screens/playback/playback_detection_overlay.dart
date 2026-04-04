@@ -18,7 +18,7 @@ class PlaybackDetectionOverlay extends StatelessWidget {
     if (detections.isEmpty) return const SizedBox.shrink();
     return SizedBox.expand(
       child: CustomPaint(
-        painter: _PlaybackDetectionPainter(detections),
+        painter: _PlaybackDetectionPainter(detections, NvrColors.of(context)),
       ),
     );
   }
@@ -26,14 +26,15 @@ class PlaybackDetectionOverlay extends StatelessWidget {
 
 class _PlaybackDetectionPainter extends CustomPainter {
   final List<DetectionBox> detections;
+  final NvrColors colors;
 
-  const _PlaybackDetectionPainter(this.detections);
+  const _PlaybackDetectionPainter(this.detections, this.colors);
 
   @override
   void paint(Canvas canvas, Size size) {
-    const boxColor = NvrColors.accent;
-    const labelTextColor = NvrColors.bgPrimary;
-    const labelBgColor = NvrColors.accent;
+    final boxColor = colors.accent;
+    final labelTextColor = colors.bgPrimary;
+    final labelBgColor = colors.accent;
 
     final boxPaint = Paint()
       ..color = boxColor
@@ -58,7 +59,7 @@ class _PlaybackDetectionPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: label,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 8,
             fontWeight: FontWeight.w700,
@@ -90,5 +91,5 @@ class _PlaybackDetectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PlaybackDetectionPainter old) =>
-      old.detections != detections;
+      old.detections != detections || old.colors != colors;
 }

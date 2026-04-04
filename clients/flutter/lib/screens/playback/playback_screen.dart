@@ -121,9 +121,9 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: NvrColors.accent,
-            surface: NvrColors.bgSecondary,
+          colorScheme: ColorScheme.dark(
+            primary: NvrColors.of(context).accent,
+            surface: NvrColors.of(context).bgSecondary,
           ),
         ),
         child: child!,
@@ -162,14 +162,14 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     final controller = _getController(serverUrl);
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: camerasAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: NvrColors.accent),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: NvrColors.of(context).accent),
         ),
         error: (e, _) => Center(
           child: Text('Error: $e',
-              style: const TextStyle(color: NvrColors.danger)),
+              style: TextStyle(color: NvrColors.of(context).danger)),
         ),
         data: (cameras) => _buildBody(cameras, controller),
       ),
@@ -178,9 +178,9 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
 
   Widget _buildBody(List<Camera> cameras, PlaybackController controller) {
     if (cameras.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('No cameras configured.',
-            style: TextStyle(color: NvrColors.textMuted)),
+            style: TextStyle(color: NvrColors.of(context).textMuted)),
       );
     }
 
@@ -377,14 +377,14 @@ class _TopBar extends StatelessWidget {
         right: 16,
         bottom: 8,
       ),
-      decoration: const BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border(bottom: BorderSide(color: NvrColors.border)),
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgSecondary,
+        border: Border(bottom: BorderSide(color: NvrColors.of(context).border)),
       ),
       child: Row(
         children: [
           // Title
-          const Text('Playback', style: NvrTypography.pageTitle),
+          Text('Playback', style: NvrTypography.of(context).pageTitle),
           const SizedBox(width: 20),
 
           // Date picker
@@ -393,12 +393,12 @@ class _TopBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.calendar_today,
-                    size: 14, color: NvrColors.accent),
+                Icon(Icons.calendar_today,
+                    size: 14, color: NvrColors.of(context).accent),
                 const SizedBox(width: 6),
                 Text(
                   date,
-                  style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
+                  style: NvrTypography.of(context).monoTimestamp.copyWith(fontSize: 13),
                 ),
               ],
             ),
@@ -452,16 +452,16 @@ class _SecondaryButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: NvrColors.bgTertiary,
-          border: Border.all(color: NvrColors.border),
+          color: NvrColors.of(context).bgTertiary,
+          border: Border.all(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: NvrColors.textSecondary),
+            Icon(icon, size: 14, color: NvrColors.of(context).textSecondary),
             const SizedBox(width: 6),
-            Text(label, style: NvrTypography.button.copyWith(fontSize: 11)),
+            Text(label, style: NvrTypography.of(context).button.copyWith(fontSize: 11)),
           ],
         ),
       ),
@@ -487,16 +487,16 @@ class _AccentButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: NvrColors.bgTertiary,
-          border: Border.all(color: NvrColors.border),
+          color: NvrColors.of(context).bgTertiary,
+          border: Border.all(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: NvrColors.accent),
+            Icon(icon, size: 14, color: NvrColors.of(context).accent),
             const SizedBox(width: 6),
-            Text(label, style: NvrTypography.button.copyWith(fontSize: 11)),
+            Text(label, style: NvrTypography.of(context).button.copyWith(fontSize: 11)),
           ],
         ),
       ),
@@ -520,7 +520,7 @@ class _CameraChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: NvrColors.bgSecondary,
+      color: NvrColors.of(context).bgSecondary,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: SizedBox(
         height: 32,
@@ -534,16 +534,16 @@ class _CameraChips extends StatelessWidget {
             return FilterChip(
               label: Text(c.name,
                   style: TextStyle(
-                    color: sel ? Colors.white : NvrColors.textSecondary,
+                    color: sel ? Colors.white : NvrColors.of(context).textSecondary,
                     fontSize: 11,
                   )),
               selected: sel,
               onSelected: (_) => onToggle(c.id),
-              backgroundColor: NvrColors.bgTertiary,
-              selectedColor: NvrColors.accent,
+              backgroundColor: NvrColors.of(context).bgTertiary,
+              selectedColor: NvrColors.of(context).accent,
               checkmarkColor: Colors.white,
               side: BorderSide(
-                  color: sel ? NvrColors.accent : NvrColors.border),
+                  color: sel ? NvrColors.of(context).accent : NvrColors.of(context).border),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             );
@@ -570,9 +570,9 @@ class _VideoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (cameras.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('Select a camera',
-            style: TextStyle(color: NvrColors.textMuted)),
+            style: TextStyle(color: NvrColors.of(context).textMuted)),
       );
     }
 

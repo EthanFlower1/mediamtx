@@ -76,11 +76,11 @@ class NavigationShell extends ConsumerWidget {
             onAlertsTap: () => _onAlertsTap(context, ref),
             onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
           ),
-          Container(width: 1, color: NvrColors.border),
+          Container(width: 1, color: NvrColors.of(context).border),
           // Camera panel (push or overlay based on breakpoint)
           if (usePushPanel && panelState.isOpen) ...[
             const CameraPanel(),
-            Container(width: 1, color: NvrColors.border),
+            Container(width: 1, color: NvrColors.of(context).border),
           ],
           // Main content
           Expanded(

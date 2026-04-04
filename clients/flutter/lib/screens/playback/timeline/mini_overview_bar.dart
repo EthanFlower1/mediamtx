@@ -23,6 +23,7 @@ class MiniOverviewBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return SizedBox(
       height: 28,
       child: LayoutBuilder(
@@ -40,9 +41,9 @@ class MiniOverviewBar extends StatelessWidget {
                 width: constraints.maxWidth,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: NvrColors.bgSecondary,
+                  color: colors.bgSecondary,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: NvrColors.border),
+                  border: Border.all(color: colors.border),
                 ),
               ),
 
@@ -69,6 +70,7 @@ class MiniOverviewBar extends StatelessWidget {
                       events: events,
                       dayStart: dayStart,
                       position: position,
+                      colors: colors,
                     ),
                   ),
                 ),
@@ -83,10 +85,10 @@ class MiniOverviewBar extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '00:00',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: 8,
-                      color: NvrColors.textMuted,
+                      color: colors.textMuted,
                     ),
                   ),
                 ),
@@ -99,10 +101,10 @@ class MiniOverviewBar extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: Text(
                     '24:00',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: 8,
-                      color: NvrColors.textMuted,
+                      color: colors.textMuted,
                     ),
                   ),
                 ),
@@ -122,6 +124,7 @@ class _MiniOverviewPainter extends CustomPainter {
   final List<MotionEvent> events;
   final DateTime dayStart;
   final Duration position;
+  final NvrColors colors;
 
   _MiniOverviewPainter({
     required this.viewport,
@@ -130,6 +133,7 @@ class _MiniOverviewPainter extends CustomPainter {
     required this.events,
     required this.dayStart,
     required this.position,
+    required this.colors,
   });
 
   @override
@@ -140,7 +144,7 @@ class _MiniOverviewPainter extends CustomPainter {
 
     // Recording segments: accent at 13% opacity
     final segPaint = Paint()
-      ..color = NvrColors.accent.withOpacity(0.13);
+      ..color = colors.accent.withOpacity(0.13);
     for (final seg in segments) {
       final x1 = viewport.timeToPixel(seg.startTime.difference(dayStart));
       final x2 = viewport.timeToPixel(seg.endTime.difference(dayStart));
@@ -154,13 +158,13 @@ class _MiniOverviewPainter extends CustomPainter {
     canvas.drawRect(
       Rect.fromLTRB(rangeX1, barTop, rangeX2, barBottom),
       Paint()
-        ..color = NvrColors.accent.withOpacity(0.13)
+        ..color = colors.accent.withOpacity(0.13)
         ..style = PaintingStyle.fill,
     );
     canvas.drawRect(
       Rect.fromLTRB(rangeX1, barTop, rangeX2, barBottom),
       Paint()
-        ..color = NvrColors.accent
+        ..color = colors.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -171,7 +175,7 @@ class _MiniOverviewPainter extends CustomPainter {
       Offset(px, barTop - 2),
       Offset(px, barBottom + 2),
       Paint()
-        ..color = NvrColors.accent
+        ..color = colors.accent
         ..strokeWidth = 1.5,
     );
   }

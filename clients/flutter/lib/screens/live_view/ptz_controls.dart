@@ -58,7 +58,7 @@ class PtzControls extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ── Zoom control ───────────────────────────────────────────────────
-        const Text('ZOOM', style: NvrTypography.monoControl),
+        Text('ZOOM', style: NvrTypography.of(context).monoControl),
         const SizedBox(height: 6),
         _DpadButton(
           icon: Icons.add,
@@ -94,10 +94,10 @@ class _DpadButton extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: NvrColors.bgSecondary.withValues(alpha: 0.8),
+              color: NvrColors.of(context).bgSecondary.withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: NvrColors.border,
+                color: NvrColors.of(context).border,
                 width: 1,
               ),
             ),
@@ -105,7 +105,7 @@ class _DpadButton extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 16,
-                color: NvrColors.textPrimary,
+                color: NvrColors.of(context).textPrimary,
               ),
             ),
           ),
@@ -153,9 +153,9 @@ class _DpadHome extends StatelessWidget {
             height: 22,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: NvrColors.bgSecondary.withValues(alpha: 0.8),
+              color: NvrColors.of(context).bgSecondary.withValues(alpha: 0.8),
               border: Border.all(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 width: 1,
               ),
             ),
@@ -163,9 +163,9 @@ class _DpadHome extends StatelessWidget {
               child: Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: NvrColors.accent,
+                  color: NvrColors.of(context).accent,
                 ),
               ),
             ),

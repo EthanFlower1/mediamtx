@@ -32,7 +32,7 @@ class IconRail extends ConsumerWidget {
 
     return Container(
       width: 60,
-      color: NvrColors.bgSecondary,
+      color: NvrColors.of(context).bgSecondary,
       child: Column(
         children: [
           const SizedBox(height: 14),
@@ -42,7 +42,7 @@ class IconRail extends ConsumerWidget {
             child: Container(
               width: 18, height: 18,
               decoration: BoxDecoration(
-                border: Border.all(color: NvrColors.accent, width: 2),
+                border: Border.all(color: NvrColors.of(context).accent, width: 2),
               ),
             ),
           ),
@@ -53,7 +53,7 @@ class IconRail extends ConsumerWidget {
             if (i == 4) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Container(height: 1, color: NvrColors.border),
+                child: Container(height: 1, color: NvrColors.of(context).border),
               ),
             ],
             _NavIcon(
@@ -126,12 +126,12 @@ class _NavIcon extends StatelessWidget {
             Positioned(
               left: -10, top: 10, bottom: 10,
               child: Container(width: 3, decoration: BoxDecoration(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 borderRadius: BorderRadius.circular(2),
               )),
             ),
           Material(
-            color: isActive ? NvrColors.accent.withOpacity(0.13) : Colors.transparent,
+            color: isActive ? NvrColors.of(context).accent.withOpacity(0.13) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
               borderRadius: BorderRadius.circular(8),
@@ -140,11 +140,11 @@ class _NavIcon extends StatelessWidget {
                 width: 40, height: 40,
                 decoration: isActive ? BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: NvrColors.accent.withOpacity(0.27)),
+                  border: Border.all(color: NvrColors.of(context).accent.withOpacity(0.27)),
                 ) : null,
                 child: Icon(
                   icon, size: 20,
-                  color: isActive ? NvrColors.accent : muted ? NvrColors.textMuted : NvrColors.textSecondary,
+                  color: isActive ? NvrColors.of(context).accent : muted ? NvrColors.of(context).textMuted : NvrColors.of(context).textSecondary,
                 ),
               ),
             ),
@@ -156,10 +156,10 @@ class _NavIcon extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: NvrColors.danger,
+                  color: NvrColors.of(context).danger,
                   shape: BoxShape.circle,
-                  border: Border.all(color: NvrColors.bgSecondary, width: 2),
-                  boxShadow: [BoxShadow(color: NvrColors.danger.withOpacity(0.5), blurRadius: 6)],
+                  border: Border.all(color: NvrColors.of(context).bgSecondary, width: 2),
+                  boxShadow: [BoxShadow(color: NvrColors.of(context).danger.withOpacity(0.5), blurRadius: 6)],
                 ),
                 child: Text(
                   badge! > 9 ? '9+' : '$badge',

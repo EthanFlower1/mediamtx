@@ -38,39 +38,39 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final serverUrl = auth.serverUrl ?? '';
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: Column(
         children: [
           // ── Top bar ───────────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: NvrColors.bgPrimary,
+            decoration: BoxDecoration(
+              color: NvrColors.of(context).bgPrimary,
               border: Border(
-                bottom: BorderSide(color: NvrColors.border, width: 1),
+                bottom: BorderSide(color: NvrColors.of(context).border, width: 1),
               ),
             ),
             child: Row(
               children: [
                 // Page title
-                const Text('Live View', style: NvrTypography.pageTitle),
+                Text('Live View', style: NvrTypography.of(context).pageTitle),
                 const SizedBox(width: 12),
 
                 // Group badge pill
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: NvrColors.accentWith(0.07),
+                    color: NvrColors.of(context).accentWith(0.07),
                     borderRadius: BorderRadius.circular(99),
                   ),
-                  child: const Text(
+                  child: Text(
                     'ALL CAMERAS',
                     style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: 9,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 1.5,
-                      color: NvrColors.accent,
+                      color: NvrColors.of(context).accent,
                     ),
                   ),
                 ),
@@ -91,27 +91,27 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           // ── Body ─────────────────────────────────────────────────────────
           Expanded(
             child: camerasAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: NvrColors.accent),
+              loading: () => Center(
+                child: CircularProgressIndicator(color: NvrColors.of(context).accent),
               ),
               error: (err, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline,
-                        color: NvrColors.danger, size: 48),
+                    Icon(Icons.error_outline,
+                        color: NvrColors.of(context).danger, size: 48),
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load cameras',
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
-                          ?.copyWith(color: NvrColors.textPrimary),
+                          ?.copyWith(color: NvrColors.of(context).textPrimary),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       err.toString(),
-                      style: const TextStyle(color: NvrColors.textSecondary),
+                      style: TextStyle(color: NvrColors.of(context).textSecondary),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -190,11 +190,11 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                         final isHovering = candidateData.isNotEmpty;
                         return Container(
                           decoration: BoxDecoration(
-                            color: NvrColors.bgPrimary,
+                            color: NvrColors.of(context).bgPrimary,
                             border: Border.all(
                               color: isHovering
-                                  ? NvrColors.accent
-                                  : NvrColors.border,
+                                  ? NvrColors.of(context).accent
+                                  : NvrColors.of(context).border,
                               width: isHovering ? 2 : 1,
                             ),
                             borderRadius: BorderRadius.circular(6),
@@ -205,17 +205,17 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                               Icon(
                                 Icons.add,
                                 color: isHovering
-                                    ? NvrColors.accent
-                                    : NvrColors.border,
+                                    ? NvrColors.of(context).accent
+                                    : NvrColors.of(context).border,
                                 size: 24,
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'DROP HERE',
-                                style: NvrTypography.monoLabel.copyWith(
+                                style: NvrTypography.of(context).monoLabel.copyWith(
                                   color: isHovering
-                                      ? NvrColors.accent
-                                      : NvrColors.textMuted,
+                                      ? NvrColors.of(context).accent
+                                      : NvrColors.of(context).textMuted,
                                 ),
                               ),
                             ],

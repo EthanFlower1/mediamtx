@@ -26,14 +26,14 @@ class CameraPanelTours extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top border separator
-        const Divider(height: 1, thickness: 1, color: NvrColors.border),
+        Divider(height: 1, thickness: 1, color: NvrColors.of(context).border),
 
         // Section header
         Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
           child: Row(
             children: [
-              Text('TOURS', style: NvrTypography.monoSection),
+              Text('TOURS', style: NvrTypography.of(context).monoSection),
               const Spacer(),
               HudButton(
                 label: '+ NEW',
@@ -50,7 +50,7 @@ class CameraPanelTours extends ConsumerWidget {
               return Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Text('No tours yet', style: NvrTypography.body),
+                child: Text('No tours yet', style: NvrTypography.of(context).body),
               );
             }
 
@@ -72,16 +72,16 @@ class CameraPanelTours extends ConsumerWidget {
               }).toList(),
             );
           },
-          loading: () => const Padding(
+          loading: () => Padding(
             padding: EdgeInsets.all(10),
             child: Center(
               child: CircularProgressIndicator(
-                  color: NvrColors.accent, strokeWidth: 1.5),
+                  color: NvrColors.of(context).accent, strokeWidth: 1.5),
             ),
           ),
           error: (e, _) => Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text('Error loading tours', style: NvrTypography.alert),
+            child: Text('Error loading tours', style: NvrTypography.of(context).alert),
           ),
         ),
 
@@ -117,20 +117,20 @@ class CameraPanelTours extends ConsumerWidget {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
+        backgroundColor: NvrColors.of(context).bgSecondary,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
-          side: const BorderSide(color: NvrColors.border),
+          side: BorderSide(color: NvrColors.of(context).border),
         ),
-        title: Text('DELETE TOUR', style: NvrTypography.monoSection),
+        title: Text('DELETE TOUR', style: NvrTypography.of(context).monoSection),
         content: Text(
           'Delete tour "${tour.name}"?',
-          style: NvrTypography.body,
+          style: NvrTypography.of(context).body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('CANCEL', style: NvrTypography.monoControl),
+            child: Text('CANCEL', style: NvrTypography.of(context).monoControl),
           ),
           TextButton(
             onPressed: () async {
@@ -147,8 +147,8 @@ class CameraPanelTours extends ConsumerWidget {
               if (ctx.mounted) Navigator.of(ctx).pop();
             },
             child: Text('DELETE',
-                style: NvrTypography.monoControl
-                    .copyWith(color: NvrColors.danger)),
+                style: NvrTypography.of(context).monoControl
+                    .copyWith(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -189,12 +189,12 @@ class _TourItem extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
             color: isActive
-                ? NvrColors.accent.withOpacity(0.08)
-                : NvrColors.bgTertiary,
+                ? NvrColors.of(context).accent.withOpacity(0.08)
+                : NvrColors.of(context).bgTertiary,
             border: Border.all(
               color: isActive
-                  ? NvrColors.accent.withOpacity(0.35)
-                  : NvrColors.border,
+                  ? NvrColors.of(context).accent.withOpacity(0.35)
+                  : NvrColors.of(context).border,
             ),
           ),
           child: Row(
@@ -203,7 +203,7 @@ class _TourItem extends StatelessWidget {
               Icon(
                 Icons.refresh,
                 size: 14,
-                color: isActive ? NvrColors.accent : NvrColors.textMuted,
+                color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
               ),
               const SizedBox(width: 8),
               // Name + config
@@ -213,15 +213,15 @@ class _TourItem extends StatelessWidget {
                   children: [
                     Text(
                       tour.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: NvrColors.textPrimary,
+                        color: NvrColors.of(context).textPrimary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(configLabel, style: NvrTypography.monoLabel),
+                    Text(configLabel, style: NvrTypography.of(context).monoLabel),
                   ],
                 ),
               ),
@@ -230,7 +230,7 @@ class _TourItem extends StatelessWidget {
                 const SizedBox(width: 6),
                 StatusBadge(
                   label: 'ACTIVE',
-                  color: NvrColors.success,
+                  color: NvrColors.of(context).success,
                   showDot: true,
                 ),
               ],
@@ -272,12 +272,12 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
     final cameras = camerasAsync.valueOrNull ?? <Camera>[];
 
     return AlertDialog(
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: NvrColors.border),
+        side: BorderSide(color: NvrColors.of(context).border),
       ),
-      title: Text('NEW TOUR', style: NvrTypography.monoSection),
+      title: Text('NEW TOUR', style: NvrTypography.of(context).monoSection),
       content: SizedBox(
         width: 280,
         child: SingleChildScrollView(
@@ -289,36 +289,36 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
               TextField(
                 controller: _nameController,
                 autofocus: true,
-                style: const TextStyle(
-                    fontSize: 13, color: NvrColors.textPrimary),
-                cursorColor: NvrColors.accent,
+                style: TextStyle(
+                    fontSize: 13, color: NvrColors.of(context).textPrimary),
+                cursorColor: NvrColors.of(context).accent,
                 decoration: InputDecoration(
                   hintText: 'Tour name',
-                  hintStyle: const TextStyle(
-                      color: NvrColors.textMuted, fontSize: 13),
+                  hintStyle: TextStyle(
+                      color: NvrColors.of(context).textMuted, fontSize: 13),
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 8),
                   filled: true,
-                  fillColor: NvrColors.bgTertiary,
+                  fillColor: NvrColors.of(context).bgTertiary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
-                    borderSide: const BorderSide(color: NvrColors.border),
+                    borderSide: BorderSide(color: NvrColors.of(context).border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
                     borderSide:
-                        const BorderSide(color: NvrColors.accent),
+                        BorderSide(color: NvrColors.of(context).accent),
                   ),
                 ),
               ),
               const SizedBox(height: 14),
 
               // Camera selection
-              Text('CAMERAS', style: NvrTypography.monoControl),
+              Text('CAMERAS', style: NvrTypography.of(context).monoControl),
               const SizedBox(height: 6),
               if (cameras.isEmpty)
-                Text('No cameras available', style: NvrTypography.body)
+                Text('No cameras available', style: NvrTypography.of(context).body)
               else
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 160),
@@ -348,25 +348,25 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
                                   borderRadius: BorderRadius.circular(3),
                                   border: Border.all(
                                     color: selected
-                                        ? NvrColors.accent
-                                        : NvrColors.border,
+                                        ? NvrColors.of(context).accent
+                                        : NvrColors.of(context).border,
                                   ),
                                   color: selected
-                                      ? NvrColors.accent.withOpacity(0.2)
+                                      ? NvrColors.of(context).accent.withOpacity(0.2)
                                       : Colors.transparent,
                                 ),
                                 child: selected
-                                    ? const Icon(Icons.check,
-                                        size: 10, color: NvrColors.accent)
+                                    ? Icon(Icons.check,
+                                        size: 10, color: NvrColors.of(context).accent)
                                     : null,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   cam.name,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
-                                    color: NvrColors.textPrimary,
+                                    color: NvrColors.of(context).textPrimary,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -384,21 +384,21 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
               // Dwell seconds slider
               Row(
                 children: [
-                  Text('DWELL', style: NvrTypography.monoControl),
+                  Text('DWELL', style: NvrTypography.of(context).monoControl),
                   const Spacer(),
                   Text(
                     '${_dwellSeconds.round()}S',
-                    style: NvrTypography.monoLabel.copyWith(
-                        color: NvrColors.accent),
+                    style: NvrTypography.of(context).monoLabel.copyWith(
+                        color: NvrColors.of(context).accent),
                   ),
                 ],
               ),
               SliderTheme(
                 data: SliderThemeData(
-                  activeTrackColor: NvrColors.accent,
-                  inactiveTrackColor: NvrColors.border,
-                  thumbColor: NvrColors.accent,
-                  overlayColor: NvrColors.accent.withOpacity(0.12),
+                  activeTrackColor: NvrColors.of(context).accent,
+                  inactiveTrackColor: NvrColors.of(context).border,
+                  thumbColor: NvrColors.of(context).accent,
+                  overlayColor: NvrColors.of(context).accent.withOpacity(0.12),
                   trackHeight: 2,
                   thumbShape:
                       const RoundSliderThumbShape(enabledThumbRadius: 6),
@@ -418,7 +418,7 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('CANCEL', style: NvrTypography.monoControl),
+          child: Text('CANCEL', style: NvrTypography.of(context).monoControl),
         ),
         TextButton(
           onPressed: () async {
@@ -431,8 +431,8 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
           },
           child: Text(
             'CREATE',
-            style: NvrTypography.monoControl
-                .copyWith(color: NvrColors.accent),
+            style: NvrTypography.of(context).monoControl
+                .copyWith(color: NvrColors.of(context).accent),
           ),
         ),
       ],

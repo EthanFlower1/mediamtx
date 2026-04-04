@@ -400,6 +400,142 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   )
 }
 
+// ===== Admin Reset Password Modal =====
+function AdminResetPasswordModal({
+  open,
+  user,
+  onClose,
+}: {
+  open: boolean
+  user: User | null
+  onClose: () => void
+}) {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (open) {
+      setNewPassword('')
+      setConfirmPassword('')
+      setError('')
+      setSuccess(false)
+      setSaving(false)
+    }
+  }, [open])
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (newPassword.length < 4) {
+      setError('Password must be at least 4 characters')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (!user) return
+
+    setSaving(true)
+    const res = await apiFetch(`/users/${user.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ password: newPassword }),
+    })
+
+    if (res.ok) {
+      setSuccess(true)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'Failed to reset password')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="p-5">
+        <h3 className="text-lg font-semibold text-nvr-text-primary mb-1">Reset Password</h3>
+        <p className="text-sm text-nvr-text-muted mb-4">
+          Set a new password for <span className="font-medium text-nvr-text-secondary">{user?.username}</span>
+        </p>
+
+        {success ? (
+          <div className="py-4">
+            <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 mx-auto mb-2 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+              <p className="text-sm text-green-400 font-medium">Password reset successfully</p>
+              <p className="text-xs text-nvr-text-muted mt-1">The user will need to use the new password on next login.</p>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  placeholder="Enter new password"
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Confirm new password"
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            {error && <p className="text-nvr-danger text-sm mt-3">{error}</p>}
+
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-nvr-border">
+              <button
+                type="button"
+                onClick={onClose}
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                {saving && <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {saving ? 'Resetting...' : 'Reset Password'}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
+    </Modal>
+  )
+}
+
 // ===== Main Component =====
 export default function UserManagement() {
   const { user: currentUser } = useAuth()
@@ -409,6 +545,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
 
   // Page title
   useEffect(() => {
@@ -529,6 +666,15 @@ export default function UserManagement() {
                 </button>
                 {u.id !== currentUser?.id && (
                   <button
+                    onClick={() => setResetPasswordUser(u)}
+                    className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-3 py-1.5 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                    title="Reset password"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  </button>
+                )}
+                {u.id !== currentUser?.id && (
+                  <button
                     onClick={() => setConfirmDeleteId(u.id)}
                     className="bg-nvr-danger/10 hover:bg-nvr-danger/20 text-nvr-danger font-medium px-3 py-1.5 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                   >
@@ -572,10 +718,17 @@ export default function UserManagement() {
         )}
       </Modal>
 
-      {/* Change Password Modal */}
+      {/* Change Password Modal (self) */}
       <ChangePasswordModal
         open={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
+      />
+
+      {/* Admin Reset Password Modal (other users) */}
+      <AdminResetPasswordModal
+        open={resetPasswordUser !== null}
+        user={resetPasswordUser}
+        onClose={() => setResetPasswordUser(null)}
       />
 
       {/* Delete Confirmation */}

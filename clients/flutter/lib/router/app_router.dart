@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
+import '../providers/user_preferences_provider.dart';
 import '../widgets/shell/navigation_shell.dart';
 import '../screens/login_screen.dart';
 import '../screens/server_setup_screen.dart';
@@ -36,9 +37,10 @@ void _navigateToIndex(BuildContext context, int index) {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final defaultView = ref.read(userPreferencesProvider).defaultView;
 
   return GoRouter(
-    initialLocation: '/live',
+    initialLocation: defaultView,
     redirect: (context, state) {
       final status = authState.status;
       final path = state.uri.path;

@@ -9,6 +9,7 @@ import '../../theme/nvr_typography.dart';
 import 'audit_panel.dart';
 import 'backup_panel.dart';
 import 'performance_panel.dart';
+import 'preferences_panel.dart';
 import 'storage_panel.dart';
 import 'user_management_screen.dart';
 
@@ -26,21 +27,23 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _selectedSection = 0;
 
-  static const _sections = ['System', 'Storage', 'Performance', 'Users', 'Backups', 'Audit Log'];
+  static const _sections = ['System', 'Preferences', 'Storage', 'Performance', 'Users', 'Backups', 'Audit Log'];
 
   Widget _buildContent() {
     switch (_selectedSection) {
       case 0:
         return const _SystemPanel();
       case 1:
-        return const StoragePanel();
+        return const PreferencesPanel();
       case 2:
-        return const PerformancePanel();
+        return const StoragePanel();
       case 3:
-        return const UserManagementScreen();
+        return const PerformancePanel();
       case 4:
-        return const BackupPanel();
+        return const UserManagementScreen();
       case 5:
+        return const BackupPanel();
+      case 6:
         return const AuditPanel();
       default:
         return const SizedBox.shrink();

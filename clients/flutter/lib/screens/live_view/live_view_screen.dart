@@ -8,6 +8,7 @@ import '../../providers/cameras_provider.dart';
 import '../../providers/grid_layout_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_tile.dart';
 
@@ -19,15 +20,20 @@ class LiveViewScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
-  static const _gridOptions = <int, String>{
-    1: '1×1',
-    2: '2×2',
-    3: '3×3',
-    4: '4×4',
-  };
-
   void _openFullscreen(Camera camera) {
     context.push('/live/fullscreen', extra: camera);
+  }
+
+  /// Grid options available per device type.
+  Map<int, String> _gridOptionsForDevice(DeviceType device) {
+    switch (device) {
+      case DeviceType.phone:
+        return const {1: '1\u00D71', 2: '2\u00D72'};
+      case DeviceType.tablet:
+        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73'};
+      case DeviceType.desktop:
+        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73', 4: '4\u00D74'};
+    }
   }
 
   @override
@@ -36,14 +42,26 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final gridLayout = ref.watch(gridLayoutProvider);
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
+    final device = Responsive.of(context);
+    final isPhone = device == DeviceType.phone;
+
+    final gridOptions = _gridOptionsForDevice(device);
+
+    // Clamp current grid size to valid options for this breakpoint.
+    final effectiveGridSize = gridOptions.containsKey(gridLayout.gridSize)
+        ? gridLayout.gridSize
+        : gridOptions.keys.last;
 
     return Scaffold(
       backgroundColor: NvrColors.bgPrimary,
       body: Column(
         children: [
-          // ── Top bar ───────────────────────────────────────────────────────
+          // -- Top bar --
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: isPhone ? 12 : 16,
+              vertical: isPhone ? 8 : 12,
+            ),
             decoration: const BoxDecoration(
               color: NvrColors.bgPrimary,
               border: Border(
@@ -54,33 +72,34 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
               children: [
                 // Page title
                 const Text('Live View', style: NvrTypography.pageTitle),
-                const SizedBox(width: 12),
-
-                // Group badge pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: NvrColors.accentWith(0.07),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: const Text(
-                    'ALL CAMERAS',
-                    style: TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1.5,
-                      color: NvrColors.accent,
+                if (!isPhone) ...[
+                  const SizedBox(width: 12),
+                  // Group badge pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: NvrColors.accentWith(0.07),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const Text(
+                      'ALL CAMERAS',
+                      style: TextStyle(
+                        fontFamily: 'JetBrainsMono',
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 1.5,
+                        color: NvrColors.accent,
+                      ),
                     ),
                   ),
-                ),
+                ],
 
                 const Spacer(),
 
-                // Grid size control — wired to gridLayoutProvider
+                // Grid size control
                 HudSegmentedControl<int>(
-                  segments: _gridOptions,
-                  selected: gridLayout.gridSize,
+                  segments: gridOptions,
+                  selected: effectiveGridSize,
                   onChanged: (value) =>
                       ref.read(gridLayoutProvider.notifier).setGridSize(value),
                 ),
@@ -88,7 +107,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             ),
           ),
 
-          // ── Body ─────────────────────────────────────────────────────────
+          // -- Body --
           Expanded(
             child: camerasAsync.when(
               loading: () => const Center(
@@ -124,14 +143,14 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
               ),
               data: (cameras) {
                 return GridView.builder(
-                  padding: const EdgeInsets.all(10),
+                  padding: EdgeInsets.all(isPhone ? 6 : 10),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: gridLayout.gridSize,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                    crossAxisCount: effectiveGridSize,
+                    crossAxisSpacing: isPhone ? 4 : 8,
+                    mainAxisSpacing: isPhone ? 4 : 8,
                     childAspectRatio: 16 / 9,
                   ),
-                  itemCount: gridLayout.totalSlots,
+                  itemCount: effectiveGridSize * effectiveGridSize,
                   itemBuilder: (context, index) {
                     final cameraId = gridLayout.slots[index];
 
@@ -140,7 +159,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                       final camera = cameras.where((c) => c.id == cameraId).firstOrNull;
 
                       if (camera != null) {
-                        // Occupied slot — wrap in DragTarget to allow swapping.
+                        // Occupied slot -- wrap in DragTarget to allow swapping.
                         return DragTarget<String>(
                           onWillAcceptWithDetails: (details) =>
                               details.data != cameraId,
@@ -178,7 +197,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                       }
                     }
 
-                    // Empty slot — DragTarget for assignment.
+                    // Empty slot -- DragTarget for assignment.
                     return DragTarget<String>(
                       onWillAcceptWithDetails: (details) => true,
                       onAcceptWithDetails: (details) {

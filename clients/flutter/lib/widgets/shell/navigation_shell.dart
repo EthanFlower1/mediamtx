@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/nvr_colors.dart';
 import '../../providers/camera_panel_provider.dart';
+import '../../utils/responsive.dart';
 import '../alerts_panel.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
@@ -27,10 +28,11 @@ class NavigationShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.of(context).size.width;
+    final device = Responsive.deviceType(width);
     final panelState = ref.watch(cameraPanelProvider);
 
-    // Mobile: < 600px
-    if (width < 600) {
+    // ── Phone: bottom navigation bar ────────────────────────────────────
+    if (device == DeviceType.phone) {
       // Map mobile 6-item nav to router indices
       // Mobile: 0=Live, 1=Playback, 2=Search, 3=Screenshots(index 3), 4=Schedules(index 6), 5=Settings(index 5)
       final int mobileIndex;
@@ -62,19 +64,26 @@ class NavigationShell extends ConsumerWidget {
       );
     }
 
-    // Desktop/Tablet: >= 600px
-    final usePushPanel = width >= 1024;
+    // ── Tablet: compact icon rail, overlay camera panel ─────────────────
+    // ── Desktop: expanded nav rail with labels, push camera panel ───────
+
+    final isDesktop = device == DeviceType.desktop;
+
+    // Desktop pushes panel into layout; tablet overlays it.
+    final usePushPanel = isDesktop;
 
     final alertsOpen = ref.watch(alertsPanelOpenProvider);
 
     return Scaffold(
       body: Row(
         children: [
+          // Navigation rail — expanded with labels on desktop, compact on tablet
           IconRail(
             selectedIndex: selectedIndex,
             onDestinationSelected: onDestinationSelected,
             onAlertsTap: () => _onAlertsTap(context, ref),
             onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
+            expanded: isDesktop,
           ),
           Container(width: 1, color: NvrColors.border),
           // Camera panel (push or overlay based on breakpoint)
@@ -87,7 +96,7 @@ class NavigationShell extends ConsumerWidget {
             child: Stack(
               children: [
                 child,
-                // Overlay panel for tablet portrait (600-1024)
+                // Overlay panel for tablet (600-1200)
                 if (!usePushPanel && panelState.isOpen) ...[
                   // Scrim
                   GestureDetector(

@@ -74,6 +74,7 @@ type NVR struct {
 
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
+	tlsManager      *crypto.TLSManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -196,6 +197,19 @@ func (n *NVR) Initialize() error {
 		n.database.Close()
 		return fmt.Errorf("load or generate keys: %w", err)
 	}
+
+	// Initialize TLS certificate manager.
+	certDir := filepath.Join(filepath.Dir(n.DatabasePath), "tls")
+	n.tlsManager = crypto.NewTLSManager(certDir)
+	generated, err := n.tlsManager.EnsureCertificate()
+	if err != nil {
+		log.Printf("[NVR] [WARN] TLS certificate auto-generation failed: %v", err)
+	} else if generated {
+		log.Printf("[NVR] [INFO] auto-generated self-signed TLS certificate in %s", certDir)
+	}
+
+	// Start background certificate expiry monitor.
+	go n.runCertExpiryMonitor()
 
 	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
 	n.aiPipelines = make(map[string]*ai.Pipeline)
@@ -890,6 +904,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+		TLSManager:      n.tlsManager,
 	})
 }
 
@@ -1165,4 +1180,65 @@ func (n *NVR) loadOrGenerateKeys() error {
 	}
 
 	return nil
+}
+
+// runCertExpiryMonitor checks TLS certificate expiry every 12 hours and
+// publishes warning events via the notification system when nearing expiry.
+func (n *NVR) runCertExpiryMonitor() {
+	if n.tlsManager == nil {
+		return
+	}
+
+	ticker := time.NewTicker(12 * time.Hour)
+	defer ticker.Stop()
+
+	check := func() {
+		if !n.tlsManager.HasCertificate() {
+			return
+		}
+		level, daysLeft, err := n.tlsManager.CheckExpiry()
+		if err != nil {
+			log.Printf("[NVR] [WARN] [tls] failed to check certificate expiry: %v", err)
+			return
+		}
+
+		switch level {
+		case "expired":
+			log.Printf("[NVR] [ERROR] [tls] TLS certificate has expired")
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expired",
+					Message: "TLS certificate has expired",
+				})
+			}
+		case "critical":
+			log.Printf("[NVR] [WARN] [tls] TLS certificate expires in %d days", daysLeft)
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expiring",
+					Message: fmt.Sprintf("TLS certificate expires in %d days", daysLeft),
+				})
+			}
+		case "warning":
+			log.Printf("[NVR] [INFO] [tls] TLS certificate expires in %d days", daysLeft)
+			if n.events != nil {
+				n.events.Publish(api.Event{
+					Type:    "tls_cert_expiring",
+					Message: fmt.Sprintf("TLS certificate expires in %d days", daysLeft),
+				})
+			}
+		}
+	}
+
+	// Check once at startup.
+	check()
+
+	for {
+		select {
+		case <-n.ctx.Done():
+			return
+		case <-ticker.C:
+			check()
+		}
+	}
 }

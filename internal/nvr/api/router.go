@@ -13,6 +13,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
+	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -53,6 +54,7 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -490,6 +492,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// TLS certificate management.
+	if cfg.TLSManager != nil {
+		tlsHandler := &TLSHandler{Manager: cfg.TLSManager}
+		protected.GET("/system/tls/status", tlsHandler.Status)
+		protected.POST("/system/tls/upload", tlsHandler.Upload)
+		protected.POST("/system/tls/generate", tlsHandler.Generate)
+	}
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

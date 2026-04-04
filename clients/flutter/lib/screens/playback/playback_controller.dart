@@ -278,10 +278,30 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _speedAutoMuted = false;
+
+  bool _isSpeedAudible(double speed) => speed >= 0.5 && speed <= 2.0;
+
   void setSpeed(double s) {
     _speed = s;
     for (final p in _players.values) {
       p.setPlaybackSpeed(s);
+    }
+    // Auto-mute when speed is outside audible range, restore when back.
+    if (!_isSpeedAudible(s) && !_speedAutoMuted) {
+      _speedAutoMuted = true;
+      for (final entry in _players.entries) {
+        if (!_mutedCameras.contains(entry.key)) {
+          entry.value.setVolume(0.0);
+        }
+      }
+    } else if (_isSpeedAudible(s) && _speedAutoMuted) {
+      _speedAutoMuted = false;
+      for (final entry in _players.entries) {
+        if (!_mutedCameras.contains(entry.key)) {
+          entry.value.setVolume(1.0);
+        }
+      }
     }
     notifyListeners();
   }

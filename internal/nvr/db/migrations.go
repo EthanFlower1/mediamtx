@@ -548,4 +548,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
 		`,
 	},
+	// Migration 38: Add notes column to bookmarks (KAI-35).
+	{
+		version: 38,
+		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
+	},
 }

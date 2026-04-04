@@ -414,6 +414,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 
 	// Bookmarks.
 	protected.GET("/bookmarks", bookmarkHandler.List)
+	protected.GET("/bookmarks/search", bookmarkHandler.Search)
+	protected.GET("/bookmarks/mine", bookmarkHandler.Mine)
+	protected.GET("/bookmarks/:id", bookmarkHandler.Get)
 	protected.POST("/bookmarks", bookmarkHandler.Create)
 	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
 	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)

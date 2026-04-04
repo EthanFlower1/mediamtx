@@ -527,7 +527,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-<<<<<<< HEAD
 	// Migration 37: Export jobs queue (KAI-33).
 	{
 		version: 37,
@@ -549,10 +548,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
 		`,
 	},
-=======
-	// Migration 37: Evidence export tracking (KAI-38).
+	// Migration 38: Evidence export tracking (KAI-38).
 	{
-		version: 37,
+		version: 38,
 		sql: `
 		CREATE TABLE evidence_exports (
 			id TEXT PRIMARY KEY,
@@ -571,10 +569,58 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
 		`,
 	},
-	// Migration 38: Add notes column to bookmarks (KAI-35).
+	// Migration 39: Add notes column to bookmarks (KAI-35).
 	{
-		version: 38,
+		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
->>>>>>> origin/main
+	// Migration 40: System alerts and SMTP configuration (KAI-83).
+	{
+		version: 40,
+		sql: `
+		CREATE TABLE smtp_config (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			host TEXT NOT NULL DEFAULT '',
+			port INTEGER NOT NULL DEFAULT 587,
+			username TEXT NOT NULL DEFAULT '',
+			password TEXT NOT NULL DEFAULT '',
+			from_address TEXT NOT NULL DEFAULT '',
+			tls_enabled INTEGER NOT NULL DEFAULT 1,
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+		INSERT INTO smtp_config (id) VALUES (1);
+
+		CREATE TABLE alert_rules (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			rule_type TEXT NOT NULL CHECK(rule_type IN ('disk_usage', 'camera_offline', 'recording_gap')),
+			threshold_value REAL NOT NULL,
+			camera_id TEXT DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			notify_email INTEGER NOT NULL DEFAULT 1,
+			cooldown_minutes INTEGER NOT NULL DEFAULT 60,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE alerts (
+			id TEXT PRIMARY KEY,
+			rule_id TEXT NOT NULL,
+			rule_type TEXT NOT NULL,
+			severity TEXT NOT NULL DEFAULT 'warning',
+			message TEXT NOT NULL,
+			details TEXT DEFAULT '',
+			acknowledged INTEGER NOT NULL DEFAULT 0,
+			acknowledged_by TEXT DEFAULT '',
+			acknowledged_at TEXT DEFAULT '',
+			email_sent INTEGER NOT NULL DEFAULT 0,
+			email_error TEXT DEFAULT '',
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_alerts_rule ON alerts(rule_id);
+		CREATE INDEX idx_alerts_created ON alerts(created_at);
+		CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
+		`,
+	},
 }

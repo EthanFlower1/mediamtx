@@ -600,7 +600,9 @@ func (n *NVR) Close() {
 		p.Stop()
 		log.Printf("AI: stopped pipeline for camera %s", id)
 	}
-	if n.aiDetector != nil {
+	if n.aiModelManager != nil {
+		n.aiModelManager.Close()
+	} else if n.aiDetector != nil {
 		n.aiDetector.Close()
 	}
 	if n.aiEmbedder != nil {

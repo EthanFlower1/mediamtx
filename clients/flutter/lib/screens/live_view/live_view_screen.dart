@@ -6,9 +6,11 @@ import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/grid_layout_provider.dart';
+import '../../providers/overlay_settings_provider.dart';
 import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_tile.dart';
 
@@ -230,6 +232,10 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 ),
                 const SizedBox(width: 8),
 
+                // AI overlay toggle
+                _AiOverlayToggle(),
+                const SizedBox(width: 12),
+
                 // Grid size control
                 HudSegmentedControl<int>(
                   segments: _gridOptions,
@@ -433,6 +439,33 @@ class _LiveGrid extends StatelessWidget {
 }
 
 // ── Supporting widgets ──────────────────────────────────────────────────────
+
+class _AiOverlayToggle extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visible = ref.watch(
+      overlaySettingsProvider.select((s) => s.overlayVisible),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'AI',
+          style: NvrTypography.monoLabel.copyWith(
+            color: visible ? NvrColors.accent : NvrColors.textMuted,
+          ),
+        ),
+        const SizedBox(width: 6),
+        HudToggle(
+          value: visible,
+          onChanged: (v) =>
+              ref.read(overlaySettingsProvider.notifier).setOverlayVisible(v),
+          showStateLabel: false,
+        ),
+      ],
+    );
+  }
+}
 
 class _LayoutActionButton extends StatelessWidget {
   const _LayoutActionButton({

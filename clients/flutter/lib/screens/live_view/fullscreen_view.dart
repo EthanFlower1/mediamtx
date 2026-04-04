@@ -17,6 +17,7 @@ import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/corner_brackets.dart';
 import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/status_badge.dart';
+import '../../providers/overlay_settings_provider.dart';
 import 'analytics_overlay.dart';
 import 'ptz_controls.dart';
 
@@ -42,14 +43,12 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
   bool _controlsVisible = true;
   Timer? _hideControlsTimer;
-  bool _aiEnabled = false;
   bool _muted = true;
   bool _capturing = false;
 
   @override
   void initState() {
     super.initState();
-    _aiEnabled = widget.camera.aiEnabled;
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _initConnection();
     _scheduleHideControls();
@@ -181,6 +180,8 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   Widget build(BuildContext context) {
     final camera = widget.camera;
     final apiClient = ref.watch(apiClientProvider);
+    final overlaySettings = ref.watch(overlaySettingsProvider);
+    final aiEnabled = camera.aiEnabled && overlaySettings.overlayVisible;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -196,7 +197,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
               _buildVideoLayer(),
 
               // ── Analytics overlay ─────────────────────────────────────────
-              if (_aiEnabled)
+              if (aiEnabled)
                 AnalyticsOverlay(
                   cameraName: camera.name,
                   cameraId: camera.id,
@@ -322,8 +323,10 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
             // AI toggle pill
             _AiTogglePill(
-              enabled: _aiEnabled,
-              onChanged: (v) => setState(() => _aiEnabled = v),
+              enabled: ref.watch(overlaySettingsProvider).overlayVisible,
+              onChanged: (v) => ref
+                  .read(overlaySettingsProvider.notifier)
+                  .setOverlayVisible(v),
             ),
             const SizedBox(width: 8),
 

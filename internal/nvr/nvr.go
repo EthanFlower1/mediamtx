@@ -807,13 +807,14 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 	streamURL = n.embedCredentials(cam, streamURL)
 
 	config := ai.PipelineConfig{
-		CameraID:         cam.ID,
-		CameraName:       cam.Name,
-		StreamURL:        streamURL,
-		StreamWidth:      streamWidth,
-		StreamHeight:     streamHeight,
-		ConfidenceThresh: float32(cam.AIConfidence),
-		TrackTimeout:     cam.AITrackTimeout,
+		CameraID:                 cam.ID,
+		CameraName:               cam.Name,
+		StreamURL:                streamURL,
+		StreamWidth:              streamWidth,
+		StreamHeight:             streamHeight,
+		ConfidenceThresh:         float32(cam.AIConfidence),
+		TrackTimeout:             cam.AITrackTimeout,
+		ConfidenceThresholdsJSON: cam.ConfidenceThresholds,
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)

@@ -43,9 +43,13 @@ func TestOpenRunsMigrations(t *testing.T) {
 		"queued_commands",
 		"export_jobs",
 		"evidence_exports",
+<<<<<<< HEAD
 		"smtp_config",
 		"alert_rules",
 		"alerts",
+=======
+		"export_jobs",
+>>>>>>> origin/main
 	}
 
 	for _, table := range tables {
@@ -58,7 +62,11 @@ func TestOpenRunsMigrations(t *testing.T) {
 	var version int
 	err = d.QueryRow("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&version)
 	require.NoError(t, err)
+<<<<<<< HEAD
 	require.Equal(t, 40, version)
+=======
+	require.Equal(t, 39, version)
+>>>>>>> origin/main
 }
 
 func TestOpenWALMode(t *testing.T) {

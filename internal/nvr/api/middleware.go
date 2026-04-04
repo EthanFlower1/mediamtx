@@ -8,17 +8,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
 // Middleware validates JWT tokens on incoming requests.
 type Middleware struct {
 	PrivateKey *rsa.PrivateKey
+	DB         *db.DB // optional; when set, updates session activity on each request
 }
 
 // Handler returns a gin.HandlerFunc that validates JWT tokens.
 // It extracts the token from the Authorization header ("Bearer ...")
 // or the "token" query parameter (for SSE connections).
-// On success it sets "user_id", "role", and "camera_permissions" on the context.
+// On success it sets "user_id", "role", "camera_permissions", and "session_id" on the context.
 func (m *Middleware) Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := ""
@@ -66,6 +69,16 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 		}
 		if perms, ok := claims["camera_permissions"].(string); ok {
 			c.Set("camera_permissions", perms)
+		}
+		if sessionID, ok := claims["session_id"].(string); ok {
+			c.Set("session_id", sessionID)
+
+			// Update session activity in the background.
+			if m.DB != nil && sessionID != "" {
+				go func(sid, ip string) {
+					_ = m.DB.UpdateSessionActivity(sid, ip)
+				}(sessionID, c.ClientIP())
+			}
 		}
 
 		c.Next()

@@ -13,13 +13,16 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
+	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
+	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -54,12 +57,33 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+<<<<<<< HEAD
 	EmailSender        *alerts.EmailSender // email sender for alerts (may be nil)
+=======
+	BackupService      *backup.Service    // backup and restore service (may be nil)
+	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
+	UpdateManager      *updater.Manager   // system update manager (may be nil)
+	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
+>>>>>>> origin/main
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
 // It returns the ExportHandler so the caller can call Stop() on shutdown.
 func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
+	// Apply security middleware globally.
+	engine.Use(CORSMiddleware(cfg.SecurityConfig))
+	engine.Use(SecurityHeadersMiddleware(cfg.SecurityConfig))
+
+	var rateLimiter *RateLimiter
+	if cfg.SecurityConfig.RateLimitEnabled {
+		rateLimiter = NewRateLimiter(
+			cfg.SecurityConfig.RateLimitPerSecond,
+			cfg.SecurityConfig.RateLimitBurst,
+			cfg.SecurityConfig.RateLimitCleanupSec,
+		)
+		engine.Use(RateLimitMiddleware(rateLimiter))
+	}
+
 	audit := &AuditLogger{DB: cfg.DB}
 
 	authHandler := &AuthHandler{
@@ -183,8 +207,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		JWKSJSON: cfg.JWKSJSON,
 	}
 
+	sessionHandler := &SessionHandler{
+		DB:    cfg.DB,
+		Audit: audit,
+	}
+
 	middleware := &Middleware{
 		PrivateKey: cfg.PrivateKey,
+		DB:         cfg.DB,
 	}
 
 	nvr := engine.Group("/api/nvr")
@@ -476,12 +506,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)
 
+	// Sessions.
+	protected.GET("/sessions", sessionHandler.List)
+	protected.DELETE("/sessions/:id", sessionHandler.Revoke)
+	protected.GET("/sessions/timeout", sessionHandler.GetTimeout)
+	protected.PUT("/sessions/timeout", sessionHandler.SetTimeout)
+
 	// Users.
 	protected.GET("/users", userHandler.List)
 	protected.POST("/users", userHandler.Create)
 	protected.GET("/users/:id", userHandler.Get)
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
+	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
 
 	// System.
 	protected.GET("/system/info", systemHandler.Info)
@@ -489,10 +526,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/metrics", systemHandler.Metrics)
 	protected.GET("/system/disk-io", systemHandler.DiskIO)
 	protected.PUT("/system/disk-io/thresholds", systemHandler.UpdateDiskIOThresholds)
+	protected.GET("/system/db/health", systemHandler.DBHealth)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
 
+<<<<<<< HEAD
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}
 	protected.GET("/system/smtp/config", alertHandler.GetSMTPConfig)
@@ -504,6 +543,60 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/alert-rules/:id", alertHandler.DeleteAlertRule)
 	protected.GET("/alerts", alertHandler.ListAlerts)
 	protected.POST("/alerts/:id/acknowledge", alertHandler.AcknowledgeAlert)
+=======
+	// Backups.
+	if cfg.BackupService != nil {
+		backupHandler := &BackupHandler{Service: cfg.BackupService}
+		protected.POST("/system/backups", backupHandler.Create)
+		protected.GET("/system/backups", backupHandler.List)
+		protected.GET("/system/backups/:filename/download", backupHandler.Download)
+		protected.DELETE("/system/backups/:filename", backupHandler.Delete)
+		protected.POST("/system/backups/validate", backupHandler.Validate)
+		protected.POST("/system/backups/restore", backupHandler.Restore)
+		protected.PUT("/system/backups/schedule", backupHandler.Schedule)
+		protected.GET("/system/backups/schedule", backupHandler.GetSchedule)
+	}
+
+	// Security configuration (read-only view of active security settings).
+	securityCfg := cfg.SecurityConfig
+	protected.GET("/system/security/config", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"cors": gin.H{
+				"allowedOrigins": securityCfg.CORSAllowedOrigins,
+				"allowedMethods": securityCfg.CORSAllowedMethods,
+				"allowedHeaders": securityCfg.CORSAllowedHeaders,
+				"maxAge":         securityCfg.CORSMaxAge,
+			},
+			"csp": gin.H{
+				"contentSecurityPolicy": securityCfg.ContentSecurityPolicy,
+				"frameOptions":          securityCfg.FrameOptions,
+			},
+			"rateLimit": gin.H{
+				"enabled":    securityCfg.RateLimitEnabled,
+				"perSecond":  securityCfg.RateLimitPerSecond,
+				"burst":      securityCfg.RateLimitBurst,
+				"cleanupSec": securityCfg.RateLimitCleanupSec,
+			},
+		})
+	})
+
+	// System updates.
+	if cfg.UpdateManager != nil {
+		updateHandler := &UpdateHandler{DB: cfg.DB, Manager: cfg.UpdateManager}
+		protected.GET("/system/updates/check", updateHandler.Check)
+		protected.POST("/system/updates/apply", updateHandler.Apply)
+		protected.POST("/system/updates/rollback", updateHandler.Rollback)
+		protected.GET("/system/updates/history", updateHandler.History)
+	}
+
+	// TLS certificate management.
+	if cfg.TLSManager != nil {
+		tlsHandler := &TLSHandler{Manager: cfg.TLSManager}
+		protected.GET("/system/tls/status", tlsHandler.Status)
+		protected.POST("/system/tls/upload", tlsHandler.Upload)
+		protected.POST("/system/tls/generate", tlsHandler.Generate)
+	}
+>>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
@@ -548,6 +641,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
+	protected.GET("/audit/export", auditHandler.Export)
+	protected.GET("/audit/retention", auditHandler.GetRetention)
+	protected.PUT("/audit/retention", auditHandler.UpdateRetention)
 
 	// Camera Groups.
 	groupHandler := &GroupHandler{DB: cfg.DB, Audit: audit}

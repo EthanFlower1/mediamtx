@@ -527,7 +527,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-<<<<<<< HEAD
 	// Migration 37: Export jobs queue (KAI-33).
 	{
 		version: 37,
@@ -549,10 +548,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
 		`,
 	},
-=======
-	// Migration 37: Evidence export tracking (KAI-38).
+	// Migration 38: Evidence export tracking (KAI-38).
 	{
-		version: 37,
+		version: 38,
 		sql: `
 		CREATE TABLE evidence_exports (
 			id TEXT PRIMARY KEY,
@@ -571,10 +569,37 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_evidence_exports_time ON evidence_exports(exported_at);
 		`,
 	},
-	// Migration 38: Add notes column to bookmarks (KAI-35).
+	// Migration 39: Add notes column to bookmarks (KAI-35).
 	{
-		version: 38,
+		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
->>>>>>> origin/main
+	// Migration 40: Bulk export jobs and items (KAI-33).
+	{
+		version: 40,
+		sql: `
+		CREATE TABLE IF NOT EXISTS bulk_export_jobs (
+			id TEXT PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'pending',
+			zip_path TEXT,
+			error TEXT,
+			created_at TEXT NOT NULL,
+			completed_at TEXT
+		);
+		CREATE TABLE IF NOT EXISTS bulk_export_items (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
+		`,
+	},
 }

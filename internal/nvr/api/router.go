@@ -12,6 +12,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
@@ -53,6 +54,7 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+	BackupService      *backup.Service    // backup and restore service (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -490,6 +492,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+
+	// Backups.
+	if cfg.BackupService != nil {
+		backupHandler := &BackupHandler{Service: cfg.BackupService}
+		protected.POST("/system/backups", backupHandler.Create)
+		protected.GET("/system/backups", backupHandler.List)
+		protected.GET("/system/backups/:filename/download", backupHandler.Download)
+		protected.DELETE("/system/backups/:filename", backupHandler.Delete)
+		protected.POST("/system/backups/validate", backupHandler.Validate)
+		protected.POST("/system/backups/restore", backupHandler.Restore)
+		protected.PUT("/system/backups/schedule", backupHandler.Schedule)
+		protected.GET("/system/backups/schedule", backupHandler.GetSchedule)
+	}
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

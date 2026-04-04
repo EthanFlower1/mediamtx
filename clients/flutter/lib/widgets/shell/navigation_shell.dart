@@ -5,6 +5,7 @@ import '../../providers/camera_panel_provider.dart';
 import '../../providers/notifications_provider.dart';
 import '../../utils/responsive.dart';
 import '../alerts_panel.dart';
+import '../connection_status_banner.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
 import 'camera_panel.dart';
@@ -73,10 +74,18 @@ class NavigationShell extends ConsumerWidget {
             ),
           ],
         ),
-        body: Stack(
+        body: Column(
           children: [
-            child,
-            const TourActivePill(),
+            const ConnectionStatusBanner(),
+            const ReconnectedBanner(),
+            Expanded(
+              child: Stack(
+                children: [
+                  child,
+                  const TourActivePill(),
+                ],
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: MobileBottomNav(
@@ -106,47 +115,55 @@ class NavigationShell extends ConsumerWidget {
     final alertsOpen = ref.watch(alertsPanelOpenProvider);
 
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          // Navigation rail — expanded with labels on desktop, compact on tablet
-          IconRail(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            onAlertsTap: () => _onAlertsTap(context, ref),
-            onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
-            expanded: isDesktop,
-          ),
-          Container(width: 1, color: NvrColors.border),
-          // Camera panel (push or overlay based on breakpoint)
-          if (usePushPanel && panelState.isOpen) ...[
-            const CameraPanel(),
-            Container(width: 1, color: NvrColors.border),
-          ],
-          // Main content
+          const ConnectionStatusBanner(),
+          const ReconnectedBanner(),
           Expanded(
-            child: Stack(
+            child: Row(
               children: [
-                child,
-                // Overlay panel for tablet (600-1200)
-                if (!usePushPanel && panelState.isOpen) ...[
-                  // Scrim
-                  GestureDetector(
-                    onTap: () => ref.read(cameraPanelProvider.notifier).close(),
-                    child: Container(color: Colors.black54),
-                  ),
-                  // Panel
-                  const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
+                // Navigation rail — expanded with labels on desktop, compact on tablet
+                IconRail(
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: onDestinationSelected,
+                  onAlertsTap: () => _onAlertsTap(context, ref),
+                  onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
+                  expanded: isDesktop,
+                ),
+                Container(width: 1, color: NvrColors.border),
+                // Camera panel (push or overlay based on breakpoint)
+                if (usePushPanel && panelState.isOpen) ...[
+                  const CameraPanel(),
+                  Container(width: 1, color: NvrColors.border),
                 ],
-                // Alerts scrim (desktop overlay)
-                if (alertsOpen)
-                  GestureDetector(
-                    onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
-                    child: Container(color: Colors.black45),
+                // Main content
+                Expanded(
+                  child: Stack(
+                    children: [
+                      child,
+                      // Overlay panel for tablet portrait (600-1024)
+                      if (!usePushPanel && panelState.isOpen) ...[
+                        // Scrim
+                        GestureDetector(
+                          onTap: () => ref.read(cameraPanelProvider.notifier).close(),
+                          child: Container(color: Colors.black54),
+                        ),
+                        // Panel
+                        const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
+                      ],
+                      // Alerts scrim (desktop overlay)
+                      if (alertsOpen)
+                        GestureDetector(
+                          onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
+                          child: Container(color: Colors.black45),
+                        ),
+                      // Alerts panel overlay (desktop)
+                      const AlertsPanelOverlay(),
+                      // Tour active pill (all screens)
+                      const TourActivePill(),
+                    ],
                   ),
-                // Alerts panel overlay (desktop)
-                const AlertsPanelOverlay(),
-                // Tour active pill (all screens)
-                const TourActivePill(),
+                ),
               ],
             ),
           ),

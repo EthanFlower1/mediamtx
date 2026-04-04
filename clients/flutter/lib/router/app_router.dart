@@ -7,6 +7,7 @@ import '../widgets/shell/navigation_shell.dart';
 import '../screens/login_screen.dart';
 import '../screens/server_setup_screen.dart';
 import '../screens/setup_screen.dart';
+import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/live_view/live_view_screen.dart';
 import '../screens/live_view/fullscreen_view.dart';
 import '../screens/playback/playback_screen.dart';
@@ -20,18 +21,19 @@ import '../screens/screenshots/screenshots_screen.dart';
 import '../models/camera.dart';
 
 int _indexFromPath(String path) {
-  if (path.startsWith('/live')) return 0;
-  if (path.startsWith('/playback')) return 1;
-  if (path.startsWith('/search')) return 2;
-  if (path.startsWith('/screenshots')) return 3;
-  if (path.startsWith('/devices')) return 4;
-  if (path.startsWith('/settings')) return 5;
-  if (path.startsWith('/schedules')) return 6;
+  if (path.startsWith('/dashboard')) return 0;
+  if (path.startsWith('/live')) return 1;
+  if (path.startsWith('/playback')) return 2;
+  if (path.startsWith('/search')) return 3;
+  if (path.startsWith('/screenshots')) return 4;
+  if (path.startsWith('/devices')) return 5;
+  if (path.startsWith('/settings')) return 6;
+  if (path.startsWith('/schedules')) return 7;
   return 0;
 }
 
 void _navigateToIndex(BuildContext context, int index) {
-  const paths = ['/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules'];
+  const paths = ['/dashboard', '/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules'];
   context.go(paths[index]);
 }
 
@@ -48,7 +50,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (status == AuthStatus.serverNeeded && path != '/server-setup') return '/server-setup';
       if (status == AuthStatus.unauthenticated && !isAuthRoute) return '/login';
-      if (status == AuthStatus.authenticated && isAuthRoute) return '/live';
+      if (status == AuthStatus.authenticated && isAuthRoute) return '/dashboard';
       return null;
     },
     routes: [
@@ -65,6 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
         routes: [
+          GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
           GoRoute(path: '/live', builder: (_, __) => const LiveViewScreen(), routes: [
             GoRoute(path: 'fullscreen', builder: (_, state) =>
               FullscreenView(camera: state.extra as Camera)),

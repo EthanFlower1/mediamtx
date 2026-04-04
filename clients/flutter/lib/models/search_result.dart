@@ -28,12 +28,26 @@ class SearchResult {
       cameraId: json['camera_id']?.toString() ?? '',
       cameraName: json['camera_name']?.toString() ?? '',
       className: json['class']?.toString() ?? '',
-      confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
-      similarity: (json['similarity'] as num?)?.toDouble() ?? 0.0,
+      confidence: _toDouble(json['confidence']),
+      similarity: _toDouble(json['similarity']),
       frameTime: json['frame_time']?.toString() ?? '',
       thumbnailPath: json['thumbnail_path']?.toString(),
     );
   }
 
-  DateTime get time => DateTime.parse(frameTime);
+  /// Safely converts a JSON value (int, double, String, or null) to double.
+  static double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  /// Parses [frameTime] into a [DateTime], returning epoch zero on failure.
+  DateTime get time {
+    if (frameTime.isEmpty) return DateTime.fromMillisecondsSinceEpoch(0);
+    return DateTime.tryParse(frameTime) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
 }

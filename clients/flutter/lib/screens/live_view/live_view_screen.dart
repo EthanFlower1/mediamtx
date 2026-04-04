@@ -6,9 +6,12 @@ import '../../models/camera.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/grid_layout_provider.dart';
+import '../../providers/overlay_settings_provider.dart';
+import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../utils/responsive.dart';
+import '../../widgets/hud/hud_toggle.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_tile.dart';
 
@@ -36,10 +39,130 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     }
   }
 
+  // ── Layout save/load ──────────────────────────────────────────────────────
+
+  void _showLayoutMenu() {
+    final layoutState = ref.read(gridLayoutProvider);
+    final savedLayouts = layoutState.savedLayouts;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: NvrColors.bgSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('Saved Layouts', style: NvrTypography.pageTitle),
+                  const Spacer(),
+                  _LayoutActionButton(
+                    icon: Icons.add,
+                    label: 'Save Current',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _showSaveLayoutDialog();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (savedLayouts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No saved layouts yet',
+                      style: NvrTypography.monoLabel.copyWith(
+                        color: NvrColors.textMuted,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...savedLayouts.map((layout) {
+                  final isActive = layoutState.active.name == layout.name &&
+                      layout.name.isNotEmpty;
+                  return _SavedLayoutTile(
+                    layout: layout,
+                    isActive: isActive,
+                    onLoad: () {
+                      ref.read(gridLayoutProvider.notifier).loadLayout(layout.name);
+                      Navigator.pop(ctx);
+                    },
+                    onDelete: () {
+                      ref.read(gridLayoutProvider.notifier).deleteLayout(layout.name);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSaveLayoutDialog() {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: NvrColors.bgSecondary,
+          title: const Text('Save Layout', style: NvrTypography.pageTitle),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: NvrColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Layout name',
+              hintStyle: const TextStyle(color: NvrColors.textMuted),
+              enabledBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: NvrColors.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: const BorderSide(color: NvrColors.accent),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: NvrColors.textMuted)),
+            ),
+            TextButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  ref.read(gridLayoutProvider.notifier).saveLayout(name);
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('Save',
+                  style: TextStyle(color: NvrColors.accent)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final camerasAsync = ref.watch(camerasProvider);
-    final gridLayout = ref.watch(gridLayoutProvider);
+    final layoutState = ref.watch(gridLayoutProvider);
+    final gridLayout = layoutState.active;
     final auth = ref.watch(authProvider);
     final serverUrl = auth.serverUrl ?? '';
     final device = Responsive.of(context);
@@ -74,16 +197,18 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 const Text('Live View', style: NvrTypography.pageTitle),
                 if (!isPhone) ...[
                   const SizedBox(width: 12),
-                  // Group badge pill
+                  // Active layout name pill (or ALL CAMERAS)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: NvrColors.accentWith(0.07),
                       borderRadius: BorderRadius.circular(99),
                     ),
-                    child: const Text(
-                      'ALL CAMERAS',
-                      style: TextStyle(
+                    child: Text(
+                      gridLayout.name.isNotEmpty
+                          ? gridLayout.name.toUpperCase()
+                          : 'ALL CAMERAS',
+                      style: const TextStyle(
                         fontFamily: 'JetBrainsMono',
                         fontSize: 9,
                         fontWeight: FontWeight.w500,
@@ -95,6 +220,40 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 ],
 
                 const Spacer(),
+
+                // Layouts button
+                GestureDetector(
+                  onTap: _showLayoutMenu,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: NvrColors.bgPrimary,
+                      border: Border.all(color: NvrColors.border),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bookmark_border,
+                            color: NvrColors.textMuted, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Layouts',
+                          style: NvrTypography.monoLabel.copyWith(
+                            fontSize: 9,
+                            color: NvrColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // AI overlay toggle
+                _AiOverlayToggle(),
+                const SizedBox(width: 12),
 
                 // Grid size control
                 HudSegmentedControl<int>(
@@ -142,112 +301,309 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 ),
               ),
               data: (cameras) {
-                return GridView.builder(
-                  padding: EdgeInsets.all(isPhone ? 6 : 10),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: effectiveGridSize,
-                    crossAxisSpacing: isPhone ? 4 : 8,
-                    mainAxisSpacing: isPhone ? 4 : 8,
-                    childAspectRatio: 16 / 9,
-                  ),
-                  itemCount: effectiveGridSize * effectiveGridSize,
-                  itemBuilder: (context, index) {
-                    final cameraId = gridLayout.slots[index];
-
-                    if (cameraId != null) {
-                      // Find the Camera object for this slot's ID.
-                      final camera = cameras.where((c) => c.id == cameraId).firstOrNull;
-
-                      if (camera != null) {
-                        // Occupied slot -- wrap in DragTarget to allow swapping.
-                        return DragTarget<String>(
-                          onWillAcceptWithDetails: (details) =>
-                              details.data != cameraId,
-                          onAcceptWithDetails: (details) {
-                            // Find the source slot index for the dragged camera.
-                            final sourceIndex = gridLayout.slots.entries
-                                .where((e) => e.value == details.data)
-                                .map((e) => e.key)
-                                .firstOrNull;
-
-                            if (sourceIndex != null) {
-                              ref
-                                  .read(gridLayoutProvider.notifier)
-                                  .swapSlots(sourceIndex, index);
-                            } else {
-                              // Camera came from the panel (no existing slot).
-                              ref
-                                  .read(gridLayoutProvider.notifier)
-                                  .assignCamera(index, details.data);
-                            }
-                          },
-                          builder: (context, candidateData, rejectedData) {
-                            final isHovering = candidateData.isNotEmpty;
-                            return AnimatedOpacity(
-                              opacity: isHovering ? 0.7 : 1.0,
-                              duration: const Duration(milliseconds: 150),
-                              child: CameraTile(
-                                camera: camera,
-                                serverUrl: serverUrl,
-                                onTap: () => _openFullscreen(camera),
-                              ),
-                            );
-                          },
-                        );
-                      }
-                    }
-
-                    // Empty slot -- DragTarget for assignment.
-                    return DragTarget<String>(
-                      onWillAcceptWithDetails: (details) => true,
-                      onAcceptWithDetails: (details) {
-                        ref
-                            .read(gridLayoutProvider.notifier)
-                            .assignCamera(index, details.data);
-                      },
-                      builder: (context, candidateData, rejectedData) {
-                        final isHovering = candidateData.isNotEmpty;
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: NvrColors.bgPrimary,
-                            border: Border.all(
-                              color: isHovering
-                                  ? NvrColors.accent
-                                  : NvrColors.border,
-                              width: isHovering ? 2 : 1,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.add,
-                                color: isHovering
-                                    ? NvrColors.accent
-                                    : NvrColors.border,
-                                size: 24,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'DROP HERE',
-                                style: NvrTypography.monoLabel.copyWith(
-                                  color: isHovering
-                                      ? NvrColors.accent
-                                      : NvrColors.textMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                return AnimatedSwitcher(
+                  duration: NvrAnimations.panelDuration,
+                  switchInCurve: NvrAnimations.panelCurve,
+                  switchOutCurve: NvrAnimations.panelCurve,
+                  layoutBuilder: (currentChild, previousChildren) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
                     );
                   },
+                  child: _LiveGrid(
+                    key: ValueKey(effectiveGridSize),
+                    gridSize: effectiveGridSize,
+                    totalSlots: effectiveGridSize * effectiveGridSize,
+                    slots: gridLayout.slots,
+                    cameras: cameras,
+                    serverUrl: serverUrl,
+                    isPhone: isPhone,
+                    onDoubleTap: _openFullscreen,
+                    onAssignCamera: (index, cameraId) =>
+                        ref.read(gridLayoutProvider.notifier).assignCamera(index, cameraId),
+                    onSwapSlots: (from, to) =>
+                        ref.read(gridLayoutProvider.notifier).swapSlots(from, to),
+                  ),
                 );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Extracted grid widget so AnimatedSwitcher can key on gridSize changes.
+class _LiveGrid extends StatelessWidget {
+  const _LiveGrid({
+    super.key,
+    required this.gridSize,
+    required this.totalSlots,
+    required this.slots,
+    required this.cameras,
+    required this.serverUrl,
+    required this.onDoubleTap,
+    required this.onAssignCamera,
+    required this.onSwapSlots,
+    this.isPhone = false,
+  });
+
+  final int gridSize;
+  final int totalSlots;
+  final Map<int, String> slots;
+  final List<Camera> cameras;
+  final String serverUrl;
+  final void Function(Camera) onDoubleTap;
+  final void Function(int index, String cameraId) onAssignCamera;
+  final void Function(int from, int to) onSwapSlots;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: EdgeInsets.all(isPhone ? 6 : 10),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: gridSize,
+        crossAxisSpacing: isPhone ? 4 : 8,
+        mainAxisSpacing: isPhone ? 4 : 8,
+        childAspectRatio: 16 / 9,
+      ),
+      itemCount: totalSlots,
+      itemBuilder: (context, index) {
+        final cameraId = slots[index];
+
+        if (cameraId != null) {
+          final camera =
+              cameras.where((c) => c.id == cameraId).firstOrNull;
+
+          if (camera != null) {
+            return DragTarget<String>(
+              onWillAcceptWithDetails: (details) =>
+                  details.data != cameraId,
+              onAcceptWithDetails: (details) {
+                final sourceIndex = slots.entries
+                    .where((e) => e.value == details.data)
+                    .map((e) => e.key)
+                    .firstOrNull;
+
+                if (sourceIndex != null) {
+                  onSwapSlots(sourceIndex, index);
+                } else {
+                  onAssignCamera(index, details.data);
+                }
+              },
+              builder: (context, candidateData, rejectedData) {
+                final isHovering = candidateData.isNotEmpty;
+                return AnimatedOpacity(
+                  opacity: isHovering ? 0.7 : 1.0,
+                  duration: NvrAnimations.microDuration,
+                  child: CameraTile(
+                    camera: camera,
+                    serverUrl: serverUrl,
+                    onDoubleTap: () => onDoubleTap(camera),
+                  ),
+                );
+              },
+            );
+          }
+        }
+
+        // Empty slot
+        return DragTarget<String>(
+          onWillAcceptWithDetails: (details) => true,
+          onAcceptWithDetails: (details) {
+            onAssignCamera(index, details.data);
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isHovering = candidateData.isNotEmpty;
+            return Container(
+              decoration: BoxDecoration(
+                color: NvrColors.bgPrimary,
+                border: Border.all(
+                  color:
+                      isHovering ? NvrColors.accent : NvrColors.border,
+                  width: isHovering ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add,
+                    color: isHovering
+                        ? NvrColors.accent
+                        : NvrColors.border,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'DROP HERE',
+                    style: NvrTypography.monoLabel.copyWith(
+                      color: isHovering
+                          ? NvrColors.accent
+                          : NvrColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ── Supporting widgets ──────────────────────────────────────────────────────
+
+class _AiOverlayToggle extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visible = ref.watch(
+      overlaySettingsProvider.select((s) => s.overlayVisible),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'AI',
+          style: NvrTypography.monoLabel.copyWith(
+            color: visible ? NvrColors.accent : NvrColors.textMuted,
+          ),
+        ),
+        const SizedBox(width: 6),
+        HudToggle(
+          value: visible,
+          onChanged: (v) =>
+              ref.read(overlaySettingsProvider.notifier).setOverlayVisible(v),
+          showStateLabel: false,
+        ),
+      ],
+    );
+  }
+}
+
+class _LayoutActionButton extends StatelessWidget {
+  const _LayoutActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: NvrColors.accentWith(0.1),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: NvrColors.accent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: NvrColors.accent),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: NvrTypography.monoLabel.copyWith(
+                fontSize: 9,
+                color: NvrColors.accent,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedLayoutTile extends StatelessWidget {
+  const _SavedLayoutTile({
+    required this.layout,
+    required this.isActive,
+    required this.onLoad,
+    required this.onDelete,
+  });
+
+  final GridLayout layout;
+  final bool isActive;
+  final VoidCallback onLoad;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: GestureDetector(
+        onTap: onLoad,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive
+                ? NvrColors.accentWith(0.07)
+                : NvrColors.bgPrimary,
+            border: Border.all(
+              color: isActive ? NvrColors.accent : NvrColors.border,
+            ),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isActive ? Icons.bookmark : Icons.bookmark_border,
+                size: 16,
+                color: isActive ? NvrColors.accent : NvrColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      layout.name,
+                      style: TextStyle(
+                        fontFamily: 'IBMPlexSans',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isActive
+                            ? NvrColors.accent
+                            : NvrColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '${layout.gridSize}x${layout.gridSize} grid  /  ${layout.slots.length} cameras',
+                      style: NvrTypography.monoLabel.copyWith(
+                        fontSize: 9,
+                        color: NvrColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: onDelete,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close,
+                      size: 14, color: NvrColors.textMuted),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

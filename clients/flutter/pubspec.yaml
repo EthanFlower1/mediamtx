@@ -26,6 +26,8 @@ dependencies:
   video_player: ^2.11.1
   http: ^1.6.0
   fl_chart: ^0.69.2
+  share_plus: ^10.1.4
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

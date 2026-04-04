@@ -23,6 +23,7 @@ class IconRail extends ConsumerWidget {
   final bool expanded;
 
   static const _navItems = [
+    (icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
     (icon: Icons.videocam_outlined, activeIcon: Icons.videocam, label: 'Live'),
     (icon: Icons.access_time_outlined, activeIcon: Icons.access_time_filled, label: 'Playback'),
     (icon: Icons.search_outlined, activeIcon: Icons.search, label: 'Search'),
@@ -49,21 +50,21 @@ class IconRail extends ConsumerWidget {
           _LogoMark(expanded: expanded),
           const SizedBox(height: 16),
           // Nav items
-          // Rail indices 0-4 map to router indices 0-4; rail index 5 (Schedules) maps to router index 6.
+          // Rail indices 0-5 map to router indices 0-5; rail index 6 (Schedules) maps to router index 7.
           for (int i = 0; i < _navItems.length; i++) ...[
-            if (i == 4) ...[
+            if (i == 5) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: Container(height: 1, color: NvrColors.border),
               ),
             ],
             _NavItem(
-              icon: (i < 5 ? i == selectedIndex : selectedIndex == 6) ? _navItems[i].activeIcon : _navItems[i].icon,
+              icon: (i < 6 ? i == selectedIndex : selectedIndex == 7) ? _navItems[i].activeIcon : _navItems[i].icon,
               label: _navItems[i].label,
-              isActive: i < 5 ? i == selectedIndex : selectedIndex == 6,
+              isActive: i < 6 ? i == selectedIndex : selectedIndex == 7,
               expanded: expanded,
               onTap: () {
-                final routerIndex = i < 5 ? i : 6;
+                final routerIndex = i < 6 ? i : 7;
                 if (routerIndex == selectedIndex) {
                   onCameraPanelToggle();
                 } else {
@@ -88,10 +89,10 @@ class IconRail extends ConsumerWidget {
           _NavItem(
             icon: Icons.settings_outlined,
             label: 'Settings',
-            isActive: selectedIndex == 5,
+            isActive: selectedIndex == 6,
             expanded: expanded,
-            muted: selectedIndex != 5,
-            onTap: () => onDestinationSelected(5),
+            muted: selectedIndex != 6,
+            onTap: () => onDestinationSelected(6),
           ),
           const SizedBox(height: 14),
         ],

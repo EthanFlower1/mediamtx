@@ -503,6 +503,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+	// Evidence exports.
+	evidenceHandler := &EvidenceHandler{
+		DB:             cfg.DB,
+		Audit:          audit,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+	protected.POST("/exports/evidence", evidenceHandler.Create)
+	protected.GET("/exports/evidence", evidenceHandler.List)
+	protected.GET("/exports/evidence/:id/download", evidenceHandler.Download)
+
 	// Edge search (ONVIF Profile G — search recordings and events on device).
 	protected.GET("/edge-search/recordings", edgeSearchHandler.Recordings)
 	protected.GET("/edge-search/events", edgeSearchHandler.Events)

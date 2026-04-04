@@ -19,6 +19,7 @@ type CreateBookmarkRequest struct {
 	CameraID  string `json:"camera_id" binding:"required"`
 	Timestamp string `json:"timestamp" binding:"required"`
 	Label     string `json:"label" binding:"required"`
+	Notes     string `json:"notes"`
 }
 
 func (h *BookmarkHandler) Create(c *gin.Context) {
@@ -39,6 +40,7 @@ func (h *BookmarkHandler) Create(c *gin.Context) {
 		CameraID:  req.CameraID,
 		Timestamp: req.Timestamp,
 		Label:     req.Label,
+		Notes:     req.Notes,
 		CreatedBy: username,
 	}
 
@@ -84,6 +86,7 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 
 type UpdateBookmarkRequest struct {
 	Label string `json:"label" binding:"required"`
+	Notes string `json:"notes"`
 }
 
 func (h *BookmarkHandler) Update(c *gin.Context) {
@@ -99,7 +102,7 @@ func (h *BookmarkHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if err := h.DB.UpdateBookmark(id, req.Label); err != nil {
+	if err := h.DB.UpdateBookmark(id, req.Label, req.Notes); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "bookmark not found"})
 			return
@@ -128,4 +131,65 @@ func (h *BookmarkHandler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *BookmarkHandler) Get(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bookmark id"})
+		return
+	}
+
+	b, err := h.DB.GetBookmark(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "bookmark not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to get bookmark", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, b)
+}
+
+func (h *BookmarkHandler) Search(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q parameter is required"})
+		return
+	}
+
+	bookmarks, err := h.DB.SearchBookmarks(query)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to search bookmarks", err)
+		return
+	}
+
+	if bookmarks == nil {
+		bookmarks = []db.Bookmark{}
+	}
+
+	c.JSON(http.StatusOK, bookmarks)
+}
+
+func (h *BookmarkHandler) Mine(c *gin.Context) {
+	usernameVal, _ := c.Get("username")
+	username, _ := usernameVal.(string)
+	if username == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+
+	bookmarks, err := h.DB.GetBookmarksByUser(username)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to get bookmarks", err)
+		return
+	}
+
+	if bookmarks == nil {
+		bookmarks = []db.Bookmark{}
+	}
+
+	c.JSON(http.StatusOK, bookmarks)
 }

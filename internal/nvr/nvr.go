@@ -890,6 +890,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+		SecurityConfig:  api.DefaultSecurityConfig(),
 	})
 }
 

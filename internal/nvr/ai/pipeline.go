@@ -11,11 +11,12 @@ import (
 
 // Pipeline orchestrates the four detection stages for a single camera.
 type Pipeline struct {
-	config   PipelineConfig
-	detector *Detector
-	embedder *Embedder
-	database *db.DB
-	eventPub EventPublisher
+	config          PipelineConfig
+	detector        *Detector
+	embedder        *Embedder
+	database        *db.DB
+	eventPub        EventPublisher
+	classThresholds *ClassThresholds
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -29,12 +30,17 @@ func NewPipeline(
 	database *db.DB,
 	eventPub EventPublisher,
 ) *Pipeline {
+	confThresh := config.ConfidenceThresh
+	if confThresh <= 0 {
+		confThresh = 0.5
+	}
 	return &Pipeline{
-		config:   config,
-		detector: detector,
-		embedder: embedder,
-		database: database,
-		eventPub: eventPub,
+		config:          config,
+		detector:        detector,
+		embedder:        embedder,
+		database:        database,
+		eventPub:        eventPub,
+		classThresholds: NewClassThresholds(config.ConfidenceThresholdsJSON, confThresh),
 	}
 }
 
@@ -163,6 +169,10 @@ func (p *Pipeline) runDetector(
 				dets = MergeDetections(dets, onvifDets)
 			}
 
+			// Apply per-class confidence thresholds to discard low-confidence
+			// detections before they reach the tracker and storage.
+			dets = p.classThresholds.FilterDetections(dets)
+
 			df := DetectionFrame{
 				Timestamp:  frame.Timestamp,
 				Image:      frame.Image,
@@ -176,4 +186,3 @@ func (p *Pipeline) runDetector(
 		}
 	}
 }
-

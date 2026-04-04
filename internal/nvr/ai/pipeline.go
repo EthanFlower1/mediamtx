@@ -11,11 +11,12 @@ import (
 
 // Pipeline orchestrates the four detection stages for a single camera.
 type Pipeline struct {
-	config   PipelineConfig
-	detector *Detector
-	embedder *Embedder
-	database *db.DB
-	eventPub EventPublisher
+	config            PipelineConfig
+	detector          *Detector
+	embedder          *Embedder
+	database          *db.DB
+	eventPub          EventPublisher
+	detectionCallback DetectionCallback // optional callback for webhook dispatch
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -105,6 +106,9 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 
 	// Stage 4: Publisher
 	publisher := NewPublisher(trackCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
+	if p.detectionCallback != nil {
+		publisher.SetDetectionCallback(p.detectionCallback)
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -113,6 +117,12 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 
 	log.Printf("[ai][%s] pipeline started (%dx%d, conf=%.2f, timeout=%ds)",
 		p.config.CameraName, width, height, confThresh, p.config.TrackTimeout)
+}
+
+// SetDetectionCallback sets an optional callback for webhook dispatch.
+// Must be called before Start.
+func (p *Pipeline) SetDetectionCallback(cb DetectionCallback) {
+	p.detectionCallback = cb
 }
 
 // Stop cancels the pipeline context and waits for all stages to exit.

@@ -674,6 +674,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/exports/:id", exportHandler.Delete)
 	protected.GET("/exports/:id/download", exportHandler.Download)
 
+	// Webhooks.
+	webhookHandler := &WebhookHandler{DB: cfg.DB}
+	protected.GET("/webhooks", webhookHandler.List)
+	protected.POST("/webhooks", webhookHandler.Create)
+	protected.GET("/webhooks/:id", webhookHandler.Get)
+	protected.PUT("/webhooks/:id", webhookHandler.Update)
+	protected.DELETE("/webhooks/:id", webhookHandler.Delete)
+	protected.GET("/webhooks/:id/deliveries", webhookHandler.Deliveries)
+
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)
 	protected.GET("/cameras/:id/connection/history", connHandler.History)

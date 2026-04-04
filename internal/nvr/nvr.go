@@ -36,6 +36,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/nvr/webhook"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -75,10 +76,11 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-	backchannelMgr  *backchannel.Manager
-	exportHandler   *api.ExportHandler
-	backupSvc       *backup.Service
-	tlsManager      *crypto.TLSManager
+	backchannelMgr    *backchannel.Manager
+	exportHandler     *api.ExportHandler
+	backupSvc         *backup.Service
+	tlsManager        *crypto.TLSManager
+	webhookDispatcher *webhook.Dispatcher
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -342,6 +344,10 @@ func (n *NVR) Initialize() error {
 		},
 	}
 	go n.integrityScanner.Run(n.ctx)
+
+	// Start webhook dispatcher for detection event delivery.
+	n.webhookDispatcher = webhook.New(n.database)
+	n.webhookDispatcher.Start()
 
 	return nil
 }
@@ -612,6 +618,9 @@ func (n *NVR) Close() {
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
 	}
+	if n.webhookDispatcher != nil {
+		n.webhookDispatcher.Stop()
+	}
 	if n.connMgr != nil {
 		n.connMgr.Stop()
 	}
@@ -797,6 +806,9 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	if n.webhookDispatcher != nil {
+		pipeline.SetDetectionCallback(n.webhookDispatcher.OnDetection)
+	}
 	pipeline.Start(n.ctx)
 	n.aiPipelines[cam.ID] = pipeline
 }

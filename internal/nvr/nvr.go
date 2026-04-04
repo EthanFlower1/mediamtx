@@ -25,6 +25,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -76,6 +77,7 @@ type NVR struct {
 
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
+	backupSvc       *backup.Service
 	tlsManager      *crypto.TLSManager
 }
 
@@ -178,6 +180,13 @@ func (n *NVR) Initialize() error {
 
 	n.metricsCollector = metrics.New(360, 10*time.Second)
 	n.metricsCollector.Start()
+
+	// Initialize backup service.
+	backupDir := filepath.Join(filepath.Dir(n.DatabasePath), "backups")
+	n.backupSvc = backup.New(n.DatabasePath, n.ConfigPath, backupDir)
+	if err := n.backupSvc.Init(); err != nil {
+		log.Printf("[NVR] [WARN] backup service init: %v", err)
+	}
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -597,6 +606,9 @@ func (n *NVR) Close() {
 		n.backchannelMgr.CloseAll()
 	}
 
+	if n.backupSvc != nil {
+		n.backupSvc.StopSchedule()
+	}
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
 	}
@@ -920,6 +932,7 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,

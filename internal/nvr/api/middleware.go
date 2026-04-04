@@ -67,6 +67,12 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 		if perms, ok := claims["camera_permissions"].(string); ok {
 			c.Set("camera_permissions", perms)
 		}
+		if rolePerms, ok := claims["role_permissions"].(string); ok {
+			c.Set("role_permissions", rolePerms)
+		}
+		if camPerms, ok := claims["camera_specific_permissions"].(string); ok {
+			c.Set("camera_specific_permissions", camPerms)
+		}
 
 		c.Next()
 	}

@@ -527,29 +527,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN multicast_ttl INTEGER NOT NULL DEFAULT 5;
 		`,
 	},
-<<<<<<< HEAD
-	// Migration 37: Export jobs queue (KAI-33).
-	{
-		version: 37,
-		sql: `
-		CREATE TABLE export_jobs (
-			id TEXT PRIMARY KEY,
-			camera_id TEXT NOT NULL,
-			start_time TEXT NOT NULL,
-			end_time TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'pending',
-			progress REAL NOT NULL DEFAULT 0,
-			output_path TEXT NOT NULL DEFAULT '',
-			error TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL,
-			completed_at TEXT NOT NULL DEFAULT '',
-			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
-		);
-		CREATE INDEX idx_export_jobs_camera ON export_jobs(camera_id);
-		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
-		`,
-	},
-=======
 	// Migration 37: Evidence export tracking (KAI-38).
 	{
 		version: 37,
@@ -576,5 +553,88 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 38,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
->>>>>>> origin/main
+	// Migration 39: Export jobs queue (KAI-33).
+	{
+		version: 39,
+		sql: `
+		CREATE TABLE export_jobs (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			progress REAL NOT NULL DEFAULT 0,
+			output_path TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			completed_at TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_export_jobs_camera ON export_jobs(camera_id);
+		CREATE INDEX idx_export_jobs_status ON export_jobs(status);
+		`,
+	},
+	// Migration 40: Role-based access control (KAI-75).
+	{
+		version: 40,
+		sql: `
+		CREATE TABLE roles (
+			id TEXT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			permissions TEXT NOT NULL DEFAULT '[]',
+			is_system INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE user_camera_permissions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			permissions TEXT NOT NULL DEFAULT '[]',
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+			UNIQUE(user_id, camera_id)
+		);
+		CREATE INDEX idx_user_camera_perms_user ON user_camera_permissions(user_id);
+		CREATE INDEX idx_user_camera_perms_camera ON user_camera_permissions(camera_id);
+
+		ALTER TABLE users ADD COLUMN role_id TEXT NOT NULL DEFAULT '';
+
+		INSERT INTO roles (id, name, description, permissions, is_system) VALUES
+			('role-admin', 'admin', 'Full system access', '["view_live","view_playback","export","ptz_control","admin"]', 1),
+			('role-operator', 'operator', 'View, playback, export, and PTZ control', '["view_live","view_playback","export","ptz_control"]', 1),
+			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
+		`,
+	},
+	// Migration 41: Bulk export jobs (KAI-33 multi-camera).
+	{
+		version: 41,
+		sql: `
+		CREATE TABLE bulk_export_jobs (
+			id TEXT PRIMARY KEY,
+			status TEXT NOT NULL DEFAULT 'pending',
+			zip_path TEXT,
+			error TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE bulk_export_items (
+			id TEXT PRIMARY KEY,
+			job_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			camera_name TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			file_count INTEGER NOT NULL DEFAULT 0,
+			total_bytes INTEGER NOT NULL DEFAULT 0,
+			error TEXT,
+			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_bulk_export_items_job ON bulk_export_items(job_id);
+		`,
+	},
 }

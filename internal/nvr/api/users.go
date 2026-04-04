@@ -20,6 +20,7 @@ type userCreateRequest struct {
 	Username          string `json:"username" binding:"required"`
 	Password          string `json:"password" binding:"required"`
 	Role              string `json:"role"`
+	RoleID            string `json:"role_id"`
 	CameraPermissions string `json:"camera_permissions"`
 }
 
@@ -28,6 +29,7 @@ type userUpdateRequest struct {
 	Username          string `json:"username"`
 	Password          string `json:"password"`
 	Role              string `json:"role"`
+	RoleID            string `json:"role_id"`
 	CameraPermissions string `json:"camera_permissions"`
 }
 
@@ -100,6 +102,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		Username:          req.Username,
 		PasswordHash:      hashed,
 		Role:              req.Role,
+		RoleID:            req.RoleID,
 		CameraPermissions: req.CameraPermissions,
 	}
 
@@ -160,6 +163,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 	if req.Role != "" {
 		existing.Role = req.Role
+	}
+	if req.RoleID != "" {
+		existing.RoleID = req.RoleID
 	}
 	if req.CameraPermissions != "" {
 		existing.CameraPermissions = req.CameraPermissions

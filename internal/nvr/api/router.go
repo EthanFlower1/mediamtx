@@ -481,6 +481,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
 
+	// Roles.
+	roleHandler := &RoleHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/roles", roleHandler.List)
+	protected.POST("/roles", roleHandler.Create)
+	protected.GET("/roles/:id", roleHandler.Get)
+	protected.PUT("/roles/:id", roleHandler.Update)
+	protected.DELETE("/roles/:id", roleHandler.Delete)
+
+	// Per-camera permissions.
+	protected.POST("/users/:id/camera-permissions", roleHandler.SetCameraPermissions)
+	protected.GET("/users/:id/camera-permissions", roleHandler.GetCameraPermissions)
+	protected.DELETE("/users/:id/camera-permissions", roleHandler.DeleteCameraPermissions)
+
 	// System.
 	protected.GET("/system/info", systemHandler.Info)
 	protected.GET("/system/storage", systemHandler.Storage)

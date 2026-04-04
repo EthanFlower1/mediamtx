@@ -16,6 +16,7 @@ import '../../theme/nvr_typography.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_player.dart';
 import 'controls/transport_bar.dart';
+import 'export_clip_dialog.dart';
 import 'playback_controller.dart';
 import 'timeline/fixed_playhead_timeline.dart';
 import 'timeline/mini_overview_bar.dart';
@@ -152,6 +153,23 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     }
   }
 
+  void _showExportDialog(List<Camera> selected, PlaybackController controller) {
+    if (selected.isEmpty) return;
+    final camera = selected.first;
+    final dayStart = DateTime(
+        _selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    showDialog(
+      context: context,
+      builder: (_) => ExportClipDialog(
+        cameraId: camera.id,
+        cameraName: camera.name,
+        dayStart: dayStart,
+        currentPosition: controller.position,
+      ),
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
@@ -268,6 +286,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
           onDateTap: () => _pickDate(controller),
           gridMode: _gridMode,
           onGridChanged: (v) => setState(() => _gridMode = v),
+          onExport: () => _showExportDialog(selected, controller),
         ),
 
         // ── Camera selector chips ─────────────────────────────────────
@@ -360,12 +379,14 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onDateTap;
   final int gridMode;
   final ValueChanged<int> onGridChanged;
+  final VoidCallback onExport;
 
   const _TopBar({
     required this.date,
     required this.onDateTap,
     required this.gridMode,
     required this.onGridChanged,
+    required this.onExport,
   });
 
   @override
@@ -410,7 +431,7 @@ class _TopBar extends StatelessWidget {
           _SecondaryButton(
             icon: Icons.download,
             label: 'Export',
-            onTap: () {}, // TODO: wire export
+            onTap: onExport,
           ),
           const SizedBox(width: 8),
 

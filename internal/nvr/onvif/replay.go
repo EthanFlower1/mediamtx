@@ -5,10 +5,110 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
 )
+
+// AllowedScales defines the valid Scale values for ONVIF Profile G replay.
+// Positive values play forward; negative values play in reverse (I-frame seeking).
+var AllowedScales = []float64{-4, -2, -1, 1, 2, 4}
+
+// ReplaySession holds the parameters needed to initiate an RTSP replay session
+// against a Profile G device, including the RTSP headers (Range, Scale, Speed)
+// required by ONVIF for trick-play.
+type ReplaySession struct {
+	// ReplayURI is the RTSP URI obtained from the device's replay service.
+	ReplayURI string `json:"replay_uri"`
+
+	// RecordingToken identifies the recording on the device.
+	RecordingToken string `json:"recording_token"`
+
+	// StartTime is the absolute time to begin playback (RFC 3339).
+	StartTime time.Time `json:"start_time"`
+
+	// Scale controls playback direction and speed.
+	// Positive values play forward (1 = normal, 2 = 2x fast-forward, 4 = 4x).
+	// Negative values play in reverse via I-frame seeking (-1 = normal reverse,
+	// -2 = 2x reverse, -4 = 4x reverse).
+	Scale float64 `json:"scale"`
+
+	// Reverse is true when Scale < 0, provided as a convenience flag.
+	Reverse bool `json:"reverse"`
+
+	// RTSPHeaders contains the RTSP headers the client should include in the
+	// PLAY request to activate the desired trick-play mode.
+	RTSPHeaders map[string]string `json:"rtsp_headers"`
+}
+
+// BuildReplaySession constructs a ReplaySession from the given parameters.
+// It validates the scale value against AllowedScales and generates the correct
+// RTSP headers for ONVIF Profile G replay, including reverse playback via
+// negative Scale values.
+//
+// Per ONVIF Profile G:
+//   - Range header uses clock= format for absolute time positioning.
+//   - Scale header controls direction and speed (-1, -2, -4 for reverse).
+//   - Negative scale triggers I-frame seeking on the device: the device sends
+//     only I-frames in reverse temporal order, enabling smooth rewind at
+//     the requested speed.
+func BuildReplaySession(replayURI, recordingToken string, startTime time.Time, scale float64) (*ReplaySession, error) {
+	if replayURI == "" {
+		return nil, fmt.Errorf("BuildReplaySession: replay URI is required")
+	}
+	if recordingToken == "" {
+		return nil, fmt.Errorf("BuildReplaySession: recording token is required")
+	}
+	if startTime.IsZero() {
+		return nil, fmt.Errorf("BuildReplaySession: start time is required")
+	}
+	if !isAllowedScale(scale) {
+		return nil, fmt.Errorf("BuildReplaySession: invalid scale %.1f, allowed values: %v", scale, AllowedScales)
+	}
+
+	reverse := scale < 0
+
+	// Build RTSP headers per ONVIF Profile G specification.
+	headers := make(map[string]string)
+
+	// Range header: clock= format for absolute time (RFC 7826 / ONVIF Profile G).
+	// For reverse playback the range starts at startTime and goes backwards,
+	// but the Range header still specifies the start position.
+	headers["Range"] = fmt.Sprintf("clock=%s-", startTime.UTC().Format("20060102T150405.000Z"))
+
+	// Scale header: controls playback speed and direction.
+	// Negative values signal reverse playback with I-frame seeking.
+	headers["Scale"] = formatScale(scale)
+
+	return &ReplaySession{
+		ReplayURI:      replayURI,
+		RecordingToken: recordingToken,
+		StartTime:      startTime,
+		Scale:          scale,
+		Reverse:        reverse,
+		RTSPHeaders:    headers,
+	}, nil
+}
+
+// isAllowedScale checks whether the given scale is in the AllowedScales list.
+func isAllowedScale(s float64) bool {
+	for _, allowed := range AllowedScales {
+		if math.Abs(s-allowed) < 0.001 {
+			return true
+		}
+	}
+	return false
+}
+
+// formatScale renders a scale value as a string suitable for the RTSP Scale header.
+// Integer-valued floats are rendered without a decimal point (e.g. "1", "-2").
+func formatScale(s float64) string {
+	if s == float64(int(s)) {
+		return fmt.Sprintf("%d", int(s))
+	}
+	return fmt.Sprintf("%.1f", s)
+}
 
 // --- SOAP response types for replay ---
 
@@ -116,84 +216,39 @@ func GetReplayUri(xaddr, username, password, recordingToken string) (string, err
 	return uri, nil
 }
 
-// ReplaySession describes the parameters needed to start an RTSP replay
-// session against a camera's edge storage.  The caller uses the returned
-// ReplayURI together with RTSP Range/Scale/Speed headers to control playback.
-type ReplaySession struct {
-	// ReplayURI is the RTSP URI for the recording replay.
-	ReplayURI string `json:"replay_uri"`
-	// RecordingToken is the ONVIF recording token being replayed.
-	RecordingToken string `json:"recording_token"`
-	// StartTime is the requested start of the playback range (RFC 3339).
-	StartTime string `json:"start_time,omitempty"`
-	// EndTime is the requested end of the playback range (RFC 3339).
-	EndTime string `json:"end_time,omitempty"`
-	// Scale controls trick-play speed (e.g. 2.0 = 2x forward, -1.0 = reverse).
-	// A value of 0 means normal (1x) playback.
-	Scale float64 `json:"scale,omitempty"`
-	// Speed controls the delivery rate relative to real-time.
-	// A value of 0 means server-default (typically 1.0).
-	Speed float64 `json:"speed,omitempty"`
-	// RangeHeader is the pre-formatted RTSP Range header value.
-	RangeHeader string `json:"range_header,omitempty"`
-	// ScaleHeader is the pre-formatted RTSP Scale header value.
-	ScaleHeader string `json:"scale_header,omitempty"`
-	// SpeedHeader is the pre-formatted RTSP Speed header value.
-	SpeedHeader string `json:"speed_header,omitempty"`
-}
-
-// ReplaySessionRequest holds the parameters for starting a replay session.
+// ReplaySessionRequest holds the parameters for starting a replay session
+// via the API (used by the camera handler's EdgeReplaySession endpoint).
 type ReplaySessionRequest struct {
-	// RecordingToken is the ONVIF recording to replay (required).
-	RecordingToken string `json:"recording_token"`
-	// StartTime is the desired playback start in RFC 3339 format (optional).
-	StartTime string `json:"start_time,omitempty"`
-	// EndTime is the desired playback end in RFC 3339 format (optional).
-	EndTime string `json:"end_time,omitempty"`
-	// Scale controls trick-play speed.  1.0 = normal, 2.0 = 2x, -1.0 = reverse.
-	// Zero or omitted means normal playback.
-	Scale float64 `json:"scale,omitempty"`
-	// Speed controls the delivery rate (how fast data is sent over the network).
-	// Zero or omitted means server default.
-	Speed float64 `json:"speed,omitempty"`
+	RecordingToken string  `json:"recording_token"`
+	StartTime      string  `json:"start_time,omitempty"`
+	Scale          float64 `json:"scale,omitempty"`
 }
 
-// BuildReplaySession obtains the RTSP replay URI from the device and
-// constructs the appropriate RTSP headers for Range, Scale, and Speed
-// based on the request parameters.
-func BuildReplaySession(xaddr, username, password string, req *ReplaySessionRequest) (*ReplaySession, error) {
+// BuildReplaySessionFromRequest is a convenience wrapper that resolves
+// the replay URI from the device and delegates to BuildReplaySession.
+func BuildReplaySessionFromRequest(xaddr, username, password string, req *ReplaySessionRequest) (*ReplaySession, error) {
 	if req.RecordingToken == "" {
-		return nil, fmt.Errorf("BuildReplaySession: recording_token is required")
+		return nil, fmt.Errorf("BuildReplaySessionFromRequest: recording_token is required")
 	}
 
 	replayURI, err := GetReplayUri(xaddr, username, password, req.RecordingToken)
 	if err != nil {
-		return nil, fmt.Errorf("BuildReplaySession: %w", err)
+		return nil, fmt.Errorf("BuildReplaySessionFromRequest: %w", err)
 	}
 
-	session := &ReplaySession{
-		ReplayURI:      replayURI,
-		RecordingToken: req.RecordingToken,
-		StartTime:      req.StartTime,
-		EndTime:        req.EndTime,
-		Scale:          req.Scale,
-		Speed:          req.Speed,
+	startTime := time.Now().UTC()
+	if req.StartTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.StartTime); err == nil {
+			startTime = t
+		}
 	}
 
-	// Build RTSP Range header (clock mode per RFC 7826 / ONVIF Profile G).
-	session.RangeHeader = buildRangeHeader(req.StartTime, req.EndTime)
-
-	// Build Scale header for trick-play.
-	if req.Scale != 0 {
-		session.ScaleHeader = fmt.Sprintf("%.1f", req.Scale)
+	scale := req.Scale
+	if scale == 0 {
+		scale = 1
 	}
 
-	// Build Speed header for delivery rate control.
-	if req.Speed != 0 {
-		session.SpeedHeader = fmt.Sprintf("%.1f", req.Speed)
-	}
-
-	return session, nil
+	return BuildReplaySession(replayURI, req.RecordingToken, startTime, scale)
 }
 
 // buildRangeHeader formats an RTSP Range header using the "clock" format

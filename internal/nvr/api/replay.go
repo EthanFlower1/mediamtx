@@ -46,7 +46,7 @@ func (h *CameraHandler) StartReplaySession(c *gin.Context) {
 	}
 
 	password := h.decryptPassword(cam.ONVIFPassword)
-	session, err := onvif.BuildReplaySession(cam.ONVIFEndpoint, cam.ONVIFUsername, password, &req)
+	session, err := onvif.BuildReplaySessionFromRequest(cam.ONVIFEndpoint, cam.ONVIFUsername, password, &req)
 	if err != nil {
 		nvrLogError("replay", fmt.Sprintf("failed to build replay session for camera %s", id), err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to start replay session on device"})

@@ -319,6 +319,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.GET("/cameras/:id/edge-recordings/playback", cameraHandler.EdgePlayback)
 	protected.POST("/cameras/:id/edge-recordings/import", cameraHandler.EdgeImport)
 
+	// Replay control (Profile G — RTSP playback with Range/Scale/Speed).
+	protected.POST("/cameras/:id/replay/session", cameraHandler.StartReplaySession)
+	protected.GET("/cameras/:id/replay/uri", cameraHandler.GetReplayURI)
+	protected.GET("/cameras/:id/replay/capabilities", cameraHandler.GetReplayCapabilities)
+
 	// Recording control (Profile G — manage recordings and jobs on device).
 	protected.GET("/cameras/:id/recording-control/config", cameraHandler.GetRecordingConfig)
 	protected.POST("/cameras/:id/recording-control/recordings", cameraHandler.CreateEdgeRecording)

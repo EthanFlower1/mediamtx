@@ -254,13 +254,13 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Saved')),
+          SnackBar(backgroundColor: NvrColors.of(context).success, content: Text('Saved')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     } finally {
@@ -346,7 +346,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to fetch profiles: $e'),
           ),
         );
@@ -365,13 +365,13 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       await _fetchCamera();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Capabilities refreshed')),
+          SnackBar(backgroundColor: NvrColors.of(context).success, content: Text('Capabilities refreshed')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Refresh failed: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Refresh failed: $e')),
         );
       }
     } finally {
@@ -383,21 +383,21 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     switch (status) {
       case 'online':
       case 'connected':
-        return StatusBadge.online();
+        return StatusBadge.online(context);
       case 'degraded':
-        return StatusBadge.degraded();
+        return StatusBadge.degraded(context);
       default:
-        return StatusBadge.offline();
+        return StatusBadge.offline(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: NvrColors.accent))
+            ? Center(child: CircularProgressIndicator(color: NvrColors.of(context).accent))
             : _error != null
                 ? _buildError()
                 : _buildContent(),
@@ -410,7 +410,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_error!, style: const TextStyle(color: NvrColors.danger)),
+          Text(_error!, style: TextStyle(color: NvrColors.of(context).danger)),
           const SizedBox(height: 12),
           HudButton(label: 'RETRY', onPressed: _fetchCamera),
         ],
@@ -427,7 +427,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       children: [
         // ── Header ────────────────────────────────────────────────────
         _buildHeader(camera),
-        const Divider(color: NvrColors.border, height: 1),
+        Divider(color: NvrColors.of(context).border, height: 1),
 
         // ── Scrollable body ───────────────────────────────────────────
         Expanded(
@@ -462,13 +462,13 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: NvrColors.textPrimary, size: 20),
+            icon: Icon(Icons.arrow_back, color: NvrColors.of(context).textPrimary, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
           Expanded(
             child: Text(
               camera.name,
-              style: NvrTypography.pageTitle,
+              style: NvrTypography.of(context).pageTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -477,23 +477,23 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           _statusBadge(camera.status),
           const Spacer(),
           _refreshing
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: NvrColors.accent,
+                    color: NvrColors.of(context).accent,
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.refresh, color: NvrColors.textMuted, size: 20),
+                  icon: Icon(Icons.refresh, color: NvrColors.of(context).textMuted, size: 20),
                   tooltip: 'Refresh capabilities',
                   onPressed: _refreshCapabilities,
                 ),
           IconButton(
             icon: Icon(
               Icons.settings,
-              color: _showAdvanced ? NvrColors.accent : NvrColors.textMuted,
+              color: _showAdvanced ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
               size: 20,
             ),
             tooltip: _showAdvanced ? 'Hide advanced' : 'Show advanced',
@@ -562,17 +562,17 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
           mainAxisSpacing: 8,
           childAspectRatio: 2.2,
           children: [
-            _StatTile(label: 'UPTIME', value: uptimeStr, valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(label: 'UPTIME', value: uptimeStr, valueStyle: NvrTypography.of(context).monoDataLarge),
             _StatTile(
               label: 'STORAGE',
               value: storageStr,
-              valueStyle: NvrTypography.monoDataLarge.copyWith(color: NvrColors.accent),
+              valueStyle: NvrTypography.of(context).monoDataLarge.copyWith(color: NvrColors.of(context).accent),
             ),
-            _StatTile(label: 'EVENTS TODAY', value: eventsStr, valueStyle: NvrTypography.monoDataLarge),
+            _StatTile(label: 'EVENTS TODAY', value: eventsStr, valueStyle: NvrTypography.of(context).monoDataLarge),
             _StatTile(
               label: 'RETENTION',
               value: _retentionSummary(),
-              valueStyle: NvrTypography.monoDataLarge,
+              valueStyle: NvrTypography.of(context).monoDataLarge,
             ),
           ],
         ),
@@ -589,7 +589,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         if (_streams.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: Text('STREAMS', style: NvrTypography.monoSection),
+            child: Text('STREAMS', style: NvrTypography.of(context).monoSection),
           ),
           for (final stream in _streams)
             Padding(
@@ -632,7 +632,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                     onChanged: (v) => setState(() => _aiEnabled = v),
                   ),
                   const SizedBox(width: 12),
-                  const Text('Enable AI detection', style: NvrTypography.body),
+                  Text('Enable AI detection', style: NvrTypography.of(context).body),
                 ],
               ),
               if (_aiEnabled) ...[
@@ -650,32 +650,32 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                   value: _streams.any((s) => s.id == _aiStreamId) || _aiStreamId.isEmpty
                       ? _aiStreamId
                       : '',
-                  dropdownColor: NvrColors.bgTertiary,
-                  style: NvrTypography.monoData,
+                  dropdownColor: NvrColors.of(context).bgTertiary,
+                  style: NvrTypography.of(context).monoData,
                   decoration: InputDecoration(
                     labelText: 'DETECTION STREAM',
-                    labelStyle: NvrTypography.monoLabel,
+                    labelStyle: NvrTypography.of(context).monoLabel,
                     filled: true,
-                    fillColor: NvrColors.bgTertiary,
+                    fillColor: NvrColors.of(context).bgTertiary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: NvrColors.border),
+                      borderSide: BorderSide(color: NvrColors.of(context).border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: NvrColors.border),
+                      borderSide: BorderSide(color: NvrColors.of(context).border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
-                      borderSide: const BorderSide(color: NvrColors.accent),
+                      borderSide: BorderSide(color: NvrColors.of(context).accent),
                     ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                   items: [
-                    const DropdownMenuItem(value: '', child: Text('Auto', style: NvrTypography.monoData)),
+                    DropdownMenuItem(value: '', child: Text('Auto', style: NvrTypography.of(context).monoData)),
                     ..._streams.map((s) => DropdownMenuItem(
                       value: s.id,
-                      child: Text(s.displayLabel, style: NvrTypography.monoData),
+                      child: Text(s.displayLabel, style: NvrTypography.of(context).monoData),
                     )),
                   ],
                   onChanged: (v) {
@@ -759,7 +759,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
             ),
             if (_profiles.isNotEmpty) ...[
               const SizedBox(height: 10),
-              const Text('AVAILABLE PROFILES', style: NvrTypography.monoSection),
+              Text('AVAILABLE PROFILES', style: NvrTypography.of(context).monoSection),
               const SizedBox(height: 8),
               ..._profiles.map((profile) {
                 final name = profile['name'] as String? ?? 'Profile';
@@ -770,20 +770,20 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: NvrColors.bgTertiary,
+                    color: NvrColors.of(context).bgTertiary,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: NvrColors.border),
+                    border: Border.all(color: NvrColors.of(context).border),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: NvrTypography.cameraName),
+                      Text(name, style: NvrTypography.of(context).cameraName),
                       if (resolution.isNotEmpty || codec.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             [if (resolution.isNotEmpty) resolution, if (codec.isNotEmpty) codec].join(' · '),
-                            style: NvrTypography.monoLabel,
+                            style: NvrTypography.of(context).monoLabel,
                           ),
                         ),
                       if (rtspUrl.isNotEmpty)
@@ -792,14 +792,14 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                             Expanded(
                               child: Text(
                                 rtspUrl,
-                                style: NvrTypography.monoLabel,
+                                style: NvrTypography.of(context).monoLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             TextButton(
                               style: TextButton.styleFrom(
-                                foregroundColor: NvrColors.accent,
+                                foregroundColor: NvrColors.of(context).accent,
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -808,7 +808,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
                                 _rtspCtrl.text = rtspUrl;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    backgroundColor: NvrColors.success,
+                                    backgroundColor: NvrColors.of(context).success,
                                     content: Text('Using profile: $name'),
                                   ),
                                 );
@@ -874,7 +874,7 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _ExpandableSection(
           title: 'RECORDING RULES',
           children: [
-            const Text('Recording rules coming soon.', style: NvrTypography.body),
+            Text('Recording rules coming soon.', style: NvrTypography.of(context).body),
           ],
         ),
 
@@ -931,14 +931,14 @@ class _SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: NvrColors.border),
+        border: Border.all(color: NvrColors.of(context).border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(header, style: NvrTypography.monoSection),
+          Text(header, style: NvrTypography.of(context).monoSection),
           const SizedBox(height: 10),
           child,
         ],
@@ -960,21 +960,21 @@ class _ExpandableSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: NvrColors.border),
+        border: Border.all(color: NvrColors.of(context).border),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
           dividerColor: Colors.transparent,
-          splashColor: NvrColors.accent.withOpacity(0.05),
+          splashColor: NvrColors.of(context).accent.withOpacity(0.05),
         ),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          title: Text(title, style: NvrTypography.monoSection),
-          iconColor: NvrColors.textMuted,
-          collapsedIconColor: NvrColors.textMuted,
+          title: Text(title, style: NvrTypography.of(context).monoSection),
+          iconColor: NvrColors.of(context).textMuted,
+          collapsedIconColor: NvrColors.of(context).textMuted,
           children: children,
         ),
       ),
@@ -1001,15 +1001,15 @@ class _StatTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: NvrColors.border),
+        border: Border.all(color: NvrColors.of(context).border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(label, style: NvrTypography.monoLabel),
+          Text(label, style: NvrTypography.of(context).monoLabel),
           const SizedBox(height: 4),
           Text(value, style: valueStyle),
         ],
@@ -1032,8 +1032,8 @@ class _KvRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: NvrTypography.body),
-        Text(value, style: NvrTypography.monoData),
+        Text(label, style: NvrTypography.of(context).body),
+        Text(value, style: NvrTypography.of(context).monoData),
       ],
     );
   }
@@ -1065,31 +1065,31 @@ class _NvrField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscure,
-      style: const TextStyle(color: NvrColors.textPrimary, fontFamily: 'JetBrainsMono', fontSize: 12),
+      style: TextStyle(color: NvrColors.of(context).textPrimary, fontFamily: 'JetBrainsMono', fontSize: 12),
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        labelStyle: NvrTypography.monoLabel,
-        hintStyle: const TextStyle(color: NvrColors.textMuted),
+        labelStyle: NvrTypography.of(context).monoLabel,
+        hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
         filled: true,
-        fillColor: NvrColors.bgInput,
+        fillColor: NvrColors.of(context).bgInput,
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: NvrColors.border),
+          borderSide: BorderSide(color: NvrColors.of(context).border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: NvrColors.border),
+          borderSide: BorderSide(color: NvrColors.of(context).border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: NvrColors.accent),
+          borderSide: BorderSide(color: NvrColors.of(context).accent),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: NvrColors.danger),
+          borderSide: BorderSide(color: NvrColors.of(context).danger),
         ),
       ),
     );

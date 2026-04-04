@@ -57,7 +57,7 @@ class AlertsPanelOverlay extends ConsumerWidget {
       right: isOpen ? 0 : -304, // 300 panel + 4 shadow bleed
       width: 300,
       child: Material(
-        color: NvrColors.bgSecondary,
+        color: NvrColors.of(context).bgSecondary,
         elevation: 8,
         child: _AlertsPanelContent(
           onClose: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
@@ -79,8 +79,8 @@ class _AlertsPanelSheet extends ConsumerWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     return Container(
       height: screenHeight * 0.75,
-      decoration: const BoxDecoration(
-        color: NvrColors.bgSecondary,
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: _AlertsPanelContent(
@@ -115,7 +115,7 @@ class _AlertsPanelContent extends ConsumerWidget {
           onMarkAllRead: notifier.markAllRead,
           onClose: onClose,
         ),
-        Container(height: 1, color: NvrColors.border),
+        Container(height: 1, color: NvrColors.of(context).border),
         // List or empty state
         Expanded(
           child: history.isEmpty
@@ -124,7 +124,7 @@ class _AlertsPanelContent extends ConsumerWidget {
                   padding: EdgeInsets.zero,
                   itemCount: history.length,
                   separatorBuilder: (_, __) =>
-                      Container(height: 1, color: NvrColors.border),
+                      Container(height: 1, color: NvrColors.of(context).border),
                   itemBuilder: (context, index) {
                     final event = history[index];
                     return _NotificationItem(
@@ -168,23 +168,23 @@ class _PanelHeader extends StatelessWidget {
       child: Row(
         children: [
           // Title
-          const Text('ALERTS', style: NvrTypography.monoSection),
+          Text('ALERTS', style: NvrTypography.of(context).monoSection),
           const SizedBox(width: 8),
           // Unread badge
           if (unreadCount > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '$unreadCount',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
-                  color: NvrColors.bgPrimary,
+                  color: NvrColors.of(context).bgPrimary,
                 ),
               ),
             ),
@@ -199,10 +199,10 @@ class _PanelHeader extends StatelessWidget {
           // Close button
           GestureDetector(
             onTap: onClose,
-            child: const Icon(
+            child: Icon(
               Icons.close,
               size: 18,
-              color: NvrColors.textSecondary,
+              color: NvrColors.of(context).textSecondary,
             ),
           ),
         ],
@@ -221,18 +221,18 @@ class _NotificationItem extends StatelessWidget {
   final NotificationEvent event;
   final VoidCallback onTap;
 
-  Color get _iconColor {
+  Color _iconColor(BuildContext context) {
     switch (event.type) {
       case 'motion':
-        return NvrColors.accent;
+        return NvrColors.of(context).accent;
       case 'camera_offline':
-        return NvrColors.danger;
+        return NvrColors.of(context).danger;
       case 'camera_online':
-        return NvrColors.success;
+        return NvrColors.of(context).success;
       case 'alert':
-        return NvrColors.warning;
+        return NvrColors.of(context).warning;
       default:
-        return NvrColors.textSecondary;
+        return NvrColors.of(context).textSecondary;
     }
   }
 
@@ -246,15 +246,15 @@ class _NotificationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = event.isRead ? NvrColors.bgSecondary : NvrColors.bgTertiary;
+    final bg = event.isRead ? NvrColors.of(context).bgSecondary : NvrColors.of(context).bgTertiary;
     final hasRoute = event.navigationRoute != null;
 
     return Material(
       color: bg,
       child: InkWell(
         onTap: onTap,
-        splashColor: NvrColors.accent.withValues(alpha: 0.08),
-        highlightColor: NvrColors.accent.withValues(alpha: 0.04),
+        splashColor: NvrColors.of(context).accent.withValues(alpha: 0.08),
+        highlightColor: NvrColors.of(context).accent.withValues(alpha: 0.04),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
@@ -266,7 +266,7 @@ class _NotificationItem extends StatelessWidget {
                 child: Icon(
                   event.typeIcon,
                   size: 16,
-                  color: _iconColor,
+                  color: _iconColor(context),
                 ),
               ),
               const SizedBox(width: 10),
@@ -277,28 +277,28 @@ class _NotificationItem extends StatelessWidget {
                   children: [
                     Text(
                       event.message,
-                      style: NvrTypography.body.copyWith(
+                      style: NvrTypography.of(context).body.copyWith(
                         color: event.isRead
-                            ? NvrColors.textSecondary
-                            : NvrColors.textPrimary,
+                            ? NvrColors.of(context).textSecondary
+                            : NvrColors.of(context).textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${event.camera} \u00b7 ${_timeAgo(event.time)}',
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                     ),
                   ],
                 ),
               ),
               // Navigate arrow for actionable notifications
               if (hasRoute && !event.isRead)
-                const Padding(
-                  padding: EdgeInsets.only(top: 2, left: 8),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, left: 8),
                   child: Icon(
                     Icons.chevron_right,
                     size: 14,
-                    color: NvrColors.textMuted,
+                    color: NvrColors.of(context).textMuted,
                   ),
                 )
               else if (!event.isRead)
@@ -307,8 +307,8 @@ class _NotificationItem extends StatelessWidget {
                   child: Container(
                     width: 5,
                     height: 5,
-                    decoration: const BoxDecoration(
-                      color: NvrColors.accent,
+                    decoration: BoxDecoration(
+                      color: NvrColors.of(context).accent,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -334,15 +334,15 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.notifications_none,
-            color: NvrColors.textMuted,
+            color: NvrColors.of(context).textMuted,
             size: 48,
           ),
           const SizedBox(height: 12),
           Text(
             'No alerts',
-            style: NvrTypography.body.copyWith(color: NvrColors.textMuted),
+            style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).textMuted),
           ),
         ],
       ),

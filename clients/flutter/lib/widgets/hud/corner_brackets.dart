@@ -21,7 +21,7 @@ class CornerBrackets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? NvrColors.accent.withOpacity(0.4);
+    final c = color ?? NvrColors.of(context).accent.withOpacity(0.4);
     return Stack(
       children: [
         child,

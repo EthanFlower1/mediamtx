@@ -43,7 +43,7 @@ class _CapBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = supported ? NvrColors.accent : NvrColors.textMuted;
+    final color = supported ? NvrColors.of(context).accent : NvrColors.of(context).textMuted;
     return Container(
       margin: const EdgeInsets.only(right: 6, bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -110,7 +110,7 @@ class CameraDetailSheet extends ConsumerStatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -296,8 +296,8 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
         Navigator.of(context).pop();
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.success,
+          SnackBar(
+            backgroundColor: NvrColors.of(context).success,
             content: Text('Camera added successfully'),
           ),
         );
@@ -306,7 +306,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to add camera: $e'),
           ),
         );
@@ -321,22 +321,22 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
   InputDecoration _inputDecoration({String? hint, Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: NvrColors.textMuted),
+      hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
       filled: true,
-      fillColor: NvrColors.bgPrimary,
+      fillColor: NvrColors.of(context).bgPrimary,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       suffixIcon: suffix,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.accent),
+        borderSide: BorderSide(color: NvrColors.of(context).accent),
       ),
     );
   }
@@ -344,7 +344,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
   Widget _sectionLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text, style: NvrTypography.monoSection),
+      child: Text(text, style: NvrTypography.of(context).monoSection),
     );
   }
 
@@ -368,11 +368,11 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
 
     final Widget statusBadge;
     if (alreadyAdded) {
-      statusBadge = const _StatusPill(label: 'ADDED', color: NvrColors.accent);
+      statusBadge = _StatusPill(label: 'ADDED', color: NvrColors.of(context).accent);
     } else if (authRequired) {
-      statusBadge = const _StatusPill(label: 'AUTH REQUIRED', color: NvrColors.danger);
+      statusBadge = _StatusPill(label: 'AUTH REQUIRED', color: NvrColors.of(context).danger);
     } else {
-      statusBadge = const _StatusPill(label: 'OPEN', color: NvrColors.success);
+      statusBadge = _StatusPill(label: 'OPEN', color: NvrColors.of(context).success);
     }
 
     final hasStreams = _profiles.isNotEmpty ||
@@ -380,8 +380,8 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
     final canAdd = hasStreams && !_adding;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: NvrColors.bgSecondary,
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgSecondary,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: ListView(
@@ -395,7 +395,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: NvrColors.bgTertiary,
+                  color: NvrColors.of(context).bgTertiary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -414,14 +414,14 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                       _nameCtrl.text.isNotEmpty
                           ? _nameCtrl.text
                           : (model.isNotEmpty ? model : 'Unknown Camera'),
-                      style: NvrTypography.pageTitle,
+                      style: NvrTypography.of(context).pageTitle,
                     ),
                     if (subtitleParts.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         subtitleParts.join(' · '),
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.textSecondary,
+                        style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: NvrColors.of(context).textSecondary,
                         ),
                       ),
                     ],
@@ -434,7 +434,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
           ),
 
           const SizedBox(height: 20),
-          const Divider(color: NvrColors.border, height: 1),
+          Divider(color: NvrColors.of(context).border, height: 1),
           const SizedBox(height: 20),
 
           // ── Credentials ─────────────────────────────────────────────────
@@ -445,12 +445,12 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('USERNAME', style: NvrTypography.monoLabel),
+                    Text('USERNAME', style: NvrTypography.of(context).monoLabel),
                     const SizedBox(height: 5),
                     TextField(
                       controller: _userCtrl,
-                      style: const TextStyle(
-                        color: NvrColors.textPrimary,
+                      style: TextStyle(
+                        color: NvrColors.of(context).textPrimary,
                         fontFamily: 'JetBrainsMono',
                         fontSize: 12,
                       ),
@@ -464,13 +464,13 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('PASSWORD', style: NvrTypography.monoLabel),
+                    Text('PASSWORD', style: NvrTypography.of(context).monoLabel),
                     const SizedBox(height: 5),
                     TextField(
                       controller: _passCtrl,
                       obscureText: _obscurePass,
-                      style: const TextStyle(
-                        color: NvrColors.textPrimary,
+                      style: TextStyle(
+                        color: NvrColors.of(context).textPrimary,
                         fontFamily: 'JetBrainsMono',
                         fontSize: 12,
                       ),
@@ -479,7 +479,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                         suffix: IconButton(
                           icon: Icon(
                             _obscurePass ? Icons.visibility_off : Icons.visibility,
-                            color: NvrColors.textMuted,
+                            color: NvrColors.of(context).textMuted,
                             size: 16,
                           ),
                           onPressed: () => setState(() => _obscurePass = !_obscurePass),
@@ -504,19 +504,19 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
             const SizedBox(height: 8),
             Text(
               _probeError!,
-              style: NvrTypography.body.copyWith(color: NvrColors.danger),
+              style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
             ),
           ],
 
           // ── Stream profiles with role toggles ──────────────────────────
           if (_profiles.isNotEmpty) ...[
             const SizedBox(height: 20),
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
             const SizedBox(height: 20),
             _sectionLabel('STREAMS'),
             Text(
               'Tap roles to assign each stream\'s purpose.',
-              style: NvrTypography.body.copyWith(fontSize: 11),
+              style: NvrTypography.of(context).body.copyWith(fontSize: 11),
             ),
             const SizedBox(height: 10),
             ..._profiles.asMap().entries.map((entry) {
@@ -540,20 +540,20 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: NvrColors.bgTertiary,
-                  border: Border.all(color: NvrColors.border),
+                  color: NvrColors.of(context).bgTertiary,
+                  border: Border.all(color: NvrColors.of(context).border),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: NvrTypography.cameraName),
+                    Text(name, style: NvrTypography.of(context).cameraName),
                     if (detailParts.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
                         detailParts.join(' · '),
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.textSecondary,
+                        style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: NvrColors.of(context).textSecondary,
                         ),
                       ),
                     ],
@@ -561,8 +561,8 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                       const SizedBox(height: 4),
                       Text(
                         rtsp,
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.textMuted,
+                        style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: NvrColors.of(context).textMuted,
                           fontSize: 8,
                         ),
                         maxLines: 1,
@@ -591,13 +591,13 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: active
-                                  ? NvrColors.accent.withValues(alpha: 0.15)
-                                  : NvrColors.bgPrimary,
+                                  ? NvrColors.of(context).accent.withValues(alpha: 0.15)
+                                  : NvrColors.of(context).bgPrimary,
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
                                 color: active
-                                    ? NvrColors.accent
-                                    : NvrColors.border,
+                                    ? NvrColors.of(context).accent
+                                    : NvrColors.of(context).border,
                               ),
                             ),
                             child: Text(
@@ -607,7 +607,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
                                 fontSize: 8,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.5,
-                                color: active ? NvrColors.accent : NvrColors.textMuted,
+                                color: active ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
                               ),
                             ),
                           ),
@@ -623,18 +623,18 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
           // ── Manual RTSP URL (when probe found no streams) ────────────────
           if (_probed && _profiles.isEmpty) ...[
             const SizedBox(height: 20),
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
             const SizedBox(height: 20),
             _sectionLabel('RTSP URL'),
             Text(
               'No streams could be auto-discovered. Enter the RTSP URL manually.',
-              style: NvrTypography.body.copyWith(fontSize: 11),
+              style: NvrTypography.of(context).body.copyWith(fontSize: 11),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _rtspCtrl,
-              style: const TextStyle(
-                color: NvrColors.textPrimary,
+              style: TextStyle(
+                color: NvrColors.of(context).textPrimary,
                 fontFamily: 'JetBrainsMono',
                 fontSize: 12,
               ),
@@ -646,7 +646,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
           // ── Capabilities ─────────────────────────────────────────────────
           if (_capabilities != null) ...[
             const SizedBox(height: 20),
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
             const SizedBox(height: 20),
             _sectionLabel('CAPABILITIES'),
             Wrap(
@@ -670,13 +670,13 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
 
           // ── Camera name field ─────────────────────────────────────────────
           const SizedBox(height: 20),
-          const Divider(color: NvrColors.border, height: 1),
+          Divider(color: NvrColors.of(context).border, height: 1),
           const SizedBox(height: 20),
           _sectionLabel('CAMERA NAME'),
           TextField(
             controller: _nameCtrl,
-            style: const TextStyle(
-              color: NvrColors.textPrimary,
+            style: TextStyle(
+              color: NvrColors.of(context).textPrimary,
               fontFamily: 'JetBrainsMono',
               fontSize: 12,
             ),
@@ -696,7 +696,7 @@ class _CameraDetailSheetState extends ConsumerState<CameraDetailSheet> {
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 'Probe the camera to discover available streams.',
-                style: NvrTypography.monoLabel.copyWith(color: NvrColors.textSecondary),
+                style: NvrTypography.of(context).monoLabel.copyWith(color: NvrColors.of(context).textSecondary),
                 textAlign: TextAlign.center,
               ),
             ),

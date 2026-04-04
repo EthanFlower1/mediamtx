@@ -174,7 +174,7 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
     final cameras = ref.watch(camerasProvider).valueOrNull ?? [];
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,9 +182,9 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
             // ----------------------------------------------------------------
             // Custom top bar
             // ----------------------------------------------------------------
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text('Search', style: NvrTypography.pageTitle),
+              child: Text('Search', style: NvrTypography.of(context).pageTitle),
             ),
             // ----------------------------------------------------------------
             // Search input row
@@ -197,37 +197,37 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
-                      style: const TextStyle(
-                          color: NvrColors.textPrimary, fontSize: 13),
+                      style: TextStyle(
+                          color: NvrColors.of(context).textPrimary, fontSize: 13),
                       decoration: InputDecoration(
                         hintText: 'Search objects, scenes, activities…',
-                        hintStyle: const TextStyle(
-                            color: NvrColors.textMuted, fontSize: 13),
+                        hintStyle: TextStyle(
+                            color: NvrColors.of(context).textMuted, fontSize: 13),
                         filled: true,
-                        fillColor: NvrColors.bgTertiary,
+                        fillColor: NvrColors.of(context).bgTertiary,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
                           borderSide:
-                              const BorderSide(color: NvrColors.border),
+                              BorderSide(color: NvrColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
                           borderSide:
-                              const BorderSide(color: NvrColors.border),
+                              BorderSide(color: NvrColors.of(context).border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(
-                              color: NvrColors.accent, width: 1.5),
+                          borderSide: BorderSide(
+                              color: NvrColors.of(context).accent, width: 1.5),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
-                        prefixIcon: const Icon(Icons.search,
-                            color: NvrColors.textMuted, size: 18),
+                        prefixIcon: Icon(Icons.search,
+                            color: NvrColors.of(context).textMuted, size: 18),
                         suffixIcon: search.query.isNotEmpty
                             ? IconButton(
-                                icon: const Icon(Icons.close,
-                                    color: NvrColors.textMuted, size: 16),
+                                icon: Icon(Icons.close,
+                                    color: NvrColors.of(context).textMuted, size: 16),
                                 onPressed: () {
                                   _controller.clear();
                                   ref.read(searchProvider.notifier).clear();
@@ -246,10 +246,10 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
                   ElevatedButton(
                     onPressed: search.searching ? null : _search,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: NvrColors.accent,
-                      foregroundColor: NvrColors.bgPrimary,
+                      backgroundColor: NvrColors.of(context).accent,
+                      foregroundColor: NvrColors.of(context).bgPrimary,
                       disabledBackgroundColor:
-                          NvrColors.accent.withValues(alpha: 0.4),
+                          NvrColors.of(context).accent.withValues(alpha: 0.4),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -304,7 +304,7 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
                 ],
               ),
             ),
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
             // ----------------------------------------------------------------
             // Results
             // ----------------------------------------------------------------
@@ -323,9 +323,9 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
   Widget _buildResults(
       BuildContext context, SearchState state, String? baseUrl) {
     if (state.searching) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-            color: NvrColors.accent, strokeWidth: 2),
+            color: NvrColors.of(context).accent, strokeWidth: 2),
       );
     }
 
@@ -334,16 +334,16 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline,
-                color: NvrColors.danger, size: 36),
+            Icon(Icons.error_outline,
+                color: NvrColors.of(context).danger, size: 36),
             const SizedBox(height: 12),
-            const Text('Search failed', style: NvrTypography.pageTitle),
+            Text('Search failed', style: NvrTypography.of(context).pageTitle),
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
                 state.error!,
-                style: NvrTypography.body,
+                style: NvrTypography.of(context).body,
                 textAlign: TextAlign.center,
               ),
             ),
@@ -358,11 +358,11 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.image_search,
-                color: NvrColors.textMuted.withValues(alpha: 0.4), size: 48),
+                color: NvrColors.of(context).textMuted.withValues(alpha: 0.4), size: 48),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Enter a query to search recordings',
-              style: NvrTypography.body,
+              style: NvrTypography.of(context).body,
             ),
           ],
         ),
@@ -377,17 +377,17 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.search_off,
-                color: NvrColors.textMuted.withValues(alpha: 0.4), size: 48),
+                color: NvrColors.of(context).textMuted.withValues(alpha: 0.4), size: 48),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No results found',
-              style: NvrTypography.body,
+              style: NvrTypography.of(context).body,
             ),
             const SizedBox(height: 4),
             Text(
               'Try adjusting your query or filters.',
-              style: NvrTypography.body.copyWith(
-                  color: NvrColors.textMuted, fontSize: 11),
+              style: NvrTypography.of(context).body.copyWith(
+                  color: NvrColors.of(context).textMuted, fontSize: 11),
             ),
           ],
         ),
@@ -404,13 +404,13 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
             children: [
               Text(
                 '${filtered.length} RESULT${filtered.length == 1 ? '' : 'S'}',
-                style: NvrTypography.monoLabel.copyWith(
-                    color: NvrColors.textPrimary),
+                style: NvrTypography.of(context).monoLabel.copyWith(
+                    color: NvrColors.of(context).textPrimary),
               ),
               const SizedBox(width: 10),
-              const Text(
+              Text(
                 'SORTED BY RELEVANCE',
-                style: NvrTypography.monoLabel,
+                style: NvrTypography.of(context).monoLabel,
               ),
             ],
           ),
@@ -479,19 +479,19 @@ class _FilterPill extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: active
-              ? NvrColors.accent.withValues(alpha: 0.13)
-              : NvrColors.bgSecondary,
+              ? NvrColors.of(context).accent.withValues(alpha: 0.13)
+              : NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color:
-                active ? NvrColors.accent : NvrColors.border,
+                active ? NvrColors.of(context).accent : NvrColors.of(context).border,
           ),
         ),
         child: Text(
           label,
-          style: NvrTypography.monoLabel.copyWith(
+          style: NvrTypography.of(context).monoLabel.copyWith(
             color:
-                active ? NvrColors.accent : NvrColors.textMuted,
+                active ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
           ),
         ),
       ),
@@ -525,20 +525,20 @@ class _CameraDropdownPill extends StatelessWidget {
         final picked = await showMenu<String?>(
           context: context,
           position: _buttonPosition(context),
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: NvrColors.border),
+            side: BorderSide(color: NvrColors.of(context).border),
           ),
           items: [
             PopupMenuItem<String?>(
               value: null,
-              child: _menuItem('ALL CAMERAS', selectedId == null),
+              child: _menuItem(context, 'ALL CAMERAS', selectedId == null),
             ),
             ...cameras.map(
               (c) => PopupMenuItem<String?>(
                 value: c.id as String,
-                child: _menuItem(
+                child: _menuItem(context, 
                     (c.name as String).toUpperCase(), c.id == selectedId),
               ),
             ),
@@ -550,19 +550,19 @@ class _CameraDropdownPill extends StatelessWidget {
         padding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: NvrColors.of(context).border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
-              style: NvrTypography.monoLabel.copyWith(
+              style: NvrTypography.of(context).monoLabel.copyWith(
                 color: selectedId != null
-                    ? NvrColors.accent
-                    : NvrColors.textMuted,
+                    ? NvrColors.of(context).accent
+                    : NvrColors.of(context).textMuted,
               ),
             ),
             const SizedBox(width: 4),
@@ -570,8 +570,8 @@ class _CameraDropdownPill extends StatelessWidget {
               Icons.keyboard_arrow_down,
               size: 12,
               color: selectedId != null
-                  ? NvrColors.accent
-                  : NvrColors.textMuted,
+                  ? NvrColors.of(context).accent
+                  : NvrColors.of(context).textMuted,
             ),
           ],
         ),
@@ -579,11 +579,11 @@ class _CameraDropdownPill extends StatelessWidget {
     );
   }
 
-  Widget _menuItem(String label, bool selected) {
+  Widget _menuItem(BuildContext context, String label, bool selected) {
     return Text(
       label,
-      style: NvrTypography.monoLabel.copyWith(
-        color: selected ? NvrColors.accent : NvrColors.textMuted,
+      style: NvrTypography.of(context).monoLabel.copyWith(
+        color: selected ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
         fontSize: 10,
       ),
     );
@@ -621,17 +621,17 @@ class _ConfidencePill extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: isFiltered
-              ? NvrColors.accent.withValues(alpha: 0.13)
-              : NvrColors.bgSecondary,
+              ? NvrColors.of(context).accent.withValues(alpha: 0.13)
+              : NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: isFiltered ? NvrColors.accent : NvrColors.border,
+            color: isFiltered ? NvrColors.of(context).accent : NvrColors.of(context).border,
           ),
         ),
         child: Text(
           'CONF ≥$threshold%',
-          style: NvrTypography.monoLabel.copyWith(
-            color: isFiltered ? NvrColors.accent : NvrColors.textMuted,
+          style: NvrTypography.of(context).monoLabel.copyWith(
+            color: isFiltered ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
           ),
         ),
       ),
@@ -671,10 +671,10 @@ class _ConfidenceDialogState extends State<_ConfidenceDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(4),
-        side: const BorderSide(color: NvrColors.border),
+        side: BorderSide(color: NvrColors.of(context).border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -682,19 +682,19 @@ class _ConfidenceDialogState extends State<_ConfidenceDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('CONFIDENCE THRESHOLD',
-                style: NvrTypography.monoSection),
+            Text('CONFIDENCE THRESHOLD',
+                style: NvrTypography.of(context).monoSection),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
-                      activeTrackColor: NvrColors.accent,
-                      inactiveTrackColor: NvrColors.bgTertiary,
-                      thumbColor: NvrColors.accent,
+                      activeTrackColor: NvrColors.of(context).accent,
+                      inactiveTrackColor: NvrColors.of(context).bgTertiary,
+                      thumbColor: NvrColors.of(context).accent,
                       overlayColor:
-                          NvrColors.accent.withValues(alpha: 0.13),
+                          NvrColors.of(context).accent.withValues(alpha: 0.13),
                       trackHeight: 2,
                     ),
                     child: Slider(
@@ -712,7 +712,7 @@ class _ConfidenceDialogState extends State<_ConfidenceDialog> {
                   width: 40,
                   child: Text(
                     '$_value%',
-                    style: NvrTypography.monoSection,
+                    style: NvrTypography.of(context).monoSection,
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -725,8 +725,8 @@ class _ConfidenceDialogState extends State<_ConfidenceDialog> {
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text('CANCEL',
-                      style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.textMuted, fontSize: 10)),
+                      style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: NvrColors.of(context).textMuted, fontSize: 10)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
@@ -735,8 +735,8 @@ class _ConfidenceDialogState extends State<_ConfidenceDialog> {
                     Navigator.of(context).pop();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: NvrColors.accent,
-                    foregroundColor: NvrColors.bgPrimary,
+                    backgroundColor: NvrColors.of(context).accent,
+                    foregroundColor: NvrColors.of(context).bgPrimary,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4)),

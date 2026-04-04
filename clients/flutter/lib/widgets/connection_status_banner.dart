@@ -23,10 +23,11 @@ class ConnectionStatusBanner extends ConsumerWidget {
         connectivity.status == ConnectivityStatus.reconnecting;
     final pendingCount = pendingActions.pendingCount;
 
+    final colors = NvrColors.of(context);
     return Material(
       color: isReconnecting
-          ? NvrColors.warning.withOpacity(0.15)
-          : NvrColors.danger.withOpacity(0.15),
+          ? colors.warning.withOpacity(0.15)
+          : colors.danger.withOpacity(0.15),
       child: SafeArea(
         bottom: false,
         child: Container(
@@ -36,8 +37,8 @@ class ConnectionStatusBanner extends ConsumerWidget {
             border: Border(
               bottom: BorderSide(
                 color: isReconnecting
-                    ? NvrColors.warning.withOpacity(0.3)
-                    : NvrColors.danger.withOpacity(0.3),
+                    ? colors.warning.withOpacity(0.3)
+                    : colors.danger.withOpacity(0.3),
               ),
             ),
           ),
@@ -46,7 +47,7 @@ class ConnectionStatusBanner extends ConsumerWidget {
               Icon(
                 isReconnecting ? Icons.sync : Icons.cloud_off,
                 size: 16,
-                color: isReconnecting ? NvrColors.warning : NvrColors.danger,
+                color: isReconnecting ? colors.warning : colors.danger,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -59,7 +60,7 @@ class ConnectionStatusBanner extends ConsumerWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color:
-                        isReconnecting ? NvrColors.warning : NvrColors.danger,
+                        isReconnecting ? colors.warning : colors.danger,
                   ),
                 ),
               ),
@@ -69,16 +70,16 @@ class ConnectionStatusBanner extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: NvrColors.bgTertiary,
+                    color: colors.bgTertiary,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: NvrColors.border),
+                    border: Border.all(color: colors.border),
                   ),
                   child: Text(
                     '$pendingCount pending',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'JetBrainsMono',
                       fontSize: 10,
-                      color: NvrColors.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),
@@ -88,9 +89,9 @@ class ConnectionStatusBanner extends ConsumerWidget {
                 width: 14,
                 height: 14,
                 child: isReconnecting
-                    ? const CircularProgressIndicator(
+                    ? CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: NvrColors.warning,
+                        color: colors.warning,
                       )
                     : const SizedBox.shrink(),
               ),
@@ -130,29 +131,30 @@ class _ReconnectedBannerState extends ConsumerState<ReconnectedBanner> {
 
     if (!_showReconnected) return const SizedBox.shrink();
 
+    final colors = NvrColors.of(context);
     return Material(
-      color: NvrColors.success.withOpacity(0.15),
+      color: colors.success.withOpacity(0.15),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: NvrColors.success.withOpacity(0.3),
+              color: colors.success.withOpacity(0.3),
             ),
           ),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.cloud_done, size: 16, color: NvrColors.success),
-            SizedBox(width: 8),
+            Icon(Icons.cloud_done, size: 16, color: colors.success),
+            const SizedBox(width: 8),
             Text(
               'Back online',
               style: TextStyle(
                 fontFamily: 'IBMPlexSans',
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: NvrColors.success,
+                color: colors.success,
               ),
             ),
           ],

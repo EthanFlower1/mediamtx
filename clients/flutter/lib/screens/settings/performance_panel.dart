@@ -73,8 +73,8 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: NvrTypography.monoLabel),
-          Text(value, style: NvrTypography.monoData),
+          Text(label, style: NvrTypography.of(context).monoLabel),
+          Text(value, style: NvrTypography.of(context).monoData),
         ],
       ),
     );
@@ -84,8 +84,8 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border, width: 1),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border, width: 1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: child,
@@ -116,8 +116,8 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: NvrColors.accent),
+      return Center(
+        child: CircularProgressIndicator(color: NvrColors.of(context).accent),
       );
     }
 
@@ -144,7 +144,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('CPU & MEMORY USAGE', style: NvrTypography.monoSection),
+                Text('CPU & MEMORY USAGE', style: NvrTypography.of(context).monoSection),
                 const SizedBox(height: 10),
                 SizedBox(
                   height: 200,
@@ -152,7 +152,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                       ? Center(
                           child: Text(
                             'No data yet',
-                            style: NvrTypography.body,
+                            style: NvrTypography.of(context).body,
                           ),
                         )
                       : LineChart(
@@ -162,7 +162,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                               show: true,
                               drawVerticalLine: false,
                               getDrawingHorizontalLine: (_) => FlLine(
-                                color: NvrColors.border,
+                                color: NvrColors.of(context).border,
                                 strokeWidth: 0.5,
                               ),
                             ),
@@ -177,7 +177,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                                   interval: 25,
                                   getTitlesWidget: (val, _) => Text(
                                     '${val.toInt()}%',
-                                    style: NvrTypography.monoLabel,
+                                    style: NvrTypography.of(context).monoLabel,
                                   ),
                                 ),
                               ),
@@ -194,18 +194,18 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                                   interval: xInterval,
                                   getTitlesWidget: (val, _) => Text(
                                     _bottomLabel(val, count),
-                                    style: NvrTypography.monoLabel,
+                                    style: NvrTypography.of(context).monoLabel,
                                   ),
                                 ),
                               ),
                             ),
                             lineTouchData: LineTouchData(
                               touchTooltipData: LineTouchTooltipData(
-                                getTooltipColor: (_) => NvrColors.bgTertiary,
+                                getTooltipColor: (_) => NvrColors.of(context).bgTertiary,
                                 getTooltipItems: (spots) => spots
                                     .map((s) => LineTooltipItem(
                                           '${s.y.toStringAsFixed(1)}%',
-                                          NvrTypography.monoData.copyWith(
+                                          NvrTypography.of(context).monoData.copyWith(
                                             color: s.bar.color,
                                           ),
                                         ))
@@ -215,12 +215,12 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                             lineBarsData: [
                               LineChartBarData(
                                 spots: cpuSpots,
-                                color: NvrColors.accent,
+                                color: NvrColors.of(context).accent,
                                 barWidth: 2,
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(
                                   show: true,
-                                  color: NvrColors.accent.withOpacity(0.1),
+                                  color: NvrColors.of(context).accent.withOpacity(0.1),
                                 ),
                               ),
                               LineChartBarData(
@@ -242,13 +242,13 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                 // Legend
                 Row(
                   children: [
-                    _LegendDot(color: NvrColors.accent),
+                    _LegendDot(color: NvrColors.of(context).accent),
                     const SizedBox(width: 6),
-                    Text('CPU', style: NvrTypography.monoData),
+                    Text('CPU', style: NvrTypography.of(context).monoData),
                     const SizedBox(width: 16),
                     const _LegendDot(color: Color(0xFF22c55e)),
                     const SizedBox(width: 6),
-                    Text('Memory', style: NvrTypography.monoData),
+                    Text('Memory', style: NvrTypography.of(context).monoData),
                   ],
                 ),
               ],
@@ -262,7 +262,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('PROCESS MEMORY', style: NvrTypography.monoSection),
+                Text('PROCESS MEMORY', style: NvrTypography.of(context).monoSection),
                 const SizedBox(height: 10),
                 SizedBox(
                   height: 200,
@@ -270,7 +270,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                       ? Center(
                           child: Text(
                             'No data yet',
-                            style: NvrTypography.body,
+                            style: NvrTypography.of(context).body,
                           ),
                         )
                       : LineChart(
@@ -280,7 +280,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                               show: true,
                               drawVerticalLine: false,
                               getDrawingHorizontalLine: (_) => FlLine(
-                                color: NvrColors.border,
+                                color: NvrColors.of(context).border,
                                 strokeWidth: 0.5,
                               ),
                             ),
@@ -294,7 +294,7 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                                   reservedSize: 40,
                                   getTitlesWidget: (val, _) => Text(
                                     '${val.toStringAsFixed(0)}M',
-                                    style: NvrTypography.monoLabel,
+                                    style: NvrTypography.of(context).monoLabel,
                                   ),
                                 ),
                               ),
@@ -311,18 +311,18 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                                   interval: xInterval,
                                   getTitlesWidget: (val, _) => Text(
                                     _bottomLabel(val, count),
-                                    style: NvrTypography.monoLabel,
+                                    style: NvrTypography.of(context).monoLabel,
                                   ),
                                 ),
                               ),
                             ),
                             lineTouchData: LineTouchData(
                               touchTooltipData: LineTouchTooltipData(
-                                getTooltipColor: (_) => NvrColors.bgTertiary,
+                                getTooltipColor: (_) => NvrColors.of(context).bgTertiary,
                                 getTooltipItems: (spots) => spots
                                     .map((s) => LineTooltipItem(
                                           '${s.y.toStringAsFixed(1)} MB',
-                                          NvrTypography.monoData.copyWith(
+                                          NvrTypography.of(context).monoData.copyWith(
                                             color: s.bar.color,
                                           ),
                                         ))
@@ -332,12 +332,12 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                             lineBarsData: [
                               LineChartBarData(
                                 spots: heapSpots,
-                                color: NvrColors.accent,
+                                color: NvrColors.of(context).accent,
                                 barWidth: 2,
                                 dotData: const FlDotData(show: false),
                                 belowBarData: BarAreaData(
                                   show: true,
-                                  color: NvrColors.accent.withOpacity(0.1),
+                                  color: NvrColors.of(context).accent.withOpacity(0.1),
                                 ),
                               ),
                             ],
@@ -347,9 +347,9 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _LegendDot(color: NvrColors.accent),
+                    _LegendDot(color: NvrColors.of(context).accent),
                     const SizedBox(width: 6),
-                    Text('Heap Alloc (MB)', style: NvrTypography.monoData),
+                    Text('Heap Alloc (MB)', style: NvrTypography.of(context).monoData),
                   ],
                 ),
               ],
@@ -363,10 +363,10 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('CURRENT STATS', style: NvrTypography.monoSection),
+                Text('CURRENT STATS', style: NvrTypography.of(context).monoSection),
                 const SizedBox(height: 10),
                 if (_current == null)
-                  Text('No data available', style: NvrTypography.body)
+                  Text('No data available', style: NvrTypography.of(context).body)
                 else ...[
                   _kvRow(
                     'CPU USAGE',

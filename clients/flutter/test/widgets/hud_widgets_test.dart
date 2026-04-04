@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nvr_client/theme/nvr_theme.dart';
 import 'package:nvr_client/widgets/hud/hud_toggle.dart';
 import 'package:nvr_client/widgets/hud/segmented_control.dart';
 import 'package:nvr_client/widgets/hud/analog_slider.dart';
@@ -7,7 +8,12 @@ import 'package:nvr_client/widgets/hud/corner_brackets.dart';
 
 void main() {
   Widget wrap(Widget child) {
-    return MaterialApp(home: Scaffold(body: child));
+    return MaterialApp(
+      theme: NvrTheme.light(),
+      darkTheme: NvrTheme.dark(),
+      themeMode: ThemeMode.dark,
+      home: Scaffold(body: child),
+    );
   }
 
   group('HudToggle', () {

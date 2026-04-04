@@ -112,12 +112,12 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: NvrColors.bgSecondary,
+          backgroundColor: NvrColors.of(context).bgSecondary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: NvrColors.border),
+            side: BorderSide(color: NvrColors.of(context).border),
           ),
-          title: Text('ADD USER', style: NvrTypography.monoSection),
+          title: Text('ADD USER', style: NvrTypography.of(context).monoSection),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -131,9 +131,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
-                dropdownColor: NvrColors.bgTertiary,
-                style: NvrTypography.monoData,
-                decoration: _hudInputDecoration('ROLE'),
+                dropdownColor: NvrColors.of(context).bgTertiary,
+                style: NvrTypography.of(context).monoData,
+                decoration: _hudInputDecoration(context, 'ROLE'),
                 items: const [
                   DropdownMenuItem(value: 'viewer', child: Text('VIEWER')),
                   DropdownMenuItem(value: 'admin', child: Text('ADMIN')),
@@ -145,7 +145,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 const SizedBox(height: 10),
                 Text(
                   dialogError!,
-                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                  style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
                 ),
               ],
             ],
@@ -155,8 +155,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               onPressed: () => Navigator.pop(ctx),
               child: Text(
                 'CANCEL',
-                style: NvrTypography.monoLabel
-                    .copyWith(color: NvrColors.textSecondary),
+                style: NvrTypography.of(context).monoLabel
+                    .copyWith(color: NvrColors.of(context).textSecondary),
               ),
             ),
             HudButton(
@@ -204,23 +204,23 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: NvrColors.bgSecondary,
+          backgroundColor: NvrColors.of(context).bgSecondary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
-            side: const BorderSide(color: NvrColors.border),
+            side: BorderSide(color: NvrColors.of(context).border),
           ),
           title: Text(
             'EDIT ${user.username.toUpperCase()}',
-            style: NvrTypography.monoSection,
+            style: NvrTypography.of(context).monoSection,
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
-                dropdownColor: NvrColors.bgTertiary,
-                style: NvrTypography.monoData,
-                decoration: _hudInputDecoration('ROLE'),
+                dropdownColor: NvrColors.of(context).bgTertiary,
+                style: NvrTypography.of(context).monoData,
+                decoration: _hudInputDecoration(context, 'ROLE'),
                 items: const [
                   DropdownMenuItem(value: 'viewer', child: Text('VIEWER')),
                   DropdownMenuItem(value: 'admin', child: Text('ADMIN')),
@@ -232,7 +232,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                 const SizedBox(height: 10),
                 Text(
                   dialogError!,
-                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                  style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
                 ),
               ],
             ],
@@ -242,8 +242,8 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
               onPressed: () => Navigator.pop(ctx),
               child: Text(
                 'CANCEL',
-                style: NvrTypography.monoLabel
-                    .copyWith(color: NvrColors.textSecondary),
+                style: NvrTypography.of(context).monoLabel
+                    .copyWith(color: NvrColors.of(context).textSecondary),
               ),
             ),
             HudButton(
@@ -276,15 +276,15 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
+        backgroundColor: NvrColors.of(context).bgSecondary,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(4),
-          side: const BorderSide(color: NvrColors.border),
+          side: BorderSide(color: NvrColors.of(context).border),
         ),
-        title: Text('DELETE USER', style: NvrTypography.monoSection),
+        title: Text('DELETE USER', style: NvrTypography.of(context).monoSection),
         content: Text(
           'Delete "${user.username}"? This cannot be undone.',
-          style: NvrTypography.body,
+          style: NvrTypography.of(context).body,
         ),
         actions: [
           TextButton(
@@ -292,7 +292,7 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
             child: Text(
               'CANCEL',
               style:
-                  NvrTypography.monoLabel.copyWith(color: NvrColors.textMuted),
+                  NvrTypography.of(context).monoLabel.copyWith(color: NvrColors.of(context).textMuted),
             ),
           ),
           HudButton(
@@ -315,9 +315,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           SnackBar(
             content: Text(
               'User "${user.username}" deleted',
-              style: NvrTypography.monoData,
+              style: NvrTypography.of(context).monoData,
             ),
-            backgroundColor: NvrColors.bgSecondary,
+            backgroundColor: NvrColors.of(context).bgSecondary,
           ),
         );
       }
@@ -327,9 +327,9 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           SnackBar(
             content: Text(
               'Failed to delete user',
-              style: NvrTypography.monoData.copyWith(color: NvrColors.danger),
+              style: NvrTypography.of(context).monoData.copyWith(color: NvrColors.of(context).danger),
             ),
-            backgroundColor: NvrColors.bgSecondary,
+            backgroundColor: NvrColors.of(context).bgSecondary,
           ),
         );
       }
@@ -348,13 +348,13 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             // ── Change Password ──
-            Text('CHANGE PASSWORD', style: NvrTypography.monoSection),
+            Text('CHANGE PASSWORD', style: NvrTypography.of(context).monoSection),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
-                border: Border.all(color: NvrColors.border),
+                color: NvrColors.of(context).bgSecondary,
+                border: Border.all(color: NvrColors.of(context).border),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Column(
@@ -386,20 +386,20 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                     Text(
                       _passwordError!,
                       style:
-                          NvrTypography.body.copyWith(color: NvrColors.danger),
+                          NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
                     ),
                   ],
                   if (_passwordSuccess) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.check_circle,
-                            color: NvrColors.success, size: 14),
+                        Icon(Icons.check_circle,
+                            color: NvrColors.of(context).success, size: 14),
                         const SizedBox(width: 6),
                         Text(
                           'Password changed successfully',
-                          style: NvrTypography.monoData.copyWith(
-                            color: NvrColors.success,
+                          style: NvrTypography.of(context).monoData.copyWith(
+                            color: NvrColors.of(context).success,
                           ),
                         ),
                       ],
@@ -409,13 +409,13 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: _changingPassword
-                        ? const Center(
+                        ? Center(
                             child: SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: NvrColors.accent,
+                                color: NvrColors.of(context).accent,
                               ),
                             ),
                           )
@@ -431,22 +431,22 @@ class _UserManagementScreenState extends ConsumerState<UserManagementScreen> {
             // ── User list (admin only) ──
             if (isAdmin) ...[
               const SizedBox(height: 28),
-              Text('USERS', style: NvrTypography.monoSection),
+              Text('USERS', style: NvrTypography.of(context).monoSection),
               const SizedBox(height: 12),
               usersAsync.when(
-                loading: () => const Center(
+                loading: () => Center(
                   child:
-                      CircularProgressIndicator(color: NvrColors.accent),
+                      CircularProgressIndicator(color: NvrColors.of(context).accent),
                 ),
                 error: (e, _) => Text(
                   'Failed to load users: $e',
-                  style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                  style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
                 ),
                 data: (users) => users.isEmpty
                     ? Center(
                         child: Text(
                           'No users found',
-                          style: NvrTypography.body,
+                          style: NvrTypography.of(context).body,
                         ),
                       )
                     : Column(
@@ -501,12 +501,12 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: !show,
-      style: NvrTypography.monoData,
-      decoration: _hudInputDecoration(label).copyWith(
+      style: NvrTypography.of(context).monoData,
+      decoration: _hudInputDecoration(context, label).copyWith(
         suffixIcon: IconButton(
           icon: Icon(
             show ? Icons.visibility_off : Icons.visibility,
-            color: NvrColors.textMuted,
+            color: NvrColors.of(context).textMuted,
             size: 16,
           ),
           onPressed: onToggle,
@@ -546,10 +546,10 @@ class _UserTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: NvrColors.danger.withOpacity(0.15),
+          color: NvrColors.of(context).danger.withOpacity(0.15),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: const Icon(Icons.delete, color: NvrColors.danger, size: 18),
+        child: Icon(Icons.delete, color: NvrColors.of(context).danger, size: 18),
       ),
       confirmDismiss: (direction) async {
         onDelete();
@@ -559,8 +559,8 @@ class _UserTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
-          border: Border.all(color: NvrColors.border),
+          color: NvrColors.of(context).bgSecondary,
+          border: Border.all(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
@@ -570,14 +570,14 @@ class _UserTile extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: NvrColors.accent.withOpacity(0.15),
+                color: NvrColors.of(context).accent.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               alignment: Alignment.center,
               child: Text(
                 _initials(user.username),
-                style: NvrTypography.monoData.copyWith(
-                  color: NvrColors.accent,
+                style: NvrTypography.of(context).monoData.copyWith(
+                  color: NvrColors.of(context).accent,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -589,14 +589,14 @@ class _UserTile extends StatelessWidget {
                 children: [
                   Text(
                     user.username,
-                    style: NvrTypography.monoData.copyWith(
-                      color: NvrColors.textPrimary,
+                    style: NvrTypography.of(context).monoData.copyWith(
+                      color: NvrColors.of(context).textPrimary,
                     ),
                   ),
                   if (user.cameraPermissions != '*')
                     Text(
                       'Cameras: ${user.cameraPermissions}',
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                     ),
                 ],
               ),
@@ -606,26 +606,26 @@ class _UserTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: isAdmin
-                    ? NvrColors.accent.withOpacity(0.12)
-                    : NvrColors.bgTertiary,
+                    ? NvrColors.of(context).accent.withOpacity(0.12)
+                    : NvrColors.of(context).bgTertiary,
                 border: Border.all(
                   color: isAdmin
-                      ? NvrColors.accent.withOpacity(0.3)
-                      : NvrColors.border,
+                      ? NvrColors.of(context).accent.withOpacity(0.3)
+                      : NvrColors.of(context).border,
                 ),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 user.role.toUpperCase(),
-                style: NvrTypography.monoLabel.copyWith(
-                  color: isAdmin ? NvrColors.accent : NvrColors.textSecondary,
+                style: NvrTypography.of(context).monoLabel.copyWith(
+                  color: isAdmin ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
                 ),
               ),
             ),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.edit_outlined,
-                  color: NvrColors.textMuted, size: 16),
+              icon: Icon(Icons.edit_outlined,
+                  color: NvrColors.of(context).textMuted, size: 16),
               onPressed: onEdit,
               tooltip: 'Edit',
               padding: EdgeInsets.zero,
@@ -654,29 +654,29 @@ class _HudTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
-      style: NvrTypography.monoData,
-      decoration: _hudInputDecoration(label),
+      style: NvrTypography.of(context).monoData,
+      decoration: _hudInputDecoration(context, label),
     );
   }
 }
 
-InputDecoration _hudInputDecoration(String label) {
+InputDecoration _hudInputDecoration(BuildContext context, String label) {
   return InputDecoration(
     labelText: label,
-    labelStyle: NvrTypography.monoLabel,
+    labelStyle: NvrTypography.of(context).monoLabel,
     filled: true,
-    fillColor: NvrColors.bgTertiary,
+    fillColor: NvrColors.of(context).bgTertiary,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: NvrColors.border),
+      borderSide: BorderSide(color: NvrColors.of(context).border),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: NvrColors.border),
+      borderSide: BorderSide(color: NvrColors.of(context).border),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(4),
-      borderSide: const BorderSide(color: NvrColors.accent),
+      borderSide: BorderSide(color: NvrColors.of(context).accent),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
   );

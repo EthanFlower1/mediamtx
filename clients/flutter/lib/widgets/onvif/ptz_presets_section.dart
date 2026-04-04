@@ -33,8 +33,8 @@ class PtzPresetsSection extends ConsumerWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgSecondary,
+            border: Border.all(color: NvrColors.of(context).border),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -43,9 +43,9 @@ class PtzPresetsSection extends ConsumerWidget {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Text('PTZ PRESETS', style: NvrTypography.monoSection),
+                child: Text('PTZ PRESETS', style: NvrTypography.of(context).monoSection),
               ),
-              const Divider(height: 1, color: NvrColors.border),
+              Divider(height: 1, color: NvrColors.of(context).border),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -63,7 +63,7 @@ class PtzPresetsSection extends ConsumerWidget {
                     ),
                     if (presets.isNotEmpty) ...[
                       const SizedBox(height: 12),
-                      const Divider(height: 1, color: NvrColors.border),
+                      Divider(height: 1, color: NvrColors.of(context).border),
                       const SizedBox(height: 12),
                       ...presets.map((preset) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
@@ -78,12 +78,12 @@ class PtzPresetsSection extends ConsumerWidget {
                                         preset.name.isNotEmpty
                                             ? preset.name
                                             : preset.token,
-                                        style: NvrTypography.monoData,
+                                        style: NvrTypography.of(context).monoData,
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
                                         preset.token,
-                                        style: NvrTypography.monoLabel,
+                                        style: NvrTypography.of(context).monoLabel,
                                       ),
                                     ],
                                   ),

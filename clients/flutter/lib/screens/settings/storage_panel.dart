@@ -21,10 +21,10 @@ class StoragePanel extends ConsumerWidget {
     return '${val.toStringAsFixed(i == 0 ? 0 : 1)} ${units[i]}';
   }
 
-  Color _healthColor(StorageInfo info) {
-    if (info.critical) return NvrColors.danger;
-    if (info.warning) return NvrColors.warning;
-    return NvrColors.success;
+  Color _healthColor(BuildContext context, StorageInfo info) {
+    if (info.critical) return NvrColors.of(context).danger;
+    if (info.warning) return NvrColors.of(context).warning;
+    return NvrColors.of(context).success;
   }
 
   @override
@@ -32,20 +32,20 @@ class StoragePanel extends ConsumerWidget {
     final storageAsync = ref.watch(storageInfoProvider);
 
     return storageAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: NvrColors.accent),
+      loading: () => Center(
+        child: CircularProgressIndicator(color: NvrColors.of(context).accent),
       ),
       error: (e, _) => Center(
         child: Text(
           'Failed to load storage info: $e',
-          style: NvrTypography.body.copyWith(color: NvrColors.danger),
+          style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
         ),
       ),
       data: (info) {
         final percent = info.usagePercent;
         final usedFraction =
             info.totalBytes > 0 ? info.usedBytes / info.totalBytes : 0.0;
-        final healthColor = _healthColor(info);
+        final healthColor = _healthColor(context, info);
         final healthLabel = info.critical
             ? 'CRITICAL'
             : info.warning
@@ -56,15 +56,15 @@ class StoragePanel extends ConsumerWidget {
           padding: const EdgeInsets.all(20),
           children: [
             // ── Section header ──
-            Text('STORAGE OVERVIEW', style: NvrTypography.monoSection),
+            Text('STORAGE OVERVIEW', style: NvrTypography.of(context).monoSection),
             const SizedBox(height: 12),
 
             // ── Primary disk card ──
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: NvrColors.bgSecondary,
-                border: Border.all(color: NvrColors.border),
+                color: NvrColors.of(context).bgSecondary,
+                border: Border.all(color: NvrColors.of(context).border),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Column(
@@ -76,7 +76,7 @@ class StoragePanel extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           'PRIMARY DISK',
-                          style: NvrTypography.monoLabel,
+                          style: NvrTypography.of(context).monoLabel,
                         ),
                       ),
                       StatusBadge(label: healthLabel, color: healthColor),
@@ -86,23 +86,23 @@ class StoragePanel extends ConsumerWidget {
                   // Used / Total
                   Text(
                     '${_formatBytes(info.usedBytes)} / ${_formatBytes(info.totalBytes)}',
-                    style: NvrTypography.monoData.copyWith(
-                      color: NvrColors.accent,
+                    style: NvrTypography.of(context).monoData.copyWith(
+                      color: NvrColors.of(context).accent,
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '${percent.toStringAsFixed(1)}% used',
-                    style: NvrTypography.monoLabel,
+                    style: NvrTypography.of(context).monoLabel,
                   ),
                   const SizedBox(height: 12),
                   // Usage bar
                   Container(
                     height: 8,
                     decoration: BoxDecoration(
-                      color: NvrColors.bgTertiary,
-                      border: Border.all(color: NvrColors.border),
+                      color: NvrColors.of(context).bgTertiary,
+                      border: Border.all(color: NvrColors.of(context).border),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: ClipRRect(
@@ -114,8 +114,8 @@ class StoragePanel extends ConsumerWidget {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                NvrColors.accent,
-                                NvrColors.accent.withOpacity(0.7),
+                                NvrColors.of(context).accent,
+                                NvrColors.of(context).accent.withOpacity(0.7),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(4),
@@ -128,25 +128,25 @@ class StoragePanel extends ConsumerWidget {
                   // Legend row
                   Row(
                     children: [
-                      _LegendDot(color: NvrColors.accent),
+                      _LegendDot(color: NvrColors.of(context).accent),
                       const SizedBox(width: 6),
                       Text(
                         'Recordings ${_formatBytes(info.recordingsBytes)}',
-                        style: NvrTypography.monoData,
+                        style: NvrTypography.of(context).monoData,
                       ),
                       const SizedBox(width: 16),
                       _LegendDot(color: const Color(0xFF3B82F6)),
                       const SizedBox(width: 6),
                       Text(
                         'System',
-                        style: NvrTypography.monoData,
+                        style: NvrTypography.of(context).monoData,
                       ),
                       const SizedBox(width: 16),
-                      _LegendDot(color: NvrColors.textSecondary),
+                      _LegendDot(color: NvrColors.of(context).textSecondary),
                       const SizedBox(width: 6),
                       Text(
                         'Free ${_formatBytes(info.freeBytes)}',
-                        style: NvrTypography.monoData,
+                        style: NvrTypography.of(context).monoData,
                       ),
                     ],
                   ),
@@ -157,7 +157,7 @@ class StoragePanel extends ConsumerWidget {
             // ── Per-camera breakdown ──
             if (info.perCamera.isNotEmpty) ...[
               const SizedBox(height: 24),
-              Text('PER-CAMERA STORAGE', style: NvrTypography.monoSection),
+              Text('PER-CAMERA STORAGE', style: NvrTypography.of(context).monoSection),
               const SizedBox(height: 12),
               ...info.perCamera.map((cam) {
                 final camFraction = info.totalBytes > 0
@@ -169,8 +169,8 @@ class StoragePanel extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: NvrColors.bgSecondary,
-                      border: Border.all(color: NvrColors.border),
+                      color: NvrColors.of(context).bgSecondary,
+                      border: Border.all(color: NvrColors.of(context).border),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -183,8 +183,8 @@ class StoragePanel extends ConsumerWidget {
                                 cam.cameraName.isNotEmpty
                                     ? cam.cameraName
                                     : cam.cameraId,
-                                style: NvrTypography.monoData.copyWith(
-                                  color: NvrColors.textPrimary,
+                                style: NvrTypography.of(context).monoData.copyWith(
+                                  color: NvrColors.of(context).textPrimary,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -193,8 +193,8 @@ class StoragePanel extends ConsumerWidget {
                               Container(
                                 height: 4,
                                 decoration: BoxDecoration(
-                                  color: NvrColors.bgTertiary,
-                                  border: Border.all(color: NvrColors.border),
+                                  color: NvrColors.of(context).bgTertiary,
+                                  border: Border.all(color: NvrColors.of(context).border),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: ClipRRect(
@@ -203,7 +203,7 @@ class StoragePanel extends ConsumerWidget {
                                     alignment: Alignment.centerLeft,
                                     widthFactor: camFraction,
                                     child: Container(
-                                      color: NvrColors.accent,
+                                      color: NvrColors.of(context).accent,
                                     ),
                                   ),
                                 ),
@@ -214,8 +214,8 @@ class StoragePanel extends ConsumerWidget {
                         const SizedBox(width: 16),
                         Text(
                           _formatBytes(cam.totalBytes),
-                          style: NvrTypography.monoData.copyWith(
-                            color: NvrColors.accent,
+                          style: NvrTypography.of(context).monoData.copyWith(
+                            color: NvrColors.of(context).accent,
                           ),
                         ),
                       ],
@@ -230,7 +230,7 @@ class StoragePanel extends ConsumerWidget {
                   padding: const EdgeInsets.all(32),
                   child: Text(
                     'No per-camera data available',
-                    style: NvrTypography.body,
+                    style: NvrTypography.of(context).body,
                   ),
                 ),
               ),
@@ -239,13 +239,13 @@ class StoragePanel extends ConsumerWidget {
             // ── Database stats ──
             if (info.database != null) ...[
               const SizedBox(height: 24),
-              Text('DATABASE', style: NvrTypography.monoSection),
+              Text('DATABASE', style: NvrTypography.of(context).monoSection),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: NvrColors.bgSecondary,
-                  border: Border.all(color: NvrColors.border),
+                  color: NvrColors.of(context).bgSecondary,
+                  border: Border.all(color: NvrColors.of(context).border),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Column(
@@ -254,11 +254,11 @@ class StoragePanel extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text('DB SIZE', style: NvrTypography.monoLabel),
+                          child: Text('DB SIZE', style: NvrTypography.of(context).monoLabel),
                         ),
                         Text(
                           _formatBytes(info.database!.fileSizeBytes),
-                          style: NvrTypography.monoData.copyWith(color: NvrColors.accent),
+                          style: NvrTypography.of(context).monoData.copyWith(color: NvrColors.of(context).accent),
                         ),
                       ],
                     ),
@@ -271,13 +271,13 @@ class StoragePanel extends ConsumerWidget {
                             Expanded(
                               child: Text(
                                 entry.key.toUpperCase().replaceAll('_', ' '),
-                                style: NvrTypography.monoData,
+                                style: NvrTypography.of(context).monoData,
                               ),
                             ),
                             Text(
                               _formatCount(entry.value),
-                              style: NvrTypography.monoData.copyWith(
-                                color: NvrColors.textSecondary,
+                              style: NvrTypography.of(context).monoData.copyWith(
+                                color: NvrColors.of(context).textSecondary,
                               ),
                             ),
                           ],

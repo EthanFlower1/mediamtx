@@ -25,7 +25,7 @@ class _AddCameraScreenState extends ConsumerState<AddCameraScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: SafeArea(
         child: Column(
           children: [
@@ -35,17 +35,17 @@ class _AddCameraScreenState extends ConsumerState<AddCameraScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: NvrColors.textPrimary, size: 20),
+                    icon: Icon(Icons.arrow_back, color: NvrColors.of(context).textPrimary, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-                  const Expanded(
-                    child: Text('Add Camera', style: NvrTypography.pageTitle),
+                  Expanded(
+                    child: Text('Add Camera', style: NvrTypography.of(context).pageTitle),
                   ),
                 ],
               ),
             ),
 
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: NvrColors.of(context).border, height: 1),
 
             // ── Tab selector ─────────────────────────────────────────
             Padding(
@@ -177,9 +177,9 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
         children: [
           // ── Scan button or progress ──────────────────────────────
           if (!_discovering) ...[
-            const Text(
+            Text(
               'Scan your local network for ONVIF-compatible cameras.',
-              style: NvrTypography.body,
+              style: NvrTypography.of(context).body,
             ),
             const SizedBox(height: 16),
             HudButton(
@@ -196,14 +196,14 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
                     height: 56,
                     child: CircularProgressIndicator(
                       strokeWidth: 3,
-                      color: NvrColors.accent,
-                      backgroundColor: NvrColors.accent.withValues(alpha: 0.12),
+                      color: NvrColors.of(context).accent,
+                      backgroundColor: NvrColors.of(context).accent.withValues(alpha: 0.12),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     'Scanning network...',
-                    style: NvrTypography.monoLabel,
+                    style: NvrTypography.of(context).monoLabel,
                   ),
                   const SizedBox(height: 8),
                   HudButton(
@@ -221,7 +221,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Discovery timed out after 30 seconds.',
-                style: NvrTypography.monoLabel.copyWith(color: NvrColors.textSecondary),
+                style: NvrTypography.of(context).monoLabel.copyWith(color: NvrColors.of(context).textSecondary),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -231,7 +231,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 _error!,
-                style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
               ),
             ),
 
@@ -243,7 +243,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 '${_results.length} DEVICE${_results.length == 1 ? '' : 'S'} FOUND',
-                style: NvrTypography.monoLabel,
+                style: NvrTypography.of(context).monoLabel,
               ),
             ),
 
@@ -255,7 +255,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
                       _discovering
                           ? 'Looking for cameras...'
                           : 'No cameras found.\nTap "Scan Network" to start.',
-                      style: NvrTypography.body,
+                      style: NvrTypography.of(context).body,
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -320,13 +320,13 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: NvrColors.success, content: Text('Connection successful')),
+          SnackBar(backgroundColor: NvrColors.of(context).success, content: Text('Connection successful')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Connection failed: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Connection failed: $e')),
         );
       }
     } finally {
@@ -355,7 +355,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to add camera: $e'),
           ),
         );
@@ -443,13 +443,13 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: NvrTypography.monoLabel),
+        Text(label, style: NvrTypography.of(context).monoLabel),
         const SizedBox(height: 5),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          style: const TextStyle(
-            color: NvrColors.textPrimary,
+          style: TextStyle(
+            color: NvrColors.of(context).textPrimary,
             fontFamily: 'JetBrainsMono',
             fontSize: 12,
           ),
@@ -464,13 +464,13 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('PASSWORD', style: NvrTypography.monoLabel),
+        Text('PASSWORD', style: NvrTypography.of(context).monoLabel),
         const SizedBox(height: 5),
         TextFormField(
           controller: _passCtrl,
           obscureText: _obscurePass,
-          style: const TextStyle(
-            color: NvrColors.textPrimary,
+          style: TextStyle(
+            color: NvrColors.of(context).textPrimary,
             fontFamily: 'JetBrainsMono',
             fontSize: 12,
           ),
@@ -478,7 +478,7 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePass ? Icons.visibility_off : Icons.visibility,
-                color: NvrColors.textMuted,
+                color: NvrColors.of(context).textMuted,
                 size: 18,
               ),
               onPressed: () => setState(() => _obscurePass = !_obscurePass),
@@ -492,25 +492,25 @@ class _ManualTabState extends ConsumerState<_ManualTab> {
   InputDecoration _inputDecoration({String? hint}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: NvrColors.textMuted),
+      hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
       filled: true,
-      fillColor: NvrColors.bgInput,
+      fillColor: NvrColors.of(context).bgInput,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.border),
+        borderSide: BorderSide(color: NvrColors.of(context).border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.accent),
+        borderSide: BorderSide(color: NvrColors.of(context).accent),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: NvrColors.danger),
+        borderSide: BorderSide(color: NvrColors.of(context).danger),
       ),
     );
   }

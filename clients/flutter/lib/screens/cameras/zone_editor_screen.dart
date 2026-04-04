@@ -130,7 +130,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -141,17 +141,17 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('Zone Name', style: TextStyle(color: NvrColors.textPrimary)),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('Zone Name', style: TextStyle(color: NvrColors.of(context).textPrimary)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: const TextStyle(color: NvrColors.textPrimary),
+          style: TextStyle(color: NvrColors.of(context).textPrimary),
           decoration: InputDecoration(
             hintText: 'e.g. Driveway',
-            hintStyle: const TextStyle(color: NvrColors.textMuted),
+            hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
             filled: true,
-            fillColor: NvrColors.bgTertiary,
+            fillColor: NvrColors.of(context).bgTertiary,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
@@ -159,10 +159,10 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: NvrColors.accent),
+            style: ElevatedButton.styleFrom(backgroundColor: NvrColors.of(context).accent),
             onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
             child: const Text('Create', style: TextStyle(color: Colors.white)),
           ),
@@ -175,20 +175,20 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('Delete Zone', style: TextStyle(color: NvrColors.textPrimary)),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('Delete Zone', style: TextStyle(color: NvrColors.of(context).textPrimary)),
         content: Text(
           'Delete zone "${zone.name}"?',
-          style: const TextStyle(color: NvrColors.textSecondary),
+          style: TextStyle(color: NvrColors.of(context).textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: NvrColors.danger)),
+            child: Text('Delete', style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -203,7 +203,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -212,14 +212,14 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: NvrColors.accent));
+      return Center(child: CircularProgressIndicator(color: NvrColors.of(context).accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: NvrColors.danger)),
+            Text(_error!, style: TextStyle(color: NvrColors.of(context).danger)),
             TextButton(onPressed: _loadData, child: const Text('Retry')),
           ],
         ),
@@ -230,11 +230,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
               'Tap to add points. Double-tap or tap near start to close a zone.',
-              style: TextStyle(color: NvrColors.textMuted, fontSize: 12),
+              style: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 12),
             ),
           ),
           // Canvas
@@ -254,9 +254,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                           _snapshotUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            color: NvrColors.bgTertiary,
-                            child: const Center(
-                              child: Icon(Icons.broken_image, color: NvrColors.textMuted),
+                            color: NvrColors.of(context).bgTertiary,
+                            child: Center(
+                              child: Icon(Icons.broken_image, color: NvrColors.of(context).textMuted),
                             ),
                           ),
                         ),
@@ -264,9 +264,9 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                     else
                       Positioned.fill(
                         child: Container(
-                          color: NvrColors.bgTertiary,
-                          child: const Center(
-                            child: Icon(Icons.videocam, color: NvrColors.textMuted, size: 48),
+                          color: NvrColors.of(context).bgTertiary,
+                          child: Center(
+                            child: Icon(Icons.videocam, color: NvrColors.of(context).textMuted, size: 48),
                           ),
                         ),
                       ),
@@ -297,7 +297,7 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: NvrColors.danger.withValues(alpha: 0.85),
+                              color: NvrColors.of(context).danger.withValues(alpha: 0.85),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
@@ -333,11 +333,11 @@ class _ZoneEditorScreenState extends ConsumerState<ZoneEditorScreen> {
             );
           }),
           if (_zones.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(24),
               child: Text(
                 'No zones defined. Draw one on the canvas above.',
-                style: TextStyle(color: NvrColors.textMuted, fontSize: 13),
+                style: TextStyle(color: NvrColors.of(context).textMuted, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -516,8 +516,8 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
       widget.onSaved();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.success,
+          SnackBar(
+            backgroundColor: NvrColors.of(context).success,
             content: Text('Zone saved'),
           ),
         );
@@ -525,7 +525,7 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     } finally {
@@ -538,7 +538,7 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
     return Column(
       children: [
         ListTile(
-          tileColor: NvrColors.bgSecondary,
+          tileColor: NvrColors.of(context).bgSecondary,
           leading: Container(
             width: 16,
             height: 16,
@@ -546,18 +546,18 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
           ),
           title: Text(
             widget.zone.name,
-            style: const TextStyle(color: NvrColors.textPrimary, fontWeight: FontWeight.w500),
+            style: TextStyle(color: NvrColors.of(context).textPrimary, fontWeight: FontWeight.w500),
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: NvrColors.danger, size: 20),
+                icon: Icon(Icons.delete_outline, color: NvrColors.of(context).danger, size: 20),
                 onPressed: widget.onDelete,
               ),
               Icon(
                 widget.isExpanded ? Icons.expand_less : Icons.expand_more,
-                color: NvrColors.textMuted,
+                color: NvrColors.of(context).textMuted,
               ),
             ],
           ),
@@ -565,12 +565,12 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
         ),
         if (widget.isExpanded)
           Container(
-            color: NvrColors.bgSecondary.withValues(alpha: 0.5),
+            color: NvrColors.of(context).bgSecondary.withValues(alpha: 0.5),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Detect classes', style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                Text('Detect classes', style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -589,9 +589,9 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
                         });
                       },
                       selectedColor: widget.color,
-                      backgroundColor: NvrColors.bgTertiary,
+                      backgroundColor: NvrColors.of(context).bgTertiary,
                       labelStyle: TextStyle(
-                        color: selected ? Colors.white : NvrColors.textSecondary,
+                        color: selected ? Colors.white : NvrColors.of(context).textSecondary,
                         fontSize: 12,
                       ),
                       checkmarkColor: Colors.white,
@@ -617,7 +617,7 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
                   onChanged: (v) => setState(() => _loiter = v),
                 ),
                 const SizedBox(height: 12),
-                const Text('Notify on', style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                Text('Notify on', style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
                 Row(
                   children: [
                     _CheckboxLabel(
@@ -642,7 +642,7 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: NvrColors.accent,
+                      backgroundColor: NvrColors.of(context).accent,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: _saving ? null : _save,
@@ -658,7 +658,7 @@ class _ZoneConfigTileState extends ConsumerState<_ZoneConfigTile> {
               ],
             ),
           ),
-        const Divider(color: NvrColors.border, height: 1),
+        Divider(color: NvrColors.of(context).border, height: 1),
       ],
     );
   }
@@ -689,7 +689,7 @@ class _SliderRow extends StatelessWidget {
           width: 110,
           child: Text(
             label,
-            style: const TextStyle(color: NvrColors.textSecondary, fontSize: 13),
+            style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13),
           ),
         ),
         Expanded(
@@ -698,8 +698,8 @@ class _SliderRow extends StatelessWidget {
             min: min,
             max: max,
             divisions: ((max - min) ~/ 10).clamp(1, 300),
-            activeColor: NvrColors.accent,
-            inactiveColor: NvrColors.bgTertiary,
+            activeColor: NvrColors.of(context).accent,
+            inactiveColor: NvrColors.of(context).bgTertiary,
             onChanged: onChanged,
           ),
         ),
@@ -707,7 +707,7 @@ class _SliderRow extends StatelessWidget {
           width: 44,
           child: Text(
             '${value.round()}$unit',
-            style: const TextStyle(color: NvrColors.textPrimary, fontSize: 12),
+            style: TextStyle(color: NvrColors.of(context).textPrimary, fontSize: 12),
             textAlign: TextAlign.right,
           ),
         ),
@@ -735,10 +735,10 @@ class _CheckboxLabel extends StatelessWidget {
         Checkbox(
           value: value,
           onChanged: onChanged,
-          activeColor: NvrColors.accent,
-          side: const BorderSide(color: NvrColors.border),
+          activeColor: NvrColors.of(context).accent,
+          side: BorderSide(color: NvrColors.of(context).border),
         ),
-        Text(label, style: const TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+        Text(label, style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
         const SizedBox(width: 8),
       ],
     );

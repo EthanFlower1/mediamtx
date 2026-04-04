@@ -18,13 +18,16 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     final camerasAsync = ref.watch(camerasProvider);
     final statsAsync = ref.watch(dashboardStatsProvider);
     final serverUrl = ref.watch(authProvider).serverUrl ?? '';
     final notifications = ref.watch(notificationsProvider);
 
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: colors.bgPrimary,
       body: SafeArea(
         child: Column(
           children: [
@@ -33,7 +36,7 @@ class DashboardScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Row(
                 children: [
-                  const Text('Dashboard', style: NvrTypography.pageTitle),
+                  Text('Dashboard', style: typo.pageTitle),
                   const SizedBox(width: 10),
                   camerasAsync.maybeWhen(
                     data: (cameras) {
@@ -41,12 +44,12 @@ class DashboardScreen extends ConsumerWidget {
                         c.status == 'online' || c.status == 'connected').length;
                       return Text(
                         '$online/${cameras.length} ONLINE',
-                        style: NvrTypography.monoLabel.copyWith(
+                        style: typo.monoLabel.copyWith(
                           color: online == cameras.length
-                              ? NvrColors.success
+                              ? colors.success
                               : online == 0
-                                  ? NvrColors.danger
-                                  : NvrColors.warning,
+                                  ? colors.danger
+                                  : colors.warning,
                         ),
                       );
                     },
@@ -59,31 +62,31 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
 
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: colors.border, height: 1),
 
             // Body
             Expanded(
               child: camerasAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: NvrColors.accent),
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: colors.accent),
                 ),
                 error: (err, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: NvrColors.danger, size: 48),
+                      Icon(Icons.error_outline,
+                          color: colors.danger, size: 48),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Failed to load cameras',
                         style: TextStyle(
-                            color: NvrColors.textPrimary, fontSize: 16),
+                            color: colors.textPrimary, fontSize: 16),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         err.toString(),
-                        style: const TextStyle(
-                            color: NvrColors.textMuted, fontSize: 12),
+                        style: TextStyle(
+                            color: colors.textMuted, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -106,8 +109,8 @@ class DashboardScreen extends ConsumerWidget {
                   final lastEvents = _buildLastEventMap(notifications);
 
                   return RefreshIndicator(
-                    color: NvrColors.accent,
-                    backgroundColor: NvrColors.bgSecondary,
+                    color: colors.accent,
+                    backgroundColor: colors.bgSecondary,
                     onRefresh: () async {
                       ref.invalidate(camerasProvider);
                       ref.invalidate(dashboardStatsProvider);
@@ -188,6 +191,9 @@ class _SystemStatusDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -196,10 +202,10 @@ class _SystemStatusDot extends StatelessWidget {
           height: 7,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: connected ? NvrColors.success : NvrColors.danger,
+            color: connected ? colors.success : colors.danger,
             boxShadow: [
               BoxShadow(
-                color: (connected ? NvrColors.success : NvrColors.danger)
+                color: (connected ? colors.success : colors.danger)
                     .withOpacity(0.5),
                 blurRadius: 6,
               ),
@@ -209,8 +215,8 @@ class _SystemStatusDot extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           connected ? 'CONNECTED' : 'DISCONNECTED',
-          style: NvrTypography.monoLabel.copyWith(
-            color: connected ? NvrColors.success : NvrColors.danger,
+          style: typo.monoLabel.copyWith(
+            color: connected ? colors.success : colors.danger,
           ),
         ),
       ],
@@ -242,26 +248,29 @@ class _DashboardCard extends StatelessWidget {
     return camera.status == 'degraded';
   }
 
-  StatusBadge _statusBadge() {
-    if (_isOnline) return StatusBadge.online();
-    if (_isDegraded) return StatusBadge.degraded();
-    return StatusBadge.offline();
+  StatusBadge _statusBadge(BuildContext context) {
+    if (_isOnline) return StatusBadge.online(context);
+    if (_isDegraded) return StatusBadge.degraded(context);
+    return StatusBadge.offline(context);
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     final offline = !_isOnline && !_isDegraded;
 
     return Opacity(
       opacity: offline ? 0.7 : 1.0,
       child: Container(
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
+          color: colors.bgSecondary,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: offline
-                ? NvrColors.danger.withOpacity(0.35)
-                : NvrColors.border,
+                ? colors.danger.withOpacity(0.35)
+                : colors.border,
           ),
         ),
         child: Column(
@@ -295,19 +304,19 @@ class _DashboardCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 camera.name,
-                                style: NvrTypography.cameraName,
+                                style: typo.cameraName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            _statusBadge(),
+                            _statusBadge(context),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'ID: ${camera.id.length > 8 ? camera.id.substring(0, 8) : camera.id}',
-                          style: NvrTypography.monoLabel,
+                          style: typo.monoLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -319,7 +328,7 @@ class _DashboardCard extends StatelessWidget {
             ),
 
             // Divider
-            const Divider(color: NvrColors.border, height: 1),
+            Divider(color: colors.border, height: 1),
 
             // Stats row
             Padding(
@@ -330,8 +339,8 @@ class _DashboardCard extends StatelessWidget {
                   _StatChip(
                     icon: Icons.fiber_manual_record,
                     iconColor: stats != null && stats!.hasRecordings
-                        ? NvrColors.danger
-                        : NvrColors.textMuted,
+                        ? colors.danger
+                        : colors.textMuted,
                     label: stats != null && stats!.hasRecordings
                         ? 'REC'
                         : 'NO REC',
@@ -340,14 +349,14 @@ class _DashboardCard extends StatelessWidget {
                   // Storage usage
                   _StatChip(
                     icon: Icons.storage,
-                    iconColor: NvrColors.textSecondary,
+                    iconColor: colors.textSecondary,
                     label: stats?.formattedStorage ?? '--',
                   ),
                   const SizedBox(width: 12),
                   // Segment count
                   _StatChip(
                     icon: Icons.video_file_outlined,
-                    iconColor: NvrColors.textSecondary,
+                    iconColor: colors.textSecondary,
                     label: stats != null
                         ? '${stats!.segmentCount} segs'
                         : '--',
@@ -368,7 +377,7 @@ class _DashboardCard extends StatelessWidget {
 
             // Last event row (if available)
             if (lastEvent != null) ...[
-              const Divider(color: NvrColors.border, height: 1),
+              Divider(color: colors.border, height: 1),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Row(
@@ -376,14 +385,14 @@ class _DashboardCard extends StatelessWidget {
                     Icon(
                       _eventIcon(lastEvent!.type),
                       size: 12,
-                      color: _eventColor(lastEvent!.type),
+                      color: _eventColor(context, lastEvent!.type),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         lastEvent!.message,
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.textSecondary,
+                        style: typo.monoLabel.copyWith(
+                          color: colors.textSecondary,
                           fontSize: 8,
                         ),
                         maxLines: 1,
@@ -393,8 +402,8 @@ class _DashboardCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       _formatEventTime(lastEvent!.time),
-                      style: NvrTypography.monoLabel.copyWith(
-                        color: NvrColors.accent,
+                      style: typo.monoLabel.copyWith(
+                        color: colors.accent,
                         fontSize: 8,
                       ),
                     ),
@@ -433,24 +442,25 @@ class _DashboardCard extends StatelessWidget {
     }
   }
 
-  Color _eventColor(String type) {
+  Color _eventColor(BuildContext context, String type) {
+    final colors = NvrColors.of(context);
     switch (type) {
       case 'motion':
       case 'ai_detection':
-        return NvrColors.accent;
+        return colors.accent;
       case 'tampering':
       case 'intrusion':
       case 'line_crossing':
-        return NvrColors.warning;
+        return colors.warning;
       case 'camera_offline':
       case 'recording_stopped':
       case 'recording_failed':
-        return NvrColors.danger;
+        return colors.danger;
       case 'camera_online':
       case 'recording_started':
-        return NvrColors.success;
+        return colors.success;
       default:
-        return NvrColors.textSecondary;
+        return colors.textSecondary;
     }
   }
 
@@ -480,6 +490,9 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -487,8 +500,8 @@ class _StatChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: NvrTypography.monoLabel.copyWith(
-            color: NvrColors.textSecondary,
+          style: typo.monoLabel.copyWith(
+            color: colors.textSecondary,
             fontSize: 9,
           ),
         ),
@@ -506,21 +519,23 @@ class _MiniCapBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: NvrColors.accent.withOpacity(0.12),
+        color: colors.accent.withOpacity(0.12),
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: NvrColors.accent.withOpacity(0.35)),
+        border: Border.all(color: colors.accent.withOpacity(0.35)),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 7,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
-          color: NvrColors.accent,
+          color: colors.accent,
         ),
       ),
     );
@@ -535,18 +550,21 @@ class _EmptyDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.dashboard_outlined,
-              size: 56, color: NvrColors.textMuted.withOpacity(0.4)),
+              size: 56, color: colors.textMuted.withOpacity(0.4)),
           const SizedBox(height: 16),
-          const Text('No cameras configured', style: NvrTypography.pageTitle),
+          Text('No cameras configured', style: typo.pageTitle),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Add cameras from the Devices tab to see their status here',
-            style: NvrTypography.body,
+            style: typo.body,
             textAlign: TextAlign.center,
           ),
         ],

@@ -26,8 +26,8 @@ class AudioSection extends ConsumerWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgSecondary,
+            border: Border.all(color: NvrColors.of(context).border),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -36,9 +36,9 @@ class AudioSection extends ConsumerWidget {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Text('AUDIO', style: NvrTypography.monoSection),
+                child: Text('AUDIO', style: NvrTypography.of(context).monoSection),
               ),
-              const Divider(height: 1, color: NvrColors.border),
+              Divider(height: 1, color: NvrColors.of(context).border),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -81,15 +81,15 @@ class _AudioCapRow extends StatelessWidget {
         Icon(
           enabled ? Icons.check_circle_outline : Icons.cancel_outlined,
           size: 14,
-          color: enabled ? NvrColors.success : NvrColors.textMuted,
+          color: enabled ? NvrColors.of(context).success : NvrColors.of(context).textMuted,
         ),
         const SizedBox(width: 8),
-        Text(label, style: NvrTypography.monoLabel),
+        Text(label, style: NvrTypography.of(context).monoLabel),
         const Spacer(),
         Text(
           enabled ? 'YES' : 'NO',
-          style: NvrTypography.monoData.copyWith(
-            color: enabled ? NvrColors.success : NvrColors.textMuted,
+          style: NvrTypography.of(context).monoData.copyWith(
+            color: enabled ? NvrColors.of(context).success : NvrColors.of(context).textMuted,
           ),
         ),
       ],

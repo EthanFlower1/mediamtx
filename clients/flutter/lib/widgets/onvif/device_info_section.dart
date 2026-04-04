@@ -22,8 +22,8 @@ class DeviceInfoSection extends ConsumerWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgSecondary,
+            border: Border.all(color: NvrColors.of(context).border),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -32,9 +32,9 @@ class DeviceInfoSection extends ConsumerWidget {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Text('DEVICE INFO', style: NvrTypography.monoSection),
+                child: Text('DEVICE INFO', style: NvrTypography.of(context).monoSection),
               ),
-              const Divider(height: 1, color: NvrColors.border),
+              Divider(height: 1, color: NvrColors.of(context).border),
               // Rows
               Padding(
                 padding: const EdgeInsets.all(12),
@@ -71,12 +71,12 @@ class _InfoRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 100,
-          child: Text(label, style: NvrTypography.monoLabel),
+          child: Text(label, style: NvrTypography.of(context).monoLabel),
         ),
         Expanded(
           child: Text(
             value.isEmpty ? '—' : value,
-            style: NvrTypography.monoData,
+            style: NvrTypography.of(context).monoData,
           ),
         ),
       ],

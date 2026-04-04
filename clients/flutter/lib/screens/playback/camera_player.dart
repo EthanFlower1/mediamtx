@@ -42,8 +42,8 @@ class _CameraPlayerState extends State<CameraPlayer> {
 
     return Container(
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       clipBehavior: Clip.antiAlias,
@@ -61,17 +61,17 @@ class _CameraPlayerState extends State<CameraPlayer> {
             if (isInGap)
               Container(
                 color: Colors.black87,
-                child: const Center(
+                child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.videocam_off,
-                          color: NvrColors.textMuted, size: 36),
+                          color: NvrColors.of(context).textMuted, size: 36),
                       SizedBox(height: 8),
                       Text(
                         'No video available',
                         style: TextStyle(
-                          color: NvrColors.textMuted,
+                          color: NvrColors.of(context).textMuted,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -94,11 +94,11 @@ class _CameraPlayerState extends State<CameraPlayer> {
                 ),
                 child: Text(
                   widget.cameraName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'IBMPlexSans',
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: NvrColors.textPrimary,
+                    color: NvrColors.of(context).textPrimary,
                   ),
                 ),
               ),
@@ -118,7 +118,7 @@ class _CameraPlayerState extends State<CameraPlayer> {
                   ),
                   child: Text(
                     _formatTimestamp(_ctrl.position),
-                    style: NvrTypography.monoTimestamp.copyWith(fontSize: 11),
+                    style: NvrTypography.of(context).monoTimestamp.copyWith(fontSize: 11),
                   ),
                 ),
               ),
@@ -132,7 +132,7 @@ class _CameraPlayerState extends State<CameraPlayer> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: NvrColors.accent.withValues(alpha: 0.8),
+                    color: NvrColors.of(context).accent.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
@@ -218,19 +218,19 @@ class _CameraPlayerState extends State<CameraPlayer> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: NvrColors.accent.withValues(alpha: 0.07),
+          color: NvrColors.of(context).accent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: NvrColors.accent.withValues(alpha: 0.2),
+            color: NvrColors.of(context).accent.withValues(alpha: 0.2),
           ),
         ),
         child: Text(
           eventLabel,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 10,
             fontWeight: FontWeight.w500,
-            color: NvrColors.accent,
+            color: NvrColors.of(context).accent,
           ),
         ),
       ),
@@ -246,17 +246,17 @@ class _CameraPlayerState extends State<CameraPlayer> {
       final hasSegments = _ctrl.segments.isNotEmpty;
       final hasCoverage = _ctrl.hasCoverageAtPosition(_camId);
       if (hasSegments && !hasCoverage && !_ctrl.isSeeking) {
-        return const Center(
+        return Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.videocam_off,
-                  color: NvrColors.textMuted, size: 32),
-              SizedBox(height: 6),
+                  color: NvrColors.of(context).textMuted, size: 32),
+              const SizedBox(height: 6),
               Text(
                 'No recording at this time',
                 style: TextStyle(
-                  color: NvrColors.textMuted,
+                  color: NvrColors.of(context).textMuted,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -265,8 +265,8 @@ class _CameraPlayerState extends State<CameraPlayer> {
           ),
         );
       }
-      return const Center(
-        child: CircularProgressIndicator(color: NvrColors.accent),
+      return Center(
+        child: CircularProgressIndicator(color: NvrColors.of(context).accent),
       );
     }
 
@@ -330,7 +330,7 @@ class _TileButton extends StatelessWidget {
           child: Icon(
             icon,
             size: 16,
-            color: active ? NvrColors.accent : NvrColors.textSecondary,
+            color: active ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
           ),
         ),
       ),

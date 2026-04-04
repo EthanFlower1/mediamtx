@@ -31,7 +31,7 @@ class _RotaryKnobState extends State<RotaryKnob> {
   double? _startValue;
 
   double get _fraction => ((widget.value - widget.min) / (widget.max - widget.min)).clamp(0.0, 1.0);
-  // Map fraction to angle: -135° to +135° (270° sweep)
+  // Map fraction to angle: -135 to +135 (270 sweep)
   double get _angle => -135 + _fraction * 270;
 
   void _onPanStart(DragStartDetails details) {
@@ -52,6 +52,7 @@ class _RotaryKnobState extends State<RotaryKnob> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     final display = widget.valueFormatter?.call(widget.value) ??
         '${(widget.value * 100).round()}%';
 
@@ -63,7 +64,7 @@ class _RotaryKnobState extends State<RotaryKnob> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(widget.label!, style: TextStyle(
               fontFamily: 'JetBrainsMono', fontSize: 9,
-              letterSpacing: 1, color: NvrColors.textMuted,
+              letterSpacing: 1, color: colors.textMuted,
             )),
           ),
         GestureDetector(
@@ -73,13 +74,13 @@ class _RotaryKnobState extends State<RotaryKnob> {
             width: widget.size,
             height: widget.size,
             child: CustomPaint(
-              painter: _KnobPainter(angle: _angle),
+              painter: _KnobPainter(angle: _angle, colors: colors),
             ),
           ),
         ),
         const SizedBox(height: 4),
         Text(display, style: TextStyle(
-          fontFamily: 'JetBrainsMono', fontSize: 9, color: NvrColors.accent,
+          fontFamily: 'JetBrainsMono', fontSize: 9, color: colors.accent,
         )),
       ],
     );
@@ -87,8 +88,9 @@ class _RotaryKnobState extends State<RotaryKnob> {
 }
 
 class _KnobPainter extends CustomPainter {
-  _KnobPainter({required this.angle});
+  _KnobPainter({required this.angle, required this.colors});
   final double angle;
+  final NvrColors colors;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -99,18 +101,18 @@ class _KnobPainter extends CustomPainter {
     final bodyPaint = Paint()
       ..shader = RadialGradient(
         center: const Alignment(-0.2, -0.2),
-        colors: [NvrColors.bgTertiary, NvrColors.bgPrimary],
+        colors: [colors.bgTertiary, colors.bgPrimary],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, bodyPaint);
 
     // Border
     canvas.drawCircle(center, radius, Paint()
-      ..color = NvrColors.border
+      ..color = colors.border
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2);
 
     // Notch marks
-    final notchPaint = Paint()..color = NvrColors.border..strokeWidth = 1;
+    final notchPaint = Paint()..color = colors.border..strokeWidth = 1;
     for (var i = 0; i < 4; i++) {
       final a = i * pi / 2;
       final outer = center + Offset(cos(a), sin(a)) * (radius + 4);
@@ -121,7 +123,7 @@ class _KnobPainter extends CustomPainter {
     // Indicator line
     final rad = angle * pi / 180;
     final indicatorPaint = Paint()
-      ..color = NvrColors.accent
+      ..color = colors.accent
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
     final from = center + Offset(cos(rad), sin(rad)) * 4;
@@ -130,5 +132,6 @@ class _KnobPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _KnobPainter old) => old.angle != angle;
+  bool shouldRepaint(covariant _KnobPainter old) =>
+      old.angle != angle || old.colors != colors;
 }

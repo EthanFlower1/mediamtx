@@ -77,8 +77,8 @@ class _ImagingSectionState extends ConsumerState<ImagingSection> {
 
         return Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgSecondary,
+            border: Border.all(color: NvrColors.of(context).border),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -87,9 +87,9 @@ class _ImagingSectionState extends ConsumerState<ImagingSection> {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Text('IMAGING', style: NvrTypography.monoSection),
+                child: Text('IMAGING', style: NvrTypography.of(context).monoSection),
               ),
-              const Divider(height: 1, color: NvrColors.border),
+              Divider(height: 1, color: NvrColors.of(context).border),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(

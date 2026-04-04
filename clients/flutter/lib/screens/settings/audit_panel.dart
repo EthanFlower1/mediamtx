@@ -41,11 +41,11 @@ class AuditPanel extends ConsumerWidget {
 
     return auditAsync.when(
       loading: () =>
-          const Center(child: CircularProgressIndicator(color: NvrColors.accent)),
+          Center(child: CircularProgressIndicator(color: NvrColors.of(context).accent)),
       error: (e, _) => Center(
         child: Text(
           'Failed to load audit log: $e',
-          style: NvrTypography.body.copyWith(color: NvrColors.danger),
+          style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
         ),
       ),
       data: (entries) {
@@ -55,16 +55,16 @@ class AuditPanel extends ConsumerWidget {
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  bottom: BorderSide(color: NvrColors.border),
+                  bottom: BorderSide(color: NvrColors.of(context).border),
                 ),
               ),
               child: Row(
                 children: [
                   Text(
                     '${entries.length} ENTR${entries.length == 1 ? 'Y' : 'IES'}',
-                    style: NvrTypography.monoSection,
+                    style: NvrTypography.of(context).monoSection,
                   ),
                   const Spacer(),
                   if (entries.isNotEmpty)
@@ -80,10 +80,10 @@ class AuditPanel extends ConsumerWidget {
                             SnackBar(
                               content: Text(
                                 'Audit log CSV copied to clipboard',
-                                style: NvrTypography.monoData
-                                    .copyWith(color: NvrColors.accent),
+                                style: NvrTypography.of(context).monoData
+                                    .copyWith(color: NvrColors.of(context).accent),
                               ),
-                              backgroundColor: NvrColors.bgSecondary,
+                              backgroundColor: NvrColors.of(context).bgSecondary,
                             ),
                           );
                         }
@@ -99,11 +99,11 @@ class AuditPanel extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.history,
-                          color: NvrColors.textMuted, size: 40),
+                      Icon(Icons.history,
+                          color: NvrColors.of(context).textMuted, size: 40),
                       const SizedBox(height: 12),
                       Text('NO AUDIT ENTRIES',
-                          style: NvrTypography.monoSection),
+                          style: NvrTypography.of(context).monoSection),
                     ],
                   ),
                 ),
@@ -132,31 +132,31 @@ class _AuditEntryCard extends StatelessWidget {
 
   const _AuditEntryCard({required this.entry});
 
-  Color _actionColor(String action) {
+  Color _actionColor(BuildContext context, String action) {
     switch (action.toLowerCase()) {
       case 'delete':
-        return NvrColors.danger;
+        return NvrColors.of(context).danger;
       case 'create':
-        return NvrColors.success;
+        return NvrColors.of(context).success;
       case 'update':
       case 'login':
-        return NvrColors.accent;
+        return NvrColors.of(context).accent;
       case 'logout':
-        return NvrColors.textMuted;
+        return NvrColors.of(context).textMuted;
       default:
-        return NvrColors.warning;
+        return NvrColors.of(context).warning;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final actionColor = _actionColor(entry.action);
+    final actionColor = _actionColor(context, entry.action);
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgSecondary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -173,7 +173,7 @@ class _AuditEntryCard extends StatelessWidget {
             ),
             child: Text(
               entry.action.toUpperCase(),
-              style: NvrTypography.monoLabel.copyWith(
+              style: NvrTypography.of(context).monoLabel.copyWith(
                 color: actionColor,
                 letterSpacing: 0.8,
               ),
@@ -192,16 +192,16 @@ class _AuditEntryCard extends StatelessWidget {
                             (entry.resourceId != null
                                 ? ':${entry.resourceId}'
                                 : ''),
-                        style: NvrTypography.monoData.copyWith(
-                          color: NvrColors.textPrimary,
+                        style: NvrTypography.of(context).monoData.copyWith(
+                          color: NvrColors.of(context).textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
                       entry.username,
-                      style: NvrTypography.monoData.copyWith(
-                        color: NvrColors.accent,
+                      style: NvrTypography.of(context).monoData.copyWith(
+                        color: NvrColors.of(context).accent,
                       ),
                     ),
                   ],
@@ -209,21 +209,21 @@ class _AuditEntryCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.access_time,
-                        size: 11, color: NvrColors.textMuted),
+                    Icon(Icons.access_time,
+                        size: 11, color: NvrColors.of(context).textMuted),
                     const SizedBox(width: 4),
                     Text(
                       entry.createdAt,
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                     ),
                     if (entry.ipAddress != null) ...[
                       const SizedBox(width: 10),
-                      const Icon(Icons.language,
-                          size: 11, color: NvrColors.textMuted),
+                      Icon(Icons.language,
+                          size: 11, color: NvrColors.of(context).textMuted),
                       const SizedBox(width: 4),
                       Text(
                         entry.ipAddress!,
-                        style: NvrTypography.monoLabel,
+                        style: NvrTypography.of(context).monoLabel,
                       ),
                     ],
                   ],
@@ -233,7 +233,7 @@ class _AuditEntryCard extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       entry.details!,
-                      style: NvrTypography.body,
+                      style: NvrTypography.of(context).body,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),

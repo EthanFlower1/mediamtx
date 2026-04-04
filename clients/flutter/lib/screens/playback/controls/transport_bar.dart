@@ -77,10 +77,10 @@ class TransportBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: NvrColors.bgPrimary,
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgPrimary,
         border: Border(
-          top: BorderSide(color: NvrColors.border),
+          top: BorderSide(color: NvrColors.of(context).border),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -90,36 +90,36 @@ class TransportBar extends StatelessWidget {
           // ── 1. Transport buttons ─────────────────────────────────────────
           _TransportButton(
             size: 28,
-            bg: NvrColors.bgSecondary,
+            bg: NvrColors.of(context).bgSecondary,
             icon: Icons.skip_previous,
             onTap: onSkipPrevious,
           ),
           const SizedBox(width: 4),
           _TransportButton(
             size: 28,
-            bg: NvrColors.bgSecondary,
+            bg: NvrColors.of(context).bgSecondary,
             icon: Icons.chevron_left,
             onTap: onStepBack,
           ),
           const SizedBox(width: 6),
           _TransportButton(
             size: 36,
-            bg: NvrColors.accent,
-            iconColor: NvrColors.bgPrimary,
+            bg: NvrColors.of(context).accent,
+            iconColor: NvrColors.of(context).bgPrimary,
             icon: isPlaying ? Icons.pause : Icons.play_arrow,
             onTap: onPlayPause,
           ),
           const SizedBox(width: 6),
           _TransportButton(
             size: 28,
-            bg: NvrColors.bgSecondary,
+            bg: NvrColors.of(context).bgSecondary,
             icon: Icons.chevron_right,
             onTap: onStepForward,
           ),
           const SizedBox(width: 4),
           _TransportButton(
             size: 28,
-            bg: NvrColors.bgSecondary,
+            bg: NvrColors.of(context).bgSecondary,
             icon: Icons.skip_next,
             onTap: onSkipNext,
           ),
@@ -141,7 +141,7 @@ class TransportBar extends StatelessWidget {
           Container(
             width: 1,
             height: 24,
-            color: NvrColors.border,
+            color: NvrColors.of(context).border,
           ),
 
           const SizedBox(width: 16),
@@ -149,7 +149,7 @@ class TransportBar extends StatelessWidget {
           // ── 4. Current time ──────────────────────────────────────────────
           Text(
             _formatTimestamp(currentTime),
-            style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
+            style: NvrTypography.of(context).monoTimestamp.copyWith(fontSize: 13),
           ),
 
           const Spacer(),
@@ -182,7 +182,7 @@ class _TransportButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  /// Icon color — defaults to [NvrColors.textPrimary].
+  /// Icon color — defaults to [NvrColors.of(context).textPrimary].
   final Color? iconColor;
 
   @override
@@ -194,14 +194,14 @@ class _TransportButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           color: bg,
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
           child: Icon(
             icon,
             size: size * 0.55,
-            color: iconColor ?? NvrColors.textPrimary,
+            color: iconColor ?? NvrColors.of(context).textPrimary,
           ),
         ),
       ),

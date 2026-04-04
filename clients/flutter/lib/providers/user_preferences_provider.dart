@@ -77,8 +77,3 @@ final userPreferencesProvider =
   final username = ref.watch(authProvider).user?.username ?? 'default';
   return UserPreferencesNotifier(username);
 });
-
-/// Convenience provider to expose just the theme mode for MaterialApp.
-final themeModeProvider = Provider<ThemeMode>((ref) {
-  return ref.watch(userPreferencesProvider).themeMode;
-});

@@ -45,8 +45,8 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.success,
+          SnackBar(
+            backgroundColor: NvrColors.of(context).success,
             content: Text('Hostname saved'),
           ),
         );
@@ -56,7 +56,7 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to save hostname: $e'),
           ),
         );
@@ -70,22 +70,22 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('REBOOT DEVICE', style: NvrTypography.monoSection),
-        content: const Text(
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('REBOOT DEVICE', style: NvrTypography.of(context).monoSection),
+        content: Text(
           'This will reboot the camera. The stream will be interrupted.\nAre you sure?',
-          style: NvrTypography.body,
+          style: NvrTypography.of(context).body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('CANCEL',
-                style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('CANCEL',
+                style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('REBOOT',
-                style: TextStyle(color: NvrColors.danger)),
+            child: Text('REBOOT',
+                style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -102,8 +102,8 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: NvrColors.warning,
+          SnackBar(
+            backgroundColor: NvrColors.of(context).warning,
             content: Text('Reboot command sent'),
           ),
         );
@@ -112,7 +112,7 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Reboot failed: $e'),
           ),
         );
@@ -133,8 +133,8 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
-          backgroundColor: NvrColors.bgSecondary,
-          title: const Text('ADD USER', style: NvrTypography.monoSection),
+          backgroundColor: NvrColors.of(context).bgSecondary,
+          title: Text('ADD USER', style: NvrTypography.of(context).monoSection),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -147,23 +147,23 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: selectedRole,
-                dropdownColor: NvrColors.bgTertiary,
-                style: NvrTypography.monoData,
+                dropdownColor: NvrColors.of(context).bgTertiary,
+                style: NvrTypography.of(context).monoData,
                 decoration: InputDecoration(
                   labelText: 'ROLE',
-                  labelStyle: NvrTypography.monoLabel,
+                  labelStyle: NvrTypography.of(context).monoLabel,
                   enabledBorder: OutlineInputBorder(
                     borderSide:
-                        const BorderSide(color: NvrColors.border),
+                        BorderSide(color: NvrColors.of(context).border),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderSide:
-                        const BorderSide(color: NvrColors.accent),
+                        BorderSide(color: NvrColors.of(context).accent),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   filled: true,
-                  fillColor: NvrColors.bgInput,
+                  fillColor: NvrColors.of(context).bgInput,
                 ),
                 items: const ['Administrator', 'Operator', 'User']
                     .map((r) => DropdownMenuItem(value: r, child: Text(r)))
@@ -179,8 +179,8 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('CANCEL',
-                  style: TextStyle(color: NvrColors.textSecondary)),
+              child: Text('CANCEL',
+                  style: TextStyle(color: NvrColors.of(context).textSecondary)),
             ),
             TextButton(
               onPressed: () async {
@@ -201,8 +201,8 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                     ref.invalidate(deviceUsersProvider(widget.cameraId));
                     nav.pop();
                     messenger.showSnackBar(
-                      const SnackBar(
-                        backgroundColor: NvrColors.success,
+                      SnackBar(
+                        backgroundColor: NvrColors.of(context).success,
                         content: Text('User added'),
                       ),
                     );
@@ -211,15 +211,15 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                   if (mounted) {
                     messenger.showSnackBar(
                       SnackBar(
-                        backgroundColor: NvrColors.danger,
+                        backgroundColor: NvrColors.of(context).danger,
                         content: Text('Failed to add user: $e'),
                       ),
                     );
                   }
                 }
               },
-              child: const Text('ADD',
-                  style: TextStyle(color: NvrColors.accent)),
+              child: Text('ADD',
+                  style: TextStyle(color: NvrColors.of(context).accent)),
             ),
           ],
         ),
@@ -234,22 +234,22 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('DELETE USER', style: NvrTypography.monoSection),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('DELETE USER', style: NvrTypography.of(context).monoSection),
         content: Text(
           'Delete user "$username"?',
-          style: NvrTypography.body,
+          style: NvrTypography.of(context).body,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('CANCEL',
-                style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('CANCEL',
+                style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('DELETE',
-                style: TextStyle(color: NvrColors.danger)),
+            child: Text('DELETE',
+                style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -264,7 +264,7 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
         ref.invalidate(deviceUsersProvider(widget.cameraId));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.success,
+            backgroundColor: NvrColors.of(context).success,
             content: Text('User "$username" deleted'),
           ),
         );
@@ -273,7 +273,7 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: NvrColors.danger,
+            backgroundColor: NvrColors.of(context).danger,
             content: Text('Failed to delete user: $e'),
           ),
         );
@@ -316,7 +316,7 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
           // Date/time
           dateTimeAsync.when(
             loading: () =>
-                const Text('Loading...', style: NvrTypography.body),
+                Text('Loading...', style: NvrTypography.of(context).body),
             error: (_, __) => const SizedBox.shrink(),
             data: (dt) {
               if (dt == null) return const SizedBox.shrink();
@@ -333,25 +333,25 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
             },
           ),
           // Hostname
-          Text('HOSTNAME', style: NvrTypography.monoLabel),
+          Text('HOSTNAME', style: NvrTypography.of(context).monoLabel),
           const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _hostnameCtrl,
-                  style: NvrTypography.monoData,
+                  style: NvrTypography.of(context).monoData,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: NvrColors.bgInput,
+                    fillColor: NvrColors.of(context).bgInput,
                     enabledBorder: OutlineInputBorder(
                       borderSide:
-                          const BorderSide(color: NvrColors.border),
+                          BorderSide(color: NvrColors.of(context).border),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderSide:
-                          const BorderSide(color: NvrColors.accent),
+                          BorderSide(color: NvrColors.of(context).accent),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -392,15 +392,15 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Interfaces
-          Text('INTERFACES', style: NvrTypography.monoLabel),
+          Text('INTERFACES', style: NvrTypography.of(context).monoLabel),
           const SizedBox(height: 8),
           interfacesAsync.when(
             loading: () =>
-                const Text('Loading...', style: NvrTypography.body),
+                Text('Loading...', style: NvrTypography.of(context).body),
             error: (_, __) => const SizedBox.shrink(),
             data: (interfaces) {
               if (interfaces.isEmpty) {
-                return const Text('No interfaces', style: NvrTypography.body);
+                return Text('No interfaces', style: NvrTypography.of(context).body);
               }
               return Column(
                 children: interfaces.map((iface) {
@@ -413,9 +413,9 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: NvrColors.bgTertiary,
+                      color: NvrColors.of(context).bgTertiary,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: NvrColors.border),
+                      border: Border.all(color: NvrColors.of(context).border),
                     ),
                     child: Column(
                       children: [
@@ -435,15 +435,15 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
           ),
           const SizedBox(height: 12),
           // Protocols
-          Text('PROTOCOLS', style: NvrTypography.monoLabel),
+          Text('PROTOCOLS', style: NvrTypography.of(context).monoLabel),
           const SizedBox(height: 8),
           protocolsAsync.when(
             loading: () =>
-                const Text('Loading...', style: NvrTypography.body),
+                Text('Loading...', style: NvrTypography.of(context).body),
             error: (_, __) => const SizedBox.shrink(),
             data: (protocols) {
               if (protocols.isEmpty) {
-                return const Text('No protocols', style: NvrTypography.body);
+                return Text('No protocols', style: NvrTypography.of(context).body);
               }
               return Column(
                 children: protocols.map((proto) {
@@ -452,19 +452,19 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
-                      color: NvrColors.bgTertiary,
+                      color: NvrColors.of(context).bgTertiary,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: NvrColors.border),
+                      border: Border.all(color: NvrColors.of(context).border),
                     ),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(proto.name,
-                              style: NvrTypography.monoData),
+                              style: NvrTypography.of(context).monoData),
                         ),
                         Text(
                           proto.port > 0 ? ':${proto.port}' : '',
-                          style: NvrTypography.monoLabel,
+                          style: NvrTypography.of(context).monoLabel,
                         ),
                         const SizedBox(width: 8),
                         _StatusDot(enabled: proto.enabled),
@@ -490,13 +490,13 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
         children: [
           usersAsync.when(
             loading: () =>
-                const Text('Loading...', style: NvrTypography.body),
+                Text('Loading...', style: NvrTypography.of(context).body),
             error: (_, __) => const SizedBox.shrink(),
             data: (users) {
               if (users.isEmpty) {
-                return const Padding(
+                return Padding(
                   padding: EdgeInsets.only(bottom: 12),
-                  child: Text('No users found', style: NvrTypography.body),
+                  child: Text('No users found', style: NvrTypography.of(context).body),
                 );
               }
               return Column(
@@ -506,15 +506,15 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: NvrColors.bgTertiary,
+                          color: NvrColors.of(context).bgTertiary,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: NvrColors.border),
+                          border: Border.all(color: NvrColors.of(context).border),
                         ),
                         child: Row(
                           children: [
                             Expanded(
                               child: Text(user.username,
-                                  style: NvrTypography.monoData),
+                                  style: NvrTypography.of(context).monoData),
                             ),
                             _RoleBadge(role: user.role),
                             const SizedBox(width: 8),
@@ -522,12 +522,12 @@ class _DeviceMgmtSectionState extends ConsumerState<DeviceMgmtSection> {
                               onTap: () =>
                                   _confirmDeleteUser(user.username),
                               borderRadius: BorderRadius.circular(4),
-                              child: const Padding(
+                              child: Padding(
                                 padding: EdgeInsets.all(4),
                                 child: Icon(
                                   Icons.delete_outline,
                                   size: 16,
-                                  color: NvrColors.danger,
+                                  color: NvrColors.of(context).danger,
                                 ),
                               ),
                             ),
@@ -563,8 +563,8 @@ class _SubSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: NvrColors.bgTertiary,
-        border: Border.all(color: NvrColors.border),
+        color: NvrColors.of(context).bgTertiary,
+        border: Border.all(color: NvrColors.of(context).border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
@@ -572,9 +572,9 @@ class _SubSection extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            child: Text(title, style: NvrTypography.monoSection),
+            child: Text(title, style: NvrTypography.of(context).monoSection),
           ),
-          const Divider(height: 1, color: NvrColors.border),
+          Divider(height: 1, color: NvrColors.of(context).border),
           Padding(
             padding: const EdgeInsets.all(12),
             child: child,
@@ -598,12 +598,12 @@ class _InfoRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 100,
-          child: Text(label, style: NvrTypography.monoLabel),
+          child: Text(label, style: NvrTypography.of(context).monoLabel),
         ),
         Expanded(
           child: Text(
             value.isEmpty ? '—' : value,
-            style: NvrTypography.monoData,
+            style: NvrTypography.of(context).monoData,
           ),
         ),
       ],
@@ -623,7 +623,7 @@ class _StatusDot extends StatelessWidget {
       height: 6,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: enabled ? NvrColors.success : NvrColors.textMuted,
+        color: enabled ? NvrColors.of(context).success : NvrColors.of(context).textMuted,
       ),
     );
   }
@@ -637,9 +637,9 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (role.toLowerCase()) {
-      'administrator' => NvrColors.danger,
-      'operator' => NvrColors.warning,
-      _ => NvrColors.textSecondary,
+      'administrator' => NvrColors.of(context).danger,
+      'operator' => NvrColors.of(context).warning,
+      _ => NvrColors.of(context).textSecondary,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -678,18 +678,18 @@ class _DialogField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
-      style: NvrTypography.monoData,
+      style: NvrTypography.of(context).monoData,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: NvrTypography.monoLabel,
+        labelStyle: NvrTypography.of(context).monoLabel,
         filled: true,
-        fillColor: NvrColors.bgInput,
+        fillColor: NvrColors.of(context).bgInput,
         enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: NvrColors.border),
+          borderSide: BorderSide(color: NvrColors.of(context).border),
           borderRadius: BorderRadius.circular(4),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: NvrColors.accent),
+          borderSide: BorderSide(color: NvrColors.of(context).accent),
           borderRadius: BorderRadius.circular(4),
         ),
         contentPadding:

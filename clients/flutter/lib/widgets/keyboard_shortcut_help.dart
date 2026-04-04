@@ -68,6 +68,8 @@ class KeyboardShortcutHelpOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
     return GestureDetector(
       onTap: onClose,
       child: Container(
@@ -85,9 +87,9 @@ class KeyboardShortcutHelpOverlay extends StatelessWidget {
                     maxHeight: MediaQuery.of(context).size.height * 0.8,
                   ),
                   decoration: BoxDecoration(
-                    color: NvrColors.bgSecondary.withValues(alpha: 0.92),
+                    color: colors.bgSecondary.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: NvrColors.border),
+                    border: Border.all(color: colors.border),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -96,24 +98,24 @@ class KeyboardShortcutHelpOverlay extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 14),
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           border: Border(
-                            bottom: BorderSide(color: NvrColors.border),
+                            bottom: BorderSide(color: colors.border),
                           ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.keyboard,
-                                size: 16, color: NvrColors.accent),
+                            Icon(Icons.keyboard,
+                                size: 16, color: colors.accent),
                             const SizedBox(width: 8),
                             Text('KEYBOARD SHORTCUTS',
-                                style: NvrTypography.monoSection
+                                style: typo.monoSection
                                     .copyWith(fontSize: 11)),
                             const Spacer(),
                             const _KeyCap(label: '?'),
                             const SizedBox(width: 6),
-                            const Text('to toggle',
-                                style: NvrTypography.monoControl),
+                            Text('to toggle',
+                                style: typo.monoControl),
                           ],
                         ),
                       ),
@@ -142,19 +144,19 @@ class KeyboardShortcutHelpOverlay extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 10),
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           border: Border(
-                            top: BorderSide(color: NvrColors.border),
+                            top: BorderSide(color: colors.border),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Text('Press ',
-                                style: NvrTypography.monoControl),
-                            _KeyCap(label: 'Esc'),
+                                style: typo.monoControl),
+                            const _KeyCap(label: 'Esc'),
                             Text(' or click outside to close',
-                                style: NvrTypography.monoControl),
+                                style: typo.monoControl),
                           ],
                         ),
                       ),
@@ -176,11 +178,12 @@ class _ShortcutGroupSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final typo = NvrTypography.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(group.title,
-            style: NvrTypography.monoSection.copyWith(fontSize: 9)),
+            style: typo.monoSection.copyWith(fontSize: 9)),
         const SizedBox(height: 8),
         for (final entry in group.entries)
           Padding(
@@ -201,7 +204,7 @@ class _ShortcutGroupSection extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(entry.description,
-                      style: NvrTypography.body.copyWith(fontSize: 12)),
+                      style: typo.body.copyWith(fontSize: 12)),
                 ),
               ],
             ),
@@ -218,12 +221,13 @@ class _KeyCap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: NvrColors.bgTertiary,
+        color: colors.bgTertiary,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: NvrColors.border),
+        border: Border.all(color: colors.border),
         boxShadow: const [
           BoxShadow(
             color: Colors.black26,
@@ -234,11 +238,11 @@ class _KeyCap extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'JetBrainsMono',
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: NvrColors.textPrimary,
+          color: colors.textPrimary,
         ),
       ),
     );

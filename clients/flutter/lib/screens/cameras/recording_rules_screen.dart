@@ -83,7 +83,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -93,20 +93,20 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NvrColors.bgSecondary,
-        title: const Text('Delete Rule', style: TextStyle(color: NvrColors.textPrimary)),
+        backgroundColor: NvrColors.of(context).bgSecondary,
+        title: Text('Delete Rule', style: TextStyle(color: NvrColors.of(context).textPrimary)),
         content: Text(
           'Delete the "${rule.mode}" recording rule?',
-          style: const TextStyle(color: NvrColors.textSecondary),
+          style: TextStyle(color: NvrColors.of(context).textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: NvrColors.textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: NvrColors.of(context).textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: NvrColors.danger)),
+            child: Text('Delete', style: TextStyle(color: NvrColors.of(context).danger)),
           ),
         ],
       ),
@@ -121,7 +121,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -141,8 +141,8 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
         return StatefulBuilder(
           builder: (ctx, setDlgState) {
             return AlertDialog(
-              backgroundColor: NvrColors.bgSecondary,
-              title: const Text('Add Recording Rule', style: TextStyle(color: NvrColors.textPrimary)),
+              backgroundColor: NvrColors.of(context).bgSecondary,
+              title: Text('Add Recording Rule', style: TextStyle(color: NvrColors.of(context).textPrimary)),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -150,52 +150,52 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                   children: [
                     DropdownButtonFormField<String>(
                       initialValue: selectedStreamId,
-                      dropdownColor: NvrColors.bgTertiary,
-                      style: NvrTypography.monoData,
+                      dropdownColor: NvrColors.of(context).bgTertiary,
+                      style: NvrTypography.of(context).monoData,
                       decoration: InputDecoration(
                         labelText: 'STREAM',
-                        labelStyle: NvrTypography.monoLabel,
+                        labelStyle: NvrTypography.of(context).monoLabel,
                         filled: true,
-                        fillColor: NvrColors.bgTertiary,
+                        fillColor: NvrColors.of(context).bgTertiary,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(color: NvrColors.border),
+                          borderSide: BorderSide(color: NvrColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(color: NvrColors.border),
+                          borderSide: BorderSide(color: NvrColors.of(context).border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
-                          borderSide: const BorderSide(color: NvrColors.accent),
+                          borderSide: BorderSide(color: NvrColors.of(context).accent),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
                       items: [
-                        const DropdownMenuItem(
+                        DropdownMenuItem(
                           value: '',
-                          child: Text('Default', style: NvrTypography.monoData),
+                          child: Text('Default', style: NvrTypography.of(context).monoData),
                         ),
                         ..._streams.map((s) => DropdownMenuItem(
                           value: s.id,
-                          child: Text(s.displayLabel, style: NvrTypography.monoData),
+                          child: Text(s.displayLabel, style: NvrTypography.of(context).monoData),
                         )),
                       ],
                       onChanged: (v) => setDlgState(() => selectedStreamId = v ?? ''),
                     ),
                     const SizedBox(height: 12),
-                    const Text('Mode', style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                    Text('Mode', style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
                       initialValue: selectedMode,
-                      dropdownColor: NvrColors.bgTertiary,
-                      style: const TextStyle(color: NvrColors.textPrimary),
+                      dropdownColor: NvrColors.of(context).bgTertiary,
+                      style: TextStyle(color: NvrColors.of(context).textPrimary),
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: NvrColors.bgTertiary,
+                        fillColor: NvrColors.of(context).bgTertiary,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: NvrColors.border),
+                          borderSide: BorderSide(color: NvrColors.of(context).border),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
@@ -211,8 +211,8 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                     ),
                     if (selectedMode == 'motion') ...[
                       const SizedBox(height: 12),
-                      const Text('Post-event buffer',
-                          style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                      Text('Post-event buffer',
+                          style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -222,7 +222,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                               min: 0,
                               max: 300,
                               divisions: 60,
-                              activeColor: NvrColors.accent,
+                              activeColor: NvrColors.of(context).accent,
                               label: '${postEventSeconds}s',
                               onChanged: (v) => setDlgState(() => postEventSeconds = v.round()),
                             ),
@@ -231,7 +231,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                             width: 44,
                             child: Text(
                               '${postEventSeconds}s',
-                              style: const TextStyle(color: NvrColors.textPrimary, fontSize: 13),
+                              style: TextStyle(color: NvrColors.of(context).textPrimary, fontSize: 13),
                               textAlign: TextAlign.end,
                             ),
                           ),
@@ -260,7 +260,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      const Text('Days', style: TextStyle(color: NvrColors.textSecondary, fontSize: 13)),
+                      Text('Days', style: TextStyle(color: NvrColors.of(context).textSecondary, fontSize: 13)),
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 6,
@@ -279,10 +279,10 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                                 }
                               });
                             },
-                            selectedColor: NvrColors.accent,
-                            backgroundColor: NvrColors.bgTertiary,
+                            selectedColor: NvrColors.of(context).accent,
+                            backgroundColor: NvrColors.of(context).bgTertiary,
                             labelStyle: TextStyle(
-                              color: selected ? Colors.white : NvrColors.textSecondary,
+                              color: selected ? Colors.white : NvrColors.of(context).textSecondary,
                               fontSize: 12,
                             ),
                             checkmarkColor: Colors.white,
@@ -296,10 +296,10 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel', style: TextStyle(color: NvrColors.textSecondary)),
+                  child: Text('Cancel', style: TextStyle(color: NvrColors.of(context).textSecondary)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: NvrColors.accent),
+                  style: ElevatedButton.styleFrom(backgroundColor: NvrColors.of(context).accent),
                   onPressed: () async {
                     Navigator.of(ctx).pop();
                     await _saveNewRule(
@@ -357,7 +357,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: NvrColors.danger, content: Text('Error: $e')),
+          SnackBar(backgroundColor: NvrColors.of(context).danger, content: Text('Error: $e')),
         );
       }
     }
@@ -389,14 +389,14 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: NvrColors.accent));
+      return Center(child: CircularProgressIndicator(color: NvrColors.of(context).accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!, style: const TextStyle(color: NvrColors.danger)),
+            Text(_error!, style: TextStyle(color: NvrColors.of(context).danger)),
             TextButton(onPressed: _fetchRules, child: const Text('Retry')),
           ],
         ),
@@ -407,10 +407,10 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
       children: [
         Expanded(
           child: _rules.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No recording rules. Tap + to add one.',
-                    style: TextStyle(color: NvrColors.textMuted),
+                    style: TextStyle(color: NvrColors.of(context).textMuted),
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -418,7 +418,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: _rules.length,
                   separatorBuilder: (_, __) =>
-                      const Divider(color: NvrColors.border, height: 1),
+                      Divider(color: NvrColors.of(context).border, height: 1),
                   itemBuilder: (context, index) {
                     final rule = _rules[index];
                     String streamLabel = '';
@@ -427,19 +427,19 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                       streamLabel = stream != null ? ' — ${stream.displayLabel}' : ' — Custom stream';
                     }
                     return ListTile(
-                      tileColor: NvrColors.bgSecondary,
+                      tileColor: NvrColors.of(context).bgSecondary,
                       title: Text(
                         '${_modeLabel(rule.mode)}$streamLabel',
-                        style: const TextStyle(
-                          color: NvrColors.textPrimary,
+                        style: TextStyle(
+                          color: NvrColors.of(context).textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       subtitle: rule.mode == 'schedule'
                           ? Text(
                               _timeRangeLabel(rule),
-                              style: const TextStyle(
-                                color: NvrColors.textMuted,
+                              style: TextStyle(
+                                color: NvrColors.of(context).textMuted,
                                 fontSize: 12,
                               ),
                             )
@@ -450,10 +450,10 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
                           Switch(
                             value: rule.enabled,
                             onChanged: (_) => _toggleRule(rule),
-                            activeThumbColor: NvrColors.accent,
+                            activeThumbColor: NvrColors.of(context).accent,
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: NvrColors.danger, size: 20),
+                            icon: Icon(Icons.delete_outline, color: NvrColors.of(context).danger, size: 20),
                             onPressed: () => _deleteRule(rule),
                           ),
                         ],
@@ -468,7 +468,7 @@ class _RecordingRulesScreenState extends ConsumerState<RecordingRulesScreen> {
             width: double.infinity,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: NvrColors.accent,
+                backgroundColor: NvrColors.of(context).accent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -498,8 +498,8 @@ class _TimePickerButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: NvrColors.border),
-        foregroundColor: NvrColors.textPrimary,
+        side: BorderSide(color: NvrColors.of(context).border),
+        foregroundColor: NvrColors.of(context).textPrimary,
       ),
       onPressed: () async {
         final picked = await showTimePicker(
@@ -507,9 +507,9 @@ class _TimePickerButton extends StatelessWidget {
           initialTime: time,
           builder: (context, child) => Theme(
             data: ThemeData.dark().copyWith(
-              colorScheme: const ColorScheme.dark(
-                primary: NvrColors.accent,
-                surface: NvrColors.bgSecondary,
+              colorScheme: ColorScheme.dark(
+                primary: NvrColors.of(context).accent,
+                surface: NvrColors.of(context).bgSecondary,
               ),
             ),
             child: child!,

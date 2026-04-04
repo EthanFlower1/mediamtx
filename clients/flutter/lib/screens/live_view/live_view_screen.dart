@@ -95,7 +95,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: NvrColors.of(context).bgSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -108,7 +108,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             children: [
               Row(
                 children: [
-                  const Text('Saved Layouts', style: NvrTypography.pageTitle),
+                  Text('Saved Layouts', style: NvrTypography.of(context).pageTitle),
                   const Spacer(),
                   _LayoutActionButton(
                     icon: Icons.add,
@@ -127,8 +127,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                   child: Center(
                     child: Text(
                       'No saved layouts yet',
-                      style: NvrTypography.monoLabel.copyWith(
-                        color: NvrColors.textMuted,
+                      style: NvrTypography.of(context).monoLabel.copyWith(
+                        color: NvrColors.of(context).textMuted,
                       ),
                     ),
                   ),
@@ -164,21 +164,21 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: NvrColors.bgSecondary,
-          title: const Text('Save Layout', style: NvrTypography.pageTitle),
+          backgroundColor: NvrColors.of(context).bgSecondary,
+          title: Text('Save Layout', style: NvrTypography.of(context).pageTitle),
           content: TextField(
             controller: controller,
             autofocus: true,
-            style: const TextStyle(color: NvrColors.textPrimary),
+            style: TextStyle(color: NvrColors.of(context).textPrimary),
             decoration: InputDecoration(
               hintText: 'Layout name',
-              hintStyle: const TextStyle(color: NvrColors.textMuted),
+              hintStyle: TextStyle(color: NvrColors.of(context).textMuted),
               enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: NvrColors.border),
+                borderSide: BorderSide(color: NvrColors.of(context).border),
                 borderRadius: BorderRadius.circular(6),
               ),
               focusedBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: NvrColors.accent),
+                borderSide: BorderSide(color: NvrColors.of(context).accent),
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
@@ -186,8 +186,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel',
-                  style: TextStyle(color: NvrColors.textMuted)),
+              child: Text('Cancel',
+                  style: TextStyle(color: NvrColors.of(context).textMuted)),
             ),
             TextButton(
               onPressed: () {
@@ -197,8 +197,8 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                   Navigator.pop(ctx);
                 }
               },
-              child: const Text('Save',
-                  style: TextStyle(color: NvrColors.accent)),
+              child: Text('Save',
+                  style: TextStyle(color: NvrColors.of(context).accent)),
             ),
           ],
         );
@@ -228,7 +228,7 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       autofocus: true,
       onKeyEvent: _onKeyEvent,
       child: Scaffold(
-        backgroundColor: NvrColors.bgPrimary,
+        backgroundColor: NvrColors.of(context).bgPrimary,
         body: Column(
           children: [
             // -- Top bar --
@@ -237,35 +237,35 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                 horizontal: isPhone ? 12 : 16,
                 vertical: isPhone ? 8 : 12,
               ),
-              decoration: const BoxDecoration(
-                color: NvrColors.bgPrimary,
+              decoration: BoxDecoration(
+                color: NvrColors.of(context).bgPrimary,
                 border: Border(
-                  bottom: BorderSide(color: NvrColors.border, width: 1),
+                  bottom: BorderSide(color: NvrColors.of(context).border, width: 1),
                 ),
               ),
               child: Row(
                 children: [
                   // Page title
-                  const Text('Live View', style: NvrTypography.pageTitle),
+                  Text('Live View', style: NvrTypography.of(context).pageTitle),
                   if (!isPhone) ...[
                     const SizedBox(width: 12),
                     // Active layout name pill (or ALL CAMERAS)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: NvrColors.accentWith(0.07),
+                        color: NvrColors.of(context).accentWith(0.07),
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: Text(
                         gridLayout.name.isNotEmpty
                             ? gridLayout.name.toUpperCase()
                             : 'ALL CAMERAS',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'JetBrainsMono',
                           fontSize: 9,
                           fontWeight: FontWeight.w500,
                           letterSpacing: 1.5,
-                          color: NvrColors.accent,
+                          color: NvrColors.of(context).accent,
                         ),
                       ),
                     ),
@@ -280,21 +280,21 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
-                        color: NvrColors.bgPrimary,
-                        border: Border.all(color: NvrColors.border),
+                        color: NvrColors.of(context).bgPrimary,
+                        border: Border.all(color: NvrColors.of(context).border),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.bookmark_border,
-                              color: NvrColors.textMuted, size: 14),
+                          Icon(Icons.bookmark_border,
+                              color: NvrColors.of(context).textMuted, size: 14),
                           const SizedBox(width: 4),
                           Text(
                             'Layouts',
-                            style: NvrTypography.monoLabel.copyWith(
+                            style: NvrTypography.of(context).monoLabel.copyWith(
                               fontSize: 9,
-                              color: NvrColors.textMuted,
+                              color: NvrColors.of(context).textMuted,
                             ),
                           ),
                         ],
@@ -321,27 +321,27 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
             // -- Body --
             Expanded(
               child: camerasAsync.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: NvrColors.accent),
+                loading: () => Center(
+                  child: CircularProgressIndicator(color: NvrColors.of(context).accent),
                 ),
                 error: (err, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline,
-                          color: NvrColors.danger, size: 48),
+                      Icon(Icons.error_outline,
+                          color: NvrColors.of(context).danger, size: 48),
                       const SizedBox(height: 16),
                       Text(
                         'Failed to load cameras',
                         style: Theme.of(context)
                             .textTheme
                             .titleMedium
-                            ?.copyWith(color: NvrColors.textPrimary),
+                            ?.copyWith(color: NvrColors.of(context).textPrimary),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         err.toString(),
-                        style: const TextStyle(color: NvrColors.textSecondary),
+                        style: TextStyle(color: NvrColors.of(context).textSecondary),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
@@ -476,10 +476,10 @@ class _LiveGrid extends StatelessWidget {
             final isHovering = candidateData.isNotEmpty;
             return Container(
               decoration: BoxDecoration(
-                color: NvrColors.bgPrimary,
+                color: NvrColors.of(context).bgPrimary,
                 border: Border.all(
                   color:
-                      isHovering ? NvrColors.accent : NvrColors.border,
+                      isHovering ? NvrColors.of(context).accent : NvrColors.of(context).border,
                   width: isHovering ? 2 : 1,
                 ),
                 borderRadius: BorderRadius.circular(6),
@@ -490,17 +490,17 @@ class _LiveGrid extends StatelessWidget {
                   Icon(
                     Icons.add,
                     color: isHovering
-                        ? NvrColors.accent
-                        : NvrColors.border,
+                        ? NvrColors.of(context).accent
+                        : NvrColors.of(context).border,
                     size: 24,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'DROP HERE',
-                    style: NvrTypography.monoLabel.copyWith(
+                    style: NvrTypography.of(context).monoLabel.copyWith(
                       color: isHovering
-                          ? NvrColors.accent
-                          : NvrColors.textMuted,
+                          ? NvrColors.of(context).accent
+                          : NvrColors.of(context).textMuted,
                     ),
                   ),
                 ],
@@ -526,8 +526,8 @@ class _AiOverlayToggle extends ConsumerWidget {
       children: [
         Text(
           'AI',
-          style: NvrTypography.monoLabel.copyWith(
-            color: visible ? NvrColors.accent : NvrColors.textMuted,
+          style: NvrTypography.of(context).monoLabel.copyWith(
+            color: visible ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
           ),
         ),
         const SizedBox(width: 6),
@@ -560,20 +560,20 @@ class _LayoutActionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: NvrColors.accentWith(0.1),
+          color: NvrColors.of(context).accentWith(0.1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: NvrColors.accent.withValues(alpha: 0.3)),
+          border: Border.all(color: NvrColors.of(context).accent.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: NvrColors.accent),
+            Icon(icon, size: 12, color: NvrColors.of(context).accent),
             const SizedBox(width: 4),
             Text(
               label,
-              style: NvrTypography.monoLabel.copyWith(
+              style: NvrTypography.of(context).monoLabel.copyWith(
                 fontSize: 9,
-                color: NvrColors.accent,
+                color: NvrColors.of(context).accent,
               ),
             ),
           ],
@@ -606,10 +606,10 @@ class _SavedLayoutTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: isActive
-                ? NvrColors.accentWith(0.07)
-                : NvrColors.bgPrimary,
+                ? NvrColors.of(context).accentWith(0.07)
+                : NvrColors.of(context).bgPrimary,
             border: Border.all(
-              color: isActive ? NvrColors.accent : NvrColors.border,
+              color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).border,
             ),
             borderRadius: BorderRadius.circular(6),
           ),
@@ -618,7 +618,7 @@ class _SavedLayoutTile extends StatelessWidget {
               Icon(
                 isActive ? Icons.bookmark : Icons.bookmark_border,
                 size: 16,
-                color: isActive ? NvrColors.accent : NvrColors.textMuted,
+                color: isActive ? NvrColors.of(context).accent : NvrColors.of(context).textMuted,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -632,15 +632,15 @@ class _SavedLayoutTile extends StatelessWidget {
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         color: isActive
-                            ? NvrColors.accent
-                            : NvrColors.textPrimary,
+                            ? NvrColors.of(context).accent
+                            : NvrColors.of(context).textPrimary,
                       ),
                     ),
                     Text(
                       '${layout.gridSize}x${layout.gridSize} grid  /  ${layout.slots.length} cameras',
-                      style: NvrTypography.monoLabel.copyWith(
+                      style: NvrTypography.of(context).monoLabel.copyWith(
                         fontSize: 9,
-                        color: NvrColors.textMuted,
+                        color: NvrColors.of(context).textMuted,
                       ),
                     ),
                   ],
@@ -648,10 +648,10 @@ class _SavedLayoutTile extends StatelessWidget {
               ),
               GestureDetector(
                 onTap: onDelete,
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
                   child: Icon(Icons.close,
-                      size: 14, color: NvrColors.textMuted),
+                      size: 14, color: NvrColors.of(context).textMuted),
                 ),
               ),
             ],

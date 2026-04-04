@@ -92,7 +92,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: NvrColors.bgPrimary,
+        backgroundColor: NvrColors.of(context).bgPrimary,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -100,13 +100,13 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  Text(cameraName, style: NvrTypography.cameraName),
+                  Text(cameraName, style: NvrTypography.of(context).cameraName),
                   const Spacer(),
-                  Text(createdAt, style: NvrTypography.monoLabel),
+                  Text(createdAt, style: NvrTypography.of(context).monoLabel),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.close,
-                        color: NvrColors.textMuted, size: 18),
+                    icon: Icon(Icons.close,
+                        color: NvrColors.of(context).textMuted, size: 18),
                     onPressed: () => Navigator.of(ctx).pop(),
                   ),
                 ],
@@ -147,8 +147,8 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
       _fetchScreenshots();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              backgroundColor: NvrColors.success,
+          SnackBar(
+              backgroundColor: NvrColors.of(context).success,
               content: Text('Screenshot deleted')),
         );
       }
@@ -156,7 +156,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              backgroundColor: NvrColors.danger,
+              backgroundColor: NvrColors.of(context).danger,
               content: Text('Error: $e')),
         );
       }
@@ -182,9 +182,9 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
       onTap: () => _showFullScreenDialog(screenshot),
       child: Container(
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: NvrColors.border, width: 1),
+          border: Border.all(color: NvrColors.of(context).border, width: 1),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -196,10 +196,10 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   errorBuilder: (context, error, stackTrace) => Container(
-                    color: NvrColors.bgTertiary,
-                    child: const Center(
+                    color: NvrColors.of(context).bgTertiary,
+                    child: Center(
                       child: Icon(Icons.broken_image_outlined,
-                          color: NvrColors.textMuted, size: 32),
+                          color: NvrColors.of(context).textMuted, size: 32),
                     ),
                   ),
                 ),
@@ -211,15 +211,15 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                   children: [
                     Text(
                       cameraName,
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       createdAt,
-                      style: NvrTypography.monoLabel
-                          .copyWith(color: NvrColors.textMuted),
+                      style: NvrTypography.of(context).monoLabel
+                          .copyWith(color: NvrColors.of(context).textMuted),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
@@ -236,7 +236,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
+      backgroundColor: NvrColors.of(context).bgPrimary,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,10 +247,10 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  const Text('SCREENSHOTS', style: NvrTypography.pageTitle),
+                  Text('SCREENSHOTS', style: NvrTypography.of(context).pageTitle),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: NvrColors.textMuted, size: 20),
+                    icon: Icon(Icons.refresh, color: NvrColors.of(context).textMuted, size: 20),
                     tooltip: 'Refresh',
                     onPressed: () {
                       _fetchScreenshots();
@@ -269,20 +269,20 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _cameraFilter,
-                      dropdownColor: NvrColors.bgTertiary,
-                      style: NvrTypography.monoData,
+                      dropdownColor: NvrColors.of(context).bgTertiary,
+                      style: NvrTypography.of(context).monoData,
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: NvrColors.bgTertiary,
+                        fillColor: NvrColors.of(context).bgTertiary,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
                           borderSide:
-                              const BorderSide(color: NvrColors.border),
+                              BorderSide(color: NvrColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
                           borderSide:
-                              const BorderSide(color: NvrColors.border),
+                              BorderSide(color: NvrColors.of(context).border),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 10),
@@ -309,20 +309,20 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                     initialValue: _sort,
-                    dropdownColor: NvrColors.bgTertiary,
-                    style: NvrTypography.monoData,
+                    dropdownColor: NvrColors.of(context).bgTertiary,
+                    style: NvrTypography.of(context).monoData,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: NvrColors.bgTertiary,
+                      fillColor: NvrColors.of(context).bgTertiary,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
                         borderSide:
-                            const BorderSide(color: NvrColors.border),
+                            BorderSide(color: NvrColors.of(context).border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(4),
                         borderSide:
-                            const BorderSide(color: NvrColors.border),
+                            BorderSide(color: NvrColors.of(context).border),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
@@ -346,14 +346,14 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
             // Grid body
             Expanded(
               child: _loading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
-                          color: NvrColors.accent))
+                          color: NvrColors.of(context).accent))
                   : _screenshots.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'No screenshots yet',
-                            style: TextStyle(color: NvrColors.textMuted),
+                            style: TextStyle(color: NvrColors.of(context).textMuted),
                           ),
                         )
                       : GridView.builder(
@@ -389,7 +389,7 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                     const SizedBox(width: 12),
                     Text(
                       '${_screenshots.length} / $_total',
-                      style: NvrTypography.monoLabel,
+                      style: NvrTypography.of(context).monoLabel,
                     ),
                   ],
                 ),

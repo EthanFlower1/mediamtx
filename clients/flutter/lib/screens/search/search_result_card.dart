@@ -44,9 +44,9 @@ class SearchResultCard extends ConsumerWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: NvrColors.bgSecondary,
+          color: NvrColors.of(context).bgSecondary,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: NvrColors.of(context).border),
         ),
         clipBehavior: Clip.hardEdge,
         child: Column(
@@ -71,16 +71,16 @@ class SearchResultCard extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
-                        color: NvrColors.accent,
+                        color: NvrColors.of(context).accent,
                         borderRadius: BorderRadius.circular(2),
                       ),
                       child: Text(
                         '$confidencePct%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'JetBrainsMono',
                           fontSize: 8,
                           fontWeight: FontWeight.w700,
-                          color: NvrColors.bgPrimary,
+                          color: NvrColors.of(context).bgPrimary,
                         ),
                       ),
                     ),
@@ -99,11 +99,11 @@ class SearchResultCard extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           result.cameraName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: 'IBMPlexSans',
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: NvrColors.textPrimary,
+                            color: NvrColors.of(context).textPrimary,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -111,8 +111,8 @@ class SearchResultCard extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Text(
                         result.className.toUpperCase(),
-                        style: NvrTypography.monoLabel.copyWith(
-                          color: NvrColors.accent,
+                        style: NvrTypography.of(context).monoLabel.copyWith(
+                          color: NvrColors.of(context).accent,
                         ),
                       ),
                     ],
@@ -120,8 +120,8 @@ class SearchResultCard extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     _formatTimestamp(result.time),
-                    style: NvrTypography.monoLabel.copyWith(
-                      color: NvrColors.textMuted,
+                    style: NvrTypography.of(context).monoLabel.copyWith(
+                      color: NvrColors.of(context).textMuted,
                     ),
                   ),
                 ],
@@ -150,7 +150,7 @@ class _VodThumbnail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (serverUrl == null || serverUrl!.isEmpty || frameTime.isEmpty) {
-      return _placeholder();
+      return _placeholder(context);
     }
 
     final authService = ref.watch(authServiceProvider);
@@ -159,7 +159,7 @@ class _VodThumbnail extends ConsumerWidget {
       future: authService.getAccessToken(),
       builder: (context, snapshot) {
         final token = snapshot.data;
-        if (token == null) return _placeholder();
+        if (token == null) return _placeholder(context);
 
         final url =
             '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&time=$frameTime&token=$token';
@@ -167,22 +167,22 @@ class _VodThumbnail extends ConsumerWidget {
         return Image.network(
           url,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(),
+          errorBuilder: (_, __, ___) => _placeholder(context),
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;
-            return _placeholder();
+            return _placeholder(context);
           },
         );
       },
     );
   }
 
-  Widget _placeholder() {
+  Widget _placeholder(BuildContext context) {
     return Container(
-      color: NvrColors.bgTertiary,
-      child: const Center(
+      color: NvrColors.of(context).bgTertiary,
+      child: Center(
         child: Icon(Icons.videocam_off,
-            color: NvrColors.textMuted, size: 24),
+            color: NvrColors.of(context).textMuted, size: 24),
       ),
     );
   }

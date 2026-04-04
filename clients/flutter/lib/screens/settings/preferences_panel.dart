@@ -61,7 +61,7 @@ class PreferencesPanel extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Theme', style: NvrTypography.body),
+              Text('Theme', style: NvrTypography.of(context).body),
               const SizedBox(height: 8),
               Row(
                 children: _themeModes.entries.map((entry) {
@@ -89,7 +89,7 @@ class PreferencesPanel extends ConsumerWidget {
             children: [
               Text(
                 'Screen shown after login',
-                style: NvrTypography.body,
+                style: NvrTypography.of(context).body,
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -117,7 +117,7 @@ class PreferencesPanel extends ConsumerWidget {
             children: [
               Text(
                 'Default grid size for live view',
-                style: NvrTypography.body,
+                style: NvrTypography.of(context).body,
               ),
               const SizedBox(height: 8),
               Row(
@@ -149,7 +149,7 @@ class PreferencesPanel extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Select which events generate alerts',
-                      style: NvrTypography.body,
+                      style: NvrTypography.of(context).body,
                     ),
                   ),
                   _SmallButton(
@@ -190,19 +190,20 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border.all(color: NvrColors.border),
+        color: colors.bgSecondary,
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: NvrTypography.monoSection),
+          Text(title, style: NvrTypography.of(context).monoSection),
           const SizedBox(height: 12),
-          Container(height: 1, color: NvrColors.border),
+          Container(height: 1, color: colors.border),
           const SizedBox(height: 12),
           child,
         ],
@@ -224,21 +225,22 @@ class _ChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? NvrColors.accent.withOpacity(0.12) : Colors.transparent,
+          color: isActive ? colors.accent.withOpacity(0.12) : Colors.transparent,
           border: Border.all(
-            color: isActive ? NvrColors.accent : NvrColors.border,
+            color: isActive ? colors.accent : colors.border,
           ),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label.toUpperCase(),
-          style: NvrTypography.monoLabel.copyWith(
-            color: isActive ? NvrColors.accent : NvrColors.textSecondary,
+          style: NvrTypography.of(context).monoLabel.copyWith(
+            color: isActive ? colors.accent : colors.textSecondary,
             letterSpacing: 1.0,
           ),
         ),
@@ -260,6 +262,7 @@ class _ToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -267,8 +270,8 @@ class _ToggleRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: NvrTypography.body.copyWith(
-                color: value ? NvrColors.textPrimary : NvrColors.textSecondary,
+              style: NvrTypography.of(context).body.copyWith(
+                color: value ? colors.textPrimary : colors.textSecondary,
               ),
             ),
           ),
@@ -277,10 +280,10 @@ class _ToggleRow extends StatelessWidget {
             child: Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: NvrColors.accent,
-              activeTrackColor: NvrColors.accent.withOpacity(0.3),
-              inactiveThumbColor: NvrColors.textMuted,
-              inactiveTrackColor: NvrColors.bgTertiary,
+              activeColor: colors.accent,
+              activeTrackColor: colors.accent.withOpacity(0.3),
+              inactiveThumbColor: colors.textMuted,
+              inactiveTrackColor: colors.bgTertiary,
             ),
           ),
         ],
@@ -297,18 +300,19 @@ class _SmallButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          border: Border.all(color: NvrColors.border),
+          border: Border.all(color: colors.border),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           label,
-          style: NvrTypography.monoLabel.copyWith(
-            color: NvrColors.textSecondary,
+          style: NvrTypography.of(context).monoLabel.copyWith(
+            color: colors.textSecondary,
             letterSpacing: 1.0,
           ),
         ),

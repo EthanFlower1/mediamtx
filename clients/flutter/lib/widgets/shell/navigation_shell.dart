@@ -49,6 +49,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell>
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     final width = MediaQuery.of(context).size.width;
     final device = Responsive.deviceType(width);
     final panelState = ref.watch(cameraPanelProvider);
@@ -72,7 +73,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell>
         onKeyEvent: _onKeyEvent,
         child: Scaffold(
           appBar: AppBar(
-            backgroundColor: NvrColors.bgSecondary,
+            backgroundColor: colors.bgSecondary,
             elevation: 0,
             toolbarHeight: 44,
             titleSpacing: 12,
@@ -82,7 +83,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell>
                 width: 14,
                 height: 14,
                 decoration: BoxDecoration(
-                  border: Border.all(color: NvrColors.accent, width: 2),
+                  border: Border.all(color: colors.accent, width: 2),
                 ),
               ),
             ),
@@ -161,11 +162,11 @@ class _NavigationShellState extends ConsumerState<NavigationShell>
                     onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
                     expanded: isDesktop,
                   ),
-                  Container(width: 1, color: NvrColors.border),
+                  Container(width: 1, color: colors.border),
                   // Camera panel (push or overlay based on breakpoint)
                   if (usePushPanel && panelState.isOpen) ...[
                     const CameraPanel(),
-                    Container(width: 1, color: NvrColors.border),
+                    Container(width: 1, color: colors.border),
                   ],
                   // Main content
                   Expanded(
@@ -218,6 +219,7 @@ class _MobileNotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -226,10 +228,10 @@ class _MobileNotificationBell extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_outlined,
               size: 22,
-              color: NvrColors.textSecondary,
+              color: colors.textSecondary,
             ),
             if (unreadCount > 0)
               Positioned(
@@ -238,10 +240,10 @@ class _MobileNotificationBell extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    color: NvrColors.danger,
+                    color: colors.danger,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: NvrColors.bgSecondary,
+                      color: colors.bgSecondary,
                       width: 1.5,
                     ),
                   ),

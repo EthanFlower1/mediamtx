@@ -24,8 +24,8 @@ class RelaySection extends ConsumerWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: NvrColors.bgSecondary,
-            border: Border.all(color: NvrColors.border),
+            color: NvrColors.of(context).bgSecondary,
+            border: Border.all(color: NvrColors.of(context).border),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Column(
@@ -34,9 +34,9 @@ class RelaySection extends ConsumerWidget {
               // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Text('RELAY OUTPUTS', style: NvrTypography.monoSection),
+                child: Text('RELAY OUTPUTS', style: NvrTypography.of(context).monoSection),
               ),
-              const Divider(height: 1, color: NvrColors.border),
+              Divider(height: 1, color: NvrColors.of(context).border),
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -46,7 +46,7 @@ class RelaySection extends ConsumerWidget {
                     return Column(
                       children: [
                         if (index > 0) ...[
-                          const Divider(height: 1, color: NvrColors.border),
+                          Divider(height: 1, color: NvrColors.of(context).border),
                           const SizedBox(height: 8),
                         ],
                         Row(
@@ -71,22 +71,22 @@ class RelaySection extends ConsumerWidget {
                                 children: [
                                   Text(
                                     relay.token,
-                                    style: NvrTypography.monoData,
+                                    style: NvrTypography.of(context).monoData,
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     relay.mode.toUpperCase(),
-                                    style: NvrTypography.monoLabel,
+                                    style: NvrTypography.of(context).monoLabel,
                                   ),
                                 ],
                               ),
                             ),
                             Text(
                               relay.active ? 'ACTIVE' : 'IDLE',
-                              style: NvrTypography.monoLabel.copyWith(
+                              style: NvrTypography.of(context).monoLabel.copyWith(
                                 color: relay.active
-                                    ? NvrColors.success
-                                    : NvrColors.textMuted,
+                                    ? NvrColors.of(context).success
+                                    : NvrColors.of(context).textMuted,
                               ),
                             ),
                           ],

@@ -1,100 +1,115 @@
 import 'package:flutter/material.dart';
 import 'nvr_colors.dart';
 
+/// Typography styles for the NVR client.
+///
+/// Static getters return styles without color (inheriting from the theme).
+/// Use [NvrTypography.of] to get styles pre-coloured for the current theme:
+///
+///   final t = NvrTypography.of(context);
+///   Text('LABEL', style: t.monoLabel);
 class NvrTypography {
-  NvrTypography._();
+  final NvrColors _c;
+  NvrTypography._(this._c);
 
   static const _mono = 'JetBrainsMono';
   static const _sans = 'IBMPlexSans';
 
-  // Monospace — status labels, camera IDs, timestamps, data values
-  static const TextStyle monoLabel = TextStyle(
-    fontFamily: _mono,
-    fontSize: 9,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 1.5,
-    color: NvrColors.textMuted,
-  );
+  /// Resolve typography styles using current theme colors.
+  static NvrTypography of(BuildContext context) {
+    return NvrTypography._(NvrColors.of(context));
+  }
 
-  static const TextStyle monoStatus = TextStyle(
-    fontFamily: _mono,
-    fontSize: 9,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 1.0,
-    color: NvrColors.success,
-  );
+  // ── Monospace styles ──
 
-  static const TextStyle monoTimestamp = TextStyle(
-    fontFamily: _mono,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: NvrColors.accent,
-  );
+  TextStyle get monoLabel => TextStyle(
+        fontFamily: _mono,
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 1.5,
+        color: _c.textMuted,
+      );
 
-  static const TextStyle monoData = TextStyle(
-    fontFamily: _mono,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: NvrColors.textPrimary,
-  );
+  TextStyle get monoStatus => TextStyle(
+        fontFamily: _mono,
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 1.0,
+        color: _c.success,
+      );
 
-  static const TextStyle monoDataLarge = TextStyle(
-    fontFamily: _mono,
-    fontSize: 16,
-    fontWeight: FontWeight.w500,
-    color: NvrColors.textPrimary,
-  );
+  TextStyle get monoTimestamp => TextStyle(
+        fontFamily: _mono,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: _c.accent,
+      );
 
-  static const TextStyle monoSection = TextStyle(
-    fontFamily: _mono,
-    fontSize: 10,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 2.0,
-    color: NvrColors.accent,
-  );
+  TextStyle get monoData => TextStyle(
+        fontFamily: _mono,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: _c.textPrimary,
+      );
 
-  static const TextStyle monoControl = TextStyle(
-    fontFamily: _mono,
-    fontSize: 9,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 1.0,
-    color: NvrColors.textMuted,
-  );
+  TextStyle get monoDataLarge => TextStyle(
+        fontFamily: _mono,
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: _c.textPrimary,
+      );
 
-  // Sans — page titles, camera names, descriptions, buttons
-  static const TextStyle pageTitle = TextStyle(
-    fontFamily: _sans,
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    color: NvrColors.textPrimary,
-  );
+  TextStyle get monoSection => TextStyle(
+        fontFamily: _mono,
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2.0,
+        color: _c.accent,
+      );
 
-  static const TextStyle cameraName = TextStyle(
-    fontFamily: _sans,
-    fontSize: 13,
-    fontWeight: FontWeight.w500,
-    color: NvrColors.textPrimary,
-  );
+  TextStyle get monoControl => TextStyle(
+        fontFamily: _mono,
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 1.0,
+        color: _c.textMuted,
+      );
 
-  static const TextStyle body = TextStyle(
-    fontFamily: _sans,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    height: 1.5,
-    color: NvrColors.textSecondary,
-  );
+  // ── Sans styles ──
 
-  static const TextStyle button = TextStyle(
-    fontFamily: _sans,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    color: NvrColors.textPrimary,
-  );
+  TextStyle get pageTitle => TextStyle(
+        fontFamily: _sans,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: _c.textPrimary,
+      );
 
-  static const TextStyle alert = TextStyle(
-    fontFamily: _sans,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: NvrColors.danger,
-  );
+  TextStyle get cameraName => TextStyle(
+        fontFamily: _sans,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: _c.textPrimary,
+      );
+
+  TextStyle get body => TextStyle(
+        fontFamily: _sans,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+        color: _c.textSecondary,
+      );
+
+  TextStyle get button => TextStyle(
+        fontFamily: _sans,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: _c.textPrimary,
+      );
+
+  TextStyle get alert => TextStyle(
+        fontFamily: _sans,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: _c.danger,
+      );
 }

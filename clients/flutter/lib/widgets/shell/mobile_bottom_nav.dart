@@ -23,9 +23,9 @@ class MobileBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: NvrColors.bgSecondary,
-        border: Border(top: BorderSide(color: NvrColors.border)),
+      decoration: BoxDecoration(
+        color: NvrColors.of(context).bgSecondary,
+        border: Border(top: BorderSide(color: NvrColors.of(context).border)),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -44,7 +44,7 @@ class MobileBottomNav extends StatelessWidget {
                         Icon(
                           i == selectedIndex ? _items[i].activeIcon : _items[i].icon,
                           size: 20,
-                          color: i == selectedIndex ? NvrColors.accent : NvrColors.textSecondary,
+                          color: i == selectedIndex ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -53,7 +53,7 @@ class MobileBottomNav extends StatelessWidget {
                             fontFamily: 'JetBrainsMono',
                             fontSize: 8,
                             letterSpacing: 0.5,
-                            color: i == selectedIndex ? NvrColors.accent : NvrColors.textSecondary,
+                            color: i == selectedIndex ? NvrColors.of(context).accent : NvrColors.of(context).textSecondary,
                           ),
                         ),
                       ],

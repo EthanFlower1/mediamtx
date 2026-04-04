@@ -73,14 +73,16 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
       minute: current.inMinutes.remainder(60),
     );
 
+    final colors = NvrColors.of(context);
+
     final picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: NvrColors.accent,
-            surface: NvrColors.bgSecondary,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.dark(
+            primary: colors.accent,
+            surface: colors.bgSecondary,
           ),
         ),
         child: child!,
@@ -138,11 +140,14 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
   Widget build(BuildContext context) {
     final exportState = ref.watch(exportProvider);
 
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return Dialog(
-      backgroundColor: NvrColors.bgSecondary,
+      backgroundColor: colors.bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: NvrColors.border),
+        side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
@@ -155,14 +160,14 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
               // Header
               Row(
                 children: [
-                  const Icon(Icons.movie_creation_outlined,
-                      color: NvrColors.accent, size: 20),
+                  Icon(Icons.movie_creation_outlined,
+                      color: colors.accent, size: 20),
                   const SizedBox(width: 8),
-                  const Text('Export Clip', style: NvrTypography.pageTitle),
+                  Text('Export Clip', style: typo.pageTitle),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: NvrColors.textSecondary),
+                    icon: Icon(Icons.close,
+                        size: 18, color: colors.textSecondary),
                     onPressed: _cancel,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -172,22 +177,22 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
               const SizedBox(height: 4),
               Text(
                 widget.cameraName,
-                style: NvrTypography.body,
+                style: typo.body,
               ),
               const SizedBox(height: 16),
 
               if (!_hasStarted) ...[
                 // Time range selection
-                _buildTimeRangeSection(),
+                _buildTimeRangeSection(context),
               ] else ...[
                 // Progress display
-                _buildProgressSection(exportState),
+                _buildProgressSection(context, exportState),
               ],
 
               const SizedBox(height: 20),
 
               // Actions
-              _buildActions(exportState),
+              _buildActions(context, exportState),
             ],
           ),
         ),
@@ -195,11 +200,14 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
     );
   }
 
-  Widget _buildTimeRangeSection() {
+  Widget _buildTimeRangeSection(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('TIME RANGE', style: NvrTypography.monoLabel),
+        Text('TIME RANGE', style: typo.monoLabel),
         const SizedBox(height: 8),
 
         // Start time
@@ -222,18 +230,18 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: NvrColors.bgTertiary,
+            color: colors.bgTertiary,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.timer_outlined,
-                  size: 14, color: NvrColors.textSecondary),
+              Icon(Icons.timer_outlined,
+                  size: 14, color: colors.textSecondary),
               const SizedBox(width: 6),
               Text(
                 'Duration: ${_formatDuration(_clipDuration)}',
-                style: NvrTypography.monoData,
+                style: typo.monoData,
               ),
             ],
           ),
@@ -244,14 +252,16 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               'Long clips may take several minutes to export.',
-              style: NvrTypography.body.copyWith(color: NvrColors.warning),
+              style: typo.body.copyWith(color: colors.warning),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildProgressSection(ExportState exportState) {
+  Widget _buildProgressSection(BuildContext context, ExportState exportState) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
     final progress = exportState.overallProgress;
     final statusLabel = exportState.statusLabel;
     final isFailed = exportState.isFailed;
@@ -264,28 +274,28 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
         Row(
           children: [
             if (!isDone && !isFailed)
-              const SizedBox(
+              SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: NvrColors.accent,
+                  color: colors.accent,
                 ),
               ),
             if (isDone)
-              const Icon(Icons.check_circle,
-                  size: 16, color: NvrColors.success),
+              Icon(Icons.check_circle,
+                  size: 16, color: colors.success),
             if (isFailed)
-              const Icon(Icons.error, size: 16, color: NvrColors.danger),
+              Icon(Icons.error, size: 16, color: colors.danger),
             const SizedBox(width: 8),
             Text(
               statusLabel,
-              style: NvrTypography.monoData.copyWith(
+              style: typo.monoData.copyWith(
                 color: isFailed
-                    ? NvrColors.danger
+                    ? colors.danger
                     : isDone
-                        ? NvrColors.success
-                        : NvrColors.textPrimary,
+                        ? colors.success
+                        : colors.textPrimary,
               ),
             ),
           ],
@@ -298,9 +308,9 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 6,
-            backgroundColor: NvrColors.bgTertiary,
+            backgroundColor: colors.bgTertiary,
             valueColor: AlwaysStoppedAnimation<Color>(
-              isFailed ? NvrColors.danger : NvrColors.accent,
+              isFailed ? colors.danger : colors.accent,
             ),
           ),
         ),
@@ -309,7 +319,7 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
         // Progress percentage
         Text(
           '${(progress * 100).toStringAsFixed(0)}%',
-          style: NvrTypography.monoTimestamp,
+          style: typo.monoTimestamp,
         ),
 
         // ETA display
@@ -319,7 +329,7 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               'ETA: ${exportState.job!.etaSeconds!.toStringAsFixed(0)}s',
-              style: NvrTypography.body,
+              style: typo.body,
             ),
           ),
 
@@ -329,7 +339,7 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               exportState.error!,
-              style: NvrTypography.alert,
+              style: typo.alert,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
@@ -341,7 +351,7 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               'Saved to: ${exportState.localFilePath}',
-              style: NvrTypography.body,
+              style: typo.body,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -350,7 +360,7 @@ class _ExportClipDialogState extends ConsumerState<ExportClipDialog> {
     );
   }
 
-  Widget _buildActions(ExportState exportState) {
+  Widget _buildActions(BuildContext context, ExportState exportState) {
     if (exportState.isDone) {
       // Done state — share and close buttons.
       return Row(
@@ -447,26 +457,29 @@ class _TimePickerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: NvrColors.bgTertiary,
-          border: Border.all(color: NvrColors.border),
+          color: colors.bgTertiary,
+          border: Border.all(color: colors.border),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           children: [
             Text(
               label.toUpperCase(),
-              style: NvrTypography.monoLabel,
+              style: typo.monoLabel,
             ),
             const SizedBox(width: 12),
-            Text(value, style: NvrTypography.monoTimestamp),
+            Text(value, style: typo.monoTimestamp),
             const Spacer(),
-            const Icon(Icons.access_time,
-                size: 14, color: NvrColors.textSecondary),
+            Icon(Icons.access_time,
+                size: 14, color: colors.textSecondary),
           ],
         ),
       ),
@@ -489,15 +502,17 @@ class _DialogButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
     final disabled = onTap == null;
     final bgColor = isPrimary
-        ? (disabled ? NvrColors.bgTertiary : NvrColors.accent)
-        : NvrColors.bgTertiary;
+        ? (disabled ? colors.bgTertiary : colors.accent)
+        : colors.bgTertiary;
     final textColor = disabled
-        ? NvrColors.textMuted
+        ? colors.textMuted
         : isPrimary
             ? Colors.white
-            : NvrColors.textSecondary;
+            : colors.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
@@ -507,8 +522,8 @@ class _DialogButton extends StatelessWidget {
           color: bgColor,
           border: Border.all(
             color: isPrimary && !disabled
-                ? NvrColors.accent
-                : NvrColors.border,
+                ? colors.accent
+                : colors.border,
           ),
           borderRadius: BorderRadius.circular(6),
         ),
@@ -519,7 +534,7 @@ class _DialogButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: NvrTypography.button.copyWith(
+              style: typo.button.copyWith(
                 fontSize: 12,
                 color: textColor,
               ),

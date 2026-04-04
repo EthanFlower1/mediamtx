@@ -55,10 +55,10 @@ class _AnalogSliderState extends State<AnalogSlider> {
               children: [
                 Text(widget.label!, style: TextStyle(
                   fontFamily: 'JetBrainsMono', fontSize: 9,
-                  letterSpacing: 1, color: NvrColors.textMuted,
+                  letterSpacing: 1, color: NvrColors.of(context).textMuted,
                 )),
                 Text(displayValue, style: TextStyle(
-                  fontFamily: 'JetBrainsMono', fontSize: 9, color: NvrColors.accent,
+                  fontFamily: 'JetBrainsMono', fontSize: 9, color: NvrColors.of(context).accent,
                 )),
               ],
             ),
@@ -83,8 +83,8 @@ class _AnalogSliderState extends State<AnalogSlider> {
                   Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: NvrColors.bgTertiary,
-                      border: Border.all(color: NvrColors.border),
+                      color: NvrColors.of(context).bgTertiary,
+                      border: Border.all(color: NvrColors.of(context).border),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -95,7 +95,7 @@ class _AnalogSliderState extends State<AnalogSlider> {
                       height: 6,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [NvrColors.accent, NvrColors.accent.withOpacity(0.4)],
+                          colors: [NvrColors.of(context).accent, NvrColors.of(context).accent.withOpacity(0.4)],
                         ),
                         borderRadius: BorderRadius.circular(3),
                       ),
@@ -110,11 +110,11 @@ class _AnalogSliderState extends State<AnalogSlider> {
                       height: _dragging ? 20 : 18,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: NvrColors.bgTertiary,
-                        border: Border.all(color: NvrColors.accent, width: 2),
+                        color: NvrColors.of(context).bgTertiary,
+                        border: Border.all(color: NvrColors.of(context).accent, width: 2),
                         boxShadow: [
                           BoxShadow(
-                            color: NvrColors.accent.withOpacity(_dragging ? 0.5 : 0.25),
+                            color: NvrColors.of(context).accent.withOpacity(_dragging ? 0.5 : 0.25),
                             blurRadius: _dragging ? 10 : 6,
                           ),
                         ],
@@ -132,7 +132,7 @@ class _AnalogSliderState extends State<AnalogSlider> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(widget.tickCount, (_) =>
-              Container(width: 1, height: 4, color: NvrColors.border),
+              Container(width: 1, height: 4, color: NvrColors.of(context).border),
             ),
           ),
         ),

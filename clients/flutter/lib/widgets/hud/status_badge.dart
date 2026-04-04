@@ -13,12 +13,18 @@ class StatusBadge extends StatelessWidget {
   final Color color;
   final bool showDot;
 
-  factory StatusBadge.online() => const StatusBadge(label: 'ONLINE', color: NvrColors.success);
-  factory StatusBadge.offline() => const StatusBadge(label: 'OFFLINE', color: NvrColors.danger);
-  factory StatusBadge.degraded() => const StatusBadge(label: 'DEGRADED', color: NvrColors.warning);
-  factory StatusBadge.live() => const StatusBadge(label: 'LIVE', color: NvrColors.success);
-  factory StatusBadge.recording() => const StatusBadge(label: 'REC', color: NvrColors.danger, showDot: false);
-  factory StatusBadge.motion() => const StatusBadge(label: 'MOTION', color: NvrColors.accent);
+  static StatusBadge online(BuildContext context) =>
+      StatusBadge(label: 'ONLINE', color: NvrColors.of(context).success);
+  static StatusBadge offline(BuildContext context) =>
+      StatusBadge(label: 'OFFLINE', color: NvrColors.of(context).danger);
+  static StatusBadge degraded(BuildContext context) =>
+      StatusBadge(label: 'DEGRADED', color: NvrColors.of(context).warning);
+  static StatusBadge live(BuildContext context) =>
+      StatusBadge(label: 'LIVE', color: NvrColors.of(context).success);
+  static StatusBadge recording(BuildContext context) =>
+      StatusBadge(label: 'REC', color: NvrColors.of(context).danger, showDot: false);
+  static StatusBadge motion(BuildContext context) =>
+      StatusBadge(label: 'MOTION', color: NvrColors.of(context).accent);
 
   @override
   Widget build(BuildContext context) {

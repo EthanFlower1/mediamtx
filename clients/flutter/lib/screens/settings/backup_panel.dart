@@ -104,9 +104,9 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
           SnackBar(
             content: Text(
               'Backup created successfully',
-              style: NvrTypography.monoData.copyWith(color: NvrColors.success),
+              style: NvrTypography.of(context).monoData.copyWith(color: NvrColors.of(context).success),
             ),
-            backgroundColor: NvrColors.bgSecondary,
+            backgroundColor: NvrColors.of(context).bgSecondary,
           ),
         );
       }
@@ -117,9 +117,9 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
           SnackBar(
             content: Text(
               'Failed to create backup: $e',
-              style: NvrTypography.monoData.copyWith(color: NvrColors.danger),
+              style: NvrTypography.of(context).monoData.copyWith(color: NvrColors.of(context).danger),
             ),
-            backgroundColor: NvrColors.bgSecondary,
+            backgroundColor: NvrColors.of(context).bgSecondary,
           ),
         );
       }
@@ -140,9 +140,9 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
         SnackBar(
           content: Text(
             'Download URL copied to clipboard',
-            style: NvrTypography.monoData.copyWith(color: NvrColors.accent),
+            style: NvrTypography.of(context).monoData.copyWith(color: NvrColors.of(context).accent),
           ),
-          backgroundColor: NvrColors.bgSecondary,
+          backgroundColor: NvrColors.of(context).bgSecondary,
         ),
       );
     }
@@ -157,17 +157,17 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off,
-                  color: NvrColors.textMuted, size: 40),
+              Icon(Icons.cloud_off,
+                  color: NvrColors.of(context).textMuted, size: 40),
               const SizedBox(height: 12),
               Text(
                 'BACKUP ENDPOINT UNAVAILABLE',
-                style: NvrTypography.monoSection,
+                style: NvrTypography.of(context).monoSection,
               ),
               const SizedBox(height: 6),
               Text(
                 'This feature may not be enabled on the server.',
-                style: NvrTypography.body,
+                style: NvrTypography.of(context).body,
                 textAlign: TextAlign.center,
               ),
             ],
@@ -184,7 +184,7 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
           // ── Section header + create button ──
           Row(
             children: [
-              Text('BACKUPS', style: NvrTypography.monoSection),
+              Text('BACKUPS', style: NvrTypography.of(context).monoSection),
               const Spacer(),
               HudButton(
                 label: _creating ? 'CREATING…' : 'CREATE BACKUP',
@@ -198,11 +198,11 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
           // ── Existing backups header ──
           Row(
             children: [
-              Text('EXISTING BACKUPS', style: NvrTypography.monoSection),
+              Text('EXISTING BACKUPS', style: NvrTypography.of(context).monoSection),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.refresh,
-                    color: NvrColors.textMuted, size: 18),
+                icon: Icon(Icons.refresh,
+                    color: NvrColors.of(context).textMuted, size: 18),
                 tooltip: 'Refresh',
                 onPressed: _loading ? null : _loadBackups,
                 padding: EdgeInsets.zero,
@@ -218,27 +218,27 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 _error!,
-                style: NvrTypography.body.copyWith(color: NvrColors.danger),
+                style: NvrTypography.of(context).body.copyWith(color: NvrColors.of(context).danger),
               ),
             ),
 
           Expanded(
             child: _loading
-                ? const Center(
+                ? Center(
                     child:
-                        CircularProgressIndicator(color: NvrColors.accent),
+                        CircularProgressIndicator(color: NvrColors.of(context).accent),
                   )
                 : _backups.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.folder_open,
-                                color: NvrColors.textMuted, size: 40),
+                            Icon(Icons.folder_open,
+                                color: NvrColors.of(context).textMuted, size: 40),
                             const SizedBox(height: 12),
                             Text(
                               'NO BACKUPS YET',
-                              style: NvrTypography.monoSection,
+                              style: NvrTypography.of(context).monoSection,
                             ),
                           ],
                         ),
@@ -253,8 +253,8 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 12),
                             decoration: BoxDecoration(
-                              color: NvrColors.bgSecondary,
-                              border: Border.all(color: NvrColors.border),
+                              color: NvrColors.of(context).bgSecondary,
+                              border: Border.all(color: NvrColors.of(context).border),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
@@ -263,13 +263,13 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
                                   width: 32,
                                   height: 32,
                                   decoration: BoxDecoration(
-                                    color: NvrColors.accent.withOpacity(0.1),
+                                    color: NvrColors.of(context).accent.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   alignment: Alignment.center,
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.archive,
-                                    color: NvrColors.accent,
+                                    color: NvrColors.of(context).accent,
                                     size: 16,
                                   ),
                                 ),
@@ -281,23 +281,23 @@ class _BackupPanelState extends ConsumerState<BackupPanel> {
                                     children: [
                                       Text(
                                         b.filename,
-                                        style: NvrTypography.monoData
+                                        style: NvrTypography.of(context).monoData
                                             .copyWith(
-                                                color: NvrColors.textPrimary),
+                                                color: NvrColors.of(context).textPrimary),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 3),
                                       Text(
                                         '${_formatBytes(b.sizeBytes)}  ·  ${b.createdAt}',
-                                        style: NvrTypography.monoLabel,
+                                        style: NvrTypography.of(context).monoLabel,
                                       ),
                                     ],
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 IconButton(
-                                  icon: const Icon(Icons.download,
-                                      color: NvrColors.accent, size: 18),
+                                  icon: Icon(Icons.download,
+                                      color: NvrColors.of(context).accent, size: 18),
                                   tooltip: 'Copy download URL',
                                   onPressed: () => _downloadBackup(b),
                                   padding: EdgeInsets.zero,

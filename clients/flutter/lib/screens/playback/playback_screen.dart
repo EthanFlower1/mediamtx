@@ -13,9 +13,11 @@ import '../../providers/timeline_intensity_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/hud/segmented_control.dart';
 import 'camera_player.dart';
 import 'controls/transport_bar.dart';
+import 'export_clip_dialog.dart';
 import 'playback_controller.dart';
 import 'timeline/fixed_playhead_timeline.dart';
 import 'timeline/mini_overview_bar.dart';
@@ -61,8 +63,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   /// Grid layout: 1 = 1x1, 2 = 2x2.
   int _gridMode = 1;
 
-  /// Timeline zoom preset index: {0: 1H, 1: 30M, 2: 10M, 3: 5M}.
-  int _zoomIndex = 1;
+  /// Timeline zoom preset index: {0: 24H, 1: 12H, 2: 4H, 3: 1H}.
+  int _zoomIndex = 2;
 
   String get _dateKey =>
       '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
@@ -150,6 +152,23 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     if (idx >= 0) {
       setState(() => _zoomIndex = idx);
     }
+  }
+
+  void _showExportDialog(List<Camera> selected, PlaybackController controller) {
+    if (selected.isEmpty) return;
+    final camera = selected.first;
+    final dayStart = DateTime(
+        _selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    showDialog(
+      context: context,
+      builder: (_) => ExportClipDialog(
+        cameraId: camera.id,
+        cameraName: camera.name,
+        dayStart: dayStart,
+        currentPosition: controller.position,
+      ),
+    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────
@@ -268,19 +287,31 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
           onDateTap: () => _pickDate(controller),
           gridMode: _gridMode,
           onGridChanged: (v) => setState(() => _gridMode = v),
+          onExport: () => _showExportDialog(selected, controller),
         ),
 
         // ── Camera selector chips ─────────────────────────────────────
         _CameraChips(
           cameras: cameras,
           selectedIds: _selectedCameraIds,
+          maxCameras: 4,
           onToggle: (id) => setState(() {
             if (_selectedCameraIds.contains(id)) {
               if (_selectedCameraIds.length > 1) {
                 _selectedCameraIds.remove(id);
+                // Auto-switch back to 1x1 when only one camera remains.
+                if (_selectedCameraIds.length == 1) {
+                  _gridMode = 1;
+                }
               }
             } else {
+              // Cap at 4 cameras for synchronized playback.
+              if (_selectedCameraIds.length >= 4) return;
               _selectedCameraIds.add(id);
+              // Auto-switch to 2x2 grid when multiple cameras are selected.
+              if (_selectedCameraIds.length > 1) {
+                _gridMode = 2;
+              }
             }
           }),
         ),
@@ -360,73 +391,131 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onDateTap;
   final int gridMode;
   final ValueChanged<int> onGridChanged;
+  final VoidCallback onExport;
 
   const _TopBar({
     required this.date,
     required this.onDateTap,
     required this.gridMode,
     required this.onGridChanged,
+    required this.onExport,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = Responsive.isPhone(context);
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
-        left: 16,
-        right: 16,
+        left: isPhone ? 12 : 16,
+        right: isPhone ? 12 : 16,
         bottom: 8,
       ),
       decoration: const BoxDecoration(
         color: NvrColors.bgSecondary,
         border: Border(bottom: BorderSide(color: NvrColors.border)),
       ),
+      child: isPhone ? _buildMobileBar() : _buildDesktopBar(),
+    );
+  }
+
+  Widget _buildDesktopBar() {
+    return Row(
+      children: [
+        // Title
+        const Text('Playback', style: NvrTypography.pageTitle),
+        const SizedBox(width: 20),
+
+        // Date picker
+        _DateButton(date: date, onTap: onDateTap),
+
+        const Spacer(),
+
+        // Export button
+        _SecondaryButton(
+          icon: Icons.download,
+          label: 'Export',
+          onTap: () {}, // TODO: wire export
+        ),
+        const SizedBox(width: 8),
+
+        // Bookmark button
+        _AccentButton(
+          icon: Icons.bookmark,
+          label: 'Bookmark',
+          onTap: () {}, // TODO: wire add-bookmark
+        ),
+        const SizedBox(width: 12),
+
+        // Grid selector
+        HudSegmentedControl<int>(
+          segments: const {1: '1\u00D71', 2: '2\u00D72'},
+          selected: gridMode,
+          onChanged: onGridChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileBar() {
+    return Row(
+      children: [
+        // Title
+        const Text('Playback', style: NvrTypography.pageTitle),
+        const SizedBox(width: 12),
+
+        // Date picker
+        _DateButton(date: date, onTap: onDateTap),
+
+        const Spacer(),
+
+        // Icon-only buttons on mobile
+        GestureDetector(
+          onTap: () {}, // TODO: wire export
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.download, size: 18, color: NvrColors.textSecondary),
+          ),
+        ),
+        GestureDetector(
+          onTap: () {}, // TODO: wire add-bookmark
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.bookmark, size: 18, color: NvrColors.accent),
+          ),
+        ),
+        const SizedBox(width: 4),
+
+        // Grid selector
+        HudSegmentedControl<int>(
+          segments: const {1: '1\u00D71', 2: '2\u00D72'},
+          selected: gridMode,
+          onChanged: onGridChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _DateButton extends StatelessWidget {
+  final String date;
+  final VoidCallback onTap;
+  const _DateButton({required this.date, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Title
-          const Text('Playback', style: NvrTypography.pageTitle),
-          const SizedBox(width: 20),
-
-          // Date picker
-          GestureDetector(
-            onTap: onDateTap,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.calendar_today,
-                    size: 14, color: NvrColors.accent),
-                const SizedBox(width: 6),
-                Text(
-                  date,
-                  style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          // Export button
-          _SecondaryButton(
-            icon: Icons.download,
-            label: 'Export',
-            onTap: () {}, // TODO: wire export
-          ),
-          const SizedBox(width: 8),
-
-          // Bookmark button
-          _AccentButton(
-            icon: Icons.bookmark,
-            label: 'Bookmark',
-            onTap: () {}, // TODO: wire add-bookmark
-          ),
-          const SizedBox(width: 12),
-
-          // Grid selector
-          HudSegmentedControl<int>(
-            segments: const {1: '1\u00D71', 2: '2\u00D72'},
-            selected: gridMode,
-            onChanged: onGridChanged,
+          const Icon(Icons.calendar_today,
+              size: 14, color: NvrColors.accent),
+          const SizedBox(width: 6),
+          Text(
+            date,
+            style: NvrTypography.monoTimestamp.copyWith(fontSize: 13),
           ),
         ],
       ),
@@ -509,45 +598,88 @@ class _AccentButton extends StatelessWidget {
 class _CameraChips extends StatelessWidget {
   final List<Camera> cameras;
   final Set<String> selectedIds;
+  final int maxCameras;
   final ValueChanged<String> onToggle;
 
   const _CameraChips({
     required this.cameras,
     required this.selectedIds,
     required this.onToggle,
+    this.maxCameras = 4,
   });
 
   @override
   Widget build(BuildContext context) {
+    final atCapacity = selectedIds.length >= maxCameras;
     return Container(
       color: NvrColors.bgSecondary,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: SizedBox(
         height: 32,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: cameras.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            final c = cameras[i];
-            final sel = selectedIds.contains(c.id);
-            return FilterChip(
-              label: Text(c.name,
-                  style: TextStyle(
-                    color: sel ? Colors.white : NvrColors.textSecondary,
-                    fontSize: 11,
-                  )),
-              selected: sel,
-              onSelected: (_) => onToggle(c.id),
-              backgroundColor: NvrColors.bgTertiary,
-              selectedColor: NvrColors.accent,
-              checkmarkColor: Colors.white,
-              side: BorderSide(
-                  color: sel ? NvrColors.accent : NvrColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            );
-          },
+        child: Row(
+          children: [
+            // Camera count indicator
+            if (selectedIds.length > 1)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: NvrColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${selectedIds.length}/$maxCameras',
+                    style: const TextStyle(
+                      fontFamily: 'JetBrainsMono',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: NvrColors.accent,
+                    ),
+                  ),
+                ),
+              ),
+            // Camera chips
+            Expanded(
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: cameras.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final c = cameras[i];
+                  final sel = selectedIds.contains(c.id);
+                  // Dim unselected chips when at capacity.
+                  final disabled = atCapacity && !sel;
+                  return FilterChip(
+                    label: Text(c.name,
+                        style: TextStyle(
+                          color: sel
+                              ? Colors.white
+                              : disabled
+                                  ? NvrColors.textMuted
+                                  : NvrColors.textSecondary,
+                          fontSize: 11,
+                        )),
+                    selected: sel,
+                    onSelected: disabled ? null : (_) => onToggle(c.id),
+                    backgroundColor: NvrColors.bgTertiary,
+                    selectedColor: NvrColors.accent,
+                    disabledColor: NvrColors.bgTertiary,
+                    checkmarkColor: Colors.white,
+                    side: BorderSide(
+                        color: sel
+                            ? NvrColors.accent
+                            : disabled
+                                ? NvrColors.border.withValues(alpha: 0.5)
+                                : NvrColors.border),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

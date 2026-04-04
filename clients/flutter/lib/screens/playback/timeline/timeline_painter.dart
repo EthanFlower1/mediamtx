@@ -57,17 +57,10 @@ class TimelinePainter extends CustomPainter {
   static const double _motionEventHeight = 10;
   static const double _bookmarkY = 49;
 
-  // Color map for object classes.
-  static const Map<String, Color> _objectClassColors = {
-    'person': Color(0xFFF59E0B),   // amber/orange
-    'vehicle': Color(0xFF3B82F6),  // blue
-    'car': Color(0xFF3B82F6),      // blue (alias)
-    'truck': Color(0xFF3B82F6),    // blue (alias)
-    'animal': Color(0xFF22C55E),   // green
-    'dog': Color(0xFF22C55E),      // green (alias)
-    'cat': Color(0xFF22C55E),      // green (alias)
-  };
-  static const Color _defaultEventColor = Color(0xFF525252); // muted gray
+  // Color-coded segment colors per acceptance criteria.
+  static const Color _continuousColor = Color(0xFF3B82F6); // blue
+  static const Color _eventColor = Color(0xFFF97316);       // orange
+  static const Color _gapColor = Color(0xFF525252);         // gray
 
   /// Convert a time (seconds from midnight) to an x pixel position.
   double _timeToX(double timeSeconds, double widgetWidth) {
@@ -198,13 +191,22 @@ class TimelinePainter extends CustomPainter {
   ) {
     if (segments.isEmpty) return;
 
-    final fillPaint = Paint()..color = NvrColors.accent.withValues(alpha: 0.20);
+    // Build a set of times covered by motion events for overlap detection.
+    final eventIntervals = <({double start, double end})>[];
+    for (final evt in events) {
+      final evtStart =
+          evt.startTime.difference(dayStart).inMilliseconds / 1000.0;
+      final evtEnd = (evt.endTime ?? evt.startTime.add(const Duration(seconds: 5)))
+          .difference(dayStart).inMilliseconds / 1000.0;
+      eventIntervals.add((start: evtStart, end: evtEnd));
+    }
 
-    // Diagonal hash paint for gaps.
+    final continuousPaint = Paint()
+      ..color = _continuousColor.withValues(alpha: 0.35);
+    final eventOverlayPaint = Paint()
+      ..color = _eventColor.withValues(alpha: 0.45);
     final gapPaint = Paint()
-      ..color = NvrColors.textMuted.withValues(alpha: 0.15)
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
+      ..color = _gapColor.withValues(alpha: 0.20);
 
     RecordingSegment? prevSegment;
 
@@ -221,16 +223,18 @@ class TimelinePainter extends CustomPainter {
         continue;
       }
 
-      // Draw gap hash pattern between this segment and the previous one.
+      // Draw gray gap fill between this segment and the previous one.
       if (prevSegment != null) {
         final prevEndSeconds =
             prevSegment.endTime.difference(dayStart).inMilliseconds / 1000.0;
         if (segStartSeconds > prevEndSeconds) {
-          _paintGapHash(
-            canvas,
-            size,
-            _timeToX(prevEndSeconds, size.width),
-            _timeToX(segStartSeconds, size.width),
+          final gx1 = _timeToX(prevEndSeconds, size.width)
+              .clamp(0.0, size.width);
+          final gx2 = _timeToX(segStartSeconds, size.width)
+              .clamp(0.0, size.width);
+          canvas.drawRect(
+            Rect.fromLTRB(
+                gx1, _recordingTop, gx2, _recordingTop + _recordingHeight),
             gapPaint,
           );
         }
@@ -241,43 +245,38 @@ class TimelinePainter extends CustomPainter {
       final x2 = _timeToX(segEndSeconds, size.width)
           .clamp(0.0, size.width);
 
+      // Draw the continuous recording bar (blue).
       canvas.drawRect(
         Rect.fromLTRB(x1, _recordingTop, x2, _recordingTop + _recordingHeight),
-        fillPaint,
+        continuousPaint,
       );
+
+      // Overlay orange on portions that overlap with motion events.
+      for (final interval in eventIntervals) {
+        // Check for overlap with this segment.
+        final overlapStart =
+            interval.start < segStartSeconds ? segStartSeconds : interval.start;
+        final overlapEnd =
+            interval.end > segEndSeconds ? segEndSeconds : interval.end;
+        if (overlapStart >= overlapEnd) continue;
+
+        // Cull if outside visible range.
+        if (overlapEnd < range.startSeconds ||
+            overlapStart > range.endSeconds) {
+          continue;
+        }
+
+        final ox1 = _timeToX(overlapStart, size.width).clamp(0.0, size.width);
+        final ox2 = _timeToX(overlapEnd, size.width).clamp(0.0, size.width);
+        canvas.drawRect(
+          Rect.fromLTRB(
+              ox1, _recordingTop, ox2, _recordingTop + _recordingHeight),
+          eventOverlayPaint,
+        );
+      }
 
       prevSegment = seg;
     }
-  }
-
-  void _paintGapHash(
-    Canvas canvas,
-    Size size,
-    double gapX1,
-    double gapX2,
-    Paint paint,
-  ) {
-    // Clamp to visible area.
-    final left = gapX1.clamp(0.0, size.width);
-    final right = gapX2.clamp(0.0, size.width);
-    if (right - left < 2) return;
-
-    canvas.save();
-    canvas.clipRect(
-      Rect.fromLTRB(left, _recordingTop, right, _recordingTop + _recordingHeight),
-    );
-
-    const spacing = 6.0;
-    final startX = left - _recordingHeight; // Start before clip to cover edges.
-    for (var x = startX; x < right + _recordingHeight; x += spacing) {
-      canvas.drawLine(
-        Offset(x, _recordingTop),
-        Offset(x + _recordingHeight, _recordingTop + _recordingHeight),
-        paint,
-      );
-    }
-
-    canvas.restore();
   }
 
   // ─── Layer 3: Motion/Event Intensity ─────────────────────────────────
@@ -314,7 +313,7 @@ class TimelinePainter extends CustomPainter {
       final opacity = 0.15 + normalizedIntensity * 0.70;
 
       final paint = Paint()
-        ..color = NvrColors.danger.withValues(alpha: opacity);
+        ..color = _eventColor.withValues(alpha: opacity);
 
       final x1 = _timeToX(bucketStartSeconds, size.width)
           .clamp(0.0, size.width);
@@ -350,10 +349,7 @@ class TimelinePainter extends CustomPainter {
         continue;
       }
 
-      final color = _objectClassColors[evt.objectClass?.toLowerCase() ?? '']
-          ?? _defaultEventColor;
-
-      final paint = Paint()..color = color.withValues(alpha: 0.7);
+      final paint = Paint()..color = _eventColor.withValues(alpha: 0.7);
 
       final x1 = _timeToX(evtStartSeconds, size.width).clamp(0.0, size.width);
       final x2 = _timeToX(evtEndSeconds, size.width).clamp(0.0, size.width);

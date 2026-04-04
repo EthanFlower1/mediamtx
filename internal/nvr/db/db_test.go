@@ -42,6 +42,8 @@ func TestOpenRunsMigrations(t *testing.T) {
 		"connection_events",
 		"queued_commands",
 		"evidence_exports",
+		"bulk_export_jobs",
+		"bulk_export_items",
 	}
 
 	for _, table := range tables {

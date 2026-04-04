@@ -76,13 +76,13 @@ void main() {
     });
 
     test('initial state has gridSize 2', () {
-      expect(notifier.state.gridSize, 2);
-      expect(notifier.state.slots, isEmpty);
+      expect(notifier.state.active.gridSize, 2);
+      expect(notifier.state.active.slots, isEmpty);
     });
 
     test('setGridSize updates grid size', () {
       notifier.setGridSize(3);
-      expect(notifier.state.gridSize, 3);
+      expect(notifier.state.active.gridSize, 3);
     });
 
     test('setGridSize prunes slots beyond new size', () {
@@ -93,80 +93,80 @@ void main() {
 
       // Reduce to 2x2 (4 slots: 0,1,2,3)
       notifier.setGridSize(2);
-      expect(notifier.state.gridSize, 2);
-      expect(notifier.state.slots.containsKey(0), true);
-      expect(notifier.state.slots.containsKey(3), true);
-      expect(notifier.state.slots.containsKey(15), false); // pruned
+      expect(notifier.state.active.gridSize, 2);
+      expect(notifier.state.active.slots.containsKey(0), true);
+      expect(notifier.state.active.slots.containsKey(3), true);
+      expect(notifier.state.active.slots.containsKey(15), false); // pruned
     });
 
     test('assignCamera adds camera to slot', () {
       notifier.assignCamera(0, 'cam1');
-      expect(notifier.state.slots[0], 'cam1');
+      expect(notifier.state.active.slots[0], 'cam1');
     });
 
     test('assignCamera removes camera from old slot', () {
       notifier.assignCamera(0, 'cam1');
       notifier.assignCamera(1, 'cam1'); // move cam1 to slot 1
-      expect(notifier.state.slots.containsKey(0), false);
-      expect(notifier.state.slots[1], 'cam1');
+      expect(notifier.state.active.slots.containsKey(0), false);
+      expect(notifier.state.active.slots[1], 'cam1');
     });
 
     test('assignCamera replaces existing camera in target slot', () {
       notifier.assignCamera(0, 'cam1');
       notifier.assignCamera(0, 'cam2');
-      expect(notifier.state.slots[0], 'cam2');
+      expect(notifier.state.active.slots[0], 'cam2');
     });
 
     test('removeCamera removes from slot', () {
       notifier.assignCamera(0, 'cam1');
       notifier.assignCamera(1, 'cam2');
       notifier.removeCamera(0);
-      expect(notifier.state.slots.containsKey(0), false);
-      expect(notifier.state.slots[1], 'cam2'); // other slot intact
+      expect(notifier.state.active.slots.containsKey(0), false);
+      expect(notifier.state.active.slots[1], 'cam2'); // other slot intact
     });
 
     test('removeCamera on empty slot is a no-op', () {
       notifier.assignCamera(0, 'cam1');
       notifier.removeCamera(5); // slot 5 is empty
-      expect(notifier.state.slots[0], 'cam1');
+      expect(notifier.state.active.slots[0], 'cam1');
     });
 
     test('swapSlots swaps two occupied slots', () {
       notifier.assignCamera(0, 'cam1');
       notifier.assignCamera(1, 'cam2');
       notifier.swapSlots(0, 1);
-      expect(notifier.state.slots[0], 'cam2');
-      expect(notifier.state.slots[1], 'cam1');
+      expect(notifier.state.active.slots[0], 'cam2');
+      expect(notifier.state.active.slots[1], 'cam1');
     });
 
     test('swapSlots with one empty slot moves camera', () {
       notifier.assignCamera(0, 'cam1');
       notifier.swapSlots(0, 3);
-      expect(notifier.state.slots.containsKey(0), false);
-      expect(notifier.state.slots[3], 'cam1');
+      expect(notifier.state.active.slots.containsKey(0), false);
+      expect(notifier.state.active.slots[3], 'cam1');
     });
 
     test('fillFromGroup fills slots from camera list', () {
       notifier.setGridSize(2); // 4 slots
       notifier.fillFromGroup(['camA', 'camB', 'camC']);
-      expect(notifier.state.slots[0], 'camA');
-      expect(notifier.state.slots[1], 'camB');
-      expect(notifier.state.slots[2], 'camC');
-      expect(notifier.state.slots.containsKey(3), false);
+      expect(notifier.state.active.slots[0], 'camA');
+      expect(notifier.state.active.slots[1], 'camB');
+      expect(notifier.state.active.slots[2], 'camC');
+      expect(notifier.state.active.slots.containsKey(3), false);
     });
 
     test('fillFromGroup truncates to totalSlots', () {
       notifier.setGridSize(2); // 4 slots
       notifier.fillFromGroup(['c1', 'c2', 'c3', 'c4', 'c5', 'c6']);
-      expect(notifier.state.slots.length, 4);
-      expect(notifier.state.slots[3], 'c4');
+      expect(notifier.state.active.slots.length, 4);
+      expect(notifier.state.active.slots[3], 'c4');
     });
 
     test('fillFromGroup replaces previous slots', () {
       notifier.assignCamera(0, 'old_cam');
       notifier.fillFromGroup(['new1', 'new2']);
-      expect(notifier.state.slots[0], 'new1');
-      expect(notifier.state.slots[1], 'new2');
+      expect(notifier.state.active.slots[0], 'new1');
+      expect(notifier.state.active.slots[1], 'new2');
     });
   });
 }

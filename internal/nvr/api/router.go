@@ -125,6 +125,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		Audit:     audit,
 	}
 
+	brandingHandler := &BrandingHandler{
+		DB:      cfg.DB,
+		DataDir: "./data",
+	}
+
 	systemHandler := &SystemHandler{
 		Version:        cfg.Version,
 		StartedAt:      time.Now(),
@@ -194,6 +199,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	nvr.POST("/auth/revoke", authHandler.Revoke)
 	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
 	nvr.GET("/system/health", systemHandler.Health)
+	nvr.GET("/system/branding", brandingHandler.GetBranding)
+	nvr.GET("/system/branding/logo/:filename", brandingHandler.ServeLogo)
 
 	// Serve event thumbnails as static files (public route for img tags).
 	engine.Static("/thumbnails", "./thumbnails")
@@ -490,6 +497,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
+	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
+	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

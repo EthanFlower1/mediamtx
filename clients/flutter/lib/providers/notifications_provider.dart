@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/notification_event.dart';
+import '../models/user_preferences.dart';
 import '../services/websocket_service.dart';
 import 'auth_provider.dart';
+import 'user_preferences_provider.dart';
 
 class NotificationState {
   final List<NotificationEvent> history;
@@ -150,4 +152,42 @@ final notificationsProvider =
   }, fireImmediately: true);
 
   return notifier;
+});
+
+/// Maps a notification event type string to a [NotificationEventType].
+NotificationEventType? _mapEventType(String type) {
+  switch (type) {
+    case 'motion':
+      return NotificationEventType.motion;
+    case 'person_detected':
+      return NotificationEventType.personDetected;
+    case 'vehicle_detected':
+      return NotificationEventType.vehicleDetected;
+    case 'animal_detected':
+      return NotificationEventType.animalDetected;
+    case 'camera_offline':
+      return NotificationEventType.cameraOffline;
+    case 'camera_online':
+      return NotificationEventType.cameraOnline;
+    case 'recording_error':
+      return NotificationEventType.recordingError;
+    case 'storage_warning':
+      return NotificationEventType.storageWarning;
+    default:
+      return null; // Unknown types pass through (not filtered)
+  }
+}
+
+/// Notifications filtered by the user's enabled notification preferences.
+final filteredNotificationsProvider = Provider<List<NotificationEvent>>((ref) {
+  final allEvents = ref.watch(notificationsProvider).history;
+  final enabledTypes = ref.watch(
+    userPreferencesProvider.select((p) => p.enabledNotifications),
+  );
+  return allEvents.where((event) {
+    final mapped = _mapEventType(event.type);
+    // If the event type is not in our enum, show it (don't hide unknown types)
+    if (mapped == null) return true;
+    return enabledTypes.contains(mapped);
+  }).toList();
 });

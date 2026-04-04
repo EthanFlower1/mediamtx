@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_provider.dart';
+import 'user_preferences_provider.dart';
 
 /// A single grid layout with a name, grid size, and slot assignments.
 class GridLayout {
@@ -63,8 +64,8 @@ class GridLayoutState {
 }
 
 class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
-  GridLayoutNotifier(this._userId)
-      : super(const GridLayoutState(active: GridLayout(gridSize: 2))) {
+  GridLayoutNotifier(this._userId, {int initialGridSize = 2})
+      : super(GridLayoutState(active: GridLayout(gridSize: initialGridSize))) {
     _load();
   }
 
@@ -223,5 +224,8 @@ class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
 final gridLayoutProvider =
     StateNotifierProvider<GridLayoutNotifier, GridLayoutState>((ref) {
   final userId = ref.watch(authProvider).user?.id ?? 'default';
-  return GridLayoutNotifier(userId);
+  final preferredSize = ref.watch(
+    userPreferencesProvider.select((p) => p.preferredGridSize),
+  );
+  return GridLayoutNotifier(userId, initialGridSize: preferredSize);
 });

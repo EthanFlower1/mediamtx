@@ -51,6 +51,7 @@ type RouterConfig struct {
 	QuarantineBase  string              // quarantine directory for corrupted recordings
 	BackchannelMgr  *backchannel.Manager // backchannel audio session manager (may be nil)
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
+	ExportsPath     string              // directory for exported clip files
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -534,6 +535,23 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	protected.DELETE("/tours/:id", tourHandler.Delete)
 
 	// Camera connection resilience.
+	// Export jobs.
+	exportsPath := cfg.ExportsPath
+	if exportsPath == "" {
+		exportsPath = filepath.Join(cfg.RecordingsPath, "exports")
+	}
+	exportHandler := &ExportHandler{
+		DB:             cfg.DB,
+		RecordingsPath: cfg.RecordingsPath,
+		ExportsPath:    exportsPath,
+	}
+	exportHandler.Start(2)
+	protected.POST("/exports", exportHandler.Create)
+	protected.GET("/exports", exportHandler.List)
+	protected.GET("/exports/:id", exportHandler.Get)
+	protected.DELETE("/exports/:id", exportHandler.Delete)
+	protected.GET("/exports/:id/download", exportHandler.Download)
+
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)
 	protected.GET("/cameras/:id/connection/history", connHandler.History)

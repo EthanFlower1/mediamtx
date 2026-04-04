@@ -32,11 +32,11 @@ class NavigationShell extends ConsumerWidget {
     // Mobile: < 600px
     if (width < 600) {
       // Map mobile 6-item nav to router indices
-      // Mobile: 0=Live, 1=Playback, 2=Search, 3=Screenshots(index 3), 4=Schedules(index 6), 5=Settings(index 5)
+      // Mobile: 0=Dashboard(0), 1=Live(1), 2=Playback(2), 3=Search(3), 4=Schedules(7), 5=Settings(6)
       final int mobileIndex;
-      if (selectedIndex == 6) {
+      if (selectedIndex == 7) {
         mobileIndex = 4;
-      } else if (selectedIndex == 5) {
+      } else if (selectedIndex == 6) {
         mobileIndex = 5;
       } else {
         mobileIndex = selectedIndex.clamp(0, 3);
@@ -51,8 +51,10 @@ class NavigationShell extends ConsumerWidget {
         bottomNavigationBar: MobileBottomNav(
           selectedIndex: mobileIndex,
           onDestinationSelected: (i) {
-            // Map mobile indices back: 0=Live, 1=Playback, 2=Search, 3=Screenshots(3), 4=Schedules(6), 5=Settings(5)
+            // Map mobile indices back: 0=Dashboard(0), 1=Live(1), 2=Playback(2), 3=Search(3), 4=Schedules(7), 5=Settings(6)
             if (i == 4) {
+              onDestinationSelected(7);
+            } else if (i == 5) {
               onDestinationSelected(6);
             } else {
               onDestinationSelected(i);

@@ -149,6 +149,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 		Embedder: cfg.Embedder,
 	}
 
+	edgeSearchHandler := &EdgeSearchHandler{
+		DB:            cfg.DB,
+		EncryptionKey: cfg.EncryptionKey,
+	}
+
 	auditHandler := &AuditHandler{
 		DB: cfg.DB,
 	}
@@ -478,6 +483,10 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) {
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
+
+	// Edge search (ONVIF Profile G — search recordings and events on device).
+	protected.GET("/edge-search/recordings", edgeSearchHandler.Recordings)
+	protected.GET("/edge-search/events", edgeSearchHandler.Events)
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)

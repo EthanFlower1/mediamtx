@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/camera.dart';
 import '../../models/recording.dart';
@@ -21,7 +22,30 @@ import 'timeline/mini_overview_bar.dart';
 import 'timeline/timeline_viewport.dart';
 
 class PlaybackScreen extends ConsumerStatefulWidget {
-  const PlaybackScreen({super.key});
+  final String? initialCameraId;
+  final DateTime? initialTimestamp;
+
+  const PlaybackScreen({
+    super.key,
+    this.initialCameraId,
+    this.initialTimestamp,
+  });
+
+  /// Navigate to playback at a specific bookmark's camera and timestamp.
+  static void navigateToBookmark(
+    BuildContext context, {
+    required String cameraId,
+    required DateTime timestamp,
+  }) {
+    final uri = Uri(
+      path: '/playback',
+      queryParameters: {
+        'cameraId': cameraId,
+        'timestamp': timestamp.toUtc().toIso8601String(),
+      },
+    );
+    GoRouter.of(context).go(uri.toString());
+  }
 
   @override
   ConsumerState<PlaybackScreen> createState() => _PlaybackScreenState();
@@ -32,6 +56,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   DateTime _selectedDate = DateTime.now();
   final Set<String> _selectedCameraIds = {};
   String _lastServerUrl = '';
+  bool _appliedInitialBookmark = false;
 
   /// Grid layout: 1 = 1x1, 2 = 2x2.
   int _gridMode = 1;
@@ -157,6 +182,27 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         child: Text('No cameras configured.',
             style: TextStyle(color: NvrColors.textMuted)),
       );
+    }
+
+    // Apply initial bookmark navigation (camera + timestamp) once.
+    if (!_appliedInitialBookmark && widget.initialCameraId != null) {
+      _appliedInitialBookmark = true;
+      final cameraExists =
+          cameras.any((c) => c.id == widget.initialCameraId);
+      if (cameraExists) {
+        _selectedCameraIds.clear();
+        _selectedCameraIds.add(widget.initialCameraId!);
+        if (widget.initialTimestamp != null) {
+          final ts = widget.initialTimestamp!;
+          _selectedDate = DateTime(ts.year, ts.month, ts.day);
+          controller.setSelectedDate(_selectedDate);
+          // Seek to the time-of-day offset.
+          final dayStart =
+              DateTime(ts.year, ts.month, ts.day);
+          final offset = ts.difference(dayStart);
+          controller.seek(offset);
+        }
+      }
     }
 
     if (_selectedCameraIds.isEmpty && cameras.isNotEmpty) {

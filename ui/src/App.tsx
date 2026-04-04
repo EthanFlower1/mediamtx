@@ -10,6 +10,7 @@ import Playback from './pages/Playback'
 import ClipSearch from './pages/ClipSearch'
 import Settings from './pages/Settings'
 import UserManagement from './pages/UserManagement'
+import AuditLog from './pages/AuditLog'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -375,16 +376,28 @@ function Layout({ children }: { children: React.ReactNode }) {
                 <MobileNavItem key={link.to} {...link} onClick={closeSidebar} />
               ))}
               {user?.role === 'admin' && (
-                <MobileNavItem
-                  to="/users"
-                  icon={
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  }
-                  label="Users"
-                  onClick={closeSidebar}
-                />
+                <>
+                  <MobileNavItem
+                    to="/users"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    }
+                    label="Users"
+                    onClick={closeSidebar}
+                  />
+                  <MobileNavItem
+                    to="/audit"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    }
+                    label="Audit Log"
+                    onClick={closeSidebar}
+                  />
+                </>
               )}
             </div>
 
@@ -468,6 +481,7 @@ function AppRoutes() {
       <Route path="/clips" element={<ProtectedRoute><Layout><ClipSearch /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+      <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/live" replace />} />
     </Routes>
   )

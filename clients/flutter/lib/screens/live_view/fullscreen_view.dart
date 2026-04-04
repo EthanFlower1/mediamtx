@@ -46,12 +46,52 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
   bool _muted = true;
   bool _capturing = false;
 
+  final FocusNode _keyFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _initConnection();
     _scheduleHideControls();
+  }
+
+  // ── Keyboard PTZ control ────────────────────────────────────────────
+  void _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return;
+
+    final apiClient = ref.read(apiClientProvider);
+    if (apiClient == null || !widget.camera.ptzCapable) return;
+
+    final String action;
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowUp:
+        action = 'up';
+      case LogicalKeyboardKey.arrowDown:
+        action = 'down';
+      case LogicalKeyboardKey.arrowLeft:
+        action = 'left';
+      case LogicalKeyboardKey.arrowRight:
+        action = 'right';
+      case LogicalKeyboardKey.home:
+        action = 'stop';
+      case LogicalKeyboardKey.equal: // + or =
+      case LogicalKeyboardKey.add:
+        action = 'zoom_in';
+      case LogicalKeyboardKey.minus:
+      case LogicalKeyboardKey.numpadSubtract:
+        action = 'zoom_out';
+      case LogicalKeyboardKey.escape:
+        Navigator.of(context).pop();
+        return;
+      default:
+        return;
+    }
+
+    apiClient.post(
+      '/cameras/${widget.camera.id}/ptz',
+      data: {'action': action},
+    );
   }
 
   bool get _isH265 {
@@ -167,6 +207,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
 
   @override
   void dispose() {
+    _keyFocusNode.dispose();
     _hideControlsTimer?.cancel();
     _whepStateSub?.cancel();
     _whepConnection?.dispose();
@@ -183,7 +224,11 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
     final overlaySettings = ref.watch(overlaySettingsProvider);
     final aiEnabled = camera.aiEnabled && overlaySettings.overlayVisible;
 
-    return Scaffold(
+    return KeyboardListener(
+      focusNode: _keyFocusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -237,6 +282,7 @@ class _FullscreenViewState extends ConsumerState<FullscreenView> {
           ),
         ),
       ),
+    ),
     );
   }
 

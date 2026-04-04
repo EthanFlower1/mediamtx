@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -60,6 +61,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   String _lastServerUrl = '';
   bool _appliedInitialBookmark = false;
 
+  final FocusNode _keyFocusNode = FocusNode();
+
   /// Grid layout: 1 = 1x1, 2 = 2x2.
   int _gridMode = 1;
 
@@ -92,6 +95,46 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     }
   }
 
+  // ── Keyboard shortcuts ─────────────────────────────────────────────
+  /// Speed presets (mirrored from transport_bar.dart).
+  static const _speedPresets = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0];
+
+  void _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return;
+    final ctrl = _controller;
+    if (ctrl == null) return;
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.space:
+        ctrl.togglePlayPause();
+      case LogicalKeyboardKey.equal: // + or =
+      case LogicalKeyboardKey.add:
+      case LogicalKeyboardKey.numpadAdd:
+        _changeSpeed(ctrl, 1);
+      case LogicalKeyboardKey.minus:
+      case LogicalKeyboardKey.numpadSubtract:
+        _changeSpeed(ctrl, -1);
+      case LogicalKeyboardKey.arrowLeft:
+        ctrl.stepFrame(-1);
+      case LogicalKeyboardKey.arrowRight:
+        ctrl.stepFrame(1);
+      case LogicalKeyboardKey.keyJ:
+        ctrl.skipToPreviousEvent();
+      case LogicalKeyboardKey.keyL:
+        ctrl.skipToNextEvent();
+      default:
+        return;
+    }
+  }
+
+  void _changeSpeed(PlaybackController ctrl, int direction) {
+    final currentIndex = _speedPresets.indexWhere(
+        (s) => (s - ctrl.speed).abs() < 0.001);
+    final idx = currentIndex < 0 ? 2 : currentIndex;
+    final newIdx = (idx + direction).clamp(0, _speedPresets.length - 1);
+    ctrl.setSpeed(_speedPresets[newIdx]);
+  }
+
   @override
   void deactivate() {
     // Pause playback when navigating away from this tab (GoRouter ShellRoute
@@ -105,6 +148,7 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
 
   @override
   void dispose() {
+    _keyFocusNode.dispose();
     _controller?.removeListener(_onControllerChanged);
     _controller?.dispose();
     super.dispose();
@@ -180,17 +224,22 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
     final serverUrl = auth.serverUrl ?? '';
     final controller = _getController(serverUrl);
 
-    return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
-      body: camerasAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: NvrColors.accent),
+    return KeyboardListener(
+      focusNode: _keyFocusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Scaffold(
+        backgroundColor: NvrColors.bgPrimary,
+        body: camerasAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: NvrColors.accent),
+          ),
+          error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: NvrColors.danger)),
+          ),
+          data: (cameras) => _buildBody(cameras, controller),
         ),
-        error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: const TextStyle(color: NvrColors.danger)),
-        ),
-        data: (cameras) => _buildBody(cameras, controller),
       ),
     );
   }

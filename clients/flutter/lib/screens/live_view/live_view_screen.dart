@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,6 +24,8 @@ class LiveViewScreen extends ConsumerStatefulWidget {
 }
 
 class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
+  final FocusNode _focusNode = FocusNode();
+
   void _openFullscreen(Camera camera) {
     context.push('/live/fullscreen', extra: camera);
   }
@@ -37,6 +40,51 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
       case DeviceType.desktop:
         return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73', 4: '4\u00D74'};
     }
+  }
+
+  /// Maps digit key labels to grid slot indices.
+  int? _digitToSlot(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.digit1) return 0;
+    if (key == LogicalKeyboardKey.digit2) return 1;
+    if (key == LogicalKeyboardKey.digit3) return 2;
+    if (key == LogicalKeyboardKey.digit4) return 3;
+    if (key == LogicalKeyboardKey.digit5) return 4;
+    if (key == LogicalKeyboardKey.digit6) return 5;
+    if (key == LogicalKeyboardKey.digit7) return 6;
+    if (key == LogicalKeyboardKey.digit8) return 7;
+    if (key == LogicalKeyboardKey.digit9) return 8;
+    return null;
+  }
+
+  void _onKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final slotIndex = _digitToSlot(event.logicalKey);
+    if (slotIndex != null) {
+      final layoutState = ref.read(gridLayoutProvider);
+      final gridLayout = layoutState.active;
+      if (slotIndex < gridLayout.totalSlots) {
+        // If there's a camera in that slot, open it fullscreen.
+        final camerasAsync = ref.read(camerasProvider);
+        final cameras = camerasAsync.valueOrNull;
+        if (cameras != null) {
+          final cameraId = gridLayout.slots[slotIndex];
+          if (cameraId != null) {
+            final camera =
+                cameras.where((c) => c.id == cameraId).firstOrNull;
+            if (camera != null) {
+              _openFullscreen(camera);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
   }
 
   // ── Layout save/load ──────────────────────────────────────────────────────
@@ -175,164 +223,169 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
         ? gridLayout.gridSize
         : gridOptions.keys.last;
 
-    return Scaffold(
-      backgroundColor: NvrColors.bgPrimary,
-      body: Column(
-        children: [
-          // -- Top bar --
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isPhone ? 12 : 16,
-              vertical: isPhone ? 8 : 12,
-            ),
-            decoration: const BoxDecoration(
-              color: NvrColors.bgPrimary,
-              border: Border(
-                bottom: BorderSide(color: NvrColors.border, width: 1),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Scaffold(
+        backgroundColor: NvrColors.bgPrimary,
+        body: Column(
+          children: [
+            // -- Top bar --
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isPhone ? 12 : 16,
+                vertical: isPhone ? 8 : 12,
               ),
-            ),
-            child: Row(
-              children: [
-                // Page title
-                const Text('Live View', style: NvrTypography.pageTitle),
-                if (!isPhone) ...[
-                  const SizedBox(width: 12),
-                  // Active layout name pill (or ALL CAMERAS)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: NvrColors.accentWith(0.07),
-                      borderRadius: BorderRadius.circular(99),
+              decoration: const BoxDecoration(
+                color: NvrColors.bgPrimary,
+                border: Border(
+                  bottom: BorderSide(color: NvrColors.border, width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Page title
+                  const Text('Live View', style: NvrTypography.pageTitle),
+                  if (!isPhone) ...[
+                    const SizedBox(width: 12),
+                    // Active layout name pill (or ALL CAMERAS)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: NvrColors.accentWith(0.07),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        gridLayout.name.isNotEmpty
+                            ? gridLayout.name.toUpperCase()
+                            : 'ALL CAMERAS',
+                        style: const TextStyle(
+                          fontFamily: 'JetBrainsMono',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 1.5,
+                          color: NvrColors.accent,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      gridLayout.name.isNotEmpty
-                          ? gridLayout.name.toUpperCase()
-                          : 'ALL CAMERAS',
-                      style: const TextStyle(
-                        fontFamily: 'JetBrainsMono',
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 1.5,
-                        color: NvrColors.accent,
+                  ],
+
+                  const Spacer(),
+
+                  // Layouts button
+                  GestureDetector(
+                    onTap: _showLayoutMenu,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: NvrColors.bgPrimary,
+                        border: Border.all(color: NvrColors.border),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.bookmark_border,
+                              color: NvrColors.textMuted, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Layouts',
+                            style: NvrTypography.monoLabel.copyWith(
+                              fontSize: 9,
+                              color: NvrColors.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+
+                  // AI overlay toggle
+                  _AiOverlayToggle(),
+                  const SizedBox(width: 12),
+
+                  // Grid size control
+                  HudSegmentedControl<int>(
+                    segments: gridOptions,
+                    selected: effectiveGridSize,
+                    onChanged: (value) =>
+                        ref.read(gridLayoutProvider.notifier).setGridSize(value),
+                  ),
                 ],
+              ),
+            ),
 
-                const Spacer(),
-
-                // Layouts button
-                GestureDetector(
-                  onTap: _showLayoutMenu,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: NvrColors.bgPrimary,
-                      border: Border.all(color: NvrColors.border),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.bookmark_border,
-                            color: NvrColors.textMuted, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Layouts',
-                          style: NvrTypography.monoLabel.copyWith(
-                            fontSize: 9,
-                            color: NvrColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+            // -- Body --
+            Expanded(
+              child: camerasAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: NvrColors.accent),
+                ),
+                error: (err, _) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: NvrColors.danger, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load cameras',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(color: NvrColors.textPrimary),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        err.toString(),
+                        style: const TextStyle(color: NvrColors.textSecondary),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => ref.invalidate(camerasProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-
-                // AI overlay toggle
-                _AiOverlayToggle(),
-                const SizedBox(width: 12),
-
-                // Grid size control
-                HudSegmentedControl<int>(
-                  segments: gridOptions,
-                  selected: effectiveGridSize,
-                  onChanged: (value) =>
-                      ref.read(gridLayoutProvider.notifier).setGridSize(value),
-                ),
-              ],
-            ),
-          ),
-
-          // -- Body --
-          Expanded(
-            child: camerasAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: NvrColors.accent),
+                data: (cameras) {
+                  return AnimatedSwitcher(
+                    duration: NvrAnimations.panelDuration,
+                    switchInCurve: NvrAnimations.panelCurve,
+                    switchOutCurve: NvrAnimations.panelCurve,
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      );
+                    },
+                    child: _LiveGrid(
+                      key: ValueKey(effectiveGridSize),
+                      gridSize: effectiveGridSize,
+                      totalSlots: effectiveGridSize * effectiveGridSize,
+                      slots: gridLayout.slots,
+                      cameras: cameras,
+                      serverUrl: serverUrl,
+                      isPhone: isPhone,
+                      onDoubleTap: _openFullscreen,
+                      onAssignCamera: (index, cameraId) =>
+                          ref.read(gridLayoutProvider.notifier).assignCamera(index, cameraId),
+                      onSwapSlots: (from, to) =>
+                          ref.read(gridLayoutProvider.notifier).swapSlots(from, to),
+                    ),
+                  );
+                },
               ),
-              error: (err, _) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline,
-                        color: NvrColors.danger, size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load cameras',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(color: NvrColors.textPrimary),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      err.toString(),
-                      style: const TextStyle(color: NvrColors.textSecondary),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.invalidate(camerasProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-              data: (cameras) {
-                return AnimatedSwitcher(
-                  duration: NvrAnimations.panelDuration,
-                  switchInCurve: NvrAnimations.panelCurve,
-                  switchOutCurve: NvrAnimations.panelCurve,
-                  layoutBuilder: (currentChild, previousChildren) {
-                    return Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        ...previousChildren,
-                        if (currentChild != null) currentChild,
-                      ],
-                    );
-                  },
-                  child: _LiveGrid(
-                    key: ValueKey(effectiveGridSize),
-                    gridSize: effectiveGridSize,
-                    totalSlots: effectiveGridSize * effectiveGridSize,
-                    slots: gridLayout.slots,
-                    cameras: cameras,
-                    serverUrl: serverUrl,
-                    isPhone: isPhone,
-                    onDoubleTap: _openFullscreen,
-                    onAssignCamera: (index, cameraId) =>
-                        ref.read(gridLayoutProvider.notifier).assignCamera(index, cameraId),
-                    onSwapSlots: (from, to) =>
-                        ref.read(gridLayoutProvider.notifier).swapSlots(from, to),
-                  ),
-                );
-              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

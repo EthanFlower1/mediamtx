@@ -6,12 +6,13 @@ import '../../providers/notifications_provider.dart';
 import '../../utils/responsive.dart';
 import '../alerts_panel.dart';
 import '../connection_status_banner.dart';
+import '../keyboard_shortcut_help.dart';
 import 'icon_rail.dart';
 import 'mobile_bottom_nav.dart';
 import 'camera_panel.dart';
 import 'tour_active_pill.dart';
 
-class NavigationShell extends ConsumerWidget {
+class NavigationShell extends ConsumerStatefulWidget {
   const NavigationShell({
     super.key,
     required this.selectedIndex,
@@ -23,83 +24,109 @@ class NavigationShell extends ConsumerWidget {
   final ValueChanged<int> onDestinationSelected;
   final Widget child;
 
+  @override
+  ConsumerState<NavigationShell> createState() => _NavigationShellState();
+}
+
+class _NavigationShellState extends ConsumerState<NavigationShell>
+    with KeyboardShortcutHelpMixin {
+  final FocusNode _shellFocusNode = FocusNode();
+
   void _onAlertsTap(BuildContext context, WidgetRef ref) {
     showAlertsPanel(context, ref);
   }
 
+  void _onKeyEvent(KeyEvent event) {
+    // Let the mixin handle ? and Escape for the help overlay.
+    if (handleShortcutHelpKey(event)) return;
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _shellFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final device = Responsive.deviceType(width);
     final panelState = ref.watch(cameraPanelProvider);
+    final helpOverlay = buildShortcutHelpOverlay();
 
     // ── Phone: bottom navigation bar ────────────────────────────────────
     if (device == DeviceType.phone) {
       // Map mobile 6-item nav to router indices
       // Mobile: 0=Dashboard(0), 1=Live(1), 2=Playback(2), 3=Search(3), 4=Schedules(7), 5=Settings(6)
       final int mobileIndex;
-      if (selectedIndex == 7) {
+      if (widget.selectedIndex == 7) {
         mobileIndex = 4;
-      } else if (selectedIndex == 6) {
+      } else if (widget.selectedIndex == 6) {
         mobileIndex = 5;
       } else {
-        mobileIndex = selectedIndex.clamp(0, 3);
+        mobileIndex = widget.selectedIndex.clamp(0, 3);
       }
-      return Scaffold(
-        appBar: AppBar(
-          backgroundColor: NvrColors.bgSecondary,
-          elevation: 0,
-          toolbarHeight: 44,
-          titleSpacing: 12,
-          title: Transform.rotate(
-            angle: 0.785398,
-            child: Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                border: Border.all(color: NvrColors.accent, width: 2),
-              ),
-            ),
-          ),
-          centerTitle: false,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _MobileNotificationBell(
-                unreadCount: ref.watch(
-                  notificationsProvider.select((s) => s.unreadCount),
+      return KeyboardListener(
+        focusNode: _shellFocusNode,
+        autofocus: true,
+        onKeyEvent: _onKeyEvent,
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: NvrColors.bgSecondary,
+            elevation: 0,
+            toolbarHeight: 44,
+            titleSpacing: 12,
+            title: Transform.rotate(
+              angle: 0.785398,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  border: Border.all(color: NvrColors.accent, width: 2),
                 ),
-                onTap: () => _onAlertsTap(context, ref),
               ),
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            const ConnectionStatusBanner(),
-            const ReconnectedBanner(),
-            Expanded(
-              child: Stack(
-                children: [
-                  child,
-                  const TourActivePill(),
-                ],
+            centerTitle: false,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: _MobileNotificationBell(
+                  unreadCount: ref.watch(
+                    notificationsProvider.select((s) => s.unreadCount),
+                  ),
+                  onTap: () => _onAlertsTap(context, ref),
+                ),
               ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: MobileBottomNav(
-          selectedIndex: mobileIndex,
-          onDestinationSelected: (i) {
-            // Map mobile indices back: 0=Dashboard(0), 1=Live(1), 2=Playback(2), 3=Search(3), 4=Schedules(7), 5=Settings(6)
-            if (i == 4) {
-              onDestinationSelected(7);
-            } else if (i == 5) {
-              onDestinationSelected(6);
-            } else {
-              onDestinationSelected(i);
-            }
-          },
+            ],
+          ),
+          body: Column(
+            children: [
+              const ConnectionStatusBanner(),
+              const ReconnectedBanner(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    widget.child,
+                    const TourActivePill(),
+                    if (helpOverlay != null) helpOverlay,
+                  ],
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: MobileBottomNav(
+            selectedIndex: mobileIndex,
+            onDestinationSelected: (i) {
+              // Map mobile indices back: 0=Dashboard(0), 1=Live(1), 2=Playback(2), 3=Search(3), 4=Schedules(7), 5=Settings(6)
+              if (i == 4) {
+                widget.onDestinationSelected(7);
+              } else if (i == 5) {
+                widget.onDestinationSelected(6);
+              } else {
+                widget.onDestinationSelected(i);
+              }
+            },
+          ),
         ),
       );
     }
@@ -114,60 +141,67 @@ class NavigationShell extends ConsumerWidget {
 
     final alertsOpen = ref.watch(alertsPanelOpenProvider);
 
-    return Scaffold(
-      body: Column(
-        children: [
-          const ConnectionStatusBanner(),
-          const ReconnectedBanner(),
-          Expanded(
-            child: Row(
-              children: [
-                // Navigation rail — expanded with labels on desktop, compact on tablet
-                IconRail(
-                  selectedIndex: selectedIndex,
-                  onDestinationSelected: onDestinationSelected,
-                  onAlertsTap: () => _onAlertsTap(context, ref),
-                  onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
-                  expanded: isDesktop,
-                ),
-                Container(width: 1, color: NvrColors.border),
-                // Camera panel (push or overlay based on breakpoint)
-                if (usePushPanel && panelState.isOpen) ...[
-                  const CameraPanel(),
-                  Container(width: 1, color: NvrColors.border),
-                ],
-                // Main content
-                Expanded(
-                  child: Stack(
-                    children: [
-                      child,
-                      // Overlay panel for tablet portrait (600-1024)
-                      if (!usePushPanel && panelState.isOpen) ...[
-                        // Scrim
-                        GestureDetector(
-                          onTap: () => ref.read(cameraPanelProvider.notifier).close(),
-                          child: Container(color: Colors.black54),
-                        ),
-                        // Panel
-                        const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
-                      ],
-                      // Alerts scrim (desktop overlay)
-                      if (alertsOpen)
-                        GestureDetector(
-                          onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
-                          child: Container(color: Colors.black45),
-                        ),
-                      // Alerts panel overlay (desktop)
-                      const AlertsPanelOverlay(),
-                      // Tour active pill (all screens)
-                      const TourActivePill(),
-                    ],
+    return KeyboardListener(
+      focusNode: _shellFocusNode,
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Scaffold(
+        body: Column(
+          children: [
+            const ConnectionStatusBanner(),
+            const ReconnectedBanner(),
+            Expanded(
+              child: Row(
+                children: [
+                  // Navigation rail — expanded with labels on desktop, compact on tablet
+                  IconRail(
+                    selectedIndex: widget.selectedIndex,
+                    onDestinationSelected: widget.onDestinationSelected,
+                    onAlertsTap: () => _onAlertsTap(context, ref),
+                    onCameraPanelToggle: () => ref.read(cameraPanelProvider.notifier).toggle(),
+                    expanded: isDesktop,
                   ),
-                ),
-              ],
+                  Container(width: 1, color: NvrColors.border),
+                  // Camera panel (push or overlay based on breakpoint)
+                  if (usePushPanel && panelState.isOpen) ...[
+                    const CameraPanel(),
+                    Container(width: 1, color: NvrColors.border),
+                  ],
+                  // Main content
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        widget.child,
+                        // Overlay panel for tablet portrait (600-1024)
+                        if (!usePushPanel && panelState.isOpen) ...[
+                          // Scrim
+                          GestureDetector(
+                            onTap: () => ref.read(cameraPanelProvider.notifier).close(),
+                            child: Container(color: Colors.black54),
+                          ),
+                          // Panel
+                          const Positioned(left: 0, top: 0, bottom: 0, child: CameraPanel()),
+                        ],
+                        // Alerts scrim (desktop overlay)
+                        if (alertsOpen)
+                          GestureDetector(
+                            onTap: () => ref.read(alertsPanelOpenProvider.notifier).state = false,
+                            child: Container(color: Colors.black45),
+                          ),
+                        // Alerts panel overlay (desktop)
+                        const AlertsPanelOverlay(),
+                        // Tour active pill (all screens)
+                        const TourActivePill(),
+                        // Keyboard shortcut help overlay
+                        if (helpOverlay != null) helpOverlay,
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

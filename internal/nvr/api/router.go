@@ -13,12 +13,14 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
+	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
+	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -54,6 +56,8 @@ type RouterConfig struct {
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
+	UpdateManager      *updater.Manager   // system update manager (may be nil)
+	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -502,6 +506,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/metrics", systemHandler.Metrics)
 	protected.GET("/system/disk-io", systemHandler.DiskIO)
 	protected.PUT("/system/disk-io/thresholds", systemHandler.UpdateDiskIOThresholds)
+	protected.GET("/system/db/health", systemHandler.DBHealth)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
@@ -528,6 +533,23 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 			},
 		})
 	})
+
+	// System updates.
+	if cfg.UpdateManager != nil {
+		updateHandler := &UpdateHandler{DB: cfg.DB, Manager: cfg.UpdateManager}
+		protected.GET("/system/updates/check", updateHandler.Check)
+		protected.POST("/system/updates/apply", updateHandler.Apply)
+		protected.POST("/system/updates/rollback", updateHandler.Rollback)
+		protected.GET("/system/updates/history", updateHandler.History)
+	}
+
+	// TLS certificate management.
+	if cfg.TLSManager != nil {
+		tlsHandler := &TLSHandler{Manager: cfg.TLSManager}
+		protected.GET("/system/tls/status", tlsHandler.Status)
+		protected.POST("/system/tls/upload", tlsHandler.Upload)
+		protected.POST("/system/tls/generate", tlsHandler.Generate)
+	}
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
@@ -572,6 +594,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// Audit log (admin only).
 	protected.GET("/audit", auditHandler.List)
+	protected.GET("/audit/export", auditHandler.Export)
+	protected.GET("/audit/retention", auditHandler.GetRetention)
+	protected.PUT("/audit/retention", auditHandler.UpdateRetention)
 
 	// Camera Groups.
 	groupHandler := &GroupHandler{DB: cfg.DB, Audit: audit}

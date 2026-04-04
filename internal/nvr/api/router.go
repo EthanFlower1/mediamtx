@@ -417,6 +417,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// Bookmarks.
 	protected.GET("/bookmarks", bookmarkHandler.List)
+	protected.GET("/bookmarks/search", bookmarkHandler.Search)
+	protected.GET("/bookmarks/mine", bookmarkHandler.Mine)
+	protected.GET("/bookmarks/:id", bookmarkHandler.Get)
 	protected.POST("/bookmarks", bookmarkHandler.Create)
 	protected.PUT("/bookmarks/:id", bookmarkHandler.Update)
 	protected.DELETE("/bookmarks/:id", bookmarkHandler.Delete)
@@ -502,6 +505,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
+
+	// Evidence exports.
+	evidenceHandler := &EvidenceHandler{
+		DB:             cfg.DB,
+		Audit:          audit,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+	protected.POST("/exports/evidence", evidenceHandler.Create)
+	protected.GET("/exports/evidence", evidenceHandler.List)
+	protected.GET("/exports/evidence/:id/download", evidenceHandler.Download)
 
 	// Edge search (ONVIF Profile G — search recordings and events on device).
 	protected.GET("/edge-search/recordings", edgeSearchHandler.Recordings)

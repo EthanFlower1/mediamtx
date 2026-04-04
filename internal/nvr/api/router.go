@@ -487,6 +487,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/metrics", systemHandler.Metrics)
 	protected.GET("/system/disk-io", systemHandler.DiskIO)
 	protected.PUT("/system/disk-io/thresholds", systemHandler.UpdateDiskIOThresholds)
+	protected.GET("/system/db/health", systemHandler.DBHealth)
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)

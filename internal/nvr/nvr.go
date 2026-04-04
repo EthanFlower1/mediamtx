@@ -69,8 +69,9 @@ type NVR struct {
 
 	cameraStatusDone chan struct{} // closed to stop the camera status monitor
 
-	integrityScanner *integrity.Scanner
-	connMgr          *connmgr.Manager
+	integrityScanner  *integrity.Scanner
+	connMgr           *connmgr.Manager
+	maintenanceRunner *db.MaintenanceRunner
 
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
@@ -123,6 +124,17 @@ func (n *NVR) Initialize() error {
 
 	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
+
+	// Start database maintenance (integrity check, WAL checkpoint, VACUUM).
+	n.maintenanceRunner = n.database.StartMaintenance(db.DefaultMaintenanceConfig(), func(alertType, message string) {
+		log.Printf("[NVR] [db-maintenance] ALERT [%s]: %s", alertType, message)
+		if n.events != nil {
+			n.events.Publish(api.Event{
+				Type:    alertType,
+				Message: message,
+			})
+		}
+	})
 
 	if err := n.database.SeedDefaultTemplates(); err != nil {
 		log.Printf("nvr: failed to seed default templates: %v", err)
@@ -587,6 +599,9 @@ func (n *NVR) Close() {
 	}
 	if n.sched != nil {
 		n.sched.Stop()
+	}
+	if n.maintenanceRunner != nil {
+		n.maintenanceRunner.Stop()
 	}
 	if n.database != nil {
 		n.database.Close()

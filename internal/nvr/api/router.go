@@ -596,10 +596,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// AI model management.
 	if cfg.ModelManager != nil {
-		modelHandler := &ModelHandler{Manager: cfg.ModelManager}
-		protected.GET("/ai/models", modelHandler.ListModels)
-		protected.POST("/ai/models/activate", modelHandler.ActivateModel)
-		protected.POST("/ai/models/rollback", modelHandler.RollbackModel)
+		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}
+		protected.GET("/ai/models", modelHandler.List)
+		protected.POST("/ai/models/activate", modelHandler.Activate)
+		protected.POST("/ai/models/rollback", modelHandler.Rollback)
+		protected.POST("/ai/models/verify", modelHandler.Verify)
 	}
 
 	// Evidence exports.

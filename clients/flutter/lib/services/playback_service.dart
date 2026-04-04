@@ -172,6 +172,62 @@ class PlaybackService {
     }
   }
 
+  /// Fetch aligned timeline data for multiple cameras on a given date.
+  /// Returns a map of camera ID to list of time ranges (start/end pairs).
+  /// Uses the GET /api/nvr/timeline/multi endpoint.
+  Future<Map<String, List<({DateTime start, DateTime end})>>> fetchMultiTimeline({
+    required List<String> cameraIds,
+    required String date,
+    String? token,
+  }) async {
+    final uri = Uri.parse(serverUrl);
+    final url = Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.port,
+      path: '/api/nvr/timeline/multi',
+      queryParameters: {
+        'cameras': cameraIds.join(','),
+        'date': date,
+      },
+    ).toString();
+
+    final dio = Dio();
+    try {
+      final options = Options();
+      if (token != null && token.isNotEmpty) {
+        options.headers = {'Authorization': 'Bearer $token'};
+      }
+      final response = await dio.get<dynamic>(url, options: options);
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data as Map<String, dynamic>;
+        final cameras = data['cameras'] as List<dynamic>? ?? [];
+        final result = <String, List<({DateTime start, DateTime end})>>{};
+        for (final entry in cameras) {
+          final map = entry as Map<String, dynamic>;
+          final camId = map['camera_id'] as String;
+          final segments = (map['segments'] as List<dynamic>? ?? [])
+              .map((s) {
+                final seg = s as Map<String, dynamic>;
+                return (
+                  start: DateTime.parse(seg['start'] as String),
+                  end: DateTime.parse(seg['end'] as String),
+                );
+              })
+              .toList();
+          result[camId] = segments;
+        }
+        return result;
+      }
+      return {};
+    } catch (e) {
+      debugPrint('[PlaybackService] fetchMultiTimeline failed: $e');
+      return {};
+    } finally {
+      dio.close();
+    }
+  }
+
   static String _toRfc3339(DateTime d) {
     final offset = d.timeZoneOffset;
     final sign = offset.isNegative ? '-' : '+';

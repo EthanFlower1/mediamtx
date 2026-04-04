@@ -126,10 +126,14 @@ func (s *Server) onGet(ctx *gin.Context) {
 		return
 	}
 
-	start, err := time.Parse(time.RFC3339, ctx.Query("start"))
+	start, err := time.Parse(time.RFC3339Nano, ctx.Query("start"))
 	if err != nil {
-		s.writeError(ctx, http.StatusBadRequest, fmt.Errorf("invalid start: %w", err))
-		return
+		// Fall back to RFC3339 (without nanos) for backward compatibility.
+		start, err = time.Parse(time.RFC3339, ctx.Query("start"))
+		if err != nil {
+			s.writeError(ctx, http.StatusBadRequest, fmt.Errorf("invalid start: %w", err))
+			return
+		}
 	}
 
 	duration, err := parseDuration(ctx.Query("duration"))
@@ -158,6 +162,36 @@ func (s *Server) onGet(ctx *gin.Context) {
 	if err != nil {
 		s.writeError(ctx, http.StatusBadRequest, err)
 		return
+	}
+
+	// Frame-accurate seek: if a precise timestamp is specified, adjust the
+	// start time to the nearest preceding keyframe and report preroll.
+	rawTimestamp := ctx.Query("timestamp")
+	if rawTimestamp != "" && pathConf.RecordFormat == conf.RecordFormatFMP4 {
+		var timestamp time.Time
+		timestamp, err = time.Parse(time.RFC3339Nano, rawTimestamp)
+		if err != nil {
+			s.writeError(ctx, http.StatusBadRequest, fmt.Errorf("invalid timestamp: %w", err))
+			return
+		}
+
+		start, duration, err = s.adjustStartToKeyframe(pathConf, pathName, timestamp, duration)
+		if err != nil {
+			if errors.Is(err, recordstore.ErrNoSegmentsFound) {
+				s.writeError(ctx, http.StatusNotFound, err)
+			} else {
+				s.writeError(ctx, http.StatusBadRequest, err)
+			}
+			return
+		}
+
+		// Set headers to inform the client about the preroll.
+		preroll := timestamp.Sub(start)
+		if preroll < 0 {
+			preroll = 0
+		}
+		ctx.Header("X-Playback-Preroll-Duration", strconv.FormatFloat(preroll.Seconds(), 'f', -1, 64))
+		ctx.Header("X-Playback-Keyframe-Timestamp", start.Format(time.RFC3339Nano))
 	}
 
 	end := start.Add(duration)
@@ -193,4 +227,72 @@ func (s *Server) onGet(ctx *gin.Context) {
 		s.Log(logger.Error, err.Error())
 		return
 	}
+}
+
+// adjustStartToKeyframe finds the nearest keyframe at or before the given timestamp
+// and adjusts the start time and duration accordingly. The returned start time
+// is the wall-clock time of the keyframe, and the duration is extended to
+// cover the original requested range.
+func (s *Server) adjustStartToKeyframe(
+	pathConf *conf.Path,
+	pathName string,
+	timestamp time.Time,
+	originalDuration time.Duration,
+) (time.Time, time.Duration, error) {
+	// Search for segments around the timestamp.
+	searchStart := timestamp.Add(-1 * time.Hour)
+	searchEnd := timestamp.Add(1 * time.Second)
+	segments, err := recordstore.FindSegments(pathConf, pathName, &searchStart, &searchEnd)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+
+	// Find the segment containing the timestamp.
+	var targetSegment *recordstore.Segment
+	for i := len(segments) - 1; i >= 0; i-- {
+		if !segments[i].Start.After(timestamp) {
+			targetSegment = segments[i]
+			break
+		}
+	}
+
+	if targetSegment == nil {
+		return time.Time{}, 0, recordstore.ErrNoSegmentsFound
+	}
+
+	f, err := os.Open(targetSegment.Fpath)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+	defer f.Close()
+
+	init, _, err := segmentFMP4ReadHeader(f)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+
+	videoTrackID := findVideoTrackID(init)
+	if videoTrackID == 0 {
+		// No video track; fall back to using the timestamp as-is.
+		return timestamp, originalDuration, nil
+	}
+
+	track := findInitTrack(init.Tracks, videoTrackID)
+	keyframes, err := segmentFMP4FindKeyframesManual(f, videoTrackID, track.TimeScale)
+	if err != nil {
+		return time.Time{}, 0, err
+	}
+
+	if len(keyframes) == 0 {
+		return timestamp, originalDuration, nil
+	}
+
+	offsetFromSegStart := timestamp.Sub(targetSegment.Start)
+	kf, _ := findNearestKeyframeBefore(keyframes, offsetFromSegStart)
+
+	keyframeTime := targetSegment.Start.Add(kf.DTSGo)
+	// Extend duration to cover from keyframe to the end of the original request.
+	newDuration := originalDuration + timestamp.Sub(keyframeTime)
+
+	return keyframeTime, newDuration, nil
 }

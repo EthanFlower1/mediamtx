@@ -5,7 +5,7 @@ import '../../../widgets/hud/rotary_knob.dart';
 import '../../../widgets/hud/segmented_control.dart';
 
 // Speed preset list — index maps to a normalized 0–1 value for the knob.
-const List<double> _speedPresets = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0];
+const List<double> _speedPresets = [0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0];
 
 /// Converts a speed value to the normalised 0–1 range used by [RotaryKnob].
 double _speedToKnob(double speed) {

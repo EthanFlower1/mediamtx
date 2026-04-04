@@ -22,9 +22,9 @@ Each concurrency level runs for 3 seconds. Memory scaling is verified separately
 
 | Cameras | Frames Sent | Frames Received | Drop Rate | Avg Latency | Max Latency | Total Alloc | Goroutines |
 |---------|-------------|-----------------|-----------|-------------|-------------|-------------|------------|
-| 8       | 360         | 368             | 0%        | 14 us       | 63 us       | 10.4 MB     | 2          |
-| 16      | 720         | 736             | 0%        | 44 us       | 3.6 ms      | 20.8 MB     | 2          |
-| 32      | 1,440       | 1,470           | 0%        | 164 us      | 64.5 ms     | 41.6 MB     | 2          |
+| 8       | 360         | 368             | 0%        | 36 us       | 880 us      | 10.4 MB     | 2          |
+| 16      | 720         | 736             | 0%        | 64 us       | 10.2 ms     | 20.8 MB     | 2          |
+| 32      | 1,440       | 1,472           | 0%        | 33 us       | 20.1 ms     | 41.6 MB     | 2          |
 
 Note: "Frames Received" can exceed "Frames Sent" because the tracker emits
 `ObjectLeft` events after the producer stops, generating additional tracked
@@ -35,9 +35,9 @@ frames from the drain phase.
 - **Zero frame drops** at all concurrency levels. The channel-based
   backpressure with drop-oldest strategy (buffer size 1) works effectively
   when the tracker can keep up.
-- **Latency scales sub-linearly.** Average latency grows from 14 us (8 cameras)
-  to 164 us (32 cameras). Even the worst-case max latency at 32 cameras is
-  only 64.5 ms, well within real-time requirements.
+- **Latency stays sub-millisecond on average.** Average latency is 33-64 us
+  across all stream counts. Even the worst-case max latency at 32 cameras is
+  only 20.1 ms, well within real-time requirements.
 - **Memory scales linearly.** Total allocations grow from 10.4 MB (8 cameras) to
   41.6 MB (32 cameras) -- a 4.00x ratio for 4x the cameras, confirming
   O(n) scaling with no memory leaks.
@@ -50,7 +50,7 @@ frames from the drain phase.
 |---------|-------------|----------------|
 | 8       | 9.57 MB     | 1.00x          |
 | 16      | 19.14 MB    | 2.00x          |
-| 32      | 38.29 MB    | 4.00x          |
+| 32      | 38.27 MB    | 4.00x          |
 
 Scaling ratio 32/8 = **4.00x** (perfect linear scaling, well under the 6x
 threshold for detecting super-linear growth).
@@ -67,8 +67,8 @@ at 100 FPS), the drop-oldest channel pattern works correctly:
 
 | Component            | Time/op    | Allocs/op | Bytes/op  | Notes                          |
 |---------------------|-----------|-----------|-----------|--------------------------------|
-| Tracker (per frame) | 55.9 us   | 22        | 11,454 B  | IoU matching + track mgmt     |
-| IoU computation     | 4.4 ns    | 0         | 0 B       | Zero allocation hot path       |
+| Tracker (per frame) | 61.9 us   | 22        | 11,610 B  | IoU matching + track mgmt     |
+| IoU computation     | 4.1 ns    | 0         | 0 B       | Zero allocation hot path       |
 
 ## Bottleneck Analysis
 
@@ -84,8 +84,8 @@ at 100 FPS), the drop-oldest channel pattern works correctly:
    dispatch overhead. Could be optimized 5-10x by working directly on
    `NRGBA.Pix` byte slices.
 
-3. **Tracker (55.9 us/frame):** Low cost. The greedy IoU matching scales well.
-   At 32 cameras and 15 FPS, tracker processing consumes only ~27 ms/second
+3. **Tracker (61.9 us/frame):** Low cost. The greedy IoU matching scales well.
+   At 32 cameras and 15 FPS, tracker processing consumes only ~30 ms/second
    total across all cameras.
 
 4. **Channel backpressure:** Buffer-1 channels with drop-oldest work correctly.

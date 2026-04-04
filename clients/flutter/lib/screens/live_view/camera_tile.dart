@@ -17,12 +17,14 @@ class CameraTile extends StatefulWidget {
   final Camera camera;
   final String serverUrl;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
 
   const CameraTile({
     super.key,
     required this.camera,
     required this.serverUrl,
     this.onTap,
+    this.onDoubleTap,
   });
 
   @override
@@ -211,6 +213,7 @@ class _CameraTileState extends State<CameraTile> {
     final camera = widget.camera;
     return GestureDetector(
       onTap: widget.onTap,
+      onDoubleTap: widget.onDoubleTap,
       child: Container(
         decoration: BoxDecoration(
           color: NvrColors.bgSecondary,
@@ -226,7 +229,7 @@ class _CameraTileState extends State<CameraTile> {
               _buildVideoLayer(isOnline),
 
               // Corner-brackets HUD overlay.
-              CornerBrackets(child: const SizedBox.expand()),
+              const CornerBrackets(child: SizedBox.expand()),
 
               // AI analytics overlay (preserved, rebuilt in next task).
               if (camera.aiEnabled && _isConnected)

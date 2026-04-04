@@ -18,6 +18,7 @@ import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
 import { useNotifications } from './hooks/useNotifications'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { apiFetch } from './api/client'
+import { useBranding } from './hooks/useBranding'
 
 /* ------------------------------------------------------------------ */
 /*  Storage warning hook (lightweight poll for nav indicator)          */
@@ -246,6 +247,7 @@ const IconSettings = (
 /* ------------------------------------------------------------------ */
 function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth()
+  const { branding } = useBranding(isAuthenticated)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false)
   const [showShortcutsHint, setShowShortcutsHint] = useState(() => {
@@ -300,12 +302,16 @@ function Layout({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto flex items-center h-14 px-4 sm:px-6 lg:px-8">
           {/* Brand */}
           <Link to="/live" className="flex items-center gap-2 mr-8">
-            <div className="w-7 h-7 rounded-md bg-nvr-accent/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="text-white font-bold text-base tracking-tight hidden sm:block">MediaMTX NVR</span>
+            {branding.logo_url ? (
+              <img src={branding.logo_url} alt={branding.product_name} className="w-7 h-7 rounded-md object-contain" />
+            ) : (
+              <div className="w-7 h-7 rounded-md bg-nvr-accent/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+            <span className="text-white font-bold text-base tracking-tight hidden sm:block">{branding.product_name}</span>
           </Link>
 
           {/* Desktop nav links (center) */}

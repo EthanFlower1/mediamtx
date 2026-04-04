@@ -491,6 +491,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
 
+	// Branding customization.
+	protected.GET("/system/branding", brandingHandler.Get)
+	protected.PUT("/system/branding", brandingHandler.Update)
+	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
+	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
+
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
 		protected.GET("/vod/:cameraId/playlist.m3u8", cfg.HLSHandler.ServePlaylist)
@@ -582,6 +588,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/exports/:id", exportHandler.Get)
 	protected.DELETE("/exports/:id", exportHandler.Delete)
 	protected.GET("/exports/:id/download", exportHandler.Download)
+
+	brandingHandler := &BrandingHandler{DB: cfg.DB}
 
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)

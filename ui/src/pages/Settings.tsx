@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { apiFetch } from '../api/client'
 import { useCameras } from '../hooks/useCameras'
+import { useBranding } from '../hooks/useBranding'
+import { useAuth } from '../auth/context'
 
 interface SystemInfo {
   version: string
@@ -291,6 +293,21 @@ export default function Settings() {
     return saved ? parseInt(saved, 10) : 15
   })
 
+  // Branding state (persisted server-side)
+  const { isAuthenticated } = useAuth()
+  const { branding, refetch: refetchBranding } = useBranding(isAuthenticated)
+  const [brandingProductName, setBrandingProductName] = useState('')
+  const [brandingAccentColor, setBrandingAccentColor] = useState('')
+  const [brandingSaving, setBrandingSaving] = useState(false)
+  const [brandingLogoUploading, setBrandingLogoUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync branding state from server data.
+  useEffect(() => {
+    setBrandingProductName(branding.product_name)
+    setBrandingAccentColor(branding.accent_color)
+  }, [branding])
+
   // Notification preferences state
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem('nvr-notif-enabled') !== 'false')
   const [notifMotion, setNotifMotion] = useState(() => localStorage.getItem('nvr-notif-motion') !== 'false')
@@ -503,6 +520,67 @@ export default function Settings() {
   const handleRefreshIntervalChange = (val: number) => {
     setRefreshInterval(val)
     localStorage.setItem('nvr-refresh-interval', String(val))
+  }
+
+  // Branding handlers
+  const handleBrandingSave = async () => {
+    setBrandingSaving(true)
+    try {
+      const res = await apiFetch('/system/branding', {
+        method: 'PUT',
+        body: JSON.stringify({
+          product_name: brandingProductName,
+          accent_color: brandingAccentColor,
+        }),
+      })
+      if (res.ok) {
+        refetchBranding()
+      }
+    } catch {
+      // Ignore errors.
+    } finally {
+      setBrandingSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBrandingLogoUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('logo', file)
+      const res = await fetch('/api/nvr/system/branding/logo', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${(await import('../api/client')).getAccessToken()}`,
+        },
+        body: formData,
+        credentials: 'include',
+      })
+      if (res.ok) {
+        refetchBranding()
+      }
+    } catch {
+      // Ignore errors.
+    } finally {
+      setBrandingLogoUploading(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
+  const handleLogoDelete = async () => {
+    setBrandingLogoUploading(true)
+    try {
+      const res = await apiFetch('/system/branding/logo', { method: 'DELETE' })
+      if (res.ok) {
+        refetchBranding()
+      }
+    } catch {
+      // Ignore errors.
+    } finally {
+      setBrandingLogoUploading(false)
+    }
   }
 
   // Notification preference handlers
@@ -776,6 +854,100 @@ export default function Settings() {
               <span className="text-xs text-nvr-text-muted">5s</span>
               <span className="text-xs text-nvr-text-muted">60s</span>
             </div>
+          </div>
+
+          {/* Branding customization */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">Branding</h2>
+            <p className="text-xs text-nvr-text-muted mb-4">Customize the product name, logo, and accent color displayed across the NVR interface.</p>
+
+            {/* Logo upload */}
+            <div className="mb-5">
+              <label className="block text-sm text-nvr-text-secondary mb-2">Logo</label>
+              <div className="flex items-center gap-4">
+                {branding.logo_url ? (
+                  <img src={branding.logo_url} alt="Logo" className="w-12 h-12 rounded-lg object-contain bg-nvr-bg-primary border border-nvr-border p-1" />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-nvr-bg-primary border border-nvr-border flex items-center justify-center">
+                    <svg className="w-6 h-6 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                    </svg>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={brandingLogoUploading}
+                    className="px-3 py-1.5 text-sm bg-nvr-bg-primary border border-nvr-border rounded-lg text-nvr-text-secondary hover:text-nvr-text-primary hover:border-nvr-text-muted transition-colors disabled:opacity-50"
+                  >
+                    {brandingLogoUploading ? 'Uploading...' : 'Upload'}
+                  </button>
+                  {branding.logo_url && (
+                    <button
+                      onClick={handleLogoDelete}
+                      disabled={brandingLogoUploading}
+                      className="px-3 py-1.5 text-sm text-nvr-danger hover:bg-nvr-danger/10 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                />
+              </div>
+              <p className="text-xs text-nvr-text-muted mt-1.5">PNG, JPEG, or SVG. Max 512 KB.</p>
+            </div>
+
+            {/* Product name */}
+            <div className="mb-5">
+              <label htmlFor="branding-name" className="block text-sm text-nvr-text-secondary mb-2">Product Name</label>
+              <input
+                id="branding-name"
+                type="text"
+                value={brandingProductName}
+                onChange={e => setBrandingProductName(e.target.value)}
+                maxLength={100}
+                placeholder="MediaMTX NVR"
+                className="w-full max-w-sm px-3 py-2 bg-nvr-bg-primary border border-nvr-border rounded-lg text-sm text-nvr-text-primary placeholder:text-nvr-text-muted focus:outline-none focus:border-nvr-accent"
+              />
+              <p className="text-xs text-nvr-text-muted mt-1">Displayed in the header and browser tab title.</p>
+            </div>
+
+            {/* Accent color */}
+            <div className="mb-5">
+              <label htmlFor="branding-color" className="block text-sm text-nvr-text-secondary mb-2">Accent Color</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={brandingAccentColor}
+                  onChange={e => setBrandingAccentColor(e.target.value)}
+                  className="w-10 h-10 rounded-lg border border-nvr-border cursor-pointer bg-transparent"
+                />
+                <input
+                  id="branding-color"
+                  type="text"
+                  value={brandingAccentColor}
+                  onChange={e => setBrandingAccentColor(e.target.value)}
+                  placeholder="#3B82F6"
+                  className="w-32 px-3 py-2 bg-nvr-bg-primary border border-nvr-border rounded-lg text-sm text-nvr-text-primary font-mono placeholder:text-nvr-text-muted focus:outline-none focus:border-nvr-accent"
+                />
+                <div className="w-8 h-8 rounded-md" style={{ backgroundColor: brandingAccentColor }} />
+              </div>
+            </div>
+
+            {/* Save button */}
+            <button
+              onClick={handleBrandingSave}
+              disabled={brandingSaving}
+              className="px-4 py-2 bg-nvr-accent text-white text-sm font-medium rounded-lg hover:bg-nvr-accent/90 transition-colors disabled:opacity-50"
+            >
+              {brandingSaving ? 'Saving...' : 'Save Branding'}
+            </button>
           </div>
         </div>
       )}

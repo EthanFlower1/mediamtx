@@ -10,18 +10,6 @@ const GLOBAL_SHORTCUTS: ShortcutEntry[] = [
   { keys: 'Esc', description: 'Close modal / exit clip mode' },
 ]
 
-const LIVE_VIEW_SHORTCUTS: ShortcutEntry[] = [
-  { keys: '1', description: '1x1 grid layout' },
-  { keys: '2', description: '2x2 grid layout' },
-  { keys: '3', description: '3x3 grid layout' },
-  { keys: '4', description: '4x4 grid layout' },
-  { keys: 'F', description: 'Toggle fullscreen (when viewing camera)' },
-]
-
-const RECORDINGS_SHORTCUTS: ShortcutEntry[] = [
-  { keys: 'Left Arrow', description: 'Previous day' },
-  { keys: 'Right Arrow', description: 'Next day' },
-]
 
 function ShortcutGroup({ title, shortcuts }: { title: string; shortcuts: ShortcutEntry[] }) {
   return (
@@ -79,8 +67,6 @@ export default function KeyboardShortcutsHelp({ onClose }: { onClose: () => void
         {/* Body */}
         <div className="px-5 py-4 max-h-[60vh] overflow-y-auto">
           <ShortcutGroup title="Global" shortcuts={GLOBAL_SHORTCUTS} />
-          <ShortcutGroup title="Live View" shortcuts={LIVE_VIEW_SHORTCUTS} />
-          <ShortcutGroup title="Recordings" shortcuts={RECORDINGS_SHORTCUTS} />
         </div>
 
         {/* Footer */}

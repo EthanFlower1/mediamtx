@@ -61,8 +61,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   /// Grid layout: 1 = 1x1, 2 = 2x2.
   int _gridMode = 1;
 
-  /// Timeline zoom preset index: {0: 1H, 1: 30M, 2: 10M, 3: 5M}.
-  int _zoomIndex = 1;
+  /// Timeline zoom preset index: {0: 24H, 1: 12H, 2: 4H, 3: 1H}.
+  int _zoomIndex = 2;
 
   String get _dateKey =>
       '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';

@@ -790,6 +790,17 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			completed_at TEXT NOT NULL DEFAULT '',
 			next_retry_at TEXT NOT NULL DEFAULT ''
 		);
+
+		CREATE TABLE IF NOT EXISTS detection_schedules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			camera_id TEXT NOT NULL,
+			day_of_week INTEGER NOT NULL,
+			start_time TEXT NOT NULL DEFAULT '00:00',
+			end_time TEXT NOT NULL DEFAULT '23:59',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_detection_schedules_camera ON detection_schedules(camera_id);
 		`,
 	},
 }

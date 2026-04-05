@@ -23,8 +23,10 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -74,14 +76,21 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-	backchannelMgr  *backchannel.Manager
-	exportHandler   *api.ExportHandler
-	tlsManager      *crypto.TLSManager
+	backchannelMgr   *backchannel.Manager
+	exportHandler    *api.ExportHandler
+	emailSender      *alerts.EmailSender
+	alertEvaluator   *alerts.Evaluator
+	backupSvc        *backup.Service
+	tlsManager       *crypto.TLSManager
+
+	firstBoot bool // true when the DB was freshly created (no prior state)
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
 // creates the DB directory, opens the database, creates the YAML writer,
-// and loads or generates RSA keys.
+// and loads or generates RSA keys. On first boot (no existing database),
+// it creates default directories and marks the instance for setup wizard
+// redirection.
 func (n *NVR) Initialize() error {
 	n.ctx, n.ctxCancel = context.WithCancel(context.Background())
 
@@ -118,10 +127,21 @@ func (n *NVR) Initialize() error {
 		return fmt.Errorf("create database directory: %w", err)
 	}
 
+	// Detect first boot: the database file does not yet exist.
+	_, statErr := os.Stat(n.DatabasePath)
+	n.firstBoot = os.IsNotExist(statErr)
+
 	var err error
 	n.database, err = db.Open(n.DatabasePath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
+	}
+
+	if n.firstBoot {
+		if err := n.bootstrapFirstRun(); err != nil {
+			n.database.Close()
+			return fmt.Errorf("first-boot setup: %w", err)
+		}
 	}
 
 	// Close any orphaned motion events from a previous run.
@@ -178,6 +198,13 @@ func (n *NVR) Initialize() error {
 
 	n.metricsCollector = metrics.New(360, 10*time.Second)
 	n.metricsCollector.Start()
+
+	// Initialize backup service.
+	backupDir := filepath.Join(filepath.Dir(n.DatabasePath), "backups")
+	n.backupSvc = backup.New(n.DatabasePath, n.ConfigPath, backupDir)
+	if err := n.backupSvc.Init(); err != nil {
+		log.Printf("[NVR] [WARN] backup service init: %v", err)
+	}
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -333,6 +360,15 @@ func (n *NVR) Initialize() error {
 		},
 	}
 	go n.integrityScanner.Run(n.ctx)
+
+	// Start the alert evaluator and email sender.
+	n.emailSender = &alerts.EmailSender{DB: n.database}
+	n.alertEvaluator = &alerts.Evaluator{
+		DB:             n.database,
+		RecordingsPath: n.RecordingsPath,
+		EmailSender:    n.emailSender,
+	}
+	n.alertEvaluator.Start(n.ctx)
 
 	return nil
 }
@@ -597,8 +633,14 @@ func (n *NVR) Close() {
 		n.backchannelMgr.CloseAll()
 	}
 
+	if n.backupSvc != nil {
+		n.backupSvc.StopSchedule()
+	}
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
+	}
+	if n.alertEvaluator != nil {
+		n.alertEvaluator.Stop()
 	}
 	if n.connMgr != nil {
 		n.connMgr.Stop()
@@ -862,6 +904,56 @@ func (n *NVR) IsSetupRequired() bool {
 	return count == 0
 }
 
+// IsFirstBoot returns true when this is the first time the NVR has started
+// (the database was freshly created during this Initialize call).
+func (n *NVR) IsFirstBoot() bool {
+	return n.firstBoot
+}
+
+// bootstrapFirstRun performs one-time setup on the very first launch:
+//   - Creates default directories (recordings, backups, tls)
+//   - Stores a first-boot timestamp in the config table
+//   - Logs the first-boot event
+//
+// RSA key generation and encryption key derivation are handled by
+// loadOrGenerateKeys which runs unconditionally after this.
+func (n *NVR) bootstrapFirstRun() error {
+	log.Printf("[NVR] first boot detected -- running initial setup")
+
+	// Create standard data directories relative to the database location.
+	dataRoot := filepath.Dir(n.DatabasePath)
+	defaultDirs := []string{
+		filepath.Join(dataRoot, "backups"),
+		filepath.Join(dataRoot, "tls"),
+	}
+	// Also create recordings directory if configured.
+	if n.RecordingsPath != "" {
+		recPath := n.RecordingsPath
+		if strings.HasPrefix(recPath, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				recPath = filepath.Join(home, recPath[2:])
+			}
+		}
+		defaultDirs = append(defaultDirs, recPath)
+	}
+
+	for _, dir := range defaultDirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create directory %s: %w", dir, err)
+		}
+		log.Printf("[NVR] created directory: %s", dir)
+	}
+
+	// Record the first-boot timestamp so subsequent starts know setup was done.
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := n.database.SetConfig("first_boot_at", now); err != nil {
+		return fmt.Errorf("record first-boot timestamp: %w", err)
+	}
+
+	log.Printf("[NVR] first-boot setup complete -- setup wizard required")
+	return nil
+}
+
 // DB returns the database handle.
 func (n *NVR) DB() *db.DB {
 	return n.database
@@ -920,6 +1012,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
+		EmailSender:     n.emailSender,
+		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,

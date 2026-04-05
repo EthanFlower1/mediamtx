@@ -827,6 +827,7 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 		}
 	}
 
+<<<<<<< HEAD
 	// Step 3c: Clean orphaned CLIP embeddings for expired events.
 	// Use the most conservative (longest) detection retention as the cutoff.
 	// This ensures embeddings are cleaned up when their parent events expire.
@@ -851,6 +852,35 @@ func (s *Scheduler) runRetentionCleanup(cameras []*db.Camera) {
 	// Step 4: Clean audit log entries older than 90 days.
 	auditCutoff := now.AddDate(0, 0, -90)
 	_ = s.db.DeleteAuditEntriesBefore(auditCutoff)
+=======
+	// Step 4: Audit log retention with separate general/security periods.
+	generalDays := 90
+	securityDays := 365
+	if v, err := s.db.GetConfig("audit_retention_days"); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			generalDays = n
+		}
+	}
+	if v, err := s.db.GetConfig("audit_security_retention_days"); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			securityDays = n
+		}
+	}
+
+	generalCutoff := now.AddDate(0, 0, -generalDays)
+	if n, err := s.db.DeleteGeneralAuditEntriesBefore(generalCutoff); err != nil {
+		log.Printf("scheduler: general audit log cleanup failed: %v", err)
+	} else if n > 0 {
+		log.Printf("scheduler: audit log cleanup: deleted %d general entries older than %d days", n, generalDays)
+	}
+
+	securityCutoff := now.AddDate(0, 0, -securityDays)
+	if n, err := s.db.DeleteSecurityAuditEntriesBefore(securityCutoff); err != nil {
+		log.Printf("scheduler: security audit log cleanup failed: %v", err)
+	} else if n > 0 {
+		log.Printf("scheduler: audit log cleanup: deleted %d security entries older than %d days", n, securityDays)
+	}
+>>>>>>> origin/main
 
 	// Step 5: Enforce per-camera storage quotas.
 	s.enforceQuotas(cameras)

@@ -10,6 +10,37 @@ Authorization: Bearer <token>
 
 Tokens are obtained via `POST /api/nvr/auth/login` and refreshed via `POST /api/nvr/auth/refresh`.
 
+## Global Middleware
+
+All requests pass through the following middleware in order:
+
+1. **CORS** -- Configurable allowed origins, methods, and headers. Preflight `OPTIONS` requests are handled automatically.
+2. **Security Headers** -- Adds `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, and other hardening headers.
+3. **Rate Limiting** (optional) -- Per-IP token-bucket rate limiter. Returns `429 Too Many Requests` when exceeded.
+4. **JWT Authentication** (protected routes only) -- Validates the `Authorization: Bearer <token>` header and injects user context.
+
+## Error Responses
+
+All endpoints return errors in a consistent JSON format:
+
+```json
+{
+  "error": "descriptive error message"
+}
+```
+
+Common HTTP status codes:
+
+| Code | Meaning |
+|------|---------|
+| 400  | Bad request -- malformed JSON or missing required fields |
+| 401  | Unauthorized -- missing or invalid JWT token |
+| 403  | Forbidden -- insufficient permissions |
+| 404  | Not found -- resource does not exist |
+| 409  | Conflict -- resource already exists |
+| 429  | Too many requests -- rate limit exceeded |
+| 500  | Internal server error |
+
 ---
 
 ## Table of Contents

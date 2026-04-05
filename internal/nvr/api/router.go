@@ -401,6 +401,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)
 	protected.GET("/cameras/:id/detections", cameraHandler.Detections)
 
+	// Aggregated detection events.
+	protected.GET("/cameras/:id/detection-events", cameraHandler.DetectionEvents)
+
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
 	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)

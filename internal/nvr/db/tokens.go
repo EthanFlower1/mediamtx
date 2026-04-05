@@ -10,11 +10,29 @@ import (
 
 // RefreshToken represents a refresh token record in the database.
 type RefreshToken struct {
-	ID        string     `json:"id"`
-	UserID    string     `json:"user_id"`
-	TokenHash string     `json:"token_hash"`
-	ExpiresAt string     `json:"expires_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	ID           string     `json:"id"`
+	UserID       string     `json:"user_id"`
+	TokenHash    string     `json:"token_hash"`
+	ExpiresAt    string     `json:"expires_at"`
+	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+	IPAddress    string     `json:"ip_address"`
+	UserAgent    string     `json:"user_agent"`
+	DeviceName   string     `json:"device_name"`
+	LastActivity string     `json:"last_activity"`
+	CreatedAt    string     `json:"created_at"`
+}
+
+// Session is a read-only view of an active refresh token for session listing.
+type Session struct {
+	ID           string `json:"id"`
+	UserID       string `json:"user_id"`
+	Username     string `json:"username"`
+	IPAddress    string `json:"ip_address"`
+	UserAgent    string `json:"user_agent"`
+	DeviceName   string `json:"device_name"`
+	LastActivity string `json:"last_activity"`
+	CreatedAt    string `json:"created_at"`
+	ExpiresAt    string `json:"expires_at"`
 }
 
 // CreateRefreshToken inserts a new refresh token into the database.
@@ -24,10 +42,19 @@ func (d *DB) CreateRefreshToken(tok *RefreshToken) error {
 		tok.ID = uuid.New().String()
 	}
 
+	now := time.Now().UTC().Format(timeFormat)
+	if tok.CreatedAt == "" {
+		tok.CreatedAt = now
+	}
+	if tok.LastActivity == "" {
+		tok.LastActivity = now
+	}
+
 	_, err := d.Exec(`
-		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at)
-		VALUES (?, ?, ?, ?)`,
+		INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, ip_address, user_agent, device_name, last_activity, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tok.ID, tok.UserID, tok.TokenHash, tok.ExpiresAt,
+		tok.IPAddress, tok.UserAgent, tok.DeviceName, tok.LastActivity, tok.CreatedAt,
 	)
 	return err
 }
@@ -38,9 +65,11 @@ func (d *DB) GetRefreshToken(tokenHash string) (*RefreshToken, error) {
 	tok := &RefreshToken{}
 	var revokedAt sql.NullString
 	err := d.QueryRow(`
-		SELECT id, user_id, token_hash, expires_at, revoked_at
+		SELECT id, user_id, token_hash, expires_at, revoked_at,
+		       ip_address, user_agent, device_name, last_activity, created_at
 		FROM refresh_tokens WHERE token_hash = ?`, tokenHash,
-	).Scan(&tok.ID, &tok.UserID, &tok.TokenHash, &tok.ExpiresAt, &revokedAt)
+	).Scan(&tok.ID, &tok.UserID, &tok.TokenHash, &tok.ExpiresAt, &revokedAt,
+		&tok.IPAddress, &tok.UserAgent, &tok.DeviceName, &tok.LastActivity, &tok.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -94,4 +123,92 @@ func (d *DB) CleanExpiredTokens(before time.Time) error {
 		before.UTC().Format(timeFormat),
 	)
 	return err
+}
+
+// UpdateSessionActivity updates the last_activity timestamp and IP for a session.
+func (d *DB) UpdateSessionActivity(tokenID, ipAddress string) error {
+	now := time.Now().UTC().Format(timeFormat)
+	_, err := d.Exec(
+		"UPDATE refresh_tokens SET last_activity = ?, ip_address = ? WHERE id = ? AND revoked_at IS NULL",
+		now, ipAddress, tokenID,
+	)
+	return err
+}
+
+// ListActiveSessions returns all active (non-revoked, non-expired) sessions,
+// optionally filtered by userID. Results include the username from the users table.
+func (d *DB) ListActiveSessions(userID string) ([]*Session, error) {
+	now := time.Now().UTC().Format(timeFormat)
+	query := `
+		SELECT rt.id, rt.user_id, u.username, rt.ip_address, rt.user_agent,
+		       rt.device_name, rt.last_activity, rt.created_at, rt.expires_at
+		FROM refresh_tokens rt
+		JOIN users u ON u.id = rt.user_id
+		WHERE rt.revoked_at IS NULL AND rt.expires_at > ?`
+	args := []any{now}
+
+	if userID != "" {
+		query += " AND rt.user_id = ?"
+		args = append(args, userID)
+	}
+	query += " ORDER BY rt.last_activity DESC"
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []*Session
+	for rows.Next() {
+		s := &Session{}
+		if err := rows.Scan(&s.ID, &s.UserID, &s.Username, &s.IPAddress,
+			&s.UserAgent, &s.DeviceName, &s.LastActivity, &s.CreatedAt, &s.ExpiresAt); err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, s)
+	}
+	return sessions, rows.Err()
+}
+
+// GetRefreshTokenByID retrieves a refresh token by its ID.
+// Returns ErrNotFound if no match.
+func (d *DB) GetRefreshTokenByID(id string) (*RefreshToken, error) {
+	tok := &RefreshToken{}
+	var revokedAt sql.NullString
+	err := d.QueryRow(`
+		SELECT id, user_id, token_hash, expires_at, revoked_at,
+		       ip_address, user_agent, device_name, last_activity, created_at
+		FROM refresh_tokens WHERE id = ?`, id,
+	).Scan(&tok.ID, &tok.UserID, &tok.TokenHash, &tok.ExpiresAt, &revokedAt,
+		&tok.IPAddress, &tok.UserAgent, &tok.DeviceName, &tok.LastActivity, &tok.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if revokedAt.Valid {
+		t, err := time.Parse(timeFormat, revokedAt.String)
+		if err != nil {
+			return nil, err
+		}
+		tok.RevokedAt = &t
+	}
+	return tok, nil
+}
+
+// RevokeIdleSessions revokes all sessions with last_activity older than the
+// given idle timeout duration.
+func (d *DB) RevokeIdleSessions(idleTimeout time.Duration) (int64, error) {
+	cutoff := time.Now().UTC().Add(-idleTimeout).Format(timeFormat)
+	now := time.Now().UTC().Format(timeFormat)
+	res, err := d.Exec(
+		"UPDATE refresh_tokens SET revoked_at = ? WHERE revoked_at IS NULL AND last_activity < ? AND last_activity != ''",
+		now, cutoff,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

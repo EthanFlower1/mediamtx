@@ -76,17 +76,13 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-<<<<<<< HEAD
 	backchannelMgr   *backchannel.Manager
 	exportHandler    *api.ExportHandler
 	emailSender      *alerts.EmailSender
 	alertEvaluator   *alerts.Evaluator
-=======
-	backchannelMgr  *backchannel.Manager
-	exportHandler   *api.ExportHandler
-	backupSvc       *backup.Service
-	tlsManager      *crypto.TLSManager
->>>>>>> origin/main
+	backupSvc        *backup.Service
+	tlsManager       *crypto.TLSManager
+	migrationMgr     *MigrationManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -195,6 +191,10 @@ func (n *NVR) Initialize() error {
 	if err := n.backupSvc.Init(); err != nil {
 		log.Printf("[NVR] [WARN] backup service init: %v", err)
 	}
+
+	// Initialize upgrade migration manager.
+	migrationBackupDir := filepath.Join(filepath.Dir(n.DatabasePath), "migration-backups")
+	n.migrationMgr = NewMigrationManager(n.database, n.ConfigPath, n.DatabasePath, migrationBackupDir, "")
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -930,6 +930,11 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		}
 	}
 
+	// Set the version on the migration manager now that it's available.
+	if n.migrationMgr != nil {
+		n.migrationMgr.AppVersion = version
+	}
+
 	n.exportHandler = api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
@@ -952,14 +957,12 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
-<<<<<<< HEAD
 		EmailSender:     n.emailSender,
-=======
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,
->>>>>>> origin/main
+		MigrationMgr:    n.migrationMgr,
 	})
 }
 

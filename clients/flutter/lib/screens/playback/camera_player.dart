@@ -311,7 +311,7 @@ class _TileButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
-    this.active = false,
+    this.active = false, // ignore: unused_element_parameter
   });
 
   @override

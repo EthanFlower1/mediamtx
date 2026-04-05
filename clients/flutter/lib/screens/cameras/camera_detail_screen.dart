@@ -1053,9 +1053,9 @@ class _NvrField extends StatelessWidget {
   const _NvrField({
     required this.controller,
     required this.label,
-    this.hint,
-    this.keyboardType,
-    this.validator,
+    this.hint, // ignore: unused_element_parameter
+    this.keyboardType, // ignore: unused_element_parameter
+    this.validator, // ignore: unused_element_parameter
     this.obscure = false,
   });
 

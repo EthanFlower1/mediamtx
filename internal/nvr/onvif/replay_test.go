@@ -1,6 +1,9 @@
 package onvif
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestBuildRangeHeader(t *testing.T) {
 	tests := []struct {
@@ -55,33 +58,25 @@ func TestBuildRangeHeader(t *testing.T) {
 }
 
 func TestBuildReplaySession_MissingToken(t *testing.T) {
-	_, err := BuildReplaySession("http://example.com", "user", "pass", &ReplaySessionRequest{})
+	_, err := BuildReplaySession("http://example.com", "", time.Now(), 1.0)
 	if err == nil {
 		t.Fatal("expected error for missing recording_token, got nil")
 	}
 }
 
 func TestReplaySession_HeaderConstruction(t *testing.T) {
-	// Test that a ReplaySession with Scale and Speed produces correct header values.
+	// Test that a ReplaySession with Scale produces correct header values.
 	session := &ReplaySession{
 		Scale: 2.0,
-		Speed: 4.0,
 	}
 
-	// Verify scale/speed formatting expectations match what BuildReplaySession would set.
+	// Verify scale formatting expectations match what BuildReplaySession would set.
 	scaleHeader := ""
 	if session.Scale != 0 {
 		scaleHeader = "2.0"
 	}
-	speedHeader := ""
-	if session.Speed != 0 {
-		speedHeader = "4.0"
-	}
 
 	if scaleHeader != "2.0" {
 		t.Errorf("expected scale header '2.0', got %q", scaleHeader)
-	}
-	if speedHeader != "4.0" {
-		t.Errorf("expected speed header '4.0', got %q", speedHeader)
 	}
 }

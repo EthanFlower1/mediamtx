@@ -803,4 +803,23 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_detection_schedules_camera ON detection_schedules(camera_id);
 		`,
 	},
+	// Migration 48: Create upgrade_migrations table for tracking application upgrades
+	// and rollback support. Referenced by upgrade_migrations.go but never created.
+	{
+		version: 48,
+		sql: `
+		CREATE TABLE IF NOT EXISTS upgrade_migrations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			from_version TEXT NOT NULL DEFAULT '',
+			to_version TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending',
+			config_backup_path TEXT NOT NULL DEFAULT '',
+			db_backup_path TEXT NOT NULL DEFAULT '',
+			started_at TEXT NOT NULL DEFAULT '',
+			completed_at TEXT NOT NULL DEFAULT '',
+			error_message TEXT NOT NULL DEFAULT '',
+			rollback_completed_at TEXT NOT NULL DEFAULT ''
+		);
+		`,
+	},
 }

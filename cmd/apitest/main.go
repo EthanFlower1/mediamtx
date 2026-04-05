@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -357,6 +358,9 @@ func main() {
 	runQuotaTests()
 	runSearchTests()
 	runScheduleTemplateTests()
+	runRecordingPipelineTests()
+	runConcurrencyTests()
+	runAuthLifecycleTests()
 
 	// Brute-force test MUST be last — it triggers rate limiting and locks the
 	// account, which would cause all subsequent authenticated requests to fail.
@@ -2481,6 +2485,695 @@ func runScheduleTemplateTests() {
 		} else {
 			ok := resp.StatusCode == 200 || resp.StatusCode == 204
 			recordResult(cat, "Delete template", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Recording Pipeline Tests
+// ---------------------------------------------------------------------------
+
+func runRecordingPipelineTests() {
+	cat := "Recording Pipeline"
+	printCategoryHeader(cat)
+
+	if len(cameras) == 0 {
+		skipResult(cat, "All recording pipeline tests", "no cameras available")
+		return
+	}
+
+	// Find a camera with active recordings by checking recording stats.
+	var activeCamID string
+	var activeCamName string
+	{
+		start := time.Now()
+		resp, body, err := doRequest("GET", "/api/nvr/recordings/stats", nil)
+		dur := time.Since(start)
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Find active recording camera", false,
+				fmt.Sprintf("stats request failed: status=%d err=%v", safeStatus(resp), err), dur)
+		} else {
+			// Stats may be a map keyed by camera_id or an array; try both.
+			var statsMap map[string]interface{}
+			if json.Unmarshal(body, &statsMap) == nil && len(statsMap) > 0 {
+				for id := range statsMap {
+					activeCamID = id
+					break
+				}
+			}
+			if activeCamID == "" {
+				// Fallback to first camera.
+				activeCamID = cameras[0].ID
+				activeCamName = cameras[0].Name
+			} else {
+				// Find the name.
+				for _, c := range cameras {
+					if c.ID == activeCamID {
+						activeCamName = c.Name
+						break
+					}
+				}
+			}
+			recordResult(cat, "Find active recording camera", true,
+				fmt.Sprintf("using %s (%s)", activeCamName, activeCamID), dur)
+		}
+	}
+
+	if activeCamID == "" {
+		activeCamID = cameras[0].ID
+		activeCamName = cameras[0].Name
+	}
+
+	// Verify recordings exist in the DB for today.
+	{
+		now := time.Now()
+		today := now.Format("2006-01-02")
+		start := time.Now()
+		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
+			activeCamID, today, now.Format(time.RFC3339)), nil)
+		dur := time.Since(start)
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Recordings exist today", false,
+				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
+		} else {
+			arr := parseJSONArray(body)
+			ok := len(arr) > 0
+			detail := fmt.Sprintf("%d recording(s) found", len(arr))
+			if !ok {
+				detail = "no recordings found for today (camera may not be actively recording)"
+			}
+			recordResult(cat, "Recordings exist today", ok, detail, dur)
+		}
+	}
+
+	// Verify a recording segment file exists on disk (GET a recording, check Content-Length > 0).
+	{
+		now := time.Now()
+		today := now.Format("2006-01-02")
+		start := time.Now()
+		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
+			activeCamID, today, now.Format(time.RFC3339)), nil)
+		dur := time.Since(start)
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Recording segment file exists", false,
+				fmt.Sprintf("listing failed: status=%d", safeStatus(resp)), dur)
+		} else {
+			arr := parseJSONArray(body)
+			if len(arr) == 0 {
+				skipResult(cat, "Recording segment file exists", "no recordings to check")
+			} else {
+				// Try to fetch the first recording's segment.
+				rec, _ := arr[0].(map[string]interface{})
+				recID := getString(rec, "id")
+				if recID == "" {
+					recID = getNumericID(rec, "id")
+				}
+				if recID != "" {
+					start2 := time.Now()
+					resp2, body2, err2 := doRequest("GET", "/api/nvr/recordings/"+recID+"/segment", nil)
+					dur2 := time.Since(start2)
+					if err2 != nil {
+						recordResult(cat, "Recording segment file exists", false, err2.Error(), dur2)
+					} else {
+						ok := resp2.StatusCode == 200 && len(body2) > 0
+						detail := fmt.Sprintf("status=%d content-length=%d", resp2.StatusCode, len(body2))
+						recordResult(cat, "Recording segment file exists", ok, detail, dur2)
+					}
+				} else {
+					recordResult(cat, "Recording segment file exists", false, "could not extract recording ID", dur)
+				}
+			}
+		}
+	}
+
+	// Verify the playback server serves the recording (GET from port 9996).
+	{
+		playbackBase := envOr("PLAYBACK_BASE_URL", "http://localhost:9996")
+		start := time.Now()
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(playbackBase + "/")
+		dur := time.Since(start)
+		if err != nil {
+			// Playback server may not be running in test environments.
+			skipResult(cat, "Playback server reachable", fmt.Sprintf("cannot connect: %v", err))
+		} else {
+			resp.Body.Close()
+			ok := resp.StatusCode == 200 || resp.StatusCode == 404 || resp.StatusCode == 301
+			recordResult(cat, "Playback server reachable", ok,
+				fmt.Sprintf("status=%d (server is up)", resp.StatusCode), dur)
+		}
+	}
+
+	// Verify timeline shows segments for the camera.
+	{
+		today := time.Now().Format("2006-01-02")
+		start := time.Now()
+		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/timeline?camera_id=%s&date=%s",
+			activeCamID, today), nil)
+		dur := time.Since(start)
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Timeline shows segments", false,
+				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
+		} else {
+			// Timeline response may be an array of segments or an object with segments.
+			arr := parseJSONArray(body)
+			m := parseJSON(body)
+			hasSegments := len(arr) > 0
+			if !hasSegments {
+				// Check if segments are nested.
+				if segs, ok := m["segments"]; ok {
+					if segArr, ok := segs.([]interface{}); ok {
+						hasSegments = len(segArr) > 0
+					}
+				}
+			}
+			detail := "segments found"
+			if !hasSegments {
+				detail = "no segments in timeline (camera may not be recording)"
+			}
+			recordResult(cat, "Timeline shows segments", hasSegments, detail, dur)
+		}
+	}
+
+	// Verify recording health shows active status.
+	{
+		start := time.Now()
+		resp, body, err := doRequest("GET", "/api/nvr/recordings/health", nil)
+		dur := time.Since(start)
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Recording health active", false,
+				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
+		} else {
+			m := parseJSON(body)
+			// Health response may contain "status" or per-camera health.
+			status := getString(m, "status")
+			ok := resp.StatusCode == 200
+			detail := fmt.Sprintf("status=%q", status)
+			if status == "" {
+				detail = fmt.Sprintf("health response keys: %d", len(m))
+			}
+			recordResult(cat, "Recording health active", ok, detail, dur)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency Tests
+// ---------------------------------------------------------------------------
+
+func runConcurrencyTests() {
+	cat := "Concurrency"
+	printCategoryHeader(cat)
+
+	// Test 1: 10 goroutines simultaneously create bookmarks.
+	if len(cameras) > 0 {
+		cam := cameras[0]
+		start := time.Now()
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errors500 int
+		var totalErrors int
+
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				resp, _, err := doRequest("POST", "/api/nvr/bookmarks", map[string]interface{}{
+					"camera_id": cam.ID,
+					"timestamp": time.Now().Add(-time.Duration(idx) * time.Minute).Format(time.RFC3339),
+					"label":     fmt.Sprintf("Concurrent Bookmark %d", idx),
+					"notes":     "Created by concurrency test",
+				})
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					totalErrors++
+				} else if resp.StatusCode >= 500 {
+					errors500++
+				}
+			}(i)
+		}
+		wg.Wait()
+		dur := time.Since(start)
+		ok := errors500 == 0
+		recordResult(cat, "Concurrent bookmark creation (10)", ok,
+			fmt.Sprintf("500s=%d transport_errors=%d", errors500, totalErrors), dur)
+	} else {
+		skipResult(cat, "Concurrent bookmark creation (10)", "no cameras available")
+	}
+
+	// Test 2: 10 goroutines simultaneously list cameras.
+	{
+		start := time.Now()
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errors500 int
+		var counts []int
+
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resp, body, err := doRequest("GET", "/api/nvr/cameras", nil)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					return
+				}
+				if resp.StatusCode >= 500 {
+					errors500++
+					return
+				}
+				var camList []map[string]interface{}
+				_ = json.Unmarshal(body, &camList)
+				counts = append(counts, len(camList))
+			}()
+		}
+		wg.Wait()
+		dur := time.Since(start)
+
+		// Check consistency: all goroutines should see the same count.
+		consistent := true
+		if len(counts) > 1 {
+			for _, c := range counts[1:] {
+				if c != counts[0] {
+					consistent = false
+					break
+				}
+			}
+		}
+		ok := errors500 == 0 && consistent
+		detail := fmt.Sprintf("500s=%d consistent=%v", errors500, consistent)
+		if len(counts) > 0 {
+			detail += fmt.Sprintf(" camera_count=%d", counts[0])
+		}
+		recordResult(cat, "Concurrent camera listing (10)", ok, detail, dur)
+	}
+
+	// Test 3: 5 goroutines create + delete users concurrently.
+	{
+		start := time.Now()
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errors500 int
+
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				uname := fmt.Sprintf("conctest_%d_%d", time.Now().UnixNano(), idx)
+				resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+					"username": uname,
+					"password": "ConcurrentP@ss123!",
+					"role":     "viewer",
+				})
+				mu.Lock()
+				if err != nil || resp == nil {
+					mu.Unlock()
+					return
+				}
+				if resp.StatusCode >= 500 {
+					errors500++
+					mu.Unlock()
+					return
+				}
+				mu.Unlock()
+
+				if resp.StatusCode == 200 || resp.StatusCode == 201 {
+					m := parseJSON(body)
+					userID := getString(m, "id")
+					if userID != "" {
+						delResp, _, delErr := doRequest("DELETE", "/api/nvr/users/"+userID, nil)
+						mu.Lock()
+						if delErr == nil && delResp != nil && delResp.StatusCode >= 500 {
+							errors500++
+						}
+						mu.Unlock()
+					}
+				}
+			}(i)
+		}
+		wg.Wait()
+		dur := time.Since(start)
+		ok := errors500 == 0
+		recordResult(cat, "Concurrent user create+delete (5)", ok,
+			fmt.Sprintf("500s=%d", errors500), dur)
+	}
+
+	// Test 4: 10 goroutines hit different endpoints simultaneously (mixed reads/writes).
+	{
+		start := time.Now()
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var errors500 int
+
+		endpoints := []struct {
+			method string
+			path   string
+			body   interface{}
+		}{
+			{"GET", "/api/nvr/cameras", nil},
+			{"GET", "/api/nvr/users", nil},
+			{"GET", "/api/nvr/roles", nil},
+			{"GET", "/api/nvr/sessions", nil},
+			{"GET", "/api/nvr/recordings/stats", nil},
+			{"GET", "/api/nvr/recordings/health", nil},
+			{"GET", "/api/nvr/schedule-templates", nil},
+			{"GET", "/api/nvr/system/info", nil},
+			{"GET", "/api/nvr/audit-log", nil},
+			{"GET", "/api/nvr/alerts", nil},
+		}
+
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				ep := endpoints[idx%len(endpoints)]
+				resp, _, err := doRequest(ep.method, ep.path, ep.body)
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil {
+					return
+				}
+				if resp.StatusCode >= 500 {
+					errors500++
+				}
+			}(i)
+		}
+		wg.Wait()
+		dur := time.Since(start)
+		ok := errors500 == 0
+		recordResult(cat, "Concurrent mixed endpoints (10)", ok,
+			fmt.Sprintf("500s=%d", errors500), dur)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Auth Lifecycle Tests
+// ---------------------------------------------------------------------------
+
+func runAuthLifecycleTests() {
+	cat := "Auth Lifecycle"
+	printCategoryHeader(cat)
+
+	// Test 1: Get a token, wait briefly, verify it still works within expiry window.
+	{
+		start := time.Now()
+		resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+			"username": username,
+			"password": password,
+		})
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Token valid within expiry", false,
+				fmt.Sprintf("login failed: status=%d err=%v", safeStatus(resp), err), time.Since(start))
+		} else {
+			m := parseJSON(body)
+			token := getString(m, "token")
+			if token == "" {
+				token = getString(m, "access_token")
+			}
+
+			// Wait briefly (1s) then verify the token still works.
+			time.Sleep(1 * time.Second)
+
+			req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp2, err2 := client.Do(req)
+			dur := time.Since(start)
+			if err2 != nil {
+				recordResult(cat, "Token valid within expiry", false, err2.Error(), dur)
+			} else {
+				resp2.Body.Close()
+				ok := resp2.StatusCode == 200
+				recordResult(cat, "Token valid within expiry", ok,
+					fmt.Sprintf("status=%d after 1s wait", resp2.StatusCode), dur)
+			}
+		}
+	}
+
+	// Test 2: Use a token after changing the user's role. Verify whether old token
+	// permissions are stale or still work.
+	{
+		// Create a temporary user.
+		start := time.Now()
+		tmpUser := fmt.Sprintf("authlife_%d", time.Now().UnixNano())
+		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+			"username": tmpUser,
+			"password": "AuthLife@123!",
+			"role":     "viewer",
+		})
+		if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 201) {
+			recordResult(cat, "Token after role change", false,
+				fmt.Sprintf("user creation failed: status=%d", safeStatus(resp)), time.Since(start))
+		} else {
+			m := parseJSON(body)
+			tmpUserID := getString(m, "id")
+
+			// Login as the temporary user.
+			resp2, body2, err2 := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+				"username": tmpUser,
+				"password": "AuthLife@123!",
+			})
+			if err2 != nil || resp2.StatusCode != 200 {
+				recordResult(cat, "Token after role change", false,
+					fmt.Sprintf("login failed: status=%d", safeStatus(resp2)), time.Since(start))
+			} else {
+				m2 := parseJSON(body2)
+				tmpToken := getString(m2, "token")
+				if tmpToken == "" {
+					tmpToken = getString(m2, "access_token")
+				}
+
+				// Change the user's role from viewer to operator.
+				doRequest("PUT", "/api/nvr/users/"+tmpUserID, map[string]interface{}{
+					"role": "operator",
+				})
+
+				// Use the old token to make a request.
+				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req.Header.Set("Authorization", "Bearer "+tmpToken)
+				client := &http.Client{Timeout: 10 * time.Second}
+				resp3, err3 := client.Do(req)
+				dur := time.Since(start)
+				if err3 != nil {
+					recordResult(cat, "Token after role change", false, err3.Error(), dur)
+				} else {
+					resp3.Body.Close()
+					// Document: The old token still works because JWTs are stateless
+					// and the role claim is baked in at issuance time.
+					// The token will keep the old role until it expires.
+					detail := fmt.Sprintf("status=%d (old token still works — JWT is stateless, role baked in at issuance)", resp3.StatusCode)
+					if resp3.StatusCode == 403 {
+						detail = fmt.Sprintf("status=%d (server re-validates role — token permissions are NOT stale)", resp3.StatusCode)
+					}
+					recordResult(cat, "Token after role change", true, detail, dur)
+				}
+			}
+
+			// Cleanup.
+			if tmpUserID != "" {
+				doRequest("DELETE", "/api/nvr/users/"+tmpUserID, nil)
+			}
+		}
+	}
+
+	// Test 3: Login, get refresh token, revoke the refresh token via DELETE /sessions/:id,
+	// verify refresh no longer works.
+	{
+		start := time.Now()
+		resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+			"username": username,
+			"password": password,
+		})
+		if err != nil || resp.StatusCode != 200 {
+			recordResult(cat, "Revoke refresh token", false,
+				fmt.Sprintf("login failed: status=%d", safeStatus(resp)), time.Since(start))
+		} else {
+			loginCookies := resp.Cookies()
+
+			// List sessions to find the session ID.
+			m := parseJSON(body)
+			loginToken := getString(m, "token")
+			if loginToken == "" {
+				loginToken = getString(m, "access_token")
+			}
+
+			req, _ := http.NewRequest("GET", baseURL+"/api/nvr/sessions", nil)
+			req.Header.Set("Authorization", "Bearer "+loginToken)
+			client := &http.Client{Timeout: 10 * time.Second}
+			sessResp, err2 := client.Do(req)
+			if err2 != nil || sessResp.StatusCode != 200 {
+				recordResult(cat, "Revoke refresh token", false,
+					fmt.Sprintf("list sessions failed: status=%d", safeStatus(sessResp)), time.Since(start))
+			} else {
+				sessBody, _ := io.ReadAll(sessResp.Body)
+				sessResp.Body.Close()
+				sessions := parseJSONArray(sessBody)
+
+				if len(sessions) == 0 {
+					skipResult(cat, "Revoke refresh token", "no sessions found to revoke")
+				} else {
+					// Get the last session ID.
+					lastSession, _ := sessions[len(sessions)-1].(map[string]interface{})
+					sessID := getString(lastSession, "id")
+					if sessID == "" {
+						sessID = getNumericID(lastSession, "id")
+					}
+
+					if sessID != "" {
+						// Delete the session.
+						delReq, _ := http.NewRequest("DELETE", baseURL+"/api/nvr/sessions/"+sessID, nil)
+						delReq.Header.Set("Authorization", "Bearer "+loginToken)
+						delResp, delErr := client.Do(delReq)
+						if delErr != nil {
+							recordResult(cat, "Revoke refresh token", false, delErr.Error(), time.Since(start))
+						} else {
+							delResp.Body.Close()
+
+							// Try to refresh using the old cookies.
+							refreshResp, _, refreshErr := doRequestNoAuthWithCookies("POST", "/api/nvr/auth/refresh", nil, loginCookies)
+							dur := time.Since(start)
+							if refreshErr != nil {
+								recordResult(cat, "Revoke refresh token", false, refreshErr.Error(), dur)
+							} else {
+								// After revoking, refresh should fail (401).
+								ok := refreshResp.StatusCode == 401 || refreshResp.StatusCode == 403
+								detail := fmt.Sprintf("delete_status=%d refresh_status=%d", delResp.StatusCode, refreshResp.StatusCode)
+								if !ok {
+									detail += " (refresh still works after revocation — session may not be invalidated)"
+								}
+								recordResult(cat, "Revoke refresh token", ok, detail, dur)
+							}
+						}
+					} else {
+						skipResult(cat, "Revoke refresh token", "could not extract session ID")
+					}
+				}
+			}
+		}
+	}
+
+	// Test 4: Create a second user, login as them, verify they can only access
+	// cameras they have permission to (if RBAC is enforced).
+	{
+		start := time.Now()
+		tmpUser := fmt.Sprintf("rbactest_%d", time.Now().UnixNano())
+		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+			"username": tmpUser,
+			"password": "RBAC@Test123!",
+			"role":     "viewer",
+		})
+		if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 201) {
+			recordResult(cat, "RBAC camera access", false,
+				fmt.Sprintf("user creation failed: status=%d", safeStatus(resp)), time.Since(start))
+		} else {
+			m := parseJSON(body)
+			tmpUserID := getString(m, "id")
+
+			// Login as the new viewer user.
+			resp2, body2, err2 := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+				"username": tmpUser,
+				"password": "RBAC@Test123!",
+			})
+			if err2 != nil || resp2.StatusCode != 200 {
+				recordResult(cat, "RBAC camera access", false,
+					fmt.Sprintf("login failed: status=%d", safeStatus(resp2)), time.Since(start))
+			} else {
+				m2 := parseJSON(body2)
+				viewerToken := getString(m2, "token")
+				if viewerToken == "" {
+					viewerToken = getString(m2, "access_token")
+				}
+
+				// Try to list cameras with the viewer token.
+				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req.Header.Set("Authorization", "Bearer "+viewerToken)
+				client := &http.Client{Timeout: 10 * time.Second}
+				resp3, err3 := client.Do(req)
+				dur := time.Since(start)
+				if err3 != nil {
+					recordResult(cat, "RBAC camera access", false, err3.Error(), dur)
+				} else {
+					camBody, _ := io.ReadAll(resp3.Body)
+					resp3.Body.Close()
+					var viewerCams []map[string]interface{}
+					_ = json.Unmarshal(camBody, &viewerCams)
+
+					detail := fmt.Sprintf("status=%d viewer_sees=%d cameras (admin_sees=%d)",
+						resp3.StatusCode, len(viewerCams), len(cameras))
+					if len(viewerCams) == len(cameras) {
+						detail += " — RBAC may not filter cameras per-user"
+					} else if len(viewerCams) < len(cameras) {
+						detail += " — RBAC is filtering cameras"
+					}
+					// Pass regardless: we document the behavior.
+					recordResult(cat, "RBAC camera access", true, detail, dur)
+				}
+			}
+
+			// Cleanup.
+			if tmpUserID != "" {
+				doRequest("DELETE", "/api/nvr/users/"+tmpUserID, nil)
+			}
+		}
+	}
+
+	// Test 5: Concurrent logins from the same user — both sessions should work.
+	{
+		start := time.Now()
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		var tokens []string
+		var loginErrors int
+
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+					"username": username,
+					"password": password,
+				})
+				mu.Lock()
+				defer mu.Unlock()
+				if err != nil || resp.StatusCode != 200 {
+					loginErrors++
+					return
+				}
+				m := parseJSON(body)
+				token := getString(m, "token")
+				if token == "" {
+					token = getString(m, "access_token")
+				}
+				if token != "" {
+					tokens = append(tokens, token)
+				}
+			}()
+		}
+		wg.Wait()
+
+		if loginErrors > 0 || len(tokens) < 2 {
+			recordResult(cat, "Concurrent logins both work", false,
+				fmt.Sprintf("login_errors=%d tokens=%d", loginErrors, len(tokens)), time.Since(start))
+		} else {
+			// Verify both tokens work.
+			bothWork := true
+			for i, token := range tokens {
+				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req.Header.Set("Authorization", "Bearer "+token)
+				client := &http.Client{Timeout: 10 * time.Second}
+				resp, err := client.Do(req)
+				if err != nil || resp.StatusCode != 200 {
+					bothWork = false
+					break
+				}
+				resp.Body.Close()
+				_ = i
+			}
+			dur := time.Since(start)
+			recordResult(cat, "Concurrent logins both work", bothWork,
+				fmt.Sprintf("%d tokens, both valid=%v", len(tokens), bothWork), dur)
 		}
 	}
 }

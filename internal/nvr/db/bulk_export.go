@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -61,6 +63,9 @@ func (d *DB) GetBulkExportJob(id string) (*BulkExportJob, error) {
 	row := d.QueryRow(`SELECT id, status, zip_path, error, created_at, completed_at FROM bulk_export_jobs WHERE id = ?`, id)
 	var job BulkExportJob
 	if err := row.Scan(&job.ID, &job.Status, &job.ZipPath, &job.Error, &job.CreatedAt, &job.CompletedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &job, nil

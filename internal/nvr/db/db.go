@@ -4,6 +4,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"time"
 
 	_ "modernc.org/sqlite" // Pure-Go SQLite driver.
@@ -23,26 +24,28 @@ func (d *DB) Path() string {
 // Open opens (or creates) the SQLite database at path, enables foreign keys,
 // sets WAL journal mode, and runs any pending migrations.
 func Open(path string) (*DB, error) {
-	sqlDB, err := sql.Open("sqlite", path)
+	// Build DSN with _pragma parameters so that every connection in the pool
+	// inherits these settings automatically.
+	dsn := path + "?" + url.Values{
+		"_pragma": []string{
+			"foreign_keys(1)",
+			"journal_mode(WAL)",
+			"busy_timeout(5000)",
+		},
+	}.Encode()
+
+	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Enable foreign key enforcement.
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		sqlDB.Close()
-		return nil, fmt.Errorf("enable foreign keys: %w", err)
-	}
-
-	// Use WAL mode for better concurrent read performance.
-	if _, err := sqlDB.Exec("PRAGMA journal_mode = WAL"); err != nil {
-		sqlDB.Close()
-		return nil, fmt.Errorf("set WAL mode: %w", err)
-	}
-
-	// Configure connection pool for SQLite.
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(5)
+	// Configure connection pool for SQLite. SQLite only supports one writer
+	// at a time. We use 2 connections to avoid deadlocks when a query holds
+	// an open cursor while another statement executes on the same DB handle.
+	// The busy_timeout pragma ensures the second writer retries rather than
+	// returning SQLITE_BUSY immediately.
+	sqlDB.SetMaxOpenConns(2)
+	sqlDB.SetMaxIdleConns(2)
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
 
 	// Validate connectivity.

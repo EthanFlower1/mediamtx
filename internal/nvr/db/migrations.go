@@ -731,4 +731,65 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE refresh_tokens ADD COLUMN created_at TEXT NOT NULL DEFAULT '';
 		`,
 	},
+	// Migration 47: Create missing tables for detection zones, detection events,
+	// webhook configs, and webhook deliveries. These tables were referenced by
+	// the DB layer and API handlers but never created in earlier migrations.
+	{
+		version: 47,
+		sql: `
+		CREATE TABLE IF NOT EXISTS detection_zones (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			name TEXT NOT NULL DEFAULT '',
+			points TEXT NOT NULL DEFAULT '[]',
+			class_filter TEXT NOT NULL DEFAULT '[]',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL DEFAULT ''
+		);
+
+		CREATE TABLE IF NOT EXISTS detection_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			camera_id TEXT NOT NULL,
+			zone_id TEXT NOT NULL DEFAULT '',
+			class TEXT NOT NULL DEFAULT '',
+			start_time TEXT NOT NULL DEFAULT '',
+			end_time TEXT NOT NULL DEFAULT '',
+			peak_confidence REAL NOT NULL DEFAULT 0,
+			thumbnail_path TEXT NOT NULL DEFAULT '',
+			detection_count INTEGER NOT NULL DEFAULT 0
+		);
+
+		CREATE TABLE IF NOT EXISTS webhook_configs (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL DEFAULT '',
+			url TEXT NOT NULL DEFAULT '',
+			secret TEXT NOT NULL DEFAULT '',
+			camera_id TEXT NOT NULL DEFAULT '',
+			event_types TEXT NOT NULL DEFAULT 'detection',
+			object_classes TEXT NOT NULL DEFAULT '',
+			min_confidence REAL NOT NULL DEFAULT 0,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			max_retries INTEGER NOT NULL DEFAULT 3,
+			timeout_seconds INTEGER NOT NULL DEFAULT 10,
+			created_at TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL DEFAULT ''
+		);
+
+		CREATE TABLE IF NOT EXISTS webhook_deliveries (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			webhook_id TEXT NOT NULL DEFAULT '',
+			event_type TEXT NOT NULL DEFAULT '',
+			payload TEXT NOT NULL DEFAULT '',
+			response_status INTEGER NOT NULL DEFAULT 0,
+			response_body TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			attempt INTEGER NOT NULL DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at TEXT NOT NULL DEFAULT '',
+			completed_at TEXT NOT NULL DEFAULT '',
+			next_retry_at TEXT NOT NULL DEFAULT ''
+		);
+		`,
+	},
 }

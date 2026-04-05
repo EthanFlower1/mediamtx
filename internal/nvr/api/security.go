@@ -40,8 +40,8 @@ func DefaultSecurityConfig() SecurityConfig {
 		FrameOptions: "DENY",
 
 		RateLimitEnabled:    true,
-		RateLimitPerSecond:  20,
-		RateLimitBurst:      40,
+		RateLimitPerSecond:  100,
+		RateLimitBurst:      200,
 		RateLimitCleanupSec: 300,
 	}
 }

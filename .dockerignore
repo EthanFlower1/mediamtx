@@ -6,3 +6,10 @@
 /internal/core/VERSION
 /internal/servers/hls/hls.min.js
 /internal/staticsources/rpicamera/mtxrpicam_*/
+
+# NVR Docker build — reduce context size
+/.worktrees/
+/.claude/
+/.local-backup/
+/node_modules/
+/ui/node_modules/

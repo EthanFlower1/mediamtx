@@ -9,12 +9,12 @@ import (
 
 // BulkExportJob represents a bulk export job.
 type BulkExportJob struct {
-	ID          string  `json:"id"`
-	Status      string  `json:"status"`
+	ID          string `json:"id"`
+	Status      string `json:"status"`
 	ZipPath     *string `json:"zip_path"`
-	Error       string  `json:"error"`
-	CreatedAt   string  `json:"created_at"`
-	CompletedAt string  `json:"completed_at"`
+	Error       string `json:"error"`
+	CreatedAt   string `json:"created_at"`
+	CompletedAt string `json:"completed_at"`
 }
 
 // BulkExportItem represents a single item within a bulk export job.

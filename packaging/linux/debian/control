@@ -1,0 +1,26 @@
+Source: mediamtx
+Section: video
+Priority: optional
+Maintainer: MediaMTX Maintainers <support@mediamtx.dev>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.25~), nodejs (>= 20), npm
+Standards-Version: 4.6.2
+Homepage: https://github.com/bluenviron/mediamtx
+Vcs-Browser: https://github.com/bluenviron/mediamtx
+Vcs-Git: https://github.com/bluenviron/mediamtx.git
+Rules-Requires-Root: no
+
+Package: mediamtx
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
+Description: Real-time media server and network video recorder
+ MediaMTX NVR is a production-grade media server with built-in NVR
+ capabilities. It supports RTSP, RTMP, HLS, WebRTC, and SRT protocols
+ with ONVIF camera integration, SQLite-backed recording management,
+ and a web-based administration interface.
+ .
+ Features include:
+  - Multi-protocol streaming (RTSP, RTMP, HLS, WebRTC, SRT)
+  - ONVIF camera auto-discovery and management
+  - Continuous and event-triggered recording
+  - Web-based admin console
+  - RESTful API for integration

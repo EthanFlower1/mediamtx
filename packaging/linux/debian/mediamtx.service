@@ -1,0 +1,36 @@
+[Unit]
+Description=MediaMTX NVR - Real-time media server and network video recorder
+Documentation=https://github.com/bluenviron/mediamtx
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mediamtx
+Group=mediamtx
+ExecStart=/usr/bin/mediamtx /etc/mediamtx/mediamtx.yml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/mediamtx /var/log/mediamtx
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mediamtx
+
+[Install]
+WantedBy=multi-user.target

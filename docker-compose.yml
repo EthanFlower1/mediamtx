@@ -1,0 +1,63 @@
+###############################################################
+# MediaMTX NVR - Docker Compose
+#
+# Quick start:
+#   docker compose up -d
+#
+# Build locally:
+#   docker compose up -d --build
+#
+# Multi-arch build + push (requires buildx):
+#   docker buildx bake -f docker-compose.yml --push
+###############################################################
+
+services:
+  mediamtx-nvr:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    image: mediamtx-nvr:latest
+    container_name: mediamtx-nvr
+    restart: unless-stopped
+
+    # Network mode "host" gives the best performance for UDP-heavy
+    # protocols (RTSP, WebRTC ICE). Switch to bridge + port mapping
+    # if host networking is not desired.
+    network_mode: host
+
+    environment:
+      # Override any mediamtx.yml setting via MTX_ env vars.
+      # See mediamtx.yml comments for the full list.
+      - MTX_LOGLEVEL=info
+      - MTX_API=yes
+      - MTX_NVR=yes
+      - MTX_PLAYBACK=yes
+      # Uncomment to set the NVR JWT secret (required for encrypted DB keys):
+      # - MTX_NVRJWTSECRET=change-me-to-a-strong-secret
+      # Uncomment to set timezone:
+      # - TZ=America/New_York
+
+    volumes:
+      # Configuration — persist mediamtx.yml edits across restarts
+      - mediamtx-config:/config
+      # SQLite database and NVR state
+      - mediamtx-data:/data
+      # Video recordings
+      - mediamtx-recordings:/recordings
+
+    # If NOT using network_mode: host, uncomment these ports:
+    # ports:
+    #   - "8554:8554"       # RTSP TCP
+    #   - "8000:8000/udp"   # RTSP RTP UDP
+    #   - "8001:8001/udp"   # RTSP RTCP UDP
+    #   - "1935:1935"       # RTMP
+    #   - "8888:8888"       # HLS
+    #   - "8889:8889"       # WebRTC HTTP
+    #   - "8189:8189/udp"   # WebRTC ICE UDP
+    #   - "9996:9996"       # API / Playback
+    #   - "9997:9997"       # Metrics
+
+volumes:
+  mediamtx-config:
+  mediamtx-data:
+  mediamtx-recordings:

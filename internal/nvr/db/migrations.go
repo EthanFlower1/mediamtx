@@ -578,7 +578,7 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 	{
 		version: 40,
 		sql: `
-		CREATE TABLE update_history (
+		CREATE TABLE IF NOT EXISTS update_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			from_version TEXT NOT NULL,
 			to_version TEXT NOT NULL,
@@ -590,8 +590,8 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			sha256_checksum TEXT NOT NULL DEFAULT '',
 			rollback_available INTEGER NOT NULL DEFAULT 0
 		);
-		CREATE INDEX idx_update_history_status ON update_history(status);
-		CREATE INDEX idx_update_history_started ON update_history(started_at);
+		CREATE INDEX IF NOT EXISTS idx_update_history_status ON update_history(status);
+		CREATE INDEX IF NOT EXISTS idx_update_history_started ON update_history(started_at);
 		`,
 	},
 	// Migration 41: Bulk export jobs and items (KAI-81).
@@ -669,6 +669,55 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_alerts_rule ON alerts(rule_id);
 		CREATE INDEX idx_alerts_created ON alerts(created_at);
 		CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
+		`,
+	},
+	// Migration 43: Brute-force protection - account lockout (KAI-77).
+	{
+		version: 43,
+		sql: `
+		ALTER TABLE users ADD COLUMN locked_until TEXT;
+		ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0;
+		`,
+	},
+	// Migration 44: Role-based access control (KAI-75).
+	{
+		version: 44,
+		sql: `
+		CREATE TABLE roles (
+			id TEXT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			permissions TEXT NOT NULL DEFAULT '[]',
+			is_system INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE user_camera_permissions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			permissions TEXT NOT NULL DEFAULT '[]',
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+			UNIQUE(user_id, camera_id)
+		);
+		CREATE INDEX idx_user_camera_perms_user ON user_camera_permissions(user_id);
+		CREATE INDEX idx_user_camera_perms_camera ON user_camera_permissions(camera_id);
+
+		ALTER TABLE users ADD COLUMN role_id TEXT NOT NULL DEFAULT '';
+
+		INSERT INTO roles (id, name, description, permissions, is_system) VALUES
+			('role-admin', 'admin', 'Full system access', '["view_live","view_playback","export","ptz_control","admin"]', 1),
+			('role-operator', 'operator', 'View, playback, export, and PTZ control', '["view_live","view_playback","export","ptz_control"]', 1),
+			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
+		`,
+	},
+	// Migration 45: Per-class confidence thresholds for AI detections (KAI-43).
+	{
+		version: 45,
+		sql: `
+		ALTER TABLE cameras ADD COLUMN confidence_thresholds TEXT NOT NULL DEFAULT '';
 		`,
 	},
 }

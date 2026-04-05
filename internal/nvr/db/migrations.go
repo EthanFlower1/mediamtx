@@ -574,6 +574,8 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
+<<<<<<< HEAD
+=======
 	// Migration 40: System update history (KAI-80).
 	{
 		version: 40,
@@ -713,4 +715,5 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
 		`,
 	},
+>>>>>>> origin/main
 }

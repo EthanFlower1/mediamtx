@@ -548,6 +548,13 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+<<<<<<< HEAD
+	protected.GET("/system/network", systemHandler.NetworkConfig)
+	protected.GET("/system/tls", systemHandler.TLSStatus)
+	protected.GET("/system/backup/database", systemHandler.BackupDatabase)
+	protected.POST("/system/backup/restore", systemHandler.RestoreDatabase)
+	protected.GET("/system/updates/check", systemHandler.CheckForUpdates)
+=======
 	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
 	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
@@ -616,6 +623,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/upload", tlsHandler.Upload)
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
+>>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

@@ -574,20 +574,39 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
-	// Migration 40: Bulk export jobs (KAI-34).
+	// Migration 40: System update history (KAI-80).
 	{
 		version: 40,
 		sql: `
-		CREATE TABLE bulk_export_jobs (
+		CREATE TABLE update_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			from_version TEXT NOT NULL,
+			to_version TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			started_at TEXT NOT NULL,
+			completed_at TEXT,
+			error_message TEXT,
+			initiated_by TEXT NOT NULL DEFAULT '',
+			sha256_checksum TEXT NOT NULL DEFAULT '',
+			rollback_available INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE INDEX idx_update_history_status ON update_history(status);
+		CREATE INDEX idx_update_history_started ON update_history(started_at);
+		`,
+	},
+	// Migration 41: Bulk export jobs and items (KAI-81).
+	{
+		version: 41,
+		sql: `
+		CREATE TABLE IF NOT EXISTS bulk_export_jobs (
 			id TEXT PRIMARY KEY,
 			status TEXT NOT NULL DEFAULT 'pending',
-			zip_path TEXT,
-			error_msg TEXT,
-			total_items INTEGER NOT NULL DEFAULT 0,
+			zip_path TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL,
-			completed_at TEXT
+			completed_at TEXT NOT NULL DEFAULT ''
 		);
-		CREATE TABLE bulk_export_items (
+		CREATE TABLE IF NOT EXISTS bulk_export_items (
 			id TEXT PRIMARY KEY,
 			job_id TEXT NOT NULL,
 			camera_id TEXT NOT NULL,
@@ -597,15 +616,64 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			status TEXT NOT NULL DEFAULT 'pending',
 			file_count INTEGER NOT NULL DEFAULT 0,
 			total_bytes INTEGER NOT NULL DEFAULT 0,
-			error_msg TEXT,
+			error TEXT,
 			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
 		);
-		CREATE INDEX idx_bulk_export_items_job ON bulk_export_items(job_id);
+		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
 		`,
 	},
-	// Migration 41: Brute-force protection — account lockout (KAI-77).
+	// Migration 42: System alerts and SMTP configuration (KAI-83).
 	{
-		version: 41,
+		version: 42,
+		sql: `
+		CREATE TABLE smtp_config (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			host TEXT NOT NULL DEFAULT '',
+			port INTEGER NOT NULL DEFAULT 587,
+			username TEXT NOT NULL DEFAULT '',
+			password TEXT NOT NULL DEFAULT '',
+			from_address TEXT NOT NULL DEFAULT '',
+			tls_enabled INTEGER NOT NULL DEFAULT 1,
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+		INSERT INTO smtp_config (id) VALUES (1);
+
+		CREATE TABLE alert_rules (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			rule_type TEXT NOT NULL CHECK(rule_type IN ('disk_usage', 'camera_offline', 'recording_gap')),
+			threshold_value REAL NOT NULL,
+			camera_id TEXT DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			notify_email INTEGER NOT NULL DEFAULT 1,
+			cooldown_minutes INTEGER NOT NULL DEFAULT 60,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE alerts (
+			id TEXT PRIMARY KEY,
+			rule_id TEXT NOT NULL,
+			rule_type TEXT NOT NULL,
+			severity TEXT NOT NULL DEFAULT 'warning',
+			message TEXT NOT NULL,
+			details TEXT DEFAULT '',
+			acknowledged INTEGER NOT NULL DEFAULT 0,
+			acknowledged_by TEXT DEFAULT '',
+			acknowledged_at TEXT DEFAULT '',
+			email_sent INTEGER NOT NULL DEFAULT 0,
+			email_error TEXT DEFAULT '',
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_alerts_rule ON alerts(rule_id);
+		CREATE INDEX idx_alerts_created ON alerts(created_at);
+		CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
+		`,
+	},
+	// Migration 43: Brute-force protection - account lockout (KAI-77).
+	{
+		version: 43,
 		sql: `
 		ALTER TABLE users ADD COLUMN locked_until TEXT;
 		ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0;

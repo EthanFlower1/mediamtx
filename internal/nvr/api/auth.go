@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -309,9 +310,19 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		UserID:    user.ID,
 		TokenHash: tokenHash,
 		ExpiresAt: refreshExpiry.UTC().Format("2006-01-02T15:04:05.000Z"),
+		IPAddress: c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
+		DeviceName: parseDeviceName(c.GetHeader("User-Agent")),
 	}
 	if err := h.DB.CreateRefreshToken(rt); err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to store refresh token", err)
+		return
+	}
+
+	// Re-build access token with session ID included.
+	accessToken, err = h.buildAccessTokenWithSession(user, now, rt.ID)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to generate access token", err)
 		return
 	}
 
@@ -366,8 +377,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Update session activity on refresh.
+	_ = h.DB.UpdateSessionActivity(rt.ID, c.ClientIP())
+
 	now := time.Now()
-	accessToken, err := h.buildAccessToken(user, now)
+	accessToken, err := h.buildAccessTokenWithSession(user, now, rt.ID)
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to generate access token on refresh", err)
 		return
@@ -414,6 +428,11 @@ func (h *AuthHandler) Revoke(c *gin.Context) {
 
 // buildAccessToken creates a signed RS256 JWT for the given user.
 func (h *AuthHandler) buildAccessToken(user *db.User, now time.Time) (string, error) {
+	return h.buildAccessTokenWithSession(user, now, "")
+}
+
+// buildAccessTokenWithSession creates a signed RS256 JWT that includes the session ID.
+func (h *AuthHandler) buildAccessTokenWithSession(user *db.User, now time.Time, sessionID string) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":                  user.ID,
 		"username":             user.Username,
@@ -423,6 +442,9 @@ func (h *AuthHandler) buildAccessToken(user *db.User, now time.Time) (string, er
 		"exp":                  now.Add(15 * time.Minute).Unix(),
 		"iat":                  now.Unix(),
 		"kid":                  "nvr-signing-key",
+	}
+	if sessionID != "" {
+		claims["session_id"] = sessionID
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -516,4 +538,41 @@ func generateRandomToken() (string, error) {
 func sha256Hash(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+// parseDeviceName extracts a human-readable device name from the User-Agent header.
+func parseDeviceName(ua string) string {
+	if ua == "" {
+		return "Unknown"
+	}
+
+	// Check for common patterns.
+	switch {
+	case contains(ua, "iPhone"):
+		return "iPhone"
+	case contains(ua, "iPad"):
+		return "iPad"
+	case contains(ua, "Android"):
+		return "Android Device"
+	case contains(ua, "Windows"):
+		return "Windows PC"
+	case contains(ua, "Macintosh") || contains(ua, "Mac OS"):
+		return "Mac"
+	case contains(ua, "Linux"):
+		return "Linux PC"
+	case contains(ua, "Flutter") || contains(ua, "Dart"):
+		return "Mobile App"
+	default:
+		// Truncate to something reasonable.
+		if len(ua) > 50 {
+			return ua[:50]
+		}
+		return ua
+	}
+}
+
+// contains checks if s contains substr (case-insensitive would be better,
+// but User-Agent strings are reliably cased).
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && strings.Contains(s, substr)
 }

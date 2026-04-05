@@ -115,6 +115,11 @@ type PipelineConfig struct {
 	ConfidenceThresh float32 // YOLO confidence threshold, default 0.5
 	TrackTimeout     int     // seconds before lost track marked "left", default 5
 
+	// ConfidenceThresholdsJSON is the raw JSON string from the camera's
+	// confidence_thresholds column. When non-empty it overrides
+	// DefaultConfidenceThresholds on a per-class basis.
+	ConfidenceThresholdsJSON string
+
 	// ONVIF metadata endpoint (empty = disabled).
 	ONVIFMetadataURL string
 	ONVIFUsername    string

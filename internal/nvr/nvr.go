@@ -76,17 +76,12 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-<<<<<<< HEAD
 	backchannelMgr   *backchannel.Manager
 	exportHandler    *api.ExportHandler
 	emailSender      *alerts.EmailSender
 	alertEvaluator   *alerts.Evaluator
-=======
-	backchannelMgr  *backchannel.Manager
-	exportHandler   *api.ExportHandler
 	backupSvc       *backup.Service
 	tlsManager      *crypto.TLSManager
->>>>>>> origin/main
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -952,14 +947,11 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
-<<<<<<< HEAD
 		EmailSender:     n.emailSender,
-=======
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,
->>>>>>> origin/main
 	})
 }
 

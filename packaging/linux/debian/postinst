@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    # Create mediamtx system user if it doesn't exist
+    if ! getent passwd mediamtx >/dev/null 2>&1; then
+      adduser --system --group --no-create-home \
+        --home /var/lib/mediamtx \
+        --shell /usr/sbin/nologin \
+        --gecos "MediaMTX NVR" \
+        mediamtx
+    fi
+
+    # Set ownership on data and log directories
+    chown -R mediamtx:mediamtx /var/lib/mediamtx
+    chown -R mediamtx:mediamtx /var/log/mediamtx
+
+    # Protect config file permissions
+    chmod 0640 /etc/mediamtx/mediamtx.yml
+    chown root:mediamtx /etc/mediamtx/mediamtx.yml
+
+    # Enable and start the service
+    systemctl daemon-reload
+    systemctl enable mediamtx.service
+    systemctl start mediamtx.service || true
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -31,13 +31,13 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
-	"github.com/bluenviron/mediamtx/internal/nvr/logmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/recovery"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/nvr/webhook"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -65,6 +65,7 @@ type NVR struct {
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
 	aiPipelines     map[string]*ai.Pipeline // camera ID -> pipeline
+	aiModelManager  *ai.ModelManager
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
@@ -77,13 +78,14 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-	backchannelMgr   *backchannel.Manager
-	exportHandler    *api.ExportHandler
-	emailSender      *alerts.EmailSender
-	alertEvaluator   *alerts.Evaluator
-	backupSvc        *backup.Service
-	tlsManager       *crypto.TLSManager
-	logManager       *logmgr.Manager
+	backchannelMgr      *backchannel.Manager
+	exportHandler       *api.ExportHandler
+	emailSender         *alerts.EmailSender
+	alertEvaluator      *alerts.Evaluator
+	backupSvc           *backup.Service
+	tlsManager          *crypto.TLSManager
+	detectionEvaluator  *scheduler.DetectionEvaluator
+	webhookDispatcher   *webhook.Dispatcher
 
 	firstBoot bool // true when the DB was freshly created (no prior state)
 }
@@ -253,17 +255,6 @@ func (n *NVR) Initialize() error {
 	// Start background certificate expiry monitor.
 	go n.runCertExpiryMonitor()
 
-	// Initialize structured log manager.
-	logDir := filepath.Join(filepath.Dir(n.DatabasePath), "logs")
-	logCfg := logmgr.DefaultConfig()
-	logCfg.LogDir = logDir
-	n.logManager, err = logmgr.New(logCfg, n.database)
-	if err != nil {
-		log.Printf("[NVR] [WARN] log manager initialization failed: %v", err)
-	} else {
-		log.Printf("[NVR] [INFO] structured log manager initialized, log dir: %s", logDir)
-	}
-
 	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
 	n.aiPipelines = make(map[string]*ai.Pipeline)
 	if err := ai.InitONNXRuntime(); err != nil {
@@ -282,6 +273,10 @@ func (n *NVR) Initialize() error {
 		} else {
 			log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
 		}
+
+		// Initialize model manager for hot-swap support.
+		n.aiModelManager = ai.NewModelManager(modelsDir, n.aiDetector, nanoPath)
+		log.Printf("AI: model manager initialized (models dir: %s)", modelsDir)
 
 		// Load CLIP embedder if model files exist (optional).
 		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
@@ -303,6 +298,10 @@ func (n *NVR) Initialize() error {
 		}
 
 		n.startAIPipelines()
+
+		// Start detection schedule evaluator to manage pipelines per schedule.
+		n.detectionEvaluator = scheduler.NewDetectionEvaluator(n.database, n)
+		n.detectionEvaluator.Start()
 	}
 
 	// Sync audio_transcode flag with YAML config: if a -live path exists
@@ -630,12 +629,19 @@ func (n *NVR) Close() {
 		n.ctxCancel()
 	}
 
+	// Stop detection evaluator before pipelines.
+	if n.detectionEvaluator != nil {
+		n.detectionEvaluator.Stop()
+	}
+
 	// Stop AI pipelines first so they don't write to the DB after it's closed.
 	for id, p := range n.aiPipelines {
 		p.Stop()
 		log.Printf("AI: stopped pipeline for camera %s", id)
 	}
-	if n.aiDetector != nil {
+	if n.aiModelManager != nil {
+		n.aiModelManager.Close()
+	} else if n.aiDetector != nil {
 		n.aiDetector.Close()
 	}
 	if n.aiEmbedder != nil {
@@ -672,9 +678,6 @@ func (n *NVR) Close() {
 	}
 	if n.maintenanceRunner != nil {
 		n.maintenanceRunner.Stop()
-	}
-	if n.logManager != nil {
-		n.logManager.Close()
 	}
 	if n.database != nil {
 		n.database.Close()
@@ -838,11 +841,15 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 		StreamURL:        streamURL,
 		StreamWidth:      streamWidth,
 		StreamHeight:     streamHeight,
-		ConfidenceThresh: float32(cam.AIConfidence),
-		TrackTimeout:     cam.AITrackTimeout,
+		ConfidenceThresh:         float32(cam.AIConfidence),
+		TrackTimeout:             cam.AITrackTimeout,
+		ConfidenceThresholdsJSON: cam.ConfidenceThresholds,
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	if n.webhookDispatcher != nil {
+		pipeline.SetDetectionCallback(n.webhookDispatcher.OnDetection)
+	}
 	pipeline.Start(n.ctx)
 	n.aiPipelines[cam.ID] = pipeline
 }
@@ -892,6 +899,43 @@ func (n *NVR) RestartAIPipeline(cameraID string) {
 	}
 
 	n.startSinglePipeline(cam)
+}
+
+// StartDetectionPipeline starts the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StartDetectionPipeline(cameraID string) {
+	if n.aiDetector == nil {
+		return
+	}
+	if _, running := n.aiPipelines[cameraID]; running {
+		return // already running
+	}
+
+	cam, err := n.database.GetCamera(cameraID)
+	if err != nil {
+		log.Printf("ai: start detection pipeline: get camera %s: %v", cameraID, err)
+		return
+	}
+	if !cam.AIEnabled {
+		return
+	}
+	n.startSinglePipeline(cam)
+}
+
+// StopDetectionPipeline stops the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StopDetectionPipeline(cameraID string) {
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+	}
+}
+
+// IsDetectionPipelineRunning returns true if the AI pipeline is running for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) IsDetectionPipelineRunning(cameraID string) bool {
+	_, ok := n.aiPipelines[cameraID]
+	return ok
 }
 
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted
@@ -1032,8 +1076,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
-		TLSManager:      n.tlsManager,
-		LogManager:      n.logManager,
+		TLSManager:          n.tlsManager,
+		DetectionEvaluator:  n.detectionEvaluator,
 	})
 }
 

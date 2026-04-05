@@ -678,6 +678,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+<<<<<<< HEAD
+	// CLIP search index management.
+	clipIndexHandler := &CLIPIndexHandler{
+		DB:       cfg.DB,
+		Embedder: cfg.Embedder,
+	}
+	protected.GET("/ai/clip/status", clipIndexHandler.Status)
+	protected.POST("/ai/clip/reindex", clipIndexHandler.Reindex)
+=======
 	// AI model management.
 	if cfg.ModelManager != nil {
 		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}
@@ -686,6 +695,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/ai/models/rollback", modelHandler.Rollback)
 		protected.POST("/ai/models/verify", modelHandler.Verify)
 	}
+>>>>>>> origin/main
 
 	// Evidence exports.
 	evidenceHandler := &EvidenceHandler{

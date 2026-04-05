@@ -123,4 +123,7 @@ type PipelineConfig struct {
 	// Deduplication settings.
 	DedupWindowSec int     // seconds to suppress duplicate entries, default 5
 	DedupMinIoU    float32 // minimum IoU overlap to consider duplicate, default 0.5
+
+	// Autoscaling settings.
+	Autoscale AutoscaleConfig
 }

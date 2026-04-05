@@ -43,8 +43,6 @@ func (h *CLIPIndexHandler) Status(c *gin.Context) {
 			"total_embeddings": totalEmbeddings,
 			"total_searchable": totalSearchable,
 			"coverage_percent": coveragePct,
-			"oldest_embedding": stats.OldestEmbedding,
-			"newest_embedding": stats.NewestEmbedding,
 		},
 		"detections": gin.H{
 			"total":          stats.DetectionTotal,

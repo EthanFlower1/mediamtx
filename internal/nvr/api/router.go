@@ -62,15 +62,9 @@ type RouterConfig struct {
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
-<<<<<<< HEAD
 	AIMetrics           *ai.DetectionMetrics // AI detection performance metrics (may be nil)
-=======
-<<<<<<< HEAD
 	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
-=======
 	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
->>>>>>> origin/main
->>>>>>> origin/main
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -578,13 +572,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
-<<<<<<< HEAD
-	protected.GET("/system/network", systemHandler.NetworkConfig)
-	protected.GET("/system/tls", systemHandler.TLSStatus)
-	protected.GET("/system/backup/database", systemHandler.BackupDatabase)
-	protected.POST("/system/backup/restore", systemHandler.RestoreDatabase)
-	protected.GET("/system/updates/check", systemHandler.CheckForUpdates)
-=======
 	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
 	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
@@ -653,7 +640,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/upload", tlsHandler.Upload)
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
->>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
@@ -682,21 +668,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
-<<<<<<< HEAD
-	// AI detection performance metrics.
-	aiMetricsHandler := &AIMetricsHandler{Collector: cfg.AIMetrics}
-	protected.GET("/ai/metrics", aiMetricsHandler.GetMetrics)
-	protected.GET("/ai/metrics/prometheus", aiMetricsHandler.GetMetricsPrometheus)
-=======
-<<<<<<< HEAD
-	// CLIP search index management.
-	clipIndexHandler := &CLIPIndexHandler{
-		DB:       cfg.DB,
-		Embedder: cfg.Embedder,
-	}
-	protected.GET("/ai/clip/status", clipIndexHandler.Status)
-	protected.POST("/ai/clip/reindex", clipIndexHandler.Reindex)
-=======
 	// AI model management.
 	if cfg.ModelManager != nil {
 		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}
@@ -705,8 +676,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/ai/models/rollback", modelHandler.Rollback)
 		protected.POST("/ai/models/verify", modelHandler.Verify)
 	}
->>>>>>> origin/main
->>>>>>> origin/main
 
 	// Evidence exports.
 	evidenceHandler := &EvidenceHandler{

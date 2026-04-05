@@ -63,11 +63,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 	var version int
 	err = d.QueryRow("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&version)
 	require.NoError(t, err)
-<<<<<<< HEAD
-	require.Equal(t, 42, version)
-=======
 	require.Equal(t, 44, version)
->>>>>>> origin/main
 }
 
 func TestOpenWALMode(t *testing.T) {

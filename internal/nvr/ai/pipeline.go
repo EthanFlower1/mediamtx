@@ -12,30 +12,14 @@ import (
 
 // Pipeline orchestrates the four detection stages for a single camera.
 type Pipeline struct {
-<<<<<<< HEAD
 	config            PipelineConfig
 	detector          *Detector
 	embedder          *Embedder
 	database          *db.DB
 	eventPub          EventPublisher
-	detectionCallback DetectionCallback // optional callback for webhook dispatch
-=======
-<<<<<<< HEAD
-	config   PipelineConfig
-	detector *Detector
-	embedder *Embedder
-	database *db.DB
-	eventPub EventPublisher
-	metrics  *DetectionMetrics
-=======
-	config     PipelineConfig
-	detector   *Detector
-	embedder   *Embedder
-	database   *db.DB
-	eventPub   EventPublisher
-	autoscaler *Autoscaler
->>>>>>> origin/main
->>>>>>> origin/main
+	detectionCallback DetectionCallback
+	metrics           *DetectionMetrics
+	autoscaler        *Autoscaler
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -155,14 +139,10 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 	}()
 
 	// Stage 4: Publisher
-<<<<<<< HEAD
-	publisher := NewPublisher(trackCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
+publisher := NewPublisher(dedupCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
 	if p.detectionCallback != nil {
 		publisher.SetDetectionCallback(p.detectionCallback)
 	}
-=======
-	publisher := NewPublisher(dedupCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
->>>>>>> origin/main
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()

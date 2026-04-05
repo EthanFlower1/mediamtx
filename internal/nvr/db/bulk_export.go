@@ -1,8 +1,7 @@
 package db
 
 import (
-	"database/sql"
-	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,15 +9,15 @@ import (
 
 // BulkExportJob represents a bulk export job.
 type BulkExportJob struct {
-	ID          string  `json:"id"`
-	Status      string  `json:"status"`
-	ZipPath     *string `json:"zip_path,omitempty"`
-	Error       *string `json:"error,omitempty"`
-	CreatedAt   string  `json:"created_at"`
-	CompletedAt *string `json:"completed_at,omitempty"`
+	ID          string `json:"id"`
+	Status      string `json:"status"`
+	ZipPath     *string `json:"zip_path"`
+	Error       string `json:"error"`
+	CreatedAt   string `json:"created_at"`
+	CompletedAt string `json:"completed_at"`
 }
 
-// BulkExportItem represents a single item in a bulk export job.
+// BulkExportItem represents a single item within a bulk export job.
 type BulkExportItem struct {
 	ID         string  `json:"id"`
 	JobID      string  `json:"job_id"`
@@ -29,50 +28,39 @@ type BulkExportItem struct {
 	Status     string  `json:"status"`
 	FileCount  int     `json:"file_count"`
 	TotalBytes int64   `json:"total_bytes"`
-	Error      *string `json:"error,omitempty"`
+	Error      *string `json:"error"`
 }
 
-// CreateBulkExportJob creates a new bulk export job and its items.
+// CreateBulkExportJob creates a new bulk export job with associated items.
 func (d *DB) CreateBulkExportJob(job *BulkExportJob, items []*BulkExportItem) error {
 	job.ID = uuid.New().String()
 	job.Status = "pending"
 	job.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 
-	tx, err := d.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(`INSERT INTO bulk_export_jobs (id, status, created_at) VALUES (?, ?, ?)`,
+	_, err := d.Exec(`INSERT INTO bulk_export_jobs (id, status, zip_path, error, created_at, completed_at) VALUES (?, ?, '', '', ?, '')`,
 		job.ID, job.Status, job.CreatedAt)
 	if err != nil {
-		return err
+		return fmt.Errorf("insert bulk export job: %w", err)
 	}
 
 	for _, item := range items {
 		item.ID = uuid.New().String()
 		item.JobID = job.ID
 		item.Status = "pending"
-		_, err = tx.Exec(`INSERT INTO bulk_export_items (id, job_id, camera_id, camera_name, start_time, end_time, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		_, err := d.Exec(`INSERT INTO bulk_export_items (id, job_id, camera_id, camera_name, start_time, end_time, status, file_count, total_bytes, error) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL)`,
 			item.ID, item.JobID, item.CameraID, item.CameraName, item.StartTime, item.EndTime, item.Status)
 		if err != nil {
-			return err
+			return fmt.Errorf("insert bulk export item: %w", err)
 		}
 	}
-
-	return tx.Commit()
+	return nil
 }
 
 // GetBulkExportJob retrieves a bulk export job by ID.
 func (d *DB) GetBulkExportJob(id string) (*BulkExportJob, error) {
+	row := d.QueryRow(`SELECT id, status, zip_path, error, created_at, completed_at FROM bulk_export_jobs WHERE id = ?`, id)
 	var job BulkExportJob
-	err := d.QueryRow(`SELECT id, status, zip_path, error, created_at, completed_at FROM bulk_export_jobs WHERE id = ?`, id).
-		Scan(&job.ID, &job.Status, &job.ZipPath, &job.Error, &job.CreatedAt, &job.CompletedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
+	if err := row.Scan(&job.ID, &job.Status, &job.ZipPath, &job.Error, &job.CreatedAt, &job.CompletedAt); err != nil {
 		return nil, err
 	}
 	return &job, nil
@@ -94,10 +82,10 @@ func (d *DB) GetBulkExportItems(jobID string) ([]*BulkExportItem, error) {
 		}
 		items = append(items, &item)
 	}
-	return items, rows.Err()
+	return items, nil
 }
 
-// ListBulkExportJobs returns the most recent bulk export jobs.
+// ListBulkExportJobs lists the most recent bulk export jobs.
 func (d *DB) ListBulkExportJobs(limit int) ([]*BulkExportJob, error) {
 	rows, err := d.Query(`SELECT id, status, zip_path, error, created_at, completed_at FROM bulk_export_jobs ORDER BY created_at DESC LIMIT ?`, limit)
 	if err != nil {
@@ -113,37 +101,42 @@ func (d *DB) ListBulkExportJobs(limit int) ([]*BulkExportJob, error) {
 		}
 		jobs = append(jobs, &job)
 	}
-	return jobs, rows.Err()
+	return jobs, nil
 }
 
-// CompleteBulkExportJob updates a job's status, zip path, and error.
-func (d *DB) CompleteBulkExportJob(jobID, status string, zipPath, errMsg *string) error {
-	completedAt := time.Now().UTC().Format(time.RFC3339)
-	_, err := d.Exec(`UPDATE bulk_export_jobs SET status = ?, zip_path = ?, error = ?, completed_at = ? WHERE id = ?`,
-		status, zipPath, errMsg, completedAt, jobID)
-	return err
-}
-
-// UpdateBulkExportItemStatus updates an item's status, file count, and bytes.
-func (d *DB) UpdateBulkExportItemStatus(itemID, status string, fileCount int, totalBytes int64, errMsg *string) error {
-	_, err := d.Exec(`UPDATE bulk_export_items SET status = ?, file_count = ?, total_bytes = ?, error = ? WHERE id = ?`,
-		status, fileCount, totalBytes, errMsg, itemID)
-	return err
-}
-
-// DeleteBulkExportJob deletes a job and its items.
-func (d *DB) DeleteBulkExportJob(jobID string) error {
-	tx, err := d.Begin()
+// DeleteBulkExportJob deletes a bulk export job and its items.
+func (d *DB) DeleteBulkExportJob(id string) error {
+	_, err := d.Exec(`DELETE FROM bulk_export_items WHERE job_id = ?`, id)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	_, err = d.Exec(`DELETE FROM bulk_export_jobs WHERE id = ?`, id)
+	return err
+}
 
-	if _, err := tx.Exec(`DELETE FROM bulk_export_items WHERE job_id = ?`, jobID); err != nil {
-		return err
+// CompleteBulkExportJob updates a job's status and optionally sets zip_path and error.
+func (d *DB) CompleteBulkExportJob(jobID, status string, zipPath *string, errMsg *string) error {
+	zp := ""
+	if zipPath != nil {
+		zp = *zipPath
 	}
-	if _, err := tx.Exec(`DELETE FROM bulk_export_jobs WHERE id = ?`, jobID); err != nil {
-		return err
+	em := ""
+	if errMsg != nil {
+		em = *errMsg
 	}
-	return tx.Commit()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.Exec(`UPDATE bulk_export_jobs SET status = ?, zip_path = ?, error = ?, completed_at = ? WHERE id = ?`,
+		status, zp, em, now, jobID)
+	return err
+}
+
+// UpdateBulkExportItemStatus updates an item's status and counts.
+func (d *DB) UpdateBulkExportItemStatus(itemID, status string, fileCount int, totalBytes int64, errMsg *string) error {
+	em := ""
+	if errMsg != nil {
+		em = *errMsg
+	}
+	_, err := d.Exec(`UPDATE bulk_export_items SET status = ?, file_count = ?, total_bytes = ?, error = ? WHERE id = ?`,
+		status, fileCount, totalBytes, em, itemID)
+	return err
 }

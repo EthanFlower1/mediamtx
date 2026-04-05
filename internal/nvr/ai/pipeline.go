@@ -59,6 +59,7 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 	frameCh := make(chan Frame, 1)
 	detCh := make(chan DetectionFrame, 1)
 	trackCh := make(chan TrackedFrame, 1)
+	dedupCh := make(chan TrackedFrame, 1)
 
 	// Stage 1: FrameSrc
 	frameSrc := NewFrameSrc(p.config.StreamURL, width, height, frameCh)
@@ -103,8 +104,16 @@ func (p *Pipeline) Start(parentCtx context.Context) {
 		tracker.Run(ctx)
 	}()
 
+	// Stage 3.5: Deduplicator (suppresses duplicate enter events)
+	dedup := NewDeduplicator(trackCh, dedupCh, p.config.DedupWindowSec, p.config.DedupMinIoU)
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		dedup.Run(ctx)
+	}()
+
 	// Stage 4: Publisher
-	publisher := NewPublisher(trackCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
+	publisher := NewPublisher(dedupCh, p.config.CameraID, p.config.CameraName, p.eventPub, p.database, p.embedder)
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()

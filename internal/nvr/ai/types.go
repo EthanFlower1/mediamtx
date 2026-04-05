@@ -108,6 +108,7 @@ type EventPublisher interface {
 type PipelineConfig struct {
 	CameraID         string
 	CameraName       string
+	ModelName        string  // ONNX model name for metrics labeling (default "yolov8n")
 	StreamURL        string  // RTSP URL of the stream to decode
 	StreamWidth      int     // expected frame width (0 = probe via ffprobe)
 	StreamHeight     int     // expected frame height (0 = probe via ffprobe)
@@ -118,4 +119,8 @@ type PipelineConfig struct {
 	ONVIFMetadataURL string
 	ONVIFUsername    string
 	ONVIFPassword    string
+
+	// Deduplication settings.
+	DedupWindowSec int     // seconds to suppress duplicate entries, default 5
+	DedupMinIoU    float32 // minimum IoU overlap to consider duplicate, default 0.5
 }

@@ -63,9 +63,13 @@ type RouterConfig struct {
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
 <<<<<<< HEAD
+	AIMetrics           *ai.DetectionMetrics // AI detection performance metrics (may be nil)
+=======
+<<<<<<< HEAD
 	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
 =======
 	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
+>>>>>>> origin/main
 >>>>>>> origin/main
 }
 
@@ -679,6 +683,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
 <<<<<<< HEAD
+	// AI detection performance metrics.
+	aiMetricsHandler := &AIMetricsHandler{Collector: cfg.AIMetrics}
+	protected.GET("/ai/metrics", aiMetricsHandler.GetMetrics)
+	protected.GET("/ai/metrics/prometheus", aiMetricsHandler.GetMetricsPrometheus)
+=======
+<<<<<<< HEAD
 	// CLIP search index management.
 	clipIndexHandler := &CLIPIndexHandler{
 		DB:       cfg.DB,
@@ -695,6 +705,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/ai/models/rollback", modelHandler.Rollback)
 		protected.POST("/ai/models/verify", modelHandler.Verify)
 	}
+>>>>>>> origin/main
 >>>>>>> origin/main
 
 	// Evidence exports.

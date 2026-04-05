@@ -197,10 +197,11 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
 
   Future<void> _downloadScreenshot(String imageUrl, String cameraName, String createdAt) async {
     try {
-      final dir = await _getDownloadDir();
+      final dir = await getTemporaryDirectory();
       final safeCamera = cameraName.replaceAll(RegExp(r'[^\w\-]'), '_');
       final safeTime = createdAt.replaceAll(RegExp(r'[^\w\-]'), '_');
-      final filePath = '${dir.path}/${safeCamera}_$safeTime.jpg';
+      final fileName = '${safeCamera}_$safeTime.jpg';
+      final filePath = '${dir.path}/$fileName';
 
       final token = await _getAccessToken();
       await Dio().download(
@@ -211,14 +212,11 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
         ),
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: NvrColors.of(context).success,
-            content: Text('Saved to $filePath'),
-          ),
-        );
-      }
+      // Use share sheet so user can choose save location (works on all platforms)
+      await Share.shareXFiles(
+        [XFile(filePath, name: fileName)],
+        text: '$cameraName - $createdAt',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

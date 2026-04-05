@@ -20,6 +20,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/nvr/logmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
@@ -68,6 +69,7 @@ type RouterConfig struct {
 	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
 	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
 	MigrationMgr        MigrationStatusProvider // upgrade migration manager (may be nil)
+	LogManager          *logmgr.Manager    // structured log manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -600,6 +602,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		migrationHandler := &MigrationHandler{Manager: cfg.MigrationMgr}
 		protected.GET("/system/migration-status", migrationHandler.Status)
 	}
+
+	// Logging configuration.
+	logConfigHandler := &LogConfigHandler{LogManager: cfg.LogManager}
+	protected.GET("/system/logging/config", logConfigHandler.GetLoggingConfig)
+	protected.PUT("/system/logging/config", logConfigHandler.UpdateLoggingConfig)
+	protected.GET("/system/logging/crashes/:filename", logConfigHandler.GetCrashDump)
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}

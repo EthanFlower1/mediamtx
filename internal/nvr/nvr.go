@@ -37,6 +37,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/nvr/webhook"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -78,6 +79,13 @@ type NVR struct {
 	maintenanceRunner *db.MaintenanceRunner
 
 <<<<<<< HEAD
+	backchannelMgr    *backchannel.Manager
+	exportHandler     *api.ExportHandler
+	backupSvc         *backup.Service
+	tlsManager        *crypto.TLSManager
+	webhookDispatcher *webhook.Dispatcher
+=======
+<<<<<<< HEAD
 	backchannelMgr  *backchannel.Manager
 	exportHandler   *api.ExportHandler
 	backupSvc       *backup.Service
@@ -93,6 +101,7 @@ type NVR struct {
 	tlsManager       *crypto.TLSManager
 
 	firstBoot bool // true when the DB was freshly created (no prior state)
+>>>>>>> origin/main
 >>>>>>> origin/main
 }
 
@@ -379,6 +388,11 @@ func (n *NVR) Initialize() error {
 	}
 	go n.integrityScanner.Run(n.ctx)
 
+<<<<<<< HEAD
+	// Start webhook dispatcher for detection event delivery.
+	n.webhookDispatcher = webhook.New(n.database)
+	n.webhookDispatcher.Start()
+=======
 	// Start the alert evaluator and email sender.
 	n.emailSender = &alerts.EmailSender{DB: n.database}
 	n.alertEvaluator = &alerts.Evaluator{
@@ -387,6 +401,7 @@ func (n *NVR) Initialize() error {
 		EmailSender:    n.emailSender,
 	}
 	n.alertEvaluator.Start(n.ctx)
+>>>>>>> origin/main
 
 	return nil
 }
@@ -664,8 +679,13 @@ func (n *NVR) Close() {
 	if n.exportHandler != nil {
 		n.exportHandler.Stop()
 	}
+<<<<<<< HEAD
+	if n.webhookDispatcher != nil {
+		n.webhookDispatcher.Stop()
+=======
 	if n.alertEvaluator != nil {
 		n.alertEvaluator.Stop()
+>>>>>>> origin/main
 	}
 	if n.connMgr != nil {
 		n.connMgr.Stop()
@@ -852,6 +872,9 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	if n.webhookDispatcher != nil {
+		pipeline.SetDetectionCallback(n.webhookDispatcher.OnDetection)
+	}
 	pipeline.Start(n.ctx)
 	n.aiPipelines[cam.ID] = pipeline
 }

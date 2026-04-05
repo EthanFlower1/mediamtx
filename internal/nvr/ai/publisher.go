@@ -19,6 +19,9 @@ var importantClasses = map[string]bool{
 	"elephant": true, "bear": true, "zebra": true, "giraffe": true,
 }
 
+// DetectionCallback is called when a detection is stored, enabling webhook dispatch.
+type DetectionCallback func(cameraID, cameraName string, det *db.Detection)
+
 // Publisher handles all output from tracked frames: WebSocket broadcast,
 // database persistence, and CLIP embedding generation.
 type Publisher struct {
@@ -28,6 +31,7 @@ type Publisher struct {
 	eventPub   EventPublisher
 	database   *db.DB
 	embedder   *Embedder // may be nil
+	onDetection DetectionCallback // optional webhook callback
 
 	mu            sync.Mutex
 	activeEventID int64
@@ -51,6 +55,11 @@ func NewPublisher(
 		embedder:     embedder,
 		lastStoredAt: make(map[int]time.Time),
 	}
+}
+
+// SetDetectionCallback sets an optional callback invoked after each detection is stored.
+func (pub *Publisher) SetDetectionCallback(cb DetectionCallback) {
+	pub.onDetection = cb
 }
 
 // Run processes tracked frames until the input channel closes or ctx is cancelled.
@@ -200,6 +209,8 @@ func (pub *Publisher) storeDetection(obj TrackedObject, ts time.Time, img image.
 
 	if err := pub.database.InsertDetection(det); err != nil {
 		log.Printf("[ai][%s] insert detection: %v", pub.cameraName, err)
+	} else if pub.onDetection != nil {
+		pub.onDetection(pub.cameraID, pub.cameraName, det)
 	}
 	pub.lastStoredAt[obj.TrackID] = ts
 }

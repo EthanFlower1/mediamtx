@@ -119,9 +119,7 @@ type PipelineConfig struct {
 	ONVIFUsername    string
 	ONVIFPassword    string
 
-	// Autoscale configures detection pipeline auto-scaling based on system
-	// resource usage. When enabled the pipeline dynamically adjusts the frame
-	// sampling interval to shed load under pressure and restore throughput
-	// when resources are available again.
-	Autoscale AutoscaleConfig
+	// Deduplication settings.
+	DedupWindowSec int     // seconds to suppress duplicate entries, default 5
+	DedupMinIoU    float32 // minimum IoU overlap to consider duplicate, default 0.5
 }

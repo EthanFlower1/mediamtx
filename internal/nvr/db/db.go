@@ -12,6 +12,12 @@ import (
 // DB wraps a *sql.DB connected to the NVR SQLite database.
 type DB struct {
 	*sql.DB
+	path string
+}
+
+// Path returns the file path of the database.
+func (d *DB) Path() string {
+	return d.path
 }
 
 // Open opens (or creates) the SQLite database at path, enables foreign keys,
@@ -45,7 +51,7 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("database ping: %w", err)
 	}
 
-	d := &DB{DB: sqlDB}
+	d := &DB{DB: sqlDB, path: path}
 
 	if err := d.runMigrations(); err != nil {
 		sqlDB.Close()

@@ -92,10 +92,39 @@ interface ConfigExport {
   users: unknown[]
 }
 
-type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 'audit' | 'performance' | 'ai'
+interface NetworkProtocol {
+  address: string
+  port: string
+  encryption: string
+}
+
+interface NetworkConfig {
+  protocols: Record<string, NetworkProtocol>
+}
+
+interface TLSServiceInfo {
+  encryption: boolean
+  cert_path: string
+  key_path: string
+  cert_exists: boolean
+  key_exists: boolean
+}
+
+interface TLSStatus {
+  services: Record<string, TLSServiceInfo>
+}
+
+interface UpdateInfo {
+  current_version: string
+  update_available: boolean
+  message: string
+}
+
+type TabId = 'system' | 'appearance' | 'notifications' | 'storage' | 'config' | 'audit' | 'performance' | 'ai' | 'sysconfig'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'system', label: 'System' },
+  { id: 'sysconfig', label: 'System Config' },
   { id: 'storage', label: 'Storage' },
   { id: 'ai', label: 'AI Analytics' },
   { id: 'notifications', label: 'Notifications' },
@@ -107,6 +136,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 const TAB_DESCRIPTIONS: Record<TabId, string> = {
   system: 'System version, uptime, and server information',
+  sysconfig: 'Network settings, TLS certificates, database backup, and software updates',
   storage: 'Disk usage and per-camera storage breakdown',
   ai: 'AI-powered object detection, classification, and semantic search',
   notifications: 'Configure how you receive alerts for motion and camera events',
@@ -280,6 +310,14 @@ export default function Settings() {
   const [configSummary, setConfigSummary] = useState<ConfigSummary | null>(null)
   const [configLoading, setConfigLoading] = useState(true)
 
+  // Branding state
+  const [brandingProductName, setBrandingProductName] = useState('MediaMTX NVR')
+  const [brandingAccentColor, setBrandingAccentColor] = useState('#6366f1')
+  const [brandingLogoURL, setBrandingLogoURL] = useState('')
+  const [brandingSaving, setBrandingSaving] = useState(false)
+  const [brandingLogoUploading, setBrandingLogoUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
   // Appearance state
   const [theme, setTheme] = useState(() => localStorage.getItem('nvr-theme') || 'dark')
   const [defaultLayout, setDefaultLayout] = useState(() => {
@@ -310,6 +348,18 @@ export default function Settings() {
     localStorage.setItem('nvr-theme', theme)
   }, [theme])
 
+  // Fetch branding config
+  useEffect(() => {
+    apiFetch('/system/branding').then(async res => {
+      if (res.ok) {
+        const data = await res.json()
+        setBrandingProductName(data.product_name || 'MediaMTX NVR')
+        setBrandingAccentColor(data.accent_color || '#6366f1')
+        setBrandingLogoURL(data.logo_url || '')
+      }
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     apiFetch('/system/info').then(async res => {
       if (res.ok) setSystemInfo(await res.json())
@@ -321,6 +371,19 @@ export default function Settings() {
       if (res.ok) setConfigSummary(await res.json())
       setConfigLoading(false)
     }).catch(() => setConfigLoading(false))
+  }, [])
+
+  // Fetch network config and TLS status for System Config tab
+  useEffect(() => {
+    apiFetch('/system/network').then(async res => {
+      if (res.ok) setNetworkConfig(await res.json())
+      setNetworkLoading(false)
+    }).catch(() => setNetworkLoading(false))
+
+    apiFetch('/system/tls').then(async res => {
+      if (res.ok) setTlsStatus(await res.json())
+      setTlsLoading(false)
+    }).catch(() => setTlsLoading(false))
   }, [])
 
   // Fetch WebRTC stream count
@@ -490,6 +553,68 @@ export default function Settings() {
     }
   }
 
+  // Branding handlers
+  const handleBrandingSave = async () => {
+    setBrandingSaving(true)
+    try {
+      const res = await apiFetch('/system/branding', {
+        method: 'PUT',
+        body: JSON.stringify({
+          product_name: brandingProductName,
+          accent_color: brandingAccentColor,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setBrandingProductName(data.product_name)
+        setBrandingAccentColor(data.accent_color)
+        // Dispatch a custom event so the header can update immediately.
+        window.dispatchEvent(new CustomEvent('branding-updated', { detail: data }))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setBrandingSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async (file: File) => {
+    setBrandingLogoUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('logo', file)
+
+      const token = (await import('../api/client')).getAccessToken()
+      const res = await fetch('/api/nvr/system/branding/logo', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+        body: formData,
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setBrandingLogoURL(data.logo_url)
+        window.dispatchEvent(new CustomEvent('branding-updated', { detail: { logo_url: data.logo_url } }))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setBrandingLogoUploading(false)
+    }
+  }
+
+  const handleLogoDelete = async () => {
+    try {
+      const res = await apiFetch('/system/branding/logo', { method: 'DELETE' })
+      if (res.ok) {
+        setBrandingLogoURL('')
+        window.dispatchEvent(new CustomEvent('branding-updated', { detail: { logo_url: '' } }))
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   // Appearance handlers
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme)
@@ -521,6 +646,73 @@ export default function Settings() {
   const handleNotifSound = (v: boolean) => {
     setNotifSound(v)
     localStorage.setItem('nvr-notif-sound', String(v))
+  }
+
+  // System Config handlers
+  const handleCheckForUpdates = async () => {
+    setUpdateLoading(true)
+    try {
+      const res = await apiFetch('/system/updates/check')
+      if (res.ok) setUpdateInfo(await res.json())
+    } finally {
+      setUpdateLoading(false)
+    }
+  }
+
+  const handleDbBackup = async () => {
+    setDbBackupLoading(true)
+    try {
+      const res = await apiFetch('/system/backup/database')
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `nvr-database-backup-${new Date().toISOString().slice(0, 10)}.db`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } finally {
+      setDbBackupLoading(false)
+    }
+  }
+
+  const handleDbRestoreSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setDbRestoreLoading(true)
+    setDbRestoreResult(null)
+    setDbRestoreError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('database', file)
+
+      const headers = new Headers()
+      const token = (await import('../api/client')).getAccessToken()
+      if (token) headers.set('Authorization', `Bearer ${token}`)
+
+      const res = await fetch('/api/nvr/system/backup/restore', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: formData,
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        setDbRestoreResult(data.message)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setDbRestoreError(data.error || 'Restore failed')
+      }
+    } catch {
+      setDbRestoreError('Network error during restore')
+    } finally {
+      setDbRestoreLoading(false)
+      if (dbRestoreInputRef.current) dbRestoreInputRef.current.value = ''
+    }
   }
 
   // Cleanup dialog state
@@ -776,6 +968,124 @@ export default function Settings() {
               <span className="text-xs text-nvr-text-muted">5s</span>
               <span className="text-xs text-nvr-text-muted">60s</span>
             </div>
+          </div>
+
+          {/* Branding customization */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-1">Branding</h2>
+            <p className="text-xs text-nvr-text-muted mb-4">
+              Customize the product name, accent color, and logo shown throughout the NVR interface. Changes persist across restarts.
+            </p>
+
+            {/* Logo upload */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-nvr-text-secondary mb-2">Logo</label>
+              <div className="flex items-center gap-4">
+                {brandingLogoURL ? (
+                  <div className="w-12 h-12 rounded-lg bg-nvr-bg-primary border border-nvr-border flex items-center justify-center overflow-hidden">
+                    <img src={brandingLogoURL} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-nvr-bg-primary border border-nvr-border flex items-center justify-center">
+                    <svg className="w-6 h-6 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                    </svg>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleLogoUpload(file)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={brandingLogoUploading}
+                    className="px-3 py-1.5 text-xs font-medium bg-nvr-bg-primary border border-nvr-border rounded-lg text-nvr-text-secondary hover:text-nvr-text-primary hover:border-nvr-text-muted transition-colors disabled:opacity-50"
+                  >
+                    {brandingLogoUploading ? 'Uploading...' : 'Upload Logo'}
+                  </button>
+                  {brandingLogoURL && (
+                    <button
+                      onClick={handleLogoDelete}
+                      className="px-3 py-1.5 text-xs font-medium text-nvr-danger border border-nvr-border rounded-lg hover:bg-nvr-danger/10 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-nvr-text-muted mt-1.5">PNG, JPEG, SVG, or WebP. Max 2 MB.</p>
+            </div>
+
+            {/* Product name */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-nvr-text-secondary mb-2">Product Name</label>
+              <input
+                type="text"
+                value={brandingProductName}
+                onChange={(e) => setBrandingProductName(e.target.value)}
+                maxLength={100}
+                className="w-full max-w-sm px-3 py-2 bg-nvr-bg-primary border border-nvr-border rounded-lg text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent/30 outline-none transition-colors"
+                placeholder="MediaMTX NVR"
+              />
+            </div>
+
+            {/* Accent color */}
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-nvr-text-secondary mb-2">Accent Color</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={brandingAccentColor}
+                  onChange={(e) => setBrandingAccentColor(e.target.value)}
+                  className="w-10 h-10 rounded-lg border border-nvr-border cursor-pointer bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={brandingAccentColor}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setBrandingAccentColor(v)
+                  }}
+                  maxLength={7}
+                  className="w-28 px-3 py-2 bg-nvr-bg-primary border border-nvr-border rounded-lg text-sm text-nvr-text-primary font-mono focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent/30 outline-none transition-colors"
+                  placeholder="#6366f1"
+                />
+                <div
+                  className="w-24 h-8 rounded-lg border border-nvr-border"
+                  style={{ backgroundColor: brandingAccentColor }}
+                />
+              </div>
+              <div className="flex gap-2 mt-2">
+                {['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'].map(color => (
+                  <button
+                    key={color}
+                    onClick={() => setBrandingAccentColor(color)}
+                    className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                      brandingAccentColor === color ? 'border-white scale-110' : 'border-transparent'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Save button */}
+            <button
+              onClick={handleBrandingSave}
+              disabled={brandingSaving}
+              className="px-4 py-2 text-sm font-medium bg-nvr-accent text-white rounded-lg hover:bg-nvr-accent/90 transition-colors disabled:opacity-50"
+            >
+              {brandingSaving ? 'Saving...' : 'Save Branding'}
+            </button>
           </div>
         </div>
       )}
@@ -1464,6 +1774,285 @@ export default function Settings() {
               <span className="text-nvr-text-muted text-sm">Loading metrics...</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ===== SYSTEM CONFIG TAB ===== */}
+      {activeTab === 'sysconfig' && (
+        <div className="space-y-6">
+          {/* Network Settings */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+              </svg>
+              <h2 className="text-lg font-semibold text-nvr-text-primary">Network Settings</h2>
+            </div>
+            <p className="text-xs text-nvr-text-muted mb-4">
+              Bind addresses and ports for each protocol. These are read from mediamtx.yml and require a server restart to change.
+            </p>
+
+            {networkLoading ? (
+              <div className="flex items-center gap-2 py-6 justify-center">
+                <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                <span className="text-nvr-text-muted text-sm">Loading network config...</span>
+              </div>
+            ) : networkConfig ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-nvr-text-muted border-b border-nvr-border/50">
+                      <th className="text-left py-2 font-medium">Protocol</th>
+                      <th className="text-left py-2 font-medium">Address</th>
+                      <th className="text-left py-2 font-medium">Port</th>
+                      <th className="text-left py-2 font-medium">Encryption</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(networkConfig.protocols).map(([name, proto]) => (
+                      <tr key={name} className="border-b border-nvr-border/30 hover:bg-nvr-bg-tertiary/30 transition-colors">
+                        <td className="py-2.5 text-nvr-text-primary font-medium uppercase">{name}</td>
+                        <td className="py-2.5 text-nvr-text-secondary font-mono">{proto.address}</td>
+                        <td className="py-2.5 text-nvr-text-primary font-mono font-semibold">{proto.port}</td>
+                        <td className="py-2.5">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                            proto.encryption === 'yes' || proto.encryption === 'strict'
+                              ? 'bg-green-500/20 text-green-400'
+                              : proto.encryption === 'optional'
+                                ? 'bg-yellow-500/20 text-yellow-400'
+                                : 'bg-nvr-text-muted/20 text-nvr-text-muted'
+                          }`}>
+                            {proto.encryption}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-nvr-text-muted text-sm text-center py-4">Unable to load network configuration.</p>
+            )}
+          </div>
+
+          {/* TLS Certificates */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h2 className="text-lg font-semibold text-nvr-text-primary">TLS Certificates</h2>
+            </div>
+            <p className="text-xs text-nvr-text-muted mb-4">
+              TLS/SSL certificate status for encrypted protocols. Configure certificate paths in mediamtx.yml.
+            </p>
+
+            {tlsLoading ? (
+              <div className="flex items-center gap-2 py-6 justify-center">
+                <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                <span className="text-nvr-text-muted text-sm">Loading TLS status...</span>
+              </div>
+            ) : tlsStatus ? (
+              <div className="space-y-3">
+                {Object.entries(tlsStatus.services).map(([name, svc]) => (
+                  <div key={name} className="bg-nvr-bg-primary rounded-lg p-4 border border-nvr-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-nvr-text-primary uppercase">{name}</span>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        svc.encryption
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-nvr-text-muted/20 text-nvr-text-muted'
+                      }`}>
+                        {svc.encryption ? 'Encryption Enabled' : 'Encryption Disabled'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${svc.cert_exists ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-nvr-text-secondary">Certificate:</span>
+                        <span className="text-nvr-text-primary font-mono truncate" title={svc.cert_path}>{svc.cert_path}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${svc.key_exists ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-nvr-text-secondary">Key:</span>
+                        <span className="text-nvr-text-primary font-mono truncate" title={svc.key_path}>{svc.key_path}</span>
+                      </div>
+                    </div>
+                    {svc.encryption && (!svc.cert_exists || !svc.key_exists) && (
+                      <div className="mt-2 bg-red-500/10 border border-red-500/20 rounded-lg p-2 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        <span className="text-xs text-red-400">
+                          {!svc.cert_exists && !svc.key_exists
+                            ? 'Certificate and key files not found. Encryption may fail.'
+                            : !svc.cert_exists
+                              ? 'Certificate file not found.'
+                              : 'Key file not found.'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-nvr-text-muted text-sm text-center py-4">Unable to load TLS status.</p>
+            )}
+          </div>
+
+          {/* Database Backup & Restore */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              </svg>
+              <h2 className="text-lg font-semibold text-nvr-text-primary">Database Backup & Restore</h2>
+            </div>
+            <p className="text-xs text-nvr-text-muted mb-4">
+              Back up the full SQLite database including cameras, users, recording rules, and all settings.
+              For configuration-only backup, use the Configuration tab.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Backup */}
+              <div>
+                <h3 className="text-sm font-medium text-nvr-text-secondary mb-2">Download Backup</h3>
+                <p className="text-xs text-nvr-text-muted mb-3">
+                  Download a complete copy of the NVR database file.
+                </p>
+                <button
+                  onClick={handleDbBackup}
+                  disabled={dbBackupLoading}
+                  className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 w-full justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  {dbBackupLoading ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Preparing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Download Database
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Restore */}
+              <div>
+                <h3 className="text-sm font-medium text-nvr-text-secondary mb-2">Restore from Backup</h3>
+                <p className="text-xs text-nvr-text-muted mb-3">
+                  Upload a previously backed up database file. A server restart is required after restore.
+                </p>
+                <button
+                  onClick={() => dbRestoreInputRef.current?.click()}
+                  disabled={dbRestoreLoading}
+                  className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2.5 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 w-full justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  {dbRestoreLoading ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                      Restoring...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                      Upload Database File
+                    </>
+                  )}
+                </button>
+                <input
+                  ref={dbRestoreInputRef}
+                  type="file"
+                  accept=".db,.sqlite,.sqlite3"
+                  onChange={handleDbRestoreSelect}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
+            {dbRestoreResult && (
+              <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-amber-400">{dbRestoreResult}</span>
+              </div>
+            )}
+            {dbRestoreError && (
+              <p className="text-nvr-danger text-sm mt-3">{dbRestoreError}</p>
+            )}
+          </div>
+
+          {/* Check for Updates */}
+          <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4 md:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <svg className="w-5 h-5 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <h2 className="text-lg font-semibold text-nvr-text-primary">Software Updates</h2>
+            </div>
+
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex-1">
+                <p className="text-sm text-nvr-text-secondary">
+                  Current version: <span className="font-mono font-semibold text-nvr-text-primary">
+                    {systemInfo ? `v${systemInfo.version}` : '--'}
+                  </span>
+                </p>
+                {updateInfo && (
+                  <p className="text-xs text-nvr-text-muted mt-1">{updateInfo.message}</p>
+                )}
+              </div>
+              <button
+                onClick={handleCheckForUpdates}
+                disabled={updateLoading}
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm inline-flex items-center gap-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                {updateLoading ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-nvr-accent/30 border-t-nvr-accent rounded-full animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  'Check for Updates'
+                )}
+              </button>
+            </div>
+
+            {updateInfo && (
+              <div className={`rounded-lg p-3 flex items-center gap-2 ${
+                updateInfo.update_available
+                  ? 'bg-nvr-accent/10 border border-nvr-accent/20'
+                  : 'bg-green-500/10 border border-green-500/20'
+              }`}>
+                {updateInfo.update_available ? (
+                  <>
+                    <svg className="w-4 h-4 text-nvr-accent shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                    </svg>
+                    <span className="text-sm text-nvr-accent">An update is available.</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-green-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-green-400">{updateInfo.message}</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

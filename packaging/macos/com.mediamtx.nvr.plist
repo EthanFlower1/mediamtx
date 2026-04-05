@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mediamtx.nvr</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/mediamtx</string>
+        <string>/usr/local/etc/mediamtx/mediamtx.yml</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>WorkingDirectory</key>
+    <string>/usr/local/var/lib/mediamtx</string>
+
+    <key>StandardOutPath</key>
+    <string>/usr/local/var/log/mediamtx/mediamtx.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/usr/local/var/log/mediamtx/mediamtx.err.log</string>
+
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>65536</integer>
+    </dict>
+
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>65536</integer>
+    </dict>
+</dict>
+</plist>

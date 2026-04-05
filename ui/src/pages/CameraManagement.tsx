@@ -510,15 +510,28 @@ export default function CameraManagement() {
   const [showSettings, setShowSettings] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  // Escape to close modal
+  // Edit camera modal state
+  const [editCamera, setEditCamera] = useState<Camera | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editRtspUrl, setEditRtspUrl] = useState('')
+  const [editOnvifEndpoint, setEditOnvifEndpoint] = useState('')
+  const [editUsername, setEditUsername] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  // Escape to close modals
   useEffect(() => {
-    if (!showAddModal) return
+    if (!showAddModal && !editCamera) return
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') resetForm()
+      if (e.key === 'Escape') {
+        if (editCamera) closeEditModal()
+        else if (showAddModal) resetForm()
+      }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [showAddModal])
+  }, [showAddModal, editCamera])
 
   const handleDiscover = async () => {
     setDiscovering(true)
@@ -640,6 +653,61 @@ export default function CameraManagement() {
     if (expandedCameraId === id) setExpandedCameraId(null)
     setConfirmDeleteId(null)
     refresh()
+  }
+
+  const openEditModal = (cam: Camera) => {
+    setEditCamera(cam)
+    setEditName(cam.name)
+    setEditRtspUrl(cam.rtsp_url)
+    setEditOnvifEndpoint(cam.onvif_endpoint ?? '')
+    setEditUsername('')
+    setEditPassword('')
+    setEditError('')
+    setEditSaving(false)
+  }
+
+  const closeEditModal = () => {
+    setEditCamera(null)
+    setEditName('')
+    setEditRtspUrl('')
+    setEditOnvifEndpoint('')
+    setEditUsername('')
+    setEditPassword('')
+    setEditError('')
+    setEditSaving(false)
+  }
+
+  const handleEditSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editCamera) return
+    setEditSaving(true)
+    setEditError('')
+
+    const body: Record<string, string | boolean> = {
+      name: editName,
+      rtsp_url: editRtspUrl,
+    }
+    if (editOnvifEndpoint) body.onvif_endpoint = editOnvifEndpoint
+    if (editUsername) body.onvif_username = editUsername
+    if (editPassword) body.onvif_password = editPassword
+
+    try {
+      const res = await apiFetch(`/cameras/${editCamera.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        closeEditModal()
+        refresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setEditError(data.error || 'Failed to update camera')
+      }
+    } catch {
+      setEditError('Network error')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   const toggleExpanded = (cam: Camera) => {
@@ -765,15 +833,31 @@ export default function CameraManagement() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
                       </svg>
                     </div>
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nvr-bg-secondary ${
-                      cam.status === 'online' ? 'bg-nvr-success' : 'bg-nvr-danger'
-                    }`} />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nvr-bg-secondary ${
+                        cam.status === 'online'
+                          ? 'bg-nvr-success'
+                          : cam.status === 'error'
+                          ? 'bg-nvr-warning'
+                          : 'bg-nvr-danger'
+                      }`}
+                      title={cam.status === 'online' ? 'Online' : cam.status === 'error' ? 'Error' : 'Offline'}
+                    />
                   </div>
 
                   {/* Center: name, URL, badges */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium text-nvr-text-primary">{cam.name}</span>
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                        cam.status === 'online'
+                          ? 'bg-nvr-success/15 text-nvr-success'
+                          : cam.status === 'error'
+                          ? 'bg-nvr-warning/15 text-nvr-warning'
+                          : 'bg-nvr-danger/15 text-nvr-danger'
+                      }`}>
+                        {cam.status === 'online' ? 'Online' : cam.status === 'error' ? 'Error' : 'Offline'}
+                      </span>
                       {cam.ptz_capable && (
                         <span className="bg-nvr-accent/10 text-nvr-accent px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase">PTZ</span>
                       )}
@@ -852,6 +936,16 @@ export default function CameraManagement() {
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => openEditModal(cam)}
+                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-accent hover:bg-nvr-accent/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                      aria-label="Edit"
+                      title="Edit"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                       </svg>
                     </button>
                     <button
@@ -1195,6 +1289,114 @@ export default function CameraManagement() {
                 </form>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Camera Modal */}
+      {editCamera && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={closeEditModal}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative z-10 bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-nvr-border">
+              <h2 className="text-lg font-semibold text-nvr-text-primary">Edit Camera</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-nvr-text-muted text-xs">Press Esc to close</span>
+                <button
+                  onClick={closeEditModal}
+                  className="text-nvr-text-muted hover:text-nvr-text-secondary min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-nvr-bg-tertiary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-5">
+              {editError && (
+                <div className="mb-4 p-3 bg-nvr-danger/10 border border-nvr-danger/30 rounded-lg">
+                  <p className="text-nvr-danger text-sm">{editError}</p>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  required
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">RTSP URL</label>
+                <input
+                  type="text"
+                  value={editRtspUrl}
+                  onChange={e => setEditRtspUrl(e.target.value)}
+                  placeholder="rtsp://user:pass@192.168.1.100:554/stream"
+                  required
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">ONVIF Endpoint</label>
+                <input
+                  type="text"
+                  value={editOnvifEndpoint}
+                  onChange={e => setEditOnvifEndpoint(e.target.value)}
+                  placeholder="http://192.168.1.100:80/onvif/device_service"
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+                <p className="text-xs text-nvr-text-muted mt-1">Optional. Required for PTZ, imaging, and analytics features.</p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">ONVIF Credentials</label>
+                <p className="text-xs text-nvr-text-muted mb-2">Leave blank to keep existing credentials unchanged.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={editUsername}
+                    onChange={e => setEditUsername(e.target.value)}
+                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={editPassword}
+                    onChange={e => setEditPassword(e.target.value)}
+                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving || !editName || !editRtspUrl}
+                  className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+                >
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

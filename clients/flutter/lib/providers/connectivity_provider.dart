@@ -40,8 +40,8 @@ class ConnectivityNotifier extends StateNotifier<ConnectivityState> {
   ConnectivityNotifier(String serverUrl)
       : _dio = Dio(BaseOptions(
           baseUrl: serverUrl,
-          connectTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 5),
+          connectTimeout: const Duration(seconds: 3),
+          receiveTimeout: const Duration(seconds: 3),
         )),
         super(const ConnectivityState(status: ConnectivityStatus.online)) {
     _startPolling();
@@ -53,14 +53,15 @@ class ConnectivityNotifier extends StateNotifier<ConnectivityState> {
         super(const ConnectivityState(status: ConnectivityStatus.offline));
 
   void _startPolling() {
-    _poll();
+    // Don't block startup — assume online, verify in background.
+    Future.delayed(const Duration(seconds: 2), _poll);
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
   }
 
   Future<void> _poll() async {
     if (_dio == null) return;
     try {
-      await _dio.get('/api/nvr/health');
+      await _dio.get('/v3/paths/list');
       final wasOffline = state.status != ConnectivityStatus.online;
       state = ConnectivityState(
         status: ConnectivityStatus.online,

@@ -10,7 +10,6 @@ final cameraCacheServiceProvider =
 
 final camerasProvider = FutureProvider<List<Camera>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  final connectivity = ref.watch(connectivityProvider);
   final cacheService = ref.read(cameraCacheServiceProvider);
 
   // Invalidate when a camera_online or camera_offline WebSocket event arrives.
@@ -22,22 +21,27 @@ final camerasProvider = FutureProvider<List<Camera>>((ref) async {
     }
   });
 
-  // When offline, return cached data
-  if (connectivity.isOffline || api == null) {
+  // Also invalidate when connectivity transitions from offline to online.
+  ref.listen<ConnectivityState>(connectivityProvider, (previous, next) {
+    if (previous != null && previous.isOffline && next.isOnline) {
+      ref.invalidateSelf();
+    }
+  });
+
+  if (api == null) {
     return cacheService.loadCachedCameras();
   }
 
-  // When online, fetch from server and update cache
+  // Fetch immediately — don't wait for connectivity check.
   try {
     final res = await api.get('/cameras');
     final cameras = (res.data as List)
         .map((e) => Camera.fromJson(e as Map<String, dynamic>))
         .toList();
-    // Cache in background — don't await to avoid slowing down the UI
     cacheService.cacheCameras(cameras);
     return cameras;
   } catch (_) {
-    // Network error despite thinking we're online — fall back to cache
+    // Network error — fall back to cache
     return cacheService.loadCachedCameras();
   }
 });

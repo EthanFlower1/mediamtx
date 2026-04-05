@@ -18,6 +18,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/hwaccel"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 )
 
 // SetupChecker reports whether initial setup is required.
@@ -44,6 +45,7 @@ type SystemHandler struct {
 	Collector      *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	StorageMgr     *storage.Manager    // storage manager for disk I/O metrics (may be nil)
 	HWDetector     *hwaccel.Detector   // hardware acceleration detector (may be nil)
+	SysChecker     *syscheck.Checker   // system requirements checker (may be nil)
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -659,6 +661,22 @@ func (h *SystemHandler) Hardware(c *gin.Context) {
 	info := detector.Detect(force)
 
 	c.JSON(http.StatusOK, info)
+}
+
+// RequirementsCheck validates system requirements (disk, RAM, CPU, ports, network)
+// and returns the results.
+//
+//	GET /api/nvr/system/requirements-check (admin only)
+func (h *SystemHandler) RequirementsCheck(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	if h.SysChecker == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "system checker not configured"})
+		return
+	}
+	report := h.SysChecker.Run()
+	c.JSON(http.StatusOK, report)
 }
 
 // NetworkConfig returns the full network configuration (addresses and ports)

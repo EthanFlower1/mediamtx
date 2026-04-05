@@ -21,6 +21,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -65,6 +66,7 @@ type RouterConfig struct {
 	AIMetrics           *ai.DetectionMetrics // AI detection performance metrics (may be nil)
 	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
 	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
+	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -168,6 +170,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		APIAddress:     cfg.APIAddress,
 		Collector:      cfg.Collector,
 		StorageMgr:     cfg.StorageManager,
+		SysChecker:     cfg.SysChecker,
 	}
 
 	savedClipHandler := &SavedClipHandler{
@@ -579,6 +582,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
 	protected.GET("/system/sizing", systemHandler.Sizing)
+	protected.GET("/system/requirements-check", systemHandler.RequirementsCheck)
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}

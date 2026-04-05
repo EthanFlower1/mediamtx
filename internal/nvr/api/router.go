@@ -21,6 +21,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -62,7 +63,11 @@ type RouterConfig struct {
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
-	MigrationMgr       MigrationStatusProvider // upgrade migration manager (may be nil)
+	AIMetrics           *ai.DetectionMetrics // AI detection performance metrics (may be nil)
+	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
+	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
+	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
+	MigrationMgr        MigrationStatusProvider // upgrade migration manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -71,6 +76,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Apply security middleware globally.
 	engine.Use(CORSMiddleware(cfg.SecurityConfig))
 	engine.Use(SecurityHeadersMiddleware(cfg.SecurityConfig))
+
+	// Health check endpoint — unauthenticated, Docker HEALTHCHECK compatible.
+	sysHealthHandler := &HealthHandler{
+		DB:             cfg.DB,
+		Scheduler:      cfg.Scheduler,
+		StorageManager: cfg.StorageManager,
+		Discovery:      cfg.Discovery,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+	engine.GET("/health", sysHealthHandler.Check)
 
 	var rateLimiter *RateLimiter
 	if cfg.SecurityConfig.RateLimitEnabled {
@@ -149,6 +164,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		Audit:     audit,
 	}
 
+	brandingHandler := &BrandingHandler{
+		DB:      cfg.DB,
+		DataDir: "./data",
+	}
+
 	systemHandler := &SystemHandler{
 		Version:        cfg.Version,
 		StartedAt:      time.Now(),
@@ -161,6 +181,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		APIAddress:     cfg.APIAddress,
 		Collector:      cfg.Collector,
 		StorageMgr:     cfg.StorageManager,
+		SysChecker:     cfg.SysChecker,
 	}
 
 	savedClipHandler := &SavedClipHandler{
@@ -201,6 +222,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
 
+	detectionScheduleHandler := &DetectionScheduleHandler{
+		DB:        cfg.DB,
+		Evaluator: cfg.DetectionEvaluator,
+	}
+
 	jwksHandler := &JWKSHandler{
 		JWKSJSON: cfg.JWKSJSON,
 	}
@@ -224,6 +250,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	nvr.POST("/auth/revoke", authHandler.Revoke)
 	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
 	nvr.GET("/system/health", systemHandler.Health)
+	nvr.GET("/system/branding", brandingHandler.GetBranding)
+	nvr.GET("/system/branding/logo/:filename", brandingHandler.ServeLogo)
 
 	// Serve event thumbnails as static files (public route for img tags).
 	engine.Static("/thumbnails", "./thumbnails")
@@ -389,11 +417,23 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
+	protected.GET("/cameras/:id/confidence-thresholds", cameraHandler.GetConfidenceThresholds)
+	protected.PUT("/cameras/:id/confidence-thresholds", cameraHandler.UpdateConfidenceThresholds)
+
+	// Detection zones.
+	zoneHandler := &DetectionZoneHandler{DB: cfg.DB}
+	protected.GET("/cameras/:id/detection-zones", zoneHandler.List)
+	protected.POST("/cameras/:id/detection-zones", zoneHandler.Create)
+	protected.PUT("/detection-zones/:zoneId", zoneHandler.Update)
+	protected.DELETE("/detection-zones/:zoneId", zoneHandler.Delete)
 
 	// Real-time detections for live overlay.
 	protected.GET("/cameras/:id/detections/latest", cameraHandler.LatestDetections)
 	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)
 	protected.GET("/cameras/:id/detections", cameraHandler.Detections)
+
+	// Aggregated detection events.
+	protected.GET("/cameras/:id/detection-events", cameraHandler.DetectionEvents)
 
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
@@ -501,6 +541,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Stream schedule assignment.
 	protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule)
 
+	// Detection scheduling (KAI-46).
+	protected.GET("/cameras/:id/detection-schedule", detectionScheduleHandler.Get)
+	protected.PUT("/cameras/:id/detection-schedule", detectionScheduleHandler.Update)
+	protected.GET("/detection-schedule/templates", detectionScheduleHandler.Templates)
+	protected.GET("/detection-schedule/status", detectionScheduleHandler.Status)
+
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)
 
@@ -516,7 +562,21 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/users/:id", userHandler.Get)
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
+	protected.POST("/users/:id/unlock", userHandler.Unlock)
 	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
+
+	// Roles.
+	roleHandler := &RoleHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/roles", roleHandler.List)
+	protected.POST("/roles", roleHandler.Create)
+	protected.GET("/roles/:id", roleHandler.Get)
+	protected.PUT("/roles/:id", roleHandler.Update)
+	protected.DELETE("/roles/:id", roleHandler.Delete)
+
+	// Per-camera permissions.
+	protected.POST("/users/:id/camera-permissions", roleHandler.SetCameraPermissions)
+	protected.GET("/users/:id/camera-permissions", roleHandler.GetCameraPermissions)
+	protected.DELETE("/users/:id/camera-permissions", roleHandler.DeleteCameraPermissions)
 
 	// System.
 	protected.GET("/system/info", systemHandler.Info)
@@ -528,6 +588,18 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+	protected.GET("/system/hardware", systemHandler.Hardware)
+	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
+	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
+	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
+	protected.GET("/system/sizing", systemHandler.Sizing)
+	protected.GET("/system/requirements-check", systemHandler.RequirementsCheck)
+
+	// Upgrade migration status.
+	if cfg.MigrationMgr != nil {
+		migrationHandler := &MigrationHandler{Manager: cfg.MigrationMgr}
+		protected.GET("/system/migration-status", migrationHandler.Status)
+	}
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}
@@ -594,12 +666,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
 
-	// Upgrade migration status.
-	if cfg.MigrationMgr != nil {
-		migrationHandler := &MigrationHandler{Manager: cfg.MigrationMgr}
-		protected.GET("/system/migration-status", migrationHandler.Status)
-	}
-
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {
 		protected.GET("/vod/:cameraId/playlist.m3u8", cfg.HLSHandler.ServePlaylist)
@@ -626,6 +692,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// AI semantic search.
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
+
+	// AI model management.
+	if cfg.ModelManager != nil {
+		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}
+		protected.GET("/ai/models", modelHandler.List)
+		protected.POST("/ai/models/activate", modelHandler.Activate)
+		protected.POST("/ai/models/rollback", modelHandler.Rollback)
+		protected.POST("/ai/models/verify", modelHandler.Verify)
+	}
 
 	// Evidence exports.
 	evidenceHandler := &EvidenceHandler{
@@ -694,6 +769,15 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/exports/:id", exportHandler.Get)
 	protected.DELETE("/exports/:id", exportHandler.Delete)
 	protected.GET("/exports/:id/download", exportHandler.Download)
+
+	// Webhooks.
+	webhookHandler := &WebhookHandler{DB: cfg.DB}
+	protected.GET("/webhooks", webhookHandler.List)
+	protected.POST("/webhooks", webhookHandler.Create)
+	protected.GET("/webhooks/:id", webhookHandler.Get)
+	protected.PUT("/webhooks/:id", webhookHandler.Update)
+	protected.DELETE("/webhooks/:id", webhookHandler.Delete)
+	protected.GET("/webhooks/:id/deliveries", webhookHandler.Deliveries)
 
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)

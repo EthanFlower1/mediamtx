@@ -37,6 +37,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/nvr/webhook"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
 
@@ -64,6 +65,7 @@ type NVR struct {
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
 	aiPipelines     map[string]*ai.Pipeline // camera ID -> pipeline
+	aiModelManager  *ai.ModelManager
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
@@ -76,18 +78,23 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-	backchannelMgr   *backchannel.Manager
-	exportHandler    *api.ExportHandler
-	emailSender      *alerts.EmailSender
-	alertEvaluator   *alerts.Evaluator
-	backupSvc        *backup.Service
-	tlsManager       *crypto.TLSManager
-	migrationMgr     *MigrationManager
+	backchannelMgr      *backchannel.Manager
+	exportHandler       *api.ExportHandler
+	emailSender         *alerts.EmailSender
+	alertEvaluator      *alerts.Evaluator
+	backupSvc           *backup.Service
+	tlsManager          *crypto.TLSManager
+	detectionEvaluator  *scheduler.DetectionEvaluator
+	webhookDispatcher   *webhook.Dispatcher
+
+	firstBoot bool // true when the DB was freshly created (no prior state)
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
 // creates the DB directory, opens the database, creates the YAML writer,
-// and loads or generates RSA keys.
+// and loads or generates RSA keys. On first boot (no existing database),
+// it creates default directories and marks the instance for setup wizard
+// redirection.
 func (n *NVR) Initialize() error {
 	n.ctx, n.ctxCancel = context.WithCancel(context.Background())
 
@@ -124,10 +131,21 @@ func (n *NVR) Initialize() error {
 		return fmt.Errorf("create database directory: %w", err)
 	}
 
+	// Detect first boot: the database file does not yet exist.
+	_, statErr := os.Stat(n.DatabasePath)
+	n.firstBoot = os.IsNotExist(statErr)
+
 	var err error
 	n.database, err = db.Open(n.DatabasePath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
+	}
+
+	if n.firstBoot {
+		if err := n.bootstrapFirstRun(); err != nil {
+			n.database.Close()
+			return fmt.Errorf("first-boot setup: %w", err)
+		}
 	}
 
 	// Close any orphaned motion events from a previous run.
@@ -191,10 +209,6 @@ func (n *NVR) Initialize() error {
 	if err := n.backupSvc.Init(); err != nil {
 		log.Printf("[NVR] [WARN] backup service init: %v", err)
 	}
-
-	// Initialize upgrade migration manager.
-	migrationBackupDir := filepath.Join(filepath.Dir(n.DatabasePath), "migration-backups")
-	n.migrationMgr = NewMigrationManager(n.database, n.ConfigPath, n.DatabasePath, migrationBackupDir, "")
 
 	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
 	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
@@ -260,6 +274,10 @@ func (n *NVR) Initialize() error {
 			log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
 		}
 
+		// Initialize model manager for hot-swap support.
+		n.aiModelManager = ai.NewModelManager(modelsDir, n.aiDetector, nanoPath)
+		log.Printf("AI: model manager initialized (models dir: %s)", modelsDir)
+
 		// Load CLIP embedder if model files exist (optional).
 		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
 		textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
@@ -280,6 +298,10 @@ func (n *NVR) Initialize() error {
 		}
 
 		n.startAIPipelines()
+
+		// Start detection schedule evaluator to manage pipelines per schedule.
+		n.detectionEvaluator = scheduler.NewDetectionEvaluator(n.database, n)
+		n.detectionEvaluator.Start()
 	}
 
 	// Sync audio_transcode flag with YAML config: if a -live path exists
@@ -607,12 +629,19 @@ func (n *NVR) Close() {
 		n.ctxCancel()
 	}
 
+	// Stop detection evaluator before pipelines.
+	if n.detectionEvaluator != nil {
+		n.detectionEvaluator.Stop()
+	}
+
 	// Stop AI pipelines first so they don't write to the DB after it's closed.
 	for id, p := range n.aiPipelines {
 		p.Stop()
 		log.Printf("AI: stopped pipeline for camera %s", id)
 	}
-	if n.aiDetector != nil {
+	if n.aiModelManager != nil {
+		n.aiModelManager.Close()
+	} else if n.aiDetector != nil {
 		n.aiDetector.Close()
 	}
 	if n.aiEmbedder != nil {
@@ -812,11 +841,15 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 		StreamURL:        streamURL,
 		StreamWidth:      streamWidth,
 		StreamHeight:     streamHeight,
-		ConfidenceThresh: float32(cam.AIConfidence),
-		TrackTimeout:     cam.AITrackTimeout,
+		ConfidenceThresh:         float32(cam.AIConfidence),
+		TrackTimeout:             cam.AITrackTimeout,
+		ConfidenceThresholdsJSON: cam.ConfidenceThresholds,
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)
+	if n.webhookDispatcher != nil {
+		pipeline.SetDetectionCallback(n.webhookDispatcher.OnDetection)
+	}
 	pipeline.Start(n.ctx)
 	n.aiPipelines[cam.ID] = pipeline
 }
@@ -868,6 +901,43 @@ func (n *NVR) RestartAIPipeline(cameraID string) {
 	n.startSinglePipeline(cam)
 }
 
+// StartDetectionPipeline starts the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StartDetectionPipeline(cameraID string) {
+	if n.aiDetector == nil {
+		return
+	}
+	if _, running := n.aiPipelines[cameraID]; running {
+		return // already running
+	}
+
+	cam, err := n.database.GetCamera(cameraID)
+	if err != nil {
+		log.Printf("ai: start detection pipeline: get camera %s: %v", cameraID, err)
+		return
+	}
+	if !cam.AIEnabled {
+		return
+	}
+	n.startSinglePipeline(cam)
+}
+
+// StopDetectionPipeline stops the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StopDetectionPipeline(cameraID string) {
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+	}
+}
+
+// IsDetectionPipelineRunning returns true if the AI pipeline is running for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) IsDetectionPipelineRunning(cameraID string) bool {
+	_, ok := n.aiPipelines[cameraID]
+	return ok
+}
+
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted
 // with the "enc:" prefix.
 func (n *NVR) decryptPassword(encKey []byte, encrypted string) string {
@@ -892,6 +962,56 @@ func (n *NVR) IsSetupRequired() bool {
 		return true
 	}
 	return count == 0
+}
+
+// IsFirstBoot returns true when this is the first time the NVR has started
+// (the database was freshly created during this Initialize call).
+func (n *NVR) IsFirstBoot() bool {
+	return n.firstBoot
+}
+
+// bootstrapFirstRun performs one-time setup on the very first launch:
+//   - Creates default directories (recordings, backups, tls)
+//   - Stores a first-boot timestamp in the config table
+//   - Logs the first-boot event
+//
+// RSA key generation and encryption key derivation are handled by
+// loadOrGenerateKeys which runs unconditionally after this.
+func (n *NVR) bootstrapFirstRun() error {
+	log.Printf("[NVR] first boot detected -- running initial setup")
+
+	// Create standard data directories relative to the database location.
+	dataRoot := filepath.Dir(n.DatabasePath)
+	defaultDirs := []string{
+		filepath.Join(dataRoot, "backups"),
+		filepath.Join(dataRoot, "tls"),
+	}
+	// Also create recordings directory if configured.
+	if n.RecordingsPath != "" {
+		recPath := n.RecordingsPath
+		if strings.HasPrefix(recPath, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				recPath = filepath.Join(home, recPath[2:])
+			}
+		}
+		defaultDirs = append(defaultDirs, recPath)
+	}
+
+	for _, dir := range defaultDirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create directory %s: %w", dir, err)
+		}
+		log.Printf("[NVR] created directory: %s", dir)
+	}
+
+	// Record the first-boot timestamp so subsequent starts know setup was done.
+	now := time.Now().UTC().Format(time.RFC3339)
+	if err := n.database.SetConfig("first_boot_at", now); err != nil {
+		return fmt.Errorf("record first-boot timestamp: %w", err)
+	}
+
+	log.Printf("[NVR] first-boot setup complete -- setup wizard required")
+	return nil
 }
 
 // DB returns the database handle.
@@ -930,11 +1050,6 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		}
 	}
 
-	// Set the version on the migration manager now that it's available.
-	if n.migrationMgr != nil {
-		n.migrationMgr.AppVersion = version
-	}
-
 	n.exportHandler = api.RegisterRoutes(engine, &api.RouterConfig{
 		DB:             n.database,
 		PrivateKey:     n.privateKey,
@@ -961,8 +1076,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
-		TLSManager:      n.tlsManager,
-		MigrationMgr:    n.migrationMgr,
+		TLSManager:          n.tlsManager,
+		DetectionEvaluator:  n.detectionEvaluator,
 	})
 }
 

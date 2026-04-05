@@ -64,6 +64,7 @@ type NVR struct {
 	aiDetector      *ai.Detector
 	aiEmbedder      *ai.Embedder
 	aiPipelines     map[string]*ai.Pipeline // camera ID -> pipeline
+	aiModelManager  *ai.ModelManager
 
 	hlsHandler *api.HLSHandler
 	storageMgr *storage.Manager
@@ -278,6 +279,10 @@ func (n *NVR) Initialize() error {
 		} else {
 			log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
 		}
+
+		// Initialize model manager for hot-swap support.
+		n.aiModelManager = ai.NewModelManager(modelsDir, n.aiDetector, nanoPath)
+		log.Printf("AI: model manager initialized (models dir: %s)", modelsDir)
 
 		// Load CLIP embedder if model files exist (optional).
 		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
@@ -640,7 +645,9 @@ func (n *NVR) Close() {
 		p.Stop()
 		log.Printf("AI: stopped pipeline for camera %s", id)
 	}
-	if n.aiDetector != nil {
+	if n.aiModelManager != nil {
+		n.aiModelManager.Close()
+	} else if n.aiDetector != nil {
 		n.aiDetector.Close()
 	}
 	if n.aiEmbedder != nil {

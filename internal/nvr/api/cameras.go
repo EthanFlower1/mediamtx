@@ -1275,6 +1275,10 @@ type ptzRequest struct {
 func (h *CameraHandler) PTZCommand(c *gin.Context) {
 	id := c.Param("id")
 
+	if !requireCameraPermission(c, id, db.PermPTZControl) {
+		return
+	}
+
 	cam, err := h.DB.GetCamera(id)
 	if errors.Is(err, db.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})

@@ -1,9 +1,12 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -117,4 +120,146 @@ func (h *AuditHandler) List(c *gin.Context) {
 		"entries": entries,
 		"total":   total,
 	})
+}
+
+// Export streams audit log entries as CSV or JSON within a date range.
+// Admin only.
+//
+//	GET /api/nvr/audit/export?format=csv&from=2026-01-01&to=2026-04-01&user_id=...&action=...
+func (h *AuditHandler) Export(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	format := c.DefaultQuery("format", "json")
+	if format != "csv" && format != "json" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "format must be csv or json"})
+		return
+	}
+
+	fromStr := c.Query("from")
+	toStr := c.Query("to")
+
+	if fromStr == "" || toStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "from and to query parameters are required (YYYY-MM-DD)"})
+		return
+	}
+
+	from, err := time.Parse("2006-01-02", fromStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from date, use YYYY-MM-DD"})
+		return
+	}
+
+	to, err := time.Parse("2006-01-02", toStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid to date, use YYYY-MM-DD"})
+		return
+	}
+	// Include the entire "to" day.
+	to = to.Add(24*time.Hour - time.Millisecond)
+
+	userID := c.Query("user_id")
+	action := c.Query("action")
+
+	entries, err := h.DB.QueryAuditLogByDateRange(from, to, userID, action)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query audit log for export", err)
+		return
+	}
+	if entries == nil {
+		entries = []*db.AuditEntry{}
+	}
+
+	filename := fmt.Sprintf("audit-log-%s-to-%s", fromStr, toStr)
+
+	switch format {
+	case "csv":
+		c.Header("Content-Type", "text/csv")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.csv"`, filename))
+		if err := db.WriteAuditCSV(c.Writer, entries); err != nil {
+			log.Printf("audit export: CSV write error: %v", err)
+		}
+	case "json":
+		c.Header("Content-Type", "application/json")
+		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.json"`, filename))
+		enc := json.NewEncoder(c.Writer)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(entries); err != nil {
+			log.Printf("audit export: JSON write error: %v", err)
+		}
+	}
+}
+
+// GetRetention returns the current audit log retention settings.
+// Admin only.
+//
+//	GET /api/nvr/audit/retention
+func (h *AuditHandler) GetRetention(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	generalDays := 90
+	securityDays := 365
+
+	if v, err := h.DB.GetConfig("audit_retention_days"); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			generalDays = n
+		}
+	}
+	if v, err := h.DB.GetConfig("audit_security_retention_days"); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			securityDays = n
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"general_retention_days":  generalDays,
+		"security_retention_days": securityDays,
+	})
+}
+
+// UpdateRetention updates audit log retention settings.
+// Admin only.
+//
+//	PUT /api/nvr/audit/retention
+func (h *AuditHandler) UpdateRetention(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	var req struct {
+		GeneralRetentionDays  *int `json:"general_retention_days"`
+		SecurityRetentionDays *int `json:"security_retention_days"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.GeneralRetentionDays != nil {
+		if *req.GeneralRetentionDays < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "general_retention_days must be at least 1"})
+			return
+		}
+		if err := h.DB.SetConfig("audit_retention_days", strconv.Itoa(*req.GeneralRetentionDays)); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to save retention setting", err)
+			return
+		}
+	}
+
+	if req.SecurityRetentionDays != nil {
+		if *req.SecurityRetentionDays < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "security_retention_days must be at least 1"})
+			return
+		}
+		if err := h.DB.SetConfig("audit_security_retention_days", strconv.Itoa(*req.SecurityRetentionDays)); err != nil {
+			apiError(c, http.StatusInternalServerError, "failed to save retention setting", err)
+			return
+		}
+	}
+
+	// Return updated settings.
+	h.GetRetention(c)
 }

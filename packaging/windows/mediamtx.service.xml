@@ -1,0 +1,32 @@
+<!--
+  MediaMTX NVR Windows Service Configuration
+  For use with WinSW (https://github.com/winsw/winsw) as an alternative to NSIS sc-based registration.
+  Place winsw.exe alongside this file and rename to mediamtx-service.exe.
+-->
+<service>
+  <id>MediaMTX</id>
+  <name>MediaMTX NVR</name>
+  <description>MediaMTX NVR - Real-time media server and network video recorder</description>
+
+  <executable>%BASE%\mediamtx.exe</executable>
+  <arguments>"%BASE%\config\mediamtx.yml"</arguments>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+    <logpath>%BASE%\logs</logpath>
+  </log>
+
+  <onfailure action="restart" delay="5 sec" />
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 day</resetfailure>
+
+  <serviceaccount>
+    <username>LocalSystem</username>
+    <allowservicelogon>true</allowservicelogon>
+  </serviceaccount>
+</service>

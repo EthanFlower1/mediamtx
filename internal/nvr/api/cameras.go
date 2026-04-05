@@ -1275,6 +1275,10 @@ type ptzRequest struct {
 func (h *CameraHandler) PTZCommand(c *gin.Context) {
 	id := c.Param("id")
 
+	if !requireCameraPermission(c, id, db.PermPTZControl) {
+		return
+	}
+
 	cam, err := h.DB.GetCamera(id)
 	if errors.Is(err, db.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
@@ -2782,6 +2786,50 @@ func (h *CameraHandler) Detections(c *gin.Context) {
 		detections = []*db.Detection{}
 	}
 	c.JSON(http.StatusOK, detections)
+}
+
+// DetectionEvents returns aggregated detection events for a camera within a
+// time range, optionally filtered by class. Events group consecutive raw
+// detections of the same class+zone based on a configurable gap tolerance.
+//
+// GET /api/nvr/cameras/:id/detection-events?start=RFC3339&end=RFC3339&class=person
+func (h *CameraHandler) DetectionEvents(c *gin.Context) {
+	id := c.Param("id")
+
+	if !hasCameraPermission(c, id) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+		return
+	}
+
+	startStr := c.Query("start")
+	endStr := c.Query("end")
+	if startStr == "" || endStr == "" {
+		apiError(c, http.StatusBadRequest, "start and end query params required", nil)
+		return
+	}
+
+	start, err := time.Parse(time.RFC3339, startStr)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "invalid start time", err)
+		return
+	}
+	end, err := time.Parse(time.RFC3339, endStr)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, "invalid end time", err)
+		return
+	}
+
+	class := c.Query("class")
+
+	events, err := h.DB.QueryDetectionEvents(id, class, start, end)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to query detection events", err)
+		return
+	}
+	if events == nil {
+		events = []*db.DetectionEvent{}
+	}
+	c.JSON(http.StatusOK, events)
 }
 
 // AssignStreamSchedule assigns a schedule template to a camera stream, replacing

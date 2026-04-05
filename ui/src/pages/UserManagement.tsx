@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent, useMemo } from 'react'
+import { Navigate } from 'react-router-dom'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../auth/context'
 import { Camera } from '../hooks/useCameras'
@@ -409,6 +410,7 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const isAdmin = currentUser?.role === 'admin'
 
   // Page title
   useEffect(() => {
@@ -432,15 +434,21 @@ export default function UserManagement() {
   }
 
   useEffect(() => {
+    if (!isAdmin) return
     refresh()
     refreshCameras()
-  }, [])
+  }, [isAdmin])
 
   const handleDelete = async (id: string) => {
     await apiFetch(`/users/${id}`, { method: 'DELETE' })
     if (editingUser?.id === id) setEditingUser(null)
     setConfirmDeleteId(null)
     refresh()
+  }
+
+  // Guard: only admins can access this page
+  if (!isAdmin) {
+    return <Navigate to="/live" replace />
   }
 
   return (

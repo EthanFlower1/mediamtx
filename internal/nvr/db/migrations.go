@@ -720,4 +720,15 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE cameras ADD COLUMN confidence_thresholds TEXT NOT NULL DEFAULT '';
 		`,
 	},
+	// Migration 46: Session tracking columns on refresh_tokens (KAI-76).
+	{
+		version: 46,
+		sql: `
+		ALTER TABLE refresh_tokens ADD COLUMN ip_address TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN user_agent TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN device_name TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN last_activity TEXT NOT NULL DEFAULT '';
+		ALTER TABLE refresh_tokens ADD COLUMN created_at TEXT NOT NULL DEFAULT '';
+		`,
+	},
 }

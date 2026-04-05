@@ -574,7 +574,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 39,
 		sql:     `ALTER TABLE bookmarks ADD COLUMN notes TEXT NOT NULL DEFAULT '';`,
 	},
-<<<<<<< HEAD
 	// Migration 40: System alerts and SMTP configuration (KAI-83).
 	{
 		version: 40,
@@ -622,10 +621,11 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_alerts_rule ON alerts(rule_id);
 		CREATE INDEX idx_alerts_created ON alerts(created_at);
 		CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
-=======
-	// Migration 40: System update history (KAI-80).
+		`,
+	},
+	// Migration 41: System update history (KAI-80).
 	{
-		version: 40,
+		version: 41,
 		sql: `
 		CREATE TABLE update_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -643,9 +643,9 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_update_history_started ON update_history(started_at);
 		`,
 	},
-	// Migration 41: Bulk export jobs and items (KAI-81).
+	// Migration 42: Bulk export jobs and items (KAI-81).
 	{
-		version: 41,
+		version: 42,
 		sql: `
 		CREATE TABLE IF NOT EXISTS bulk_export_jobs (
 			id TEXT PRIMARY KEY,
@@ -669,7 +669,7 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
->>>>>>> origin/main
+
 		`,
 	},
 }

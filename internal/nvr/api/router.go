@@ -21,6 +21,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
@@ -57,14 +58,12 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
-<<<<<<< HEAD
 	EmailSender        *alerts.EmailSender // email sender for alerts (may be nil)
-=======
 	BackupService      *backup.Service    // backup and restore service (may be nil)
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
-	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
->>>>>>> origin/main
+	TLSManager          *crypto.TLSManager  // TLS certificate manager (may be nil)
+	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -163,6 +162,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		APIAddress:     cfg.APIAddress,
 		Collector:      cfg.Collector,
 		StorageMgr:     cfg.StorageManager,
+		SysChecker:     cfg.SysChecker,
 	}
 
 	savedClipHandler := &SavedClipHandler{
@@ -530,8 +530,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+	protected.GET("/system/requirements-check", systemHandler.RequirementsCheck)
 
-<<<<<<< HEAD
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}
 	protected.GET("/system/smtp/config", alertHandler.GetSMTPConfig)
@@ -543,7 +543,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/alert-rules/:id", alertHandler.DeleteAlertRule)
 	protected.GET("/alerts", alertHandler.ListAlerts)
 	protected.POST("/alerts/:id/acknowledge", alertHandler.AcknowledgeAlert)
-=======
+
 	// Backups.
 	if cfg.BackupService != nil {
 		backupHandler := &BackupHandler{Service: cfg.BackupService}
@@ -596,7 +596,6 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/upload", tlsHandler.Upload)
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
->>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

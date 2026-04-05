@@ -16,6 +16,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 )
 
 // SetupChecker reports whether initial setup is required.
@@ -39,8 +40,9 @@ type SystemHandler struct {
 	ConfigDB       *db.DB           // full DB access for config export/import
 	ConfigPath     string           // path to mediamtx.yml for reading server configuration
 	APIAddress     string           // MediaMTX API address for live camera status
-	Collector      *metrics.Collector // ring-buffer metrics collector (may be nil)
-	StorageMgr     *storage.Manager   // storage manager for disk I/O metrics (may be nil)
+	Collector      *metrics.Collector   // ring-buffer metrics collector (may be nil)
+	StorageMgr     *storage.Manager     // storage manager for disk I/O metrics (may be nil)
+	SysChecker     *syscheck.Checker    // system requirements checker (may be nil)
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -626,5 +628,21 @@ func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 		return
 	}
 	h.ImportConfig(c)
+}
+
+// RequirementsCheck validates system requirements (disk, RAM, CPU, ports, network)
+// and returns the results.
+//
+//	GET /api/nvr/system/requirements-check (admin only)
+func (h *SystemHandler) RequirementsCheck(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	if h.SysChecker == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "system checker not configured"})
+		return
+	}
+	report := h.SysChecker.Run()
+	c.JSON(http.StatusOK, report)
 }
 

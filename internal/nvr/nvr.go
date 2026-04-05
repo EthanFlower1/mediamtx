@@ -36,6 +36,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
 	"github.com/bluenviron/mediamtx/internal/nvr/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -76,17 +77,12 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
-<<<<<<< HEAD
 	backchannelMgr   *backchannel.Manager
 	exportHandler    *api.ExportHandler
 	emailSender      *alerts.EmailSender
 	alertEvaluator   *alerts.Evaluator
-=======
-	backchannelMgr  *backchannel.Manager
-	exportHandler   *api.ExportHandler
-	backupSvc       *backup.Service
-	tlsManager      *crypto.TLSManager
->>>>>>> origin/main
+	backupSvc        *backup.Service
+	tlsManager       *crypto.TLSManager
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -359,6 +355,25 @@ func (n *NVR) Initialize() error {
 		EmailSender:    n.emailSender,
 	}
 	n.alertEvaluator.Start(n.ctx)
+
+	// Run system requirements validation on startup and log warnings.
+	sc := syscheck.New(n.RecordingsPath)
+	report := sc.Run()
+	for _, ch := range report.Checks {
+		switch ch.Status {
+		case syscheck.StatusWarn:
+			log.Printf("[NVR] [WARN] [syscheck] %s: %s", ch.Name, ch.Message)
+		case syscheck.StatusFail:
+			log.Printf("[NVR] [ERROR] [syscheck] %s: %s", ch.Name, ch.Message)
+		default:
+			log.Printf("[NVR] [INFO] [syscheck] %s: %s", ch.Name, ch.Message)
+		}
+	}
+	if report.Overall != syscheck.StatusPass {
+		log.Printf("[NVR] [WARN] [syscheck] System requirements check completed with status: %s", report.Overall)
+	} else {
+		log.Printf("[NVR] [INFO] [syscheck] All system requirements satisfied")
+	}
 
 	return nil
 }
@@ -952,14 +967,12 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		Collector:       n.metricsCollector,
 		BackchannelMgr:  n.backchannelMgr,
 		ConnManager:     n.connMgr,
-<<<<<<< HEAD
 		EmailSender:     n.emailSender,
-=======
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
 		TLSManager:      n.tlsManager,
->>>>>>> origin/main
+		SysChecker:      syscheck.New(recordingsPath),
 	})
 }
 

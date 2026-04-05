@@ -488,18 +488,32 @@ func runAuthTests() {
 
 }
 
-// runBruteForceTest runs the brute-force lockout test LAST because it triggers
-// the rate limiter and locks the account. No further authenticated requests
-// should be attempted after this test.
+// runBruteForceTest runs the brute-force lockout test using a DEDICATED test
+// user so the admin account stays usable. Cleans up after itself.
 func runBruteForceTest() {
 	cat := "Auth (Brute-Force)"
 	printCategoryHeader(cat)
 
+	// Create a dedicated user for brute-force testing.
+	bfUser := fmt.Sprintf("bf_test_%d", time.Now().UnixMilli())
+	bfPass := "BruteForceTestPass123"
+	resp, body, _ := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+		"username": bfUser,
+		"password": bfPass,
+		"role":     "viewer",
+	})
+	if resp == nil || resp.StatusCode != 201 {
+		recordResult(cat, "Brute-force lockout (expect 429/423/403)", false, "could not create test user", 0)
+		return
+	}
+	bfUserID := getString(parseJSON(body), "id")
+
+	// Hammer the test user with wrong passwords.
 	start := time.Now()
 	var lastStatus int
 	for i := 0; i < 8; i++ {
 		resp, _, _ := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
-			"username": username,
+			"username": bfUser,
 			"password": "wrong-brute-force",
 		})
 		if resp != nil {
@@ -510,7 +524,10 @@ func runBruteForceTest() {
 	ok := lastStatus == 429 || lastStatus == 423 || lastStatus == 403
 	detail := fmt.Sprintf("final status: %d", lastStatus)
 	recordResult(cat, "Brute-force lockout (expect 429/423/403)", ok, detail, dur)
-	// Do NOT attempt any further authenticated requests — the account is locked.
+
+	// Clean up: unlock and delete the test user (admin token still works).
+	doRequest("POST", "/api/nvr/users/"+bfUserID+"/unlock", nil)
+	doRequest("DELETE", "/api/nvr/users/"+bfUserID, nil)
 }
 
 // ---------------------------------------------------------------------------

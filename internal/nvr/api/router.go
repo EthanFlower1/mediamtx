@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
@@ -56,6 +57,7 @@ type RouterConfig struct {
 	ConnManager     *connmgr.Manager    // camera connection resilience manager (may be nil)
 	ExportsPath        string              // directory for exported clip files
 	ExportMaxConcurrent int               // max concurrent export jobs (default 2)
+	EmailSender        *alerts.EmailSender // email sender for alerts (may be nil)
 	BackupService      *backup.Service    // backup and restore service (may be nil)
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
@@ -146,6 +148,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		Audit:     audit,
 	}
 
+	brandingHandler := &BrandingHandler{
+		DB:      cfg.DB,
+		DataDir: "./data",
+	}
+
 	systemHandler := &SystemHandler{
 		Version:        cfg.Version,
 		StartedAt:      time.Now(),
@@ -202,8 +209,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		JWKSJSON: cfg.JWKSJSON,
 	}
 
+	sessionHandler := &SessionHandler{
+		DB:    cfg.DB,
+		Audit: audit,
+	}
+
 	middleware := &Middleware{
 		PrivateKey: cfg.PrivateKey,
+		DB:         cfg.DB,
 	}
 
 	nvr := engine.Group("/api/nvr")
@@ -215,6 +228,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	nvr.POST("/auth/revoke", authHandler.Revoke)
 	nvr.GET("/.well-known/jwks.json", jwksHandler.ServeJWKS)
 	nvr.GET("/system/health", systemHandler.Health)
+	nvr.GET("/system/branding", brandingHandler.GetBranding)
+	nvr.GET("/system/branding/logo/:filename", brandingHandler.ServeLogo)
 
 	// Serve event thumbnails as static files (public route for img tags).
 	engine.Static("/thumbnails", "./thumbnails")
@@ -393,6 +408,9 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/cameras/:id/detections/stream", cfg.Events.StreamDetections)
 	protected.GET("/cameras/:id/detections", cameraHandler.Detections)
 
+	// Aggregated detection events.
+	protected.GET("/cameras/:id/detection-events", cameraHandler.DetectionEvents)
+
 	// Analytics rules and modules.
 	protected.GET("/cameras/:id/analytics/rules", cameraHandler.GetAnalyticsRules)
 	protected.POST("/cameras/:id/analytics/rules", cameraHandler.CreateAnalyticsRule)
@@ -502,12 +520,33 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)
 
+	// Sessions.
+	protected.GET("/sessions", sessionHandler.List)
+	protected.DELETE("/sessions/:id", sessionHandler.Revoke)
+	protected.GET("/sessions/timeout", sessionHandler.GetTimeout)
+	protected.PUT("/sessions/timeout", sessionHandler.SetTimeout)
+
 	// Users.
 	protected.GET("/users", userHandler.List)
 	protected.POST("/users", userHandler.Create)
 	protected.GET("/users/:id", userHandler.Get)
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
+	protected.POST("/users/:id/unlock", userHandler.Unlock)
+	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
+
+	// Roles.
+	roleHandler := &RoleHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/roles", roleHandler.List)
+	protected.POST("/roles", roleHandler.Create)
+	protected.GET("/roles/:id", roleHandler.Get)
+	protected.PUT("/roles/:id", roleHandler.Update)
+	protected.DELETE("/roles/:id", roleHandler.Delete)
+
+	// Per-camera permissions.
+	protected.POST("/users/:id/camera-permissions", roleHandler.SetCameraPermissions)
+	protected.GET("/users/:id/camera-permissions", roleHandler.GetCameraPermissions)
+	protected.DELETE("/users/:id/camera-permissions", roleHandler.DeleteCameraPermissions)
 
 	// System.
 	protected.GET("/system/info", systemHandler.Info)
@@ -519,6 +558,28 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+<<<<<<< HEAD
+	protected.GET("/system/network", systemHandler.NetworkConfig)
+	protected.GET("/system/tls", systemHandler.TLSStatus)
+	protected.GET("/system/backup/database", systemHandler.BackupDatabase)
+	protected.POST("/system/backup/restore", systemHandler.RestoreDatabase)
+	protected.GET("/system/updates/check", systemHandler.CheckForUpdates)
+=======
+	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
+	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
+	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
+
+	// System alerts and SMTP configuration.
+	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}
+	protected.GET("/system/smtp/config", alertHandler.GetSMTPConfig)
+	protected.POST("/system/smtp/config", alertHandler.UpdateSMTPConfig)
+	protected.POST("/system/smtp/test", alertHandler.TestSMTP)
+	protected.GET("/alert-rules", alertHandler.ListAlertRules)
+	protected.POST("/alert-rules", alertHandler.CreateAlertRule)
+	protected.PUT("/alert-rules/:id", alertHandler.UpdateAlertRule)
+	protected.DELETE("/alert-rules/:id", alertHandler.DeleteAlertRule)
+	protected.GET("/alerts", alertHandler.ListAlerts)
+	protected.POST("/alerts/:id/acknowledge", alertHandler.AcknowledgeAlert)
 
 	// Backups.
 	if cfg.BackupService != nil {
@@ -572,6 +633,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.POST("/system/tls/upload", tlsHandler.Upload)
 		protected.POST("/system/tls/generate", tlsHandler.Generate)
 	}
+>>>>>>> origin/main
 
 	// HLS VoD playback.
 	if cfg.HLSHandler != nil {

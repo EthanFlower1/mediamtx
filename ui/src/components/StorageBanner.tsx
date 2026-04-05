@@ -46,7 +46,7 @@ export default function StorageBanner() {
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <span className="flex-1">Disk space critically low! Recordings may stop. ({usedPercent}% used, {formatBytes(storage.total_bytes - storage.used_bytes)} free)</span>
-        <a href="/settings" className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded-lg transition-colors shrink-0">
+        <a href="/storage" className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded-lg transition-colors shrink-0">
           Manage Storage &rarr;
         </a>
       </div>

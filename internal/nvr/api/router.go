@@ -578,6 +578,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
 	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
+	protected.GET("/system/sizing", systemHandler.Sizing)
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}

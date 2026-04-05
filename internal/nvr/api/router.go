@@ -574,6 +574,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/config", systemHandler.ConfigSummary)
 	protected.GET("/system/config/export", systemHandler.ExportConfigAdmin)
 	protected.POST("/system/config/import", systemHandler.ImportConfigAdmin)
+	protected.GET("/system/hardware", systemHandler.Hardware)
 	protected.PUT("/system/branding", brandingHandler.UpdateBranding)
 	protected.POST("/system/branding/logo", brandingHandler.UploadLogo)
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)

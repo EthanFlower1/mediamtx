@@ -15,6 +15,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/hwaccel"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
 )
@@ -40,8 +41,9 @@ type SystemHandler struct {
 	ConfigDB       *db.DB           // full DB access for config export/import
 	ConfigPath     string           // path to mediamtx.yml for reading server configuration
 	APIAddress     string           // MediaMTX API address for live camera status
-	Collector      *metrics.Collector // ring-buffer metrics collector (may be nil)
-	StorageMgr     *storage.Manager   // storage manager for disk I/O metrics (may be nil)
+	Collector      *metrics.Collector  // ring-buffer metrics collector (may be nil)
+	StorageMgr     *storage.Manager    // storage manager for disk I/O metrics (may be nil)
+	HWDetector     *hwaccel.Detector   // hardware acceleration detector (may be nil)
 }
 
 // Metrics returns runtime performance metrics such as memory usage,
@@ -637,6 +639,26 @@ func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 		return
 	}
 	h.ImportConfig(c)
+}
+
+// Hardware returns detected hardware acceleration capabilities and a
+// recommended AI backend configuration.
+//
+//	GET /api/nvr/system/hardware (admin only)
+func (h *SystemHandler) Hardware(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	detector := h.HWDetector
+	if detector == nil {
+		detector = hwaccel.NewDetector()
+	}
+
+	force := c.Query("refresh") == "true"
+	info := detector.Detect(force)
+
+	c.JSON(http.StatusOK, info)
 }
 
 // NetworkConfig returns the full network configuration (addresses and ports)

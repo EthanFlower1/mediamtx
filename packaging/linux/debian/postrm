@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  purge)
+    # Remove data, config, and log directories on purge
+    rm -rf /var/lib/mediamtx
+    rm -rf /var/log/mediamtx
+    rm -rf /etc/mediamtx
+
+    # Remove the system user
+    if getent passwd mediamtx >/dev/null 2>&1; then
+      deluser --system mediamtx || true
+    fi
+    if getent group mediamtx >/dev/null 2>&1; then
+      delgroup --system mediamtx || true
+    fi
+
+    systemctl daemon-reload
+    ;;
+
+  remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    systemctl daemon-reload
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

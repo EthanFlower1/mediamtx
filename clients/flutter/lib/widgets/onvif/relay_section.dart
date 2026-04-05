@@ -20,7 +20,7 @@ class RelaySection extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (relays) {
-        if (relays == null || relays.isEmpty) return const SizedBox.shrink();
+        if (relays.isEmpty) return const SizedBox.shrink();
 
         return Container(
           decoration: BoxDecoration(

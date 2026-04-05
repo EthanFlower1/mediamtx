@@ -29,7 +29,7 @@ class PtzPresetsSection extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (presets) {
-        if (presets == null) return const SizedBox.shrink();
+        if (presets.isEmpty) return const SizedBox.shrink();
 
         return Container(
           decoration: BoxDecoration(

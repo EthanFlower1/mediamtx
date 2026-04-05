@@ -58,8 +58,10 @@ class ConnectivityNotifier extends StateNotifier<ConnectivityState> {
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
   }
 
+  bool _disposed = false;
+
   Future<void> _poll() async {
-    if (_dio == null) return;
+    if (_dio == null || _disposed) return;
     try {
       await _dio.get('/v3/paths/list');
       final wasOffline = state.status != ConnectivityStatus.online;
@@ -87,6 +89,7 @@ class ConnectivityNotifier extends StateNotifier<ConnectivityState> {
 
   @override
   void dispose() {
+    _disposed = true;
     _pollTimer?.cancel();
     _dio?.close();
     super.dispose();

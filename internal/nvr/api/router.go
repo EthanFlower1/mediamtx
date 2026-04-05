@@ -67,6 +67,7 @@ type RouterConfig struct {
 	ModelManager        *ai.ModelManager   // AI model manager (may be nil)
 	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
 	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
+	MigrationMgr        MigrationStatusProvider // upgrade migration manager (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -593,6 +594,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/system/branding/logo", brandingHandler.DeleteLogo)
 	protected.GET("/system/sizing", systemHandler.Sizing)
 	protected.GET("/system/requirements-check", systemHandler.RequirementsCheck)
+
+	// Upgrade migration status.
+	if cfg.MigrationMgr != nil {
+		migrationHandler := &MigrationHandler{Manager: cfg.MigrationMgr}
+		protected.GET("/system/migration-status", migrationHandler.Status)
+	}
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}

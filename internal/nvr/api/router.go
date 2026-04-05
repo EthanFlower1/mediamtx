@@ -515,6 +515,7 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/users/:id", userHandler.Get)
 	protected.PUT("/users/:id", userHandler.Update)
 	protected.DELETE("/users/:id", userHandler.Delete)
+	protected.POST("/users/:id/unlock", userHandler.Unlock)
 	protected.DELETE("/users/:id/sessions", sessionHandler.RevokeAllForUser)
 
 	// System.

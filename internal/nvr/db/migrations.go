@@ -671,4 +671,12 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
 		`,
 	},
+	// Migration 43: Brute-force protection - account lockout (KAI-77).
+	{
+		version: 43,
+		sql: `
+		ALTER TABLE users ADD COLUMN locked_until TEXT;
+		ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0;
+		`,
+	},
 }

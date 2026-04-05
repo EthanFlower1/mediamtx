@@ -598,6 +598,28 @@ func (h *SystemHandler) UpdateDiskIOThresholds(c *gin.Context) {
 	})
 }
 
+// DBHealth returns database health metrics including integrity status, WAL size,
+// page count, and last maintenance timestamps.
+//
+//	GET /api/nvr/system/db/health (admin only)
+func (h *SystemHandler) DBHealth(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	if h.ConfigDB == nil {
+		apiError(c, http.StatusInternalServerError, "database not available", fmt.Errorf("ConfigDB is nil"))
+		return
+	}
+
+	health, err := h.ConfigDB.GetDBHealth()
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to get database health", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, health)
+}
+
 // ImportConfigAdmin wraps ImportConfig with an admin role check.
 func (h *SystemHandler) ImportConfigAdmin(c *gin.Context) {
 	if !requireAdmin(c) {

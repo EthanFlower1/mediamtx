@@ -665,4 +665,11 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
 		`,
 	},
+	// Migration 45: Per-class confidence thresholds for AI detections (KAI-43).
+	{
+		version: 45,
+		sql: `
+		ALTER TABLE cameras ADD COLUMN confidence_thresholds TEXT NOT NULL DEFAULT '';
+		`,
+	},
 }

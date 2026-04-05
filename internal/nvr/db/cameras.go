@@ -57,6 +57,7 @@ type Camera struct {
 	MulticastAddress         string `json:"multicast_address"`
 	MulticastPort            int    `json:"multicast_port"`
 	MulticastTTL             int    `json:"multicast_ttl"`
+	ConfidenceThresholds     string `json:"confidence_thresholds,omitempty"`
 	CreatedAt                string `json:"created_at"`
 	UpdatedAt                string `json:"updated_at"`
 }
@@ -100,8 +101,9 @@ func (d *DB) CreateCamera(cam *Camera) error {
 			supported_event_topics,
 			device_id, channel_index,
 			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
+			confidence_thresholds,
 			created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cam.ID, cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
 		cam.ONVIFProfileToken, cam.RTSPURL, cam.PTZCapable, cam.MediaMTXPath,
 		cam.Status, cam.Tags, cam.RetentionDays, cam.EventRetentionDays, cam.DetectionRetentionDays,
@@ -114,6 +116,7 @@ func (d *DB) CreateCamera(cam *Camera) error {
 		cam.SupportedEventTopics,
 		deviceID, cam.ChannelIndex,
 		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
+		cam.ConfidenceThresholds,
 		cam.CreatedAt, cam.UpdatedAt,
 	)
 	return err
@@ -138,6 +141,7 @@ func scanCamera(scan func(...interface{}) error) (*Camera, error) {
 		&cam.SupportedEventTopics,
 		&deviceID, &cam.ChannelIndex,
 		&cam.MulticastEnabled, &cam.MulticastAddress, &cam.MulticastPort, &cam.MulticastTTL,
+		&cam.ConfidenceThresholds,
 	)
 	if err != nil {
 		return nil, err
@@ -164,7 +168,8 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
 			device_id, channel_index,
-			multicast_enabled, multicast_address, multicast_port, multicast_ttl
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
+			confidence_thresholds
 		FROM cameras WHERE id = ?`, id)
 	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -192,7 +197,8 @@ func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
 			device_id, channel_index,
-			multicast_enabled, multicast_address, multicast_port, multicast_ttl
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
+			confidence_thresholds
 		FROM cameras WHERE mediamtx_path = ?`, path)
 	cam, err := scanCamera(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -220,7 +226,8 @@ func (d *DB) ListCameras() ([]*Camera, error) {
 			quota_bytes, quota_warning_percent, quota_critical_percent,
 			supported_event_topics,
 			device_id, channel_index,
-			multicast_enabled, multicast_address, multicast_port, multicast_ttl
+			multicast_enabled, multicast_address, multicast_port, multicast_ttl,
+			confidence_thresholds
 		FROM cameras ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -256,6 +263,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 			quota_bytes = ?, quota_warning_percent = ?, quota_critical_percent = ?,
 			supported_event_topics = ?,
 			multicast_enabled = ?, multicast_address = ?, multicast_port = ?, multicast_ttl = ?,
+			confidence_thresholds = ?,
 			updated_at = ?
 		WHERE id = ?`,
 		cam.Name, cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword,
@@ -271,6 +279,7 @@ func (d *DB) UpdateCamera(cam *Camera) error {
 		cam.QuotaBytes, cam.QuotaWarningPercent, cam.QuotaCriticalPercent,
 		cam.SupportedEventTopics,
 		cam.MulticastEnabled, cam.MulticastAddress, cam.MulticastPort, cam.MulticastTTL,
+		cam.ConfidenceThresholds,
 		cam.UpdatedAt, cam.ID,
 	)
 	if err != nil {
@@ -435,6 +444,30 @@ func (d *DB) UpdateCameraMulticast(id string, enabled bool, address string, port
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdateCameraConfidenceThresholds updates the per-class confidence thresholds
+// for a camera. The thresholds parameter is a JSON string mapping class names
+// to minimum confidence values (e.g. {"person":0.6,"car":0.4}).
+// Returns ErrNotFound if no match.
+func (d *DB) UpdateCameraConfidenceThresholds(id, thresholds string) error {
+	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	res, err := d.Exec(`
+		UPDATE cameras SET confidence_thresholds = ?, updated_at = ?
+		WHERE id = ?`,
+		thresholds, updatedAt, id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
 		return ErrNotFound
 	}
 	return nil

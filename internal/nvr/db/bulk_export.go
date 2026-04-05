@@ -9,12 +9,12 @@ import (
 
 // BulkExportJob represents a bulk export job.
 type BulkExportJob struct {
-	ID          string  `json:"id"`
-	Status      string  `json:"status"`
+	ID          string `json:"id"`
+	Status      string `json:"status"`
 	ZipPath     *string `json:"zip_path"`
-	Error       string  `json:"error"`
-	CreatedAt   string  `json:"created_at"`
-	CompletedAt string  `json:"completed_at"`
+	Error       string `json:"error"`
+	CreatedAt   string `json:"created_at"`
+	CompletedAt string `json:"completed_at"`
 }
 
 // BulkExportItem represents a single item within a bulk export job.
@@ -47,7 +47,6 @@ func (d *DB) CreateBulkExportJob(job *BulkExportJob, items []*BulkExportItem) er
 		item.ID = uuid.New().String()
 		item.JobID = job.ID
 		item.Status = "pending"
-
 		_, err := d.Exec(`INSERT INTO bulk_export_items (id, job_id, camera_id, camera_name, start_time, end_time, status, file_count, total_bytes, error) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL)`,
 			item.ID, item.JobID, item.CameraID, item.CameraName, item.StartTime, item.EndTime, item.Status)
 		if err != nil {

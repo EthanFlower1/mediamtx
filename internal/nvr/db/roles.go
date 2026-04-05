@@ -285,10 +285,3 @@ func (d *DB) DeleteUserCameraPermissions(userID string) error {
 	_, err := d.Exec("DELETE FROM user_camera_permissions WHERE user_id = ?", userID)
 	return err
 }
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}

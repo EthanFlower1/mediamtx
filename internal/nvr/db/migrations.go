@@ -679,4 +679,38 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0;
 		`,
 	},
+	// Migration 44: Role-based access control (KAI-75).
+	{
+		version: 44,
+		sql: `
+		CREATE TABLE roles (
+			id TEXT PRIMARY KEY,
+			name TEXT UNIQUE NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			permissions TEXT NOT NULL DEFAULT '[]',
+			is_system INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+		);
+
+		CREATE TABLE user_camera_permissions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			camera_id TEXT NOT NULL,
+			permissions TEXT NOT NULL DEFAULT '[]',
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE,
+			UNIQUE(user_id, camera_id)
+		);
+		CREATE INDEX idx_user_camera_perms_user ON user_camera_permissions(user_id);
+		CREATE INDEX idx_user_camera_perms_camera ON user_camera_permissions(camera_id);
+
+		ALTER TABLE users ADD COLUMN role_id TEXT NOT NULL DEFAULT '';
+
+		INSERT INTO roles (id, name, description, permissions, is_system) VALUES
+			('role-admin', 'admin', 'Full system access', '["view_live","view_playback","export","ptz_control","admin"]', 1),
+			('role-operator', 'operator', 'View, playback, export, and PTZ control', '["view_live","view_playback","export","ptz_control"]', 1),
+			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
+		`,
+	},
 }

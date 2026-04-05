@@ -76,6 +76,16 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	engine.Use(CORSMiddleware(cfg.SecurityConfig))
 	engine.Use(SecurityHeadersMiddleware(cfg.SecurityConfig))
 
+	// Health check endpoint — unauthenticated, Docker HEALTHCHECK compatible.
+	sysHealthHandler := &HealthHandler{
+		DB:             cfg.DB,
+		Scheduler:      cfg.Scheduler,
+		StorageManager: cfg.StorageManager,
+		Discovery:      cfg.Discovery,
+		RecordingsPath: cfg.RecordingsPath,
+	}
+	engine.GET("/health", sysHealthHandler.Check)
+
 	var rateLimiter *RateLimiter
 	if cfg.SecurityConfig.RateLimitEnabled {
 		rateLimiter = NewRateLimiter(

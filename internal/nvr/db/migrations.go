@@ -624,6 +624,27 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		CREATE INDEX IF NOT EXISTS idx_bulk_export_items_job ON bulk_export_items(job_id);
 		`,
 	},
+<<<<<<< HEAD
+	// Migration 42: Detection schedules (KAI-46).
+	{
+		version: 42,
+		sql: `
+		CREATE TABLE detection_schedules (
+			id TEXT PRIMARY KEY,
+			camera_id TEXT NOT NULL,
+			day_of_week INTEGER NOT NULL CHECK(day_of_week BETWEEN 0 AND 6),
+			start_time TEXT NOT NULL,
+			end_time TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_detection_schedules_camera ON detection_schedules(camera_id);
+		CREATE INDEX idx_detection_schedules_day ON detection_schedules(camera_id, day_of_week);
+		`,
+	},
+=======
 	// Migration 42: System alerts and SMTP configuration (KAI-83).
 	{
 		version: 42,
@@ -715,5 +736,6 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 			('role-viewer', 'viewer', 'View live and playback only', '["view_live","view_playback"]', 1);
 		`,
 	},
+>>>>>>> origin/main
 >>>>>>> origin/main
 }

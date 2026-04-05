@@ -62,6 +62,7 @@ type RouterConfig struct {
 	SecurityConfig     SecurityConfig     // network security settings (CORS, CSP, rate limiting)
 	UpdateManager      *updater.Manager   // system update manager (may be nil)
 	TLSManager          *crypto.TLSManager // TLS certificate manager (may be nil)
+	DetectionEvaluator  *scheduler.DetectionEvaluator // detection scheduling evaluator (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -204,6 +205,11 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	}
 
 	templateHandler := &ScheduleTemplateHandler{DB: cfg.DB}
+
+	detectionScheduleHandler := &DetectionScheduleHandler{
+		DB:        cfg.DB,
+		Evaluator: cfg.DetectionEvaluator,
+	}
 
 	jwksHandler := &JWKSHandler{
 		JWKSJSON: cfg.JWKSJSON,
@@ -516,6 +522,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 
 	// Stream schedule assignment.
 	protected.PUT("/cameras/:id/stream-schedule", cameraHandler.AssignStreamSchedule)
+
+	// Detection scheduling (KAI-46).
+	protected.GET("/cameras/:id/detection-schedule", detectionScheduleHandler.Get)
+	protected.PUT("/cameras/:id/detection-schedule", detectionScheduleHandler.Update)
+	protected.GET("/detection-schedule/templates", detectionScheduleHandler.Templates)
+	protected.GET("/detection-schedule/status", detectionScheduleHandler.Status)
 
 	// Auth (protected).
 	protected.PUT("/auth/password", userHandler.ChangePassword)

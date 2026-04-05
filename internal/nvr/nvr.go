@@ -76,6 +76,14 @@ type NVR struct {
 	connMgr           *connmgr.Manager
 	maintenanceRunner *db.MaintenanceRunner
 
+<<<<<<< HEAD
+	backchannelMgr  *backchannel.Manager
+	exportHandler   *api.ExportHandler
+	backupSvc       *backup.Service
+	tlsManager      *crypto.TLSManager
+
+	detectionEvaluator *scheduler.DetectionEvaluator
+=======
 	backchannelMgr   *backchannel.Manager
 	exportHandler    *api.ExportHandler
 	emailSender      *alerts.EmailSender
@@ -84,6 +92,7 @@ type NVR struct {
 	tlsManager       *crypto.TLSManager
 
 	firstBoot bool // true when the DB was freshly created (no prior state)
+>>>>>>> origin/main
 }
 
 // Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
@@ -290,6 +299,10 @@ func (n *NVR) Initialize() error {
 		}
 
 		n.startAIPipelines()
+
+		// Start detection schedule evaluator to manage pipelines per schedule.
+		n.detectionEvaluator = scheduler.NewDetectionEvaluator(n.database, n)
+		n.detectionEvaluator.Start()
 	}
 
 	// Sync audio_transcode flag with YAML config: if a -live path exists
@@ -617,6 +630,11 @@ func (n *NVR) Close() {
 		n.ctxCancel()
 	}
 
+	// Stop detection evaluator before pipelines.
+	if n.detectionEvaluator != nil {
+		n.detectionEvaluator.Stop()
+	}
+
 	// Stop AI pipelines first so they don't write to the DB after it's closed.
 	for id, p := range n.aiPipelines {
 		p.Stop()
@@ -878,6 +896,43 @@ func (n *NVR) RestartAIPipeline(cameraID string) {
 	n.startSinglePipeline(cam)
 }
 
+// StartDetectionPipeline starts the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StartDetectionPipeline(cameraID string) {
+	if n.aiDetector == nil {
+		return
+	}
+	if _, running := n.aiPipelines[cameraID]; running {
+		return // already running
+	}
+
+	cam, err := n.database.GetCamera(cameraID)
+	if err != nil {
+		log.Printf("ai: start detection pipeline: get camera %s: %v", cameraID, err)
+		return
+	}
+	if !cam.AIEnabled {
+		return
+	}
+	n.startSinglePipeline(cam)
+}
+
+// StopDetectionPipeline stops the AI detection pipeline for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) StopDetectionPipeline(cameraID string) {
+	if p, ok := n.aiPipelines[cameraID]; ok {
+		p.Stop()
+		delete(n.aiPipelines, cameraID)
+	}
+}
+
+// IsDetectionPipelineRunning returns true if the AI pipeline is running for a camera.
+// Implements scheduler.DetectionPipelineController.
+func (n *NVR) IsDetectionPipelineRunning(cameraID string) bool {
+	_, ok := n.aiPipelines[cameraID]
+	return ok
+}
+
 // decryptPassword decrypts an ONVIF password from the DB if it was encrypted
 // with the "enc:" prefix.
 func (n *NVR) decryptPassword(encKey []byte, encrypted string) string {
@@ -1016,7 +1071,8 @@ func (n *NVR) RegisterRoutes(engine *gin.Engine, version string) {
 		BackupService:   n.backupSvc,
 		SecurityConfig:  api.DefaultSecurityConfig(),
 		UpdateManager:   updater.New(n.database, version),
-		TLSManager:      n.tlsManager,
+		TLSManager:          n.tlsManager,
+		DetectionEvaluator:  n.detectionEvaluator,
 	})
 }
 

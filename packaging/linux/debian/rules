@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+BINARY_NAME = mediamtx
+INSTALL_DIR = /usr/bin
+CONFIG_DIR  = /etc/mediamtx
+DATA_DIR    = /var/lib/mediamtx
+LOG_DIR     = /var/log/mediamtx
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	CGO_ENABLED=0 go build -tags enable_upgrade -o $(BINARY_NAME) .
+
+override_dh_auto_install:
+	install -D -m 0755 $(BINARY_NAME) debian/mediamtx$(INSTALL_DIR)/$(BINARY_NAME)
+	install -D -m 0644 mediamtx.yml debian/mediamtx$(CONFIG_DIR)/mediamtx.yml
+	install -D -m 0644 packaging/linux/debian/mediamtx.service debian/mediamtx/lib/systemd/system/mediamtx.service
+	install -d -m 0755 debian/mediamtx$(DATA_DIR)
+	install -d -m 0755 debian/mediamtx$(DATA_DIR)/recordings
+	install -d -m 0755 debian/mediamtx$(DATA_DIR)/thumbnails
+	install -d -m 0750 debian/mediamtx$(LOG_DIR)
+
+override_dh_auto_test:
+	# Tests require network access; skip during package build
+
+override_dh_auto_clean:
+	rm -f $(BINARY_NAME)

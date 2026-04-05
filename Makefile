@@ -17,6 +17,12 @@ help:
 	@echo "  binaries         build binaries for all supported platforms"
 	@echo "  dockerhub        build and push images to Docker Hub"
 	@echo ""
+	@echo "  package-deb      build Debian/Ubuntu .deb package"
+	@echo "  package-rpm      build RPM package"
+	@echo "  package-macos    build macOS .pkg installer"
+	@echo "  package-windows  build Windows NSIS installer"
+	@echo "  package-all      build all platform packages"
+	@echo ""
 
 blank :=
 define NL

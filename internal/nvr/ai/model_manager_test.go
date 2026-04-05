@@ -7,6 +7,7 @@ import (
 )
 
 func TestModelManagerListModels(t *testing.T) {
+<<<<<<< HEAD
 	dir := t.TempDir()
 
 	files := map[string]string{
@@ -16,6 +17,19 @@ func TestModelManagerListModels(t *testing.T) {
 		"clip-vocab.json":             `{"hello": 1}`,
 		"clip-visual-projection.bin":  "fake-projection",
 		"README.txt":                  "not a model",
+=======
+	// Create a temp directory with fake model files.
+	dir := t.TempDir()
+
+	// Create some fake model files.
+	files := map[string]string{
+		"yolov8n.onnx":             "fake-yolo-model",
+		"yolov8s.onnx":             "fake-yolo-small-model",
+		"clip-vit-b32-visual.onnx": "fake-clip-visual",
+		"clip-vocab.json":          `{"hello": 1}`,
+		"clip-visual-projection.bin": "fake-projection",
+		"README.txt":               "not a model",
+>>>>>>> origin/main
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
@@ -38,6 +52,10 @@ func TestModelManagerListModels(t *testing.T) {
 		}
 	}
 
+<<<<<<< HEAD
+=======
+	// Check classification.
+>>>>>>> origin/main
 	typeMap := make(map[string]ModelType)
 	for _, m := range models {
 		typeMap[m.Name] = m.Type
@@ -101,6 +119,10 @@ func TestModelManagerVerifyModel(t *testing.T) {
 
 	mgr := NewModelManager(dir, nil, "")
 
+<<<<<<< HEAD
+=======
+	// Test with absolute path.
+>>>>>>> origin/main
 	hash, err := mgr.VerifyModel(modelPath)
 	if err != nil {
 		t.Fatalf("VerifyModel: %v", err)
@@ -109,7 +131,11 @@ func TestModelManagerVerifyModel(t *testing.T) {
 		t.Error("expected non-empty hash")
 	}
 
+<<<<<<< HEAD
 	// Relative name should give the same hash.
+=======
+	// Test with relative name.
+>>>>>>> origin/main
 	hash2, err := mgr.VerifyModel("test.onnx")
 	if err != nil {
 		t.Fatalf("VerifyModel relative: %v", err)

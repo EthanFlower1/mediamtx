@@ -20,6 +20,7 @@ type userCreateRequest struct {
 	Username          string `json:"username" binding:"required"`
 	Password          string `json:"password" binding:"required"`
 	Role              string `json:"role"`
+	RoleID            string `json:"role_id"`
 	CameraPermissions string `json:"camera_permissions"`
 }
 
@@ -28,6 +29,7 @@ type userUpdateRequest struct {
 	Username          string `json:"username"`
 	Password          string `json:"password"`
 	Role              string `json:"role"`
+	RoleID            string `json:"role_id"`
 	CameraPermissions string `json:"camera_permissions"`
 }
 
@@ -100,6 +102,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		Username:          req.Username,
 		PasswordHash:      hashed,
 		Role:              req.Role,
+		RoleID:            req.RoleID,
 		CameraPermissions: req.CameraPermissions,
 	}
 
@@ -160,6 +163,9 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 	if req.Role != "" {
 		existing.Role = req.Role
+	}
+	if req.RoleID != "" {
+		existing.RoleID = req.RoleID
 	}
 	if req.CameraPermissions != "" {
 		existing.CameraPermissions = req.CameraPermissions
@@ -242,6 +248,38 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "password changed"})
+}
+
+// Unlock clears the account lockout for a user. Admin only.
+//
+//	POST /api/nvr/users/:id/unlock
+func (h *UserHandler) Unlock(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+
+	id := c.Param("id")
+
+	user, err := h.DB.GetUser(id)
+	if errors.Is(err, db.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to retrieve user", err)
+		return
+	}
+
+	if err := h.DB.UnlockUser(id); err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to unlock user", err)
+		return
+	}
+
+	if h.Audit != nil {
+		h.Audit.logAction(c, "unlock", "user", id, "Unlocked account for user "+user.Username)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "account unlocked", "username": user.Username})
 }
 
 // Delete deletes a user by ID. Prevents self-deletion.

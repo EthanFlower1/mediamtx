@@ -255,8 +255,7 @@ func (h *ExportHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if !hasCameraPermission(c, req.CameraID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "no permission for this camera"})
+	if !requireCameraPermission(c, req.CameraID, db.PermExport) {
 		return
 	}
 

@@ -4987,3 +4987,95 @@ func (h *CameraHandler) UpdateMulticast(c *gin.Context) {
 		"ttl":     req.TTL,
 	})
 }
+
+// GetConfidenceThresholds handles GET /cameras/:id/confidence-thresholds.
+// Returns the per-class confidence thresholds for a camera, merging defaults
+// with any camera-specific overrides.
+func (h *CameraHandler) GetConfidenceThresholds(c *gin.Context) {
+	id := c.Param("id")
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to get camera", err)
+		return
+	}
+
+	// Parse stored overrides.
+	overrides := map[string]float64{}
+	if cam.ConfidenceThresholds != "" {
+		if err := json.Unmarshal([]byte(cam.ConfidenceThresholds), &overrides); err != nil {
+			overrides = map[string]float64{}
+		}
+	}
+
+	// Build effective thresholds: defaults merged with overrides.
+	defaults := map[string]float64{
+		"person": 0.5, "car": 0.4, "truck": 0.4, "bus": 0.4,
+		"motorcycle": 0.4, "bicycle": 0.4, "boat": 0.4,
+		"cat": 0.3, "dog": 0.3, "horse": 0.3, "sheep": 0.3,
+		"cow": 0.3, "elephant": 0.3, "bear": 0.3, "zebra": 0.3, "giraffe": 0.3,
+	}
+	effective := make(map[string]float64, len(defaults))
+	for k, v := range defaults {
+		effective[k] = v
+	}
+	for k, v := range overrides {
+		effective[k] = v
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"camera_id": cam.ID,
+		"defaults":  defaults,
+		"overrides": overrides,
+		"effective": effective,
+	})
+}
+
+// UpdateConfidenceThresholds handles PUT /cameras/:id/confidence-thresholds.
+// Accepts a JSON map of class name to minimum confidence value.
+func (h *CameraHandler) UpdateConfidenceThresholds(c *gin.Context) {
+	id := c.Param("id")
+
+	var thresholds map[string]float64
+	if err := c.ShouldBindJSON(&thresholds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "expected JSON object mapping class names to confidence values"})
+		return
+	}
+
+	// Validate values are in [0, 1].
+	for cls, val := range thresholds {
+		if val < 0 || val > 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("confidence for %q must be between 0 and 1, got %v", cls, val),
+			})
+			return
+		}
+	}
+
+	raw, err := json.Marshal(thresholds)
+	if err != nil {
+		apiError(c, http.StatusInternalServerError, "failed to marshal thresholds", err)
+		return
+	}
+
+	if err := h.DB.UpdateCameraConfidenceThresholds(id, string(raw)); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "camera not found"})
+			return
+		}
+		apiError(c, http.StatusInternalServerError, "failed to update confidence thresholds", err)
+		return
+	}
+
+	// Restart AI pipeline so it picks up the new thresholds.
+	if h.AIRestarter != nil {
+		h.AIRestarter.RestartAIPipeline(id)
+	}
+
+	// Return the updated effective thresholds.
+	h.GetConfidenceThresholds(c)
+}

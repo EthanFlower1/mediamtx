@@ -18,6 +18,7 @@ type Pipeline struct {
 	database          *db.DB
 	eventPub          EventPublisher
 	detectionCallback DetectionCallback
+	classThresholds   *ClassThresholds
 	metrics           *DetectionMetrics
 	autoscaler        *Autoscaler
 
@@ -33,12 +34,17 @@ func NewPipeline(
 	database *db.DB,
 	eventPub EventPublisher,
 ) *Pipeline {
+	confThresh := config.ConfidenceThresh
+	if confThresh <= 0 {
+		confThresh = 0.5
+	}
 	return &Pipeline{
-		config:   config,
-		detector: detector,
-		embedder: embedder,
-		database: database,
-		eventPub: eventPub,
+		config:          config,
+		detector:        detector,
+		embedder:        embedder,
+		database:        database,
+		eventPub:        eventPub,
+		classThresholds: NewClassThresholds(config.ConfidenceThresholdsJSON, confThresh),
 	}
 }
 
@@ -222,6 +228,10 @@ func (p *Pipeline) runDetector(
 				onvifDets := onvifSrc.LatestDetections()
 				dets = MergeDetections(dets, onvifDets)
 			}
+
+			// Apply per-class confidence thresholds to discard low-confidence
+			// detections before they reach the tracker and storage.
+			dets = p.classThresholds.FilterDetections(dets)
 
 			// Record inference metrics.
 			if p.metrics != nil {

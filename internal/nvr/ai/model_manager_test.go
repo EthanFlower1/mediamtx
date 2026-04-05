@@ -40,6 +40,28 @@ func TestModelManagerListModels(t *testing.T) {
 		}
 	}
 
+	// Check classification.
+	typeMap := make(map[string]ModelType)
+	for _, m := range models {
+		typeMap[m.Name] = m.Type
+	}
+	if typeMap["yolov8n.onnx"] != ModelTypeDetector {
+		t.Errorf("yolov8n.onnx should be detector, got %s", typeMap["yolov8n.onnx"])
+	}
+	if typeMap["clip-vit-b32-visual.onnx"] != ModelTypeEmbedder {
+		t.Errorf("clip-vit-b32-visual.onnx should be embedder, got %s", typeMap["clip-vit-b32-visual.onnx"])
+	}
+}
+
+func TestModelManagerVerifyModel(t *testing.T) {
+	dir := t.TempDir()
+	modelPath := filepath.Join(dir, "test.onnx")
+	if err := os.WriteFile(modelPath, []byte("test model content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewModelManager(dir, nil, "")
+
 	// Test with absolute path.
 	hash, err := mgr.VerifyModel(modelPath)
 	if err != nil {

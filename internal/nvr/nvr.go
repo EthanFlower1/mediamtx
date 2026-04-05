@@ -841,8 +841,9 @@ func (n *NVR) startSinglePipeline(cam *db.Camera) {
 		StreamURL:        streamURL,
 		StreamWidth:      streamWidth,
 		StreamHeight:     streamHeight,
-		ConfidenceThresh: float32(cam.AIConfidence),
-		TrackTimeout:     cam.AITrackTimeout,
+		ConfidenceThresh:         float32(cam.AIConfidence),
+		TrackTimeout:             cam.AITrackTimeout,
+		ConfidenceThresholdsJSON: cam.ConfidenceThresholds,
 	}
 
 	pipeline := ai.NewPipeline(config, n.aiDetector, n.aiEmbedder, n.database, n.events)

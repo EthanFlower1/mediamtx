@@ -403,6 +403,8 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	// Camera AI configuration.
 	protected.PUT("/cameras/:id/ai", cameraHandler.UpdateAIConfig)
 	protected.PUT("/cameras/:id/audio-transcode", cameraHandler.UpdateAudioTranscode)
+	protected.GET("/cameras/:id/confidence-thresholds", cameraHandler.GetConfidenceThresholds)
+	protected.PUT("/cameras/:id/confidence-thresholds", cameraHandler.UpdateConfidenceThresholds)
 
 	// Detection zones.
 	zoneHandler := &DetectionZoneHandler{DB: cfg.DB}

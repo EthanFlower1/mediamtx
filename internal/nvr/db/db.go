@@ -30,7 +30,7 @@ func Open(path string) (*DB, error) {
 		"_pragma": []string{
 			"foreign_keys(1)",
 			"journal_mode(WAL)",
-			"busy_timeout(5000)",
+			"busy_timeout(10000)",
 		},
 	}.Encode()
 

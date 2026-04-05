@@ -54,7 +54,7 @@ func (h *ExportHandler) Start(maxConcurrent int) {
 	sem := make(chan struct{}, maxConcurrent)
 
 	go func() {
-		ticker := time.NewTicker(3 * time.Second)
+		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 
 		for {

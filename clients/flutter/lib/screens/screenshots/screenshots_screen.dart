@@ -1,5 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
@@ -122,6 +125,20 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   HudButton(
+                    style: HudButtonStyle.secondary,
+                    label: 'DOWNLOAD',
+                    icon: Icons.download,
+                    onPressed: () => _downloadScreenshot(imageUrl, cameraName, createdAt),
+                  ),
+                  const SizedBox(width: 8),
+                  HudButton(
+                    style: HudButtonStyle.secondary,
+                    label: 'SHARE',
+                    icon: Icons.share,
+                    onPressed: () => _shareScreenshot(imageUrl, cameraName, createdAt),
+                  ),
+                  const SizedBox(width: 8),
+                  HudButton(
                     style: HudButtonStyle.danger,
                     label: 'DELETE',
                     icon: Icons.delete_outline,
@@ -137,6 +154,58 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _downloadScreenshot(String imageUrl, String cameraName, String createdAt) async {
+    try {
+      final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+      final safeCamera = cameraName.replaceAll(RegExp(r'[^\w\-]'), '_');
+      final safeTime = createdAt.replaceAll(RegExp(r'[^\w\-]'), '_');
+      final filePath = '${dir.path}/${safeCamera}_$safeTime.jpg';
+
+      await Dio().download(imageUrl, filePath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: NvrColors.of(context).success,
+            content: Text('Saved to $filePath'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: NvrColors.of(context).danger,
+            content: Text('Download failed: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareScreenshot(String imageUrl, String cameraName, String createdAt) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final filePath = '${dir.path}/screenshot_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      await Dio().download(imageUrl, filePath);
+
+      await Share.shareXFiles(
+        [XFile(filePath)],
+        text: '$cameraName - $createdAt',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: NvrColors.of(context).danger,
+            content: Text('Share failed: $e'),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _deleteScreenshot(int id) async {

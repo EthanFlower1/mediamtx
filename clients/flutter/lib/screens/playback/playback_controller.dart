@@ -31,7 +31,7 @@ class PlaybackController extends ChangeNotifier {
 
   // Gap timer — advances position when between recording segments
   Timer? _gapTimer;
-  static const _gapTickInterval = Duration(milliseconds: 100);
+  static const _gapTickInterval = Duration(milliseconds: 250);
 
   // Players — one per selected camera
   final Map<String, VideoPlayerController> _players = {};

@@ -109,14 +109,86 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
     });
     final api = ref.read(apiClientProvider);
     if (api == null) return;
+
+    // Kick off the four independent fetches in parallel. Assigning each to a
+    // local before awaiting starts them all immediately, so total wall time
+    // becomes max(latencies) instead of the sum. Only the camera fetch can
+    // fail the whole screen — the other three are wrapped at declaration so
+    // they never throw, which also means abandoning them on early exit can't
+    // leak an unhandled async error.
+    bool templatesFailed = false;
+    bool rulesFailed = false;
+
+    final cameraFuture = api.get<dynamic>('/cameras/${widget.cameraId}');
+
+    final streamsFuture = api
+        .get<dynamic>('/cameras/${widget.cameraId}/streams')
+        .then<List<CameraStream>>(
+      (res) {
+        final rawList = res.data;
+        debugPrint('Streams response for ${widget.cameraId}: $rawList');
+        final list = (rawList as List)
+            .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
+            .toList();
+        debugPrint('Parsed ${list.length} streams');
+        return list;
+      },
+      onError: (e) {
+        debugPrint('Failed to fetch streams: $e');
+        return <CameraStream>[];
+      },
+    );
+
+    final templatesFuture = api
+        .get<dynamic>('/schedule-templates')
+        .then<List<ScheduleTemplate>>(
+      (res) => (res.data as List)
+          .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      onError: (e) {
+        templatesFailed = true;
+        return <ScheduleTemplate>[];
+      },
+    );
+
+    final rulesFuture = api
+        .get<dynamic>('/cameras/${widget.cameraId}/recording-rules')
+        .then<Map<String, String>>(
+      (res) {
+        final rules = res.data as List<dynamic>? ?? [];
+        final map = <String, String>{};
+        for (final r in rules) {
+          final rule = r as Map<String, dynamic>;
+          final streamId = rule['stream_id'] as String? ?? '';
+          final templateId = rule['template_id'] as String? ?? '';
+          map[streamId] = templateId.isNotEmpty ? templateId : '__custom__';
+        }
+        return map;
+      },
+      onError: (e) {
+        rulesFailed = true;
+        return <String, String>{};
+      },
+    );
+
     try {
-      final res = await api.get<dynamic>('/cameras/${widget.cameraId}');
-      final camera = Camera.fromJson(res.data as Map<String, dynamic>);
+      final cameraRes = await cameraFuture;
+      final camera = Camera.fromJson(cameraRes.data as Map<String, dynamic>);
+      final streamsList = await streamsFuture;
+      final templatesList = await templatesFuture;
+      final rulesMap = await rulesFuture;
+
+      // Build per-stream settings now that streams + rules are both in.
+      final newSettings = <String, StreamSettingsState>{};
+      for (final stream in streamsList) {
+        final tmplId = rulesMap[stream.id] ?? '';
+        newSettings[stream.id] = StreamSettingsState.fromStream(stream, templateId: tmplId);
+      }
+
       if (!mounted) return;
       setState(() {
         _camera = camera;
         _loading = false;
-        // Populate controllers & local state from camera data
         _nameCtrl.text = camera.name;
         _rtspCtrl.text = camera.rtspUrl;
         _onvifCtrl.text = camera.onvifEndpoint;
@@ -125,70 +197,24 @@ class _CameraDetailScreenState extends ConsumerState<CameraDetailScreen> {
         _aiEnabled = camera.aiEnabled;
         _confidence = camera.aiConfidence.clamp(0.2, 0.9);
         _trackTimeout = camera.aiTrackTimeout.toDouble().clamp(1, 30);
-        // Don't set _aiStreamId yet — wait for streams to load so the
-        // dropdown always has a matching item.
+        _streams = streamsList;
+        // Only set the AI stream ID if it exists in the loaded streams.
+        final savedId = camera.aiStreamId;
+        _aiStreamId = streamsList.any((s) => s.id == savedId) ? savedId : '';
+        _templates = templatesList;
+        _streamTemplateMap = rulesMap;
+        _streamSettings = newSettings;
       });
-      // Fetch streams, then set the AI stream ID.
-      try {
-        final streamsRes = await api.get<dynamic>('/cameras/${widget.cameraId}/streams');
-        final rawList = streamsRes.data;
-        debugPrint('Streams response for ${widget.cameraId}: $rawList');
-        final streamsList = (rawList as List)
-            .map((e) => CameraStream.fromJson(e as Map<String, dynamic>))
-            .toList();
-        debugPrint('Parsed ${streamsList.length} streams');
-        if (mounted) {
-          setState(() {
-            _streams = streamsList;
-            // Only set the stream ID if it exists in the loaded streams.
-            final savedId = camera.aiStreamId;
-            _aiStreamId = streamsList.any((s) => s.id == savedId) ? savedId : '';
-          });
-        }
-      } catch (e) {
-        debugPrint('Failed to fetch streams: $e');
+
+      // Surface non-fatal errors after the screen has rendered. Done outside
+      // setState so a stale snackbar from a prior fetch doesn't block render.
+      if (templatesFailed && mounted) {
+        showErrorSnackBar(context, 'Failed to load schedule templates');
+      }
+      if (rulesFailed && mounted) {
+        showErrorSnackBar(context, 'Failed to load recording rules');
       }
 
-      // Fetch schedule templates.
-      try {
-        final tmplRes = await api.get<dynamic>('/schedule-templates');
-        final tmplList = (tmplRes.data as List)
-            .map((e) => ScheduleTemplate.fromJson(e as Map<String, dynamic>))
-            .toList();
-        if (mounted) setState(() => _templates = tmplList);
-      } catch (e) {
-        if (mounted) showErrorSnackBar(context, 'Failed to load schedule templates');
-      }
-
-      // Build stream → template assignment map from recording rules.
-      try {
-        final rulesRes = await api.get<dynamic>('/cameras/${widget.cameraId}/recording-rules');
-        final rules = rulesRes.data as List<dynamic>? ?? [];
-        final map = <String, String>{};
-        for (final r in rules) {
-          final rule = r as Map<String, dynamic>;
-          final streamId = rule['stream_id'] as String? ?? '';
-          final templateId = rule['template_id'] as String? ?? '';
-          if (templateId.isNotEmpty) {
-            map[streamId] = templateId;
-          } else {
-            map[streamId] = '__custom__';
-          }
-        }
-        if (mounted) setState(() => _streamTemplateMap = map);
-      } catch (e) {
-        if (mounted) showErrorSnackBar(context, 'Failed to load recording rules');
-      }
-
-      // Initialize per-stream settings state.
-      final newSettings = <String, StreamSettingsState>{};
-      for (final stream in _streams) {
-        final tmplId = _streamTemplateMap[stream.id] ?? '';
-        newSettings[stream.id] = StreamSettingsState.fromStream(stream, templateId: tmplId);
-      }
-      if (mounted) {
-        setState(() => _streamSettings = newSettings);
-      }
       _fetchStorageEstimates();
     } catch (e) {
       if (!mounted) return;

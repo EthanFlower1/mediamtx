@@ -1110,6 +1110,28 @@ func (h *CameraHandler) RefreshCapabilities(c *gin.Context) {
 		return
 	}
 
+	// Refresh the cached device information (manufacturer, model, firmware,
+	// serial, hardware id). The detail screen reads from this cache so it
+	// doesn't have to issue a live SOAP call on every page load.
+	if client, derr := onvif.NewClient(endpoint, username, password); derr == nil {
+		if info, ierr := client.Dev.GetDeviceInformation(c.Request.Context()); ierr == nil {
+			payload := map[string]string{
+				"manufacturer":     info.Manufacturer,
+				"model":            info.Model,
+				"firmware_version": info.FirmwareVersion,
+				"serial_number":    info.SerialNumber,
+				"hardware_id":      info.HardwareID,
+			}
+			if b, jerr := json.Marshal(payload); jerr == nil {
+				if uerr := h.DB.UpdateCameraDeviceInfo(cam.ID, string(b)); uerr != nil {
+					nvrLogWarn("cameras", fmt.Sprintf("failed to cache device info for %s during refresh: %v", cam.ID, uerr))
+				}
+			}
+		} else {
+			nvrLogWarn("cameras", fmt.Sprintf("device info fetch failed during refresh for %s: %v", cam.ID, ierr))
+		}
+	}
+
 	// Recreate streams from probed profiles — but only if the probe found any.
 	// Some cameras (e.g., Dahua AD410) return 0 profiles from ONVIF even though
 	// they have streams. Don't wipe existing streams in that case.
@@ -1653,6 +1675,12 @@ func (h *CameraHandler) SetRelayOutputState(c *gin.Context) {
 // GetDeviceInfo returns basic device information from the camera.
 //
 //	GET /cameras/:id/device-info
+//	GET /cameras/:id/device-info?refresh=true  (forces a live ONVIF fetch)
+//
+// Returns cached device information from the database when available. The
+// cache is populated lazily on the first request and is also refreshed by the
+// /refresh endpoint. Pass ?refresh=true to bypass the cache and re-pull from
+// the camera.
 func (h *CameraHandler) GetDeviceInfo(c *gin.Context) {
 	id := c.Param("id")
 	cam, err := h.DB.GetCamera(id)
@@ -1669,6 +1697,26 @@ func (h *CameraHandler) GetDeviceInfo(c *gin.Context) {
 		return
 	}
 
+	forceRefresh := c.Query("refresh") == "true"
+
+	// Serve from cache when possible. The cache is a JSON blob persisted on
+	// the camera row by /refresh and by previous calls to this endpoint.
+	if !forceRefresh {
+		cached, err := h.DB.GetCameraDeviceInfo(id)
+		if err != nil && !errors.Is(err, db.ErrNotFound) {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to read cached device info for %s: %v", id, err))
+		}
+		if cached != "" {
+			var payload map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &payload); err == nil {
+				c.JSON(http.StatusOK, payload)
+				return
+			}
+			nvrLogWarn("cameras", fmt.Sprintf("cached device info for %s is corrupt, re-fetching", id))
+		}
+	}
+
+	// Cache miss (or forced refresh) — talk to the camera.
 	client, err := onvif.NewClient(cam.ONVIFEndpoint, cam.ONVIFUsername, h.decryptPassword(cam.ONVIFPassword))
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "failed to connect to camera"})
@@ -1682,13 +1730,23 @@ func (h *CameraHandler) GetDeviceInfo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	payload := gin.H{
 		"manufacturer":     info.Manufacturer,
 		"model":            info.Model,
 		"firmware_version": info.FirmwareVersion,
 		"serial_number":    info.SerialNumber,
 		"hardware_id":      info.HardwareID,
-	})
+	}
+
+	// Persist for next time. Best-effort: a cache failure must not fail the
+	// request, since we already have the live data the caller asked for.
+	if b, err := json.Marshal(payload); err == nil {
+		if err := h.DB.UpdateCameraDeviceInfo(id, string(b)); err != nil {
+			nvrLogWarn("cameras", fmt.Sprintf("failed to cache device info for %s: %v", id, err))
+		}
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 // GetServices returns the cached ONVIF service list and per-service

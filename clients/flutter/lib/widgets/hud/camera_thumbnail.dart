@@ -45,6 +45,8 @@ class CameraThumbnail extends ConsumerWidget {
             return Image.network(
               url,
               fit: BoxFit.cover,
+              cacheWidth: 320,
+              cacheHeight: 180,
               errorBuilder: (_, __, ___) => _placeholder(context),
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;

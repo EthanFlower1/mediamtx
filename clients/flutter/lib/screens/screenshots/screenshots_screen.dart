@@ -31,11 +31,20 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
   bool _selectionMode = false;
   final Set<int> _selectedIds = {};
 
+  // Cached access token — fetched once, reused by all cards.
+  String? _accessToken;
+
   @override
   void initState() {
     super.initState();
+    _fetchAccessToken();
     _fetchScreenshots();
     _fetchCameras();
+  }
+
+  Future<void> _fetchAccessToken() async {
+    final token = await _getAccessToken();
+    if (mounted) setState(() => _accessToken = token);
   }
 
   Future<String?> _getAccessToken() async {
@@ -146,16 +155,10 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
             ),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 500),
-              child: FutureBuilder<String?>(
-                future: _getAccessToken(),
-                builder: (context, snap) {
-                  final token = snap.data;
-                  return Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    headers: token != null ? _authHeaders(token) : null,
-                  );
-                },
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                headers: _accessToken != null ? _authHeaders(_accessToken!) : null,
               ),
             ),
             Padding(
@@ -504,25 +507,29 @@ class _ScreenshotsScreenState extends ConsumerState<ScreenshotsScreen> {
               Column(
                 children: [
                   Expanded(
-                    child: FutureBuilder<String?>(
-                      future: _getAccessToken(),
-                      builder: (context, snap) {
-                        final token = snap.data;
-                        return Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          headers: token != null ? _authHeaders(token) : null,
-                          errorBuilder: (context, error, stackTrace) => Container(
+                    child: _accessToken != null
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            cacheWidth: 320,
+                            cacheHeight: 180,
+                            headers: _authHeaders(_accessToken!),
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: NvrColors.of(context).bgTertiary,
+                              child: Center(
+                                child: Icon(Icons.broken_image_outlined,
+                                    color: NvrColors.of(context).textMuted, size: 32),
+                              ),
+                            ),
+                          )
+                        : Container(
                             color: NvrColors.of(context).bgTertiary,
                             child: Center(
                               child: Icon(Icons.broken_image_outlined,
                                   color: NvrColors.of(context).textMuted, size: 32),
                             ),
                           ),
-                        );
-                      },
-                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.all(8),

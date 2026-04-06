@@ -52,6 +52,21 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
   _TimeRange _selectedTimeRange = _TimeRange.all;
   int _confidenceThreshold = 50; // percentage
 
+  // Cached access token — fetched once, reused by all result cards.
+  String? _accessToken;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAccessToken();
+  }
+
+  Future<void> _fetchAccessToken() async {
+    final authService = ref.read(authServiceProvider);
+    final token = await authService.getAccessToken();
+    if (mounted) setState(() => _accessToken = token);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -443,6 +458,7 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
                   return SearchResultCard(
                     result: r,
                     thumbnailBaseUrl: baseUrl,
+                    accessToken: _accessToken,
                     onTap: () => _openClip(context, r),
                   );
                 },

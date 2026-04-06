@@ -25,7 +25,7 @@ class _PtzEnhancedSectionState extends ConsumerState<PtzEnhancedSection> {
   void initState() {
     super.initState();
     _pollStatus();
-    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _pollStatus());
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollStatus());
   }
 
   @override

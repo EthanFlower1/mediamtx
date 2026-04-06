@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,6 +71,8 @@ class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
   }
 
   final String _userId;
+  Timer? _saveActiveDebounce;
+  Timer? _saveSavedDebounce;
 
   String get _activeKey => 'grid_layout_$_userId';
   String get _savedKey => 'grid_layouts_saved_$_userId';
@@ -102,17 +105,30 @@ class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
     state = GridLayoutState(active: active, savedLayouts: saved);
   }
 
-  Future<void> _saveActive() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_activeKey, jsonEncode(_layout.toJson()));
+  void _saveActive() {
+    _saveActiveDebounce?.cancel();
+    _saveActiveDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_activeKey, jsonEncode(_layout.toJson()));
+    });
   }
 
-  Future<void> _saveSavedLayouts() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _savedKey,
-      jsonEncode(state.savedLayouts.map((l) => l.toJson()).toList()),
-    );
+  void _saveSavedLayouts() {
+    _saveSavedDebounce?.cancel();
+    _saveSavedDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _savedKey,
+        jsonEncode(state.savedLayouts.map((l) => l.toJson()).toList()),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _saveActiveDebounce?.cancel();
+    _saveSavedDebounce?.cancel();
+    super.dispose();
   }
 
   // --- Active layout mutations ---

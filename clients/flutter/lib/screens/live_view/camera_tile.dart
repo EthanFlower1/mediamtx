@@ -46,10 +46,6 @@ class _CameraTileState extends State<CameraTile> {
   bool _isFailed = false;
   bool _useRtsp = false;
 
-  // Drives the HH:MM:SS timestamp in the bottom-right overlay.
-  late Timer _clockTimer;
-  DateTime _now = DateTime.now();
-
   // Stream override — when non-null, overrides the default liveViewPath.
   String? _overridePath;
   String? _overrideCodec;
@@ -58,9 +54,6 @@ class _CameraTileState extends State<CameraTile> {
   void initState() {
     super.initState();
     _initConnection();
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
   }
 
   @override
@@ -199,17 +192,11 @@ class _CameraTileState extends State<CameraTile> {
 
   @override
   void dispose() {
-    _clockTimer.cancel();
     _disposeConnection();
     super.dispose();
   }
 
-  static String _hhmmss(DateTime dt) {
-    String p(int v) => v.toString().padLeft(2, '0');
-    return '${p(dt.hour)}:${p(dt.minute)}:${p(dt.second)}';
-  }
-
-  Widget _buildTile(bool isOnline, String timestampStr) {
+  Widget _buildTile(bool isOnline) {
     final camera = widget.camera;
     return GestureDetector(
       onTap: widget.onTap,
@@ -289,14 +276,7 @@ class _CameraTileState extends State<CameraTile> {
               Positioned(
                 right: 8,
                 bottom: 8,
-                child: Text(
-                  timestampStr,
-                  style: TextStyle(
-                    fontFamily: 'JetBrainsMono',
-                    fontSize: 8,
-                    color: NvrColors.of(context).textMuted,
-                  ),
-                ),
+                child: _LiveTimestamp(),
               ),
             ],
           ),
@@ -309,7 +289,6 @@ class _CameraTileState extends State<CameraTile> {
   Widget build(BuildContext context) {
     final camera = widget.camera;
     final isOnline = camera.status != 'disconnected';
-    final timestampStr = _hhmmss(_now);
 
     return LongPressDraggable<String>(
       data: camera.id,
@@ -340,7 +319,7 @@ class _CameraTileState extends State<CameraTile> {
           borderRadius: BorderRadius.circular(6),
         ),
       ),
-      child: _buildTile(isOnline, timestampStr),
+      child: _buildTile(isOnline),
     );
   }
 
@@ -476,6 +455,50 @@ class _CameraTileState extends State<CameraTile> {
     }
 
     return Container(color: NvrColors.of(context).bgSecondary);
+  }
+}
+
+/// Self-contained timestamp widget that ticks every second.
+/// Only this small Text widget rebuilds — not the entire CameraTile.
+class _LiveTimestamp extends StatefulWidget {
+  const _LiveTimestamp();
+
+  @override
+  State<_LiveTimestamp> createState() => _LiveTimestampState();
+}
+
+class _LiveTimestampState extends State<_LiveTimestamp> {
+  late Timer _timer;
+  late DateTime _now;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _now.hour.toString().padLeft(2, '0');
+    final m = _now.minute.toString().padLeft(2, '0');
+    final s = _now.second.toString().padLeft(2, '0');
+    return Text(
+      '$h:$m:$s',
+      style: TextStyle(
+        fontFamily: 'JetBrainsMono',
+        fontSize: 8,
+        color: NvrColors.of(context).textMuted,
+      ),
+    );
   }
 }
 

@@ -8,12 +8,14 @@ import '../../theme/nvr_typography.dart';
 class SearchResultCard extends ConsumerWidget {
   final SearchResult result;
   final String? thumbnailBaseUrl;
+  final String? accessToken;
   final VoidCallback? onTap;
 
   const SearchResultCard({
     super.key,
     required this.result,
     this.thumbnailBaseUrl,
+    this.accessToken,
     this.onTap,
   });
 
@@ -62,6 +64,7 @@ class SearchResultCard extends ConsumerWidget {
                     serverUrl: thumbnailBaseUrl,
                     cameraId: result.cameraId,
                     frameTime: result.frameTime,
+                    accessToken: accessToken,
                   ),
                   // Confidence badge — top right
                   Positioned(
@@ -140,17 +143,24 @@ class _VodThumbnail extends ConsumerWidget {
   final String? serverUrl;
   final String cameraId;
   final String frameTime;
+  final String? accessToken;
 
   const _VodThumbnail({
     required this.serverUrl,
     required this.cameraId,
     required this.frameTime,
+    this.accessToken,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (serverUrl == null || serverUrl!.isEmpty || frameTime.isEmpty) {
       return _placeholder(context);
+    }
+
+    // Use pre-fetched token if available, otherwise fall back to fetching.
+    if (accessToken != null) {
+      return _buildImage(accessToken!);
     }
 
     final authService = ref.watch(authServiceProvider);
@@ -160,19 +170,26 @@ class _VodThumbnail extends ConsumerWidget {
       builder: (context, snapshot) {
         final token = snapshot.data;
         if (token == null) return _placeholder(context);
+        return _buildImage(token);
+      },
+    );
+  }
 
-        final url =
-            '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&time=$frameTime&token=$token';
+  Widget _buildImage(String token) {
+    final url =
+        '$serverUrl/api/nvr/vod/thumbnail?camera_id=$cameraId&time=$frameTime&token=$token';
 
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(context),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _placeholder(context);
-          },
-        );
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      cacheWidth: 320,
+      cacheHeight: 180,
+      errorBuilder: (_, __, ___) => Builder(
+        builder: (context) => _placeholder(context),
+      ),
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return _placeholder(context);
       },
     );
   }

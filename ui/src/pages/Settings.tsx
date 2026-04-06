@@ -310,6 +310,19 @@ export default function Settings() {
   const [configSummary, setConfigSummary] = useState<ConfigSummary | null>(null)
   const [configLoading, setConfigLoading] = useState(true)
 
+  // System Config tab state
+  const [networkConfig, setNetworkConfig] = useState<NetworkConfig | null>(null)
+  const [networkLoading, setNetworkLoading] = useState(true)
+  const [tlsStatus, setTlsStatus] = useState<TLSStatus | null>(null)
+  const [tlsLoading, setTlsLoading] = useState(true)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [dbBackupLoading, setDbBackupLoading] = useState(false)
+  const [dbRestoreLoading, setDbRestoreLoading] = useState(false)
+  const [dbRestoreResult, setDbRestoreResult] = useState<string | null>(null)
+  const [dbRestoreError, setDbRestoreError] = useState('')
+  const dbRestoreInputRef = useRef<HTMLInputElement>(null)
+
   // Branding state
   const [brandingProductName, setBrandingProductName] = useState('MediaMTX NVR')
   const [brandingAccentColor, setBrandingAccentColor] = useState('#6366f1')

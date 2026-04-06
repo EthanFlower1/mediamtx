@@ -67,7 +67,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
           />
         </svg>
-        <span className="text-lg font-semibold text-white tracking-wide">Loading...</span>
+        <span className="text-lg font-semibold text-white tracking-wide">MediaMTX NVR</span>
         <span className="text-sm text-nvr-text-muted">Loading...</span>
       </div>
     )
@@ -213,9 +213,139 @@ const IconDashboard = (
   </svg>
 )
 
+const IconAudit = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+)
 
+const IconSettings = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
+const IconDownload = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+  </svg>
+)
+
+const IconUsers = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+  </svg>
+)
+
+/* ------------------------------------------------------------------ */
+/*  Branding hook (fetch once, listen for updates)                     */
+/* ------------------------------------------------------------------ */
+interface Branding {
+  product_name: string
+  accent_color: string
+  logo_url: string
+}
+
+function useBranding() {
+  const [branding, setBranding] = useState<Branding>({
+    product_name: 'MediaMTX NVR',
+    accent_color: '#6366f1',
+    logo_url: '',
+  })
+
+  useEffect(() => {
+    fetch('/api/nvr/system/branding')
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json()
+          setBranding(prev => ({ ...prev, ...data }))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Listen for updates from the settings page.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail) {
+        setBranding(prev => ({ ...prev, ...detail }))
+      }
+    }
+    window.addEventListener('branding-updated', handler)
+    return () => window.removeEventListener('branding-updated', handler)
+  }, [])
+
+  // Apply accent color as a CSS custom property.
+  useEffect(() => {
+    if (branding.accent_color) {
+      document.documentElement.style.setProperty('--nvr-branding-accent', branding.accent_color)
+    }
+  }, [branding.accent_color])
+
+  return branding
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main layout shell                                                  */
+/* ------------------------------------------------------------------ */
+function Layout({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false)
+  const [showShortcutsHint, setShowShortcutsHint] = useState(() => {
+    return !localStorage.getItem('nvr-shortcuts-seen')
+  })
+  const { notifications, unreadCount, markAllRead } = useNotifications(isAuthenticated)
+  const storageWarning = useStorageWarning(isAuthenticated)
+  const branding = useBranding()
+  const location = useLocation()
+
+  // Update document title with branding product name.
+  useEffect(() => {
+    document.title = branding.product_name
+  }, [branding.product_name])
+
+  // Show keyboard shortcuts hint for 10 seconds on first visit, then dismiss
+  useEffect(() => {
+    if (showShortcutsHint) {
+      const timer = setTimeout(() => {
+        setShowShortcutsHint(false)
+        localStorage.setItem('nvr-shortcuts-seen', 'true')
+      }, 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [showShortcutsHint])
+
+  // Global keyboard shortcut: ? to toggle shortcuts help
+  const globalShortcuts = useMemo(() => [
+    {
+      key: '?',
+      shift: true,
+      handler: () => setShowShortcutsHelp(prev => !prev),
+      description: 'Show keyboard shortcuts help',
+    },
+  ], [])
+  useKeyboardShortcuts(globalShortcuts)
+
+  // Auto-close sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
+
+  const closeSidebar = () => setSidebarOpen(false)
+
+  const navLinks: NavLinkProps[] = [
+    { to: '/cameras', icon: IconCamera, label: 'Cameras' },
+    { to: '/dashboard', icon: IconDashboard, label: 'Health' },
     { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
-    ...(user?.role === 'admin' ? [{ to: '/users', icon: IconUsers, label: 'Users' }] : []),
+    ...(user?.role === 'admin'
+      ? [
+          { to: '/users', icon: IconUsers, label: 'Users' },
+          { to: '/audit', icon: IconAudit, label: 'Audit Log' },
+        ]
+      : []),
     { to: '/download', icon: IconDownload, label: 'Get Client' },
   ]
 
@@ -226,12 +356,16 @@ const IconDashboard = (
         <div className="max-w-7xl mx-auto flex items-center h-14 px-4 sm:px-6 lg:px-8">
           {/* Brand */}
           <Link to="/cameras" className="flex items-center gap-2 mr-8">
-            <div className="w-7 h-7 rounded-md bg-nvr-accent/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="text-white font-bold text-base tracking-tight hidden sm:block">MediaMTX NVR</span>
+            {branding.logo_url ? (
+              <img src={branding.logo_url} alt="" className="w-7 h-7 rounded-md object-contain" />
+            ) : (
+              <div className="w-7 h-7 rounded-md bg-nvr-accent/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-nvr-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+            <span className="text-white font-bold text-base tracking-tight hidden sm:block">{branding.product_name}</span>
           </Link>
 
           {/* Desktop nav links (center) */}
@@ -300,31 +434,6 @@ const IconDashboard = (
               {navLinks.map((link) => (
                 <MobileNavItem key={link.to} {...link} onClick={closeSidebar} />
               ))}
-              {user?.role === 'admin' && (
-                <>
-                  <MobileNavItem
-                    to="/users"
-                    icon={
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                      </svg>
-                    }
-                    label="Users"
-                    onClick={closeSidebar}
-                  />
-                  <MobileNavItem
-                    to="/audit"
-                    icon={
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    }
-                    label="Audit Log"
-                    onClick={closeSidebar}
-                  />
-                </>
-              )}
->>>>>>> origin/main
             </div>
 
             {/* User section at bottom */}

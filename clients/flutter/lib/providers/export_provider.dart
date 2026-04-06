@@ -79,6 +79,8 @@ class ExportState {
 class ExportNotifier extends StateNotifier<ExportState> {
   final ExportService _service;
   Timer? _pollTimer;
+  int _pollErrorCount = 0;
+  static const _maxPollRetries = 30; // 30 retries * 2s = 60s max
 
   ExportNotifier(this._service) : super(const ExportState());
 
@@ -103,11 +105,13 @@ class ExportNotifier extends StateNotifier<ExportState> {
 
   void _startPolling(String jobId) {
     _pollTimer?.cancel();
+    _pollErrorCount = 0;
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       try {
         final job = await _service.getExportStatus(jobId);
         if (!mounted) return;
 
+        _pollErrorCount = 0; // Reset on success.
         state = state.copyWith(job: job, error: null);
 
         if (job.isCompleted) {
@@ -125,8 +129,17 @@ class ExportNotifier extends StateNotifier<ExportState> {
           _pollTimer = null;
         }
       } catch (e) {
-        debugPrint('Export poll error: $e');
-        // Don't stop polling on transient errors.
+        _pollErrorCount++;
+        debugPrint('Export poll error ($_pollErrorCount/$_maxPollRetries): $e');
+        if (_pollErrorCount >= _maxPollRetries) {
+          _pollTimer?.cancel();
+          _pollTimer = null;
+          if (mounted) {
+            state = state.copyWith(
+              error: 'Export status check failed after $_maxPollRetries retries',
+            );
+          }
+        }
       }
     });
   }

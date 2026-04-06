@@ -45,6 +45,10 @@ class _PerformancePanelState extends ConsumerState<PerformancePanel> {
         setState(() {
           _current = data['current'] as Map<String, dynamic>?;
           _history = (data['history'] as List<dynamic>?) ?? [];
+          // Cap history to 360 entries (1 hour at 10s intervals).
+          if (_history.length > 360) {
+            _history = _history.sublist(_history.length - 360);
+          }
           _loading = false;
         });
       }

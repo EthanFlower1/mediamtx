@@ -822,4 +822,11 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		);
 		`,
 	},
+	// Migration 49: Cache ONVIF device information (manufacturer, model,
+	// firmware, serial, hardware id) so the camera detail screen does not
+	// have to issue live SOAP requests on every page load.
+	{
+		version: 49,
+		sql:     `ALTER TABLE cameras ADD COLUMN device_info TEXT NOT NULL DEFAULT '';`,
+	},
 }

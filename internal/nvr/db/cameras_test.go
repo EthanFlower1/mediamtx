@@ -140,3 +140,40 @@ func TestCameraStoragePath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", got3.StoragePath)
 }
+
+func TestCameraDeviceInfoCache(t *testing.T) {
+	d := newTestDB(t)
+
+	cam := &Camera{Name: "Driveway", RTSPURL: "rtsp://192.168.1.20/stream"}
+	require.NoError(t, d.CreateCamera(cam))
+
+	// Fresh row starts with an empty cache.
+	info, err := d.GetCameraDeviceInfo(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "", info)
+
+	// Write a JSON blob and read it back.
+	const payload = `{"manufacturer":"Acme","model":"X1","firmware_version":"1.0","serial_number":"SN1","hardware_id":"HW1"}`
+	require.NoError(t, d.UpdateCameraDeviceInfo(cam.ID, payload))
+
+	info, err = d.GetCameraDeviceInfo(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, payload, info)
+
+	// Replacing the cache overwrites the previous value.
+	const payload2 = `{"manufacturer":"Acme","model":"X2"}`
+	require.NoError(t, d.UpdateCameraDeviceInfo(cam.ID, payload2))
+	info, err = d.GetCameraDeviceInfo(cam.ID)
+	require.NoError(t, err)
+	assert.Equal(t, payload2, info)
+}
+
+func TestCameraDeviceInfoCacheNotFound(t *testing.T) {
+	d := newTestDB(t)
+
+	_, err := d.GetCameraDeviceInfo("nonexistent-id")
+	require.ErrorIs(t, err, ErrNotFound)
+
+	err = d.UpdateCameraDeviceInfo("nonexistent-id", `{}`)
+	require.ErrorIs(t, err, ErrNotFound)
+}

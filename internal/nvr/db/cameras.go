@@ -473,6 +473,43 @@ func (d *DB) UpdateCameraConfidenceThresholds(id, thresholds string) error {
 	return nil
 }
 
+// GetCameraDeviceInfo returns the cached ONVIF device information JSON for a
+// camera. The returned string is empty if no device info has been cached yet.
+// Returns ErrNotFound if the camera does not exist.
+func (d *DB) GetCameraDeviceInfo(id string) (string, error) {
+	row := d.QueryRow(`SELECT device_info FROM cameras WHERE id = ?`, id)
+	var info string
+	if err := row.Scan(&info); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return info, nil
+}
+
+// UpdateCameraDeviceInfo replaces the cached ONVIF device information JSON for
+// a camera. Returns ErrNotFound if the camera does not exist.
+func (d *DB) UpdateCameraDeviceInfo(id, deviceInfoJSON string) error {
+	updatedAt := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+	res, err := d.Exec(`
+		UPDATE cameras SET device_info = ?, updated_at = ?
+		WHERE id = ?`,
+		deviceInfoJSON, updatedAt, id,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // DeleteCamera deletes a camera by its ID. Returns ErrNotFound if no match.
 func (d *DB) DeleteCamera(id string) error {
 	res, err := d.Exec("DELETE FROM cameras WHERE id = ?", id)

@@ -11,6 +11,7 @@ import { AnalogSlider } from '../components/hud/AnalogSlider'
 import { SegmentedControl } from '../components/hud/SegmentedControl'
 import { StatusBadge } from '../components/hud/StatusBadge'
 import { CornerBrackets } from '../components/hud/CornerBrackets'
+import { SectionCard } from '../components/hud/SectionCard'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -18,12 +19,6 @@ const themes: { value: ThemeName; label: string }[] = [
   { value: 'light', label: 'LIGHT' },
 ]
 
-/**
- * Reusable wrapper for each showcase section. The HUD components themselves
- * provide a SectionCard primitive but it doesn't exist yet at this point in
- * SP1; this local wrapper is intentional and gets replaced by SectionCard
- * once chunk 11 lands.
- */
 function ShowcaseSection({
   title,
   children,
@@ -31,14 +26,7 @@ function ShowcaseSection({
   title: string
   children: React.ReactNode
 }) {
-  return (
-    <section className="border border-border rounded bg-bg-secondary">
-      <header className="px-4 py-3 border-b border-border">
-        <h2 className="text-mono-section">{title}</h2>
-      </header>
-      <div className="p-4">{children}</div>
-    </section>
-  )
+  return <SectionCard header={title}>{children}</SectionCard>
 }
 
 /**
@@ -237,6 +225,19 @@ export default function DesignSystem() {
                   DANGER
                 </div>
               </CornerBrackets>
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="SECTION CARD">
+            <div className="space-y-4">
+              <SectionCard header="WITH ACTIONS" actions={<HudButton label="Refresh" variant="secondary" />}>
+                <p className="text-body-hud text-text-secondary">A card with a header action button on the right.</p>
+              </SectionCard>
+              <SectionCard header="FLUSH (NO BODY PADDING)" flush>
+                <div className="px-4 py-3 border-b border-border text-mono-data">row 1</div>
+                <div className="px-4 py-3 border-b border-border text-mono-data">row 2</div>
+                <div className="px-4 py-3 text-mono-data">row 3</div>
+              </SectionCard>
             </div>
           </ShowcaseSection>
         </main>

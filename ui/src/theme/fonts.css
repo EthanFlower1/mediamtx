@@ -1,0 +1,22 @@
+/* ui/src/theme/fonts.css
+ *
+ * Self-hosted font imports via @fontsource. Only the weights actually used
+ * by the HUD type ramp are pulled in to keep the bundle small.
+ *
+ * JetBrains Mono — labels, data, status, sections (the HUD signature)
+ *   400 normal — body data and timestamps
+ *   500 medium — labels and slider values
+ *   700 bold   — section headers
+ *
+ * IBM Plex Sans — page titles, body, button labels
+ *   400 normal — body text
+ *   500 medium — camera names
+ *   600 semi   — page titles, button labels
+ */
+
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';

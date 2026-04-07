@@ -5,6 +5,8 @@ export interface HudToggleProps {
   checked: boolean
   onChange: (checked: boolean) => void
   label?: string
+  /** Accessible name used when `label` is not provided. */
+  ariaLabel?: string
   showStateLabel?: boolean
   disabled?: boolean
 }
@@ -19,6 +21,7 @@ export function HudToggle({
   checked,
   onChange,
   label,
+  ariaLabel,
   showStateLabel = true,
   disabled = false,
 }: HudToggleProps) {
@@ -35,6 +38,7 @@ export function HudToggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label ? undefined : ariaLabel}
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={[
@@ -42,7 +46,7 @@ export function HudToggle({
           'border-2 transition-colors duration-150',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
           checked
-            ? 'border-accent shadow-[0_0_8px_rgba(249,115,22,0.2)]'
+            ? 'border-accent shadow-accent-glow-md'
             : 'border-border',
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
         ]
@@ -54,7 +58,7 @@ export function HudToggle({
           className={[
             'absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full transition-all duration-150',
             checked
-              ? 'right-0.5 bg-accent shadow-[0_0_6px_rgba(249,115,22,0.4)]'
+              ? 'right-0.5 bg-accent shadow-accent-glow-sm'
               : 'left-0.5 bg-text-muted',
           ]
             .filter(Boolean)

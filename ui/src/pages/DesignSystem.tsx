@@ -151,7 +151,7 @@ function ToggleShowcase() {
   const [a, setA] = useState(true)
   const [b, setB] = useState(false)
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-6">
       <div>
         <HudToggle checked={a} onChange={setA} label="DETECTION" />
       </div>
@@ -163,6 +163,14 @@ function ToggleShowcase() {
       </div>
       <div>
         <HudToggle checked={false} onChange={() => {}} label="NO STATE LABEL" showStateLabel={false} />
+      </div>
+      <div>
+        <HudToggle
+          checked={false}
+          onChange={() => {}}
+          ariaLabel="Mute audio"
+          showStateLabel={false}
+        />
       </div>
     </div>
   )

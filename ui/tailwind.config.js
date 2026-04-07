@@ -58,6 +58,13 @@ export default {
         sans: ['"IBM Plex Sans"', 'Inter', 'system-ui', 'Avenir', 'Helvetica', 'Arial', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      boxShadow: {
+        // Theme-aware accent glows used by HUD interactive components.
+        // Backed by --hud-accent so they track dark/oled/light correctly.
+        'accent-glow-sm': '0 0 6px rgb(var(--hud-accent) / 0.4)',
+        'accent-glow-md': '0 0 8px rgb(var(--hud-accent) / 0.2)',
+        'accent-glow-lg': '0 0 10px rgb(var(--hud-accent) / 0.5)',
+      },
       keyframes: {
         'slide-in': {
           from: { transform: 'translateX(100%)' },

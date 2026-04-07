@@ -12,6 +12,7 @@ import { SegmentedControl } from '../components/hud/SegmentedControl'
 import { StatusBadge } from '../components/hud/StatusBadge'
 import { CornerBrackets } from '../components/hud/CornerBrackets'
 import { SectionCard } from '../components/hud/SectionCard'
+import { KvRow } from '../components/hud/KvRow'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -238,6 +239,17 @@ export default function DesignSystem() {
                 <div className="px-4 py-3 border-b border-border text-mono-data">row 2</div>
                 <div className="px-4 py-3 text-mono-data">row 3</div>
               </SectionCard>
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="KEY-VALUE ROW">
+            <div className="space-y-2 max-w-md">
+              <KvRow label="MANUFACTURER" value="Hanwha" />
+              <KvRow label="MODEL" value="QNV-7080R" />
+              <KvRow label="FIRMWARE" value="1.41.05_20231012" copyable />
+              <KvRow label="SERIAL" value="ZQ4N5L0PA00100K" copyable />
+              <KvRow label="STATUS" value={<StatusBadge variant="online" />} />
+              <KvRow label="UPTIME" value="14d 6h 22m" />
             </div>
           </ShowcaseSection>
         </main>

@@ -1,6 +1,7 @@
 // ui/src/pages/DesignSystem.tsx
 import { useTheme } from '../theme/useTheme'
 import type { ThemeName } from '../theme/colors'
+import { HudButton } from '../components/hud/HudButton'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -102,6 +103,36 @@ export default function DesignSystem() {
               <div><span className="text-body-hud">.text-body-hud — 12px sans 1.5 line-height secondary</span></div>
               <div><span className="text-button-hud">.text-button-hud — 12px sans semibold</span></div>
               <div><span className="text-alert-hud">.text-alert-hud — 12px sans danger</span></div>
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="HUD BUTTON">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <div className="text-mono-label">PRIMARY</div>
+                <HudButton label="Save Changes" variant="primary" />
+                <HudButton label="Save Changes" variant="primary" disabled />
+                <HudButton label="Saving" variant="primary" loading />
+              </div>
+              <div className="space-y-2">
+                <div className="text-mono-label">SECONDARY</div>
+                <HudButton label="Cancel" variant="secondary" />
+                <HudButton label="Cancel" variant="secondary" disabled />
+              </div>
+              <div className="space-y-2">
+                <div className="text-mono-label">DANGER</div>
+                <HudButton label="Delete" variant="danger" />
+                <HudButton label="Delete" variant="danger" disabled />
+              </div>
+              <div className="space-y-2">
+                <div className="text-mono-label">TACTICAL</div>
+                <HudButton label="ARM" variant="tactical" />
+                <HudButton label="ARM" variant="tactical" disabled />
+              </div>
+            </div>
+            <div className="mt-6 space-y-2">
+              <div className="text-mono-label">FULL WIDTH</div>
+              <HudButton label="Continue" variant="primary" fullWidth />
             </div>
           </ShowcaseSection>
         </main>

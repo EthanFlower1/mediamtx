@@ -4,6 +4,7 @@ import { useTheme } from '../theme/useTheme'
 import type { ThemeName } from '../theme/colors'
 import { HudButton } from '../components/hud/HudButton'
 import { HudToggle } from '../components/hud/HudToggle'
+import { HudInput } from '../components/hud/HudInput'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -140,6 +141,26 @@ export default function DesignSystem() {
 
           <ShowcaseSection title="HUD TOGGLE">
             <ToggleShowcase />
+          </ShowcaseSection>
+
+          <ShowcaseSection title="HUD INPUT">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+              <HudInput label="CAMERA NAME" placeholder="e.g. Front Door" />
+              <HudInput label="ONVIF ENDPOINT" placeholder="http://..." monoData />
+              <HudInput label="HINT EXAMPLE" placeholder="Type something" hint="Helpful description" />
+              <HudInput
+                label="ERROR EXAMPLE"
+                defaultValue="invalid"
+                error="Must be a valid URL"
+              />
+              <HudInput label="DISABLED" defaultValue="frozen value" disabled />
+              <HudInput
+                label="PASSWORD"
+                type="password"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
           </ShowcaseSection>
         </main>
       </div>

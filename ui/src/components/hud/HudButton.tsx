@@ -51,16 +51,16 @@ export function HudButton({
         'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-[4px]',
         'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50',
         isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
-        fullWidth ? 'w-full' : '',
+        fullWidth && 'w-full',
         variantClasses[variant],
         labelTextClass[variant],
-      ].join(' ')}
+      ].filter(Boolean).join(' ')}
       {...rest}
     >
       {loading ? (
         <Spinner />
       ) : icon ? (
-        <span className="shrink-0 inline-flex items-center justify-center w-3.5 h-3.5">
+        <span aria-hidden="true" className="shrink-0 inline-flex items-center justify-center w-3.5 h-3.5">
           {icon}
         </span>
       ) : null}

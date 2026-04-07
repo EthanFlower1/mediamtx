@@ -22,6 +22,18 @@
  *     (`text-page-title`, `text-camera-name`) do not need the suffix
  *     because no design system is going to claim those names.
  *   - When in doubt, add the suffix. It is ugly but harmless.
+ *
+ * Default colors:
+ *   - Mono helpers (text-mono-*) carry their semantic color
+ *     (text-mono-label is muted, text-mono-section is accent, etc.).
+ *   - Sans helpers carry color only when the color is semantic to the role
+ *     (text-alert-hud stays text-danger because alerts are intrinsically
+ *     red). Generic role helpers (text-body-hud, text-button-hud) are
+ *     color-free so callers can compose them with variant-specific text
+ *     colors without a cascade fight.
+ *   - Domain-specific sans helpers (text-page-title, text-camera-name)
+ *     carry text-text-primary as a sensible default; callers can still
+ *     override.
  */
 
 @layer components {
@@ -53,10 +65,10 @@
     @apply font-sans text-[13px] font-medium text-text-primary;
   }
   .text-body-hud {
-    @apply font-sans text-[12px] font-normal leading-[1.5] text-text-secondary;
+    @apply font-sans text-[12px] font-normal leading-[1.5];
   }
   .text-button-hud {
-    @apply font-sans text-[12px] font-semibold text-text-primary;
+    @apply font-sans text-[12px] font-semibold;
   }
   .text-alert-hud {
     @apply font-sans text-[12px] font-normal text-danger;

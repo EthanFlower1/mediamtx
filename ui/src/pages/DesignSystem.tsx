@@ -6,6 +6,7 @@ import { HudButton } from '../components/hud/HudButton'
 import { HudToggle } from '../components/hud/HudToggle'
 import { HudInput } from '../components/hud/HudInput'
 import { HudTextarea } from '../components/hud/HudTextarea'
+import { HudSelect } from '../components/hud/HudSelect'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -172,6 +173,24 @@ export default function DesignSystem() {
                 monoData
                 defaultValue={'{\n  "key": "value"\n}'}
                 rows={6}
+              />
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="HUD SELECT">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+              <HudSelect
+                label="STORAGE TIER"
+                options={[
+                  { value: 'hot', label: 'Hot (NVMe)' },
+                  { value: 'warm', label: 'Warm (SATA)' },
+                  { value: 'cold', label: 'Cold (S3)' },
+                ]}
+              />
+              <HudSelect
+                label="DISABLED"
+                disabled
+                options={[{ value: 'a', label: 'Locked' }]}
               />
             </div>
           </ShowcaseSection>

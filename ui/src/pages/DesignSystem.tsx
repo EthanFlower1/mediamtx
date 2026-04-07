@@ -7,6 +7,7 @@ import { HudToggle } from '../components/hud/HudToggle'
 import { HudInput } from '../components/hud/HudInput'
 import { HudTextarea } from '../components/hud/HudTextarea'
 import { HudSelect } from '../components/hud/HudSelect'
+import { AnalogSlider } from '../components/hud/AnalogSlider'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -194,8 +195,33 @@ export default function DesignSystem() {
               />
             </div>
           </ShowcaseSection>
+
+          <ShowcaseSection title="ANALOG SLIDER">
+            <SliderShowcase />
+          </ShowcaseSection>
         </main>
       </div>
+    </div>
+  )
+}
+
+function SliderShowcase() {
+  const [a, setA] = useState(0.5)
+  const [b, setB] = useState(15)
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 max-w-2xl">
+      <AnalogSlider label="CONFIDENCE" value={a} onChange={setA} />
+      <AnalogSlider
+        label="RETENTION DAYS"
+        value={b}
+        min={1}
+        max={30}
+        step={1}
+        tickCount={6}
+        valueFormatter={(v) => `${v.toFixed(0)}d`}
+        onChange={setB}
+      />
+      <AnalogSlider label="DISABLED" value={0.7} onChange={() => {}} disabled />
     </div>
   )
 }

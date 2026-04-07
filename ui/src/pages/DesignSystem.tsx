@@ -1,7 +1,9 @@
 // ui/src/pages/DesignSystem.tsx
+import { useState } from 'react'
 import { useTheme } from '../theme/useTheme'
 import type { ThemeName } from '../theme/colors'
 import { HudButton } from '../components/hud/HudButton'
+import { HudToggle } from '../components/hud/HudToggle'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -135,7 +137,32 @@ export default function DesignSystem() {
               <HudButton label="Continue" variant="primary" fullWidth />
             </div>
           </ShowcaseSection>
+
+          <ShowcaseSection title="HUD TOGGLE">
+            <ToggleShowcase />
+          </ShowcaseSection>
         </main>
+      </div>
+    </div>
+  )
+}
+
+function ToggleShowcase() {
+  const [a, setA] = useState(true)
+  const [b, setB] = useState(false)
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+      <div>
+        <HudToggle checked={a} onChange={setA} label="DETECTION" />
+      </div>
+      <div>
+        <HudToggle checked={b} onChange={setB} label="RECORDING" />
+      </div>
+      <div>
+        <HudToggle checked={true} onChange={() => {}} label="DISABLED ON" disabled />
+      </div>
+      <div>
+        <HudToggle checked={false} onChange={() => {}} label="NO STATE LABEL" showStateLabel={false} />
       </div>
     </div>
   )

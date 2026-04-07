@@ -1,0 +1,64 @@
+/* ui/src/theme/typography.css
+ *
+ * HUD type ramp helpers, exposed as Tailwind component classes via
+ * @layer components. Mirrors clients/flutter/lib/theme/nvr_typography.dart
+ * exactly — same sizes, weights, letter-spacing, and color roles.
+ *
+ * Use these classes directly in markup:
+ *   <span className="text-mono-section">DEVICE INFO</span>
+ *   <span className="text-mono-data">f97316</span>
+ *
+ * They take precedence over Tailwind utility classes for font-family,
+ * size, weight, tracking, and color simultaneously, so the markup stays
+ * clean.
+ *
+ * Naming convention for the `-hud` suffix:
+ *   - Mono helpers use the `text-mono-*` prefix and never carry the
+ *     `-hud` suffix — the prefix already namespaces them.
+ *   - Sans helpers carry the `-hud` suffix only when their base name
+ *     (e.g. `text-body`, `text-button`, `text-alert`) sounds like a
+ *     generic utility class that Tailwind or another design system
+ *     might plausibly define. Domain-specific sans helpers
+ *     (`text-page-title`, `text-camera-name`) do not need the suffix
+ *     because no design system is going to claim those names.
+ *   - When in doubt, add the suffix. It is ugly but harmless.
+ */
+
+@layer components {
+  .text-mono-label {
+    @apply font-mono text-[9px] font-medium tracking-[0.15em] text-text-muted;
+  }
+  .text-mono-section {
+    @apply font-mono text-[10px] font-bold tracking-[0.2em] text-accent uppercase;
+  }
+  .text-mono-data {
+    @apply font-mono text-[12px] font-normal text-text-primary;
+  }
+  .text-mono-data-lg {
+    @apply font-mono text-[16px] font-medium text-text-primary;
+  }
+  .text-mono-timestamp {
+    @apply font-mono text-[12px] font-normal text-accent;
+  }
+  .text-mono-status {
+    @apply font-mono text-[9px] font-medium tracking-[0.1em] text-success;
+  }
+  .text-mono-control {
+    @apply font-mono text-[9px] font-medium tracking-[0.1em] text-text-muted;
+  }
+  .text-page-title {
+    @apply font-sans text-[16px] font-semibold text-text-primary;
+  }
+  .text-camera-name {
+    @apply font-sans text-[13px] font-medium text-text-primary;
+  }
+  .text-body-hud {
+    @apply font-sans text-[12px] font-normal leading-[1.5] text-text-secondary;
+  }
+  .text-button-hud {
+    @apply font-sans text-[12px] font-semibold text-text-primary;
+  }
+  .text-alert-hud {
+    @apply font-sans text-[12px] font-normal text-danger;
+  }
+}

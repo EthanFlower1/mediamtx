@@ -111,6 +111,7 @@ export function AnalogSlider({
             onChange(Math.min(max, value + nudge))
           }
         }}
+        style={{ touchAction: 'none' }}
         className={[
           'relative h-6 select-none',
           disabled ? 'cursor-not-allowed' : 'cursor-pointer',

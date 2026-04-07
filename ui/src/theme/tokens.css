@@ -1,0 +1,58 @@
+/* ui/src/theme/tokens.css
+ *
+ * Runtime color tokens for the HUD design system. Components consume these
+ * via Tailwind classes like `bg-bg-primary` which are wired to
+ * `rgb(var(--hud-bg-primary) / <alpha-value>)` in tailwind.config.js.
+ *
+ * Three themes are supported. Switch by setting `data-theme="dark|oled|light"`
+ * on a containing element. The default (no attribute, or `dark`) is the
+ * Flutter NvrColors.dark palette.
+ *
+ * Naming: --hud-* (NOT --nvr-*) to avoid collision with the existing
+ * --nvr-* variables already used by ui/src/index.css for the legacy
+ * `html.theme-oled` toggle.
+ *
+ * Values are R G B triplets (no commas, no `rgb()` wrapper) so Tailwind's
+ * `<alpha-value>` slot can compose them into any opacity.
+ */
+
+:root,
+[data-theme='dark'] {
+  --hud-bg-primary: 10 10 10;
+  --hud-bg-secondary: 17 17 17;
+  --hud-bg-tertiary: 26 26 26;
+  --hud-bg-input: 26 26 26;
+  --hud-accent: 249 115 22;
+  --hud-accent-hover: 234 88 12;
+  --hud-text-primary: 229 229 229;
+  --hud-text-secondary: 115 115 115;
+  --hud-text-muted: 64 64 64;
+  --hud-success: 34 197 94;
+  --hud-warning: 234 179 8;
+  --hud-danger: 239 68 68;
+  --hud-border: 38 38 38;
+}
+
+[data-theme='oled'] {
+  --hud-bg-primary: 0 0 0;
+  --hud-bg-secondary: 8 8 8;
+  --hud-bg-tertiary: 16 16 16;
+  --hud-bg-input: 16 16 16;
+  /* accent / status / text inherit from dark */
+}
+
+[data-theme='light'] {
+  --hud-bg-primary: 245 245 245;
+  --hud-bg-secondary: 255 255 255;
+  --hud-bg-tertiary: 229 229 229;
+  --hud-bg-input: 229 229 229;
+  --hud-accent: 234 88 12;
+  --hud-accent-hover: 194 65 12;
+  --hud-text-primary: 23 23 23;
+  --hud-text-secondary: 82 82 82;
+  --hud-text-muted: 163 163 163;
+  --hud-success: 22 163 74;
+  --hud-warning: 202 138 4;
+  --hud-danger: 220 38 38;
+  --hud-border: 212 212 212;
+}

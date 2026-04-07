@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
 import DownloadClient from './pages/DownloadClient'
+import DesignSystem from './pages/DesignSystem'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -247,6 +248,20 @@ interface Branding {
   logo_url: string
 }
 
+/**
+ * Convert "#rrggbb" or "#rgb" to a "R G B" decimal triplet string suitable
+ * for use with Tailwind's rgb(var(--x) / <alpha-value>) composition.
+ * Returns null on malformed input so the caller leaves the variable alone.
+ */
+function hexToRgbTriplet(hex: string): string | null {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$|^#?([a-f\d])([a-f\d])([a-f\d])$/i.exec(hex.trim())
+  if (!match) return null
+  const r = match[1] ?? (match[4]! + match[4]!)
+  const g = match[2] ?? (match[5]! + match[5]!)
+  const b = match[3] ?? (match[6]! + match[6]!)
+  return `${parseInt(r, 16)} ${parseInt(g, 16)} ${parseInt(b, 16)}`
+}
+
 function useBranding() {
   const [branding, setBranding] = useState<Branding>({
     product_name: 'MediaMTX NVR',
@@ -277,10 +292,20 @@ function useBranding() {
     return () => window.removeEventListener('branding-updated', handler)
   }, [])
 
-  // Apply accent color as a CSS custom property.
+  // Apply accent color as CSS custom properties.
   useEffect(() => {
-    if (branding.accent_color) {
-      document.documentElement.style.setProperty('--nvr-branding-accent', branding.accent_color)
+    if (!branding.accent_color) return
+    // Existing legacy variable — kept for any code still reading it.
+    document.documentElement.style.setProperty('--nvr-branding-accent', branding.accent_color)
+    // New HUD variable — converted to "R G B" triplet so Tailwind's
+    // rgb(var(--hud-accent) / <alpha-value>) composition works.
+    const rgb = hexToRgbTriplet(branding.accent_color)
+    if (rgb) {
+      document.documentElement.style.setProperty('--hud-accent', rgb)
+    } else {
+      // Malformed hex — clear the variable so it falls back to tokens.css default
+      // instead of drifting out of sync with --nvr-branding-accent.
+      document.documentElement.style.removeProperty('--hud-accent')
     }
   }, [branding.accent_color])
 
@@ -515,6 +540,7 @@ function AppRoutes() {
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
+      <Route path="/design-system" element={<ProtectedRoute><Layout><DesignSystem /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}
       <Route path="/live" element={<Navigate to="/download" replace />} />
       <Route path="/recordings" element={<Navigate to="/download" replace />} />

@@ -5,6 +5,7 @@ import type { ThemeName } from '../theme/colors'
 import { HudButton } from '../components/hud/HudButton'
 import { HudToggle } from '../components/hud/HudToggle'
 import { HudInput } from '../components/hud/HudInput'
+import { HudTextarea } from '../components/hud/HudTextarea'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -159,6 +160,18 @@ export default function DesignSystem() {
                 type="password"
                 placeholder="••••••••"
                 autoComplete="current-password"
+              />
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="HUD TEXTAREA">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl">
+              <HudTextarea label="DESCRIPTION" placeholder="Optional notes about this camera..." />
+              <HudTextarea
+                label="JSON CONFIG"
+                monoData
+                defaultValue={'{\n  "key": "value"\n}'}
+                rows={6}
               />
             </div>
           </ShowcaseSection>

@@ -8,6 +8,9 @@ import { HudInput } from '../components/hud/HudInput'
 import { HudTextarea } from '../components/hud/HudTextarea'
 import { HudSelect } from '../components/hud/HudSelect'
 import { AnalogSlider } from '../components/hud/AnalogSlider'
+import { SegmentedControl } from '../components/hud/SegmentedControl'
+import { StatusBadge } from '../components/hud/StatusBadge'
+import { CornerBrackets } from '../components/hud/CornerBrackets'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },
@@ -199,6 +202,43 @@ export default function DesignSystem() {
           <ShowcaseSection title="ANALOG SLIDER">
             <SliderShowcase />
           </ShowcaseSection>
+
+          <ShowcaseSection title="SEGMENTED CONTROL">
+            <SegmentedShowcase />
+          </ShowcaseSection>
+
+          <ShowcaseSection title="STATUS BADGE">
+            <div className="flex flex-wrap gap-3">
+              <StatusBadge variant="online" />
+              <StatusBadge variant="offline" />
+              <StatusBadge variant="degraded" />
+              <StatusBadge variant="warning" />
+              <StatusBadge variant="live" pulse />
+              <StatusBadge variant="recording" pulse />
+              <StatusBadge variant="motion" />
+              <StatusBadge variant="online" label="42 CAMERAS" />
+            </div>
+          </ShowcaseSection>
+
+          <ShowcaseSection title="CORNER BRACKETS">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <CornerBrackets size="md">
+                <div className="aspect-video bg-bg-tertiary rounded flex items-center justify-center text-mono-control">
+                  16:9 PREVIEW
+                </div>
+              </CornerBrackets>
+              <CornerBrackets size="lg" color="success">
+                <div className="aspect-video bg-bg-tertiary rounded flex items-center justify-center text-mono-control">
+                  SUCCESS
+                </div>
+              </CornerBrackets>
+              <CornerBrackets size="sm" color="danger">
+                <div className="aspect-video bg-bg-tertiary rounded flex items-center justify-center text-mono-control">
+                  DANGER
+                </div>
+              </CornerBrackets>
+            </div>
+          </ShowcaseSection>
         </main>
       </div>
     </div>
@@ -222,6 +262,37 @@ function SliderShowcase() {
         onChange={setB}
       />
       <AnalogSlider label="DISABLED" value={0.7} onChange={() => {}} disabled />
+    </div>
+  )
+}
+
+function SegmentedShowcase() {
+  const [tab, setTab] = useState<'streams' | 'recording' | 'ai' | 'onvif'>('streams')
+  return (
+    <div className="space-y-4">
+      <SegmentedControl
+        ariaLabel="Camera tab"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'streams', label: 'STREAMS' },
+          { value: 'recording', label: 'RECORDING' },
+          { value: 'ai', label: 'AI' },
+          { value: 'onvif', label: 'ONVIF' },
+        ]}
+      />
+      <div className="text-mono-data">selected: {tab}</div>
+      <SegmentedControl
+        ariaLabel="Theme picker"
+        value="dark"
+        onChange={() => {}}
+        disabled
+        options={[
+          { value: 'dark', label: 'DARK' },
+          { value: 'oled', label: 'OLED' },
+          { value: 'light', label: 'LIGHT' },
+        ]}
+      />
     </div>
   )
 }

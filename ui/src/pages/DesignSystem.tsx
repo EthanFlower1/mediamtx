@@ -2,17 +2,19 @@
 import { useState } from 'react'
 import { useTheme } from '../theme/useTheme'
 import type { ThemeName } from '../theme/colors'
-import { HudButton } from '../components/hud/HudButton'
-import { HudToggle } from '../components/hud/HudToggle'
-import { HudInput } from '../components/hud/HudInput'
-import { HudTextarea } from '../components/hud/HudTextarea'
-import { HudSelect } from '../components/hud/HudSelect'
-import { AnalogSlider } from '../components/hud/AnalogSlider'
-import { SegmentedControl } from '../components/hud/SegmentedControl'
-import { StatusBadge } from '../components/hud/StatusBadge'
-import { CornerBrackets } from '../components/hud/CornerBrackets'
-import { SectionCard } from '../components/hud/SectionCard'
-import { KvRow } from '../components/hud/KvRow'
+import {
+  HudButton,
+  HudToggle,
+  HudInput,
+  HudTextarea,
+  HudSelect,
+  AnalogSlider,
+  SegmentedControl,
+  StatusBadge,
+  CornerBrackets,
+  SectionCard,
+  KvRow,
+} from '../components/hud'
 
 const themes: { value: ThemeName; label: string }[] = [
   { value: 'dark', label: 'DARK' },

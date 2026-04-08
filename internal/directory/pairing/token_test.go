@@ -264,6 +264,9 @@ func (s *stubCA) IssueDirectoryServingCert(_ context.Context) (*tls.Certificate,
 	}
 	return s.cert, nil
 }
+func (s *stubCA) MintEnrollmentToken(_, _ string, _ []string, _ time.Duration) (string, error) {
+	return "stub-enroll-token", nil
+}
 
 func TestServiceGenerate(t *testing.T) {
 	t.Parallel()

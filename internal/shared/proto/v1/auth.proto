@@ -1,0 +1,203 @@
+// auth.proto — Kaivue v1 authentication + identity provider types.
+//
+// This file aligns with the Go IdentityProvider interface in
+// internal/shared/auth/types.go. When either side changes, both must change
+// together (and the proto-lock must be held).
+//
+// Design notes:
+//   - TenantRef MUST be derived from the authenticated session, never from a
+//     request body. Trusting a client-supplied tenant id is the canonical
+//     multi-tenant isolation bug.
+//   - Raw JWT claims never cross a role boundary. Callers consume TokenClaims.
+//   - Secrets (OIDC client secret, LDAP bind password, SAML signing cert
+//     private key, etc.) are WRITE-ONLY in these messages: they may be set
+//     on create/update but MUST be stripped on read.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// TenantType distinguishes the two kinds of tenants in the multi-tenant
+// control plane. Every identity record is owned by exactly one of these.
+enum TenantType {
+  TENANT_TYPE_UNSPECIFIED = 0;
+  // Reseller / MSP tenant. Integrator users may be granted scoped
+  // cross-tenant access to their downstream customers.
+  TENANT_TYPE_INTEGRATOR = 1;
+  // End-customer tenant. Customer users only see their own tenant.
+  TENANT_TYPE_CUSTOMER = 2;
+}
+
+// TenantRef identifies a tenant unambiguously. It is the first field of
+// nearly every tenant-scoped message in this file.
+message TenantRef {
+  TenantType type = 1;
+  string id = 2;
+}
+
+// Session is the result of any successful authentication or refresh. The
+// caller hands this back to the user agent (cookies or bearer tokens).
+message Session {
+  string id = 1;
+  string user_id = 2;
+  TenantRef tenant = 3;
+  string access_token = 4;
+  string refresh_token = 5;
+  // Optional. Populated for OIDC flows; empty otherwise.
+  string id_token = 6;
+  google.protobuf.Timestamp issued_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+}
+
+// TokenClaims is the verified, tenant-scoped result of VerifyToken. It is
+// the ONLY struct callers consult when making authorization decisions —
+// raw JWT claims must never escape the auth package.
+message TokenClaims {
+  string user_id = 1;
+  TenantRef tenant = 2;
+  repeated string groups = 3;
+  google.protobuf.Timestamp issued_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  google.protobuf.Timestamp not_before = 6;
+  string session_id = 7;
+  // Optional recorder scope — when set, the token is only valid for the
+  // listed recorder ids (used for Recorder-bound service tokens).
+  repeated string site_scope = 8;
+  // Integrator relationship refs — present on integrator cross-tenant tokens.
+  repeated string integrator_relationships = 9;
+}
+
+// --- Login / refresh / SSO --------------------------------------------------
+
+// LoginRequest is the local-auth password login envelope. SSO flows use
+// BeginSSOFlow / CompleteSSOFlow instead.
+message LoginRequest {
+  TenantRef tenant = 1;
+  string username = 2;
+  // Plaintext over TLS. Never logged.
+  string password = 3;
+  // Optional 2FA code or recovery code.
+  string mfa_code = 4;
+}
+
+message LoginResponse {
+  Session session = 1;
+}
+
+// RefreshRequest exchanges a refresh token for a fresh Session.
+message RefreshRequest {
+  string refresh_token = 1;
+}
+
+message RefreshResponse {
+  Session session = 1;
+}
+
+// RevokeSessionRequest invalidates a session id. It is idempotent; revoking
+// a missing session does NOT return an error.
+message RevokeSessionRequest {
+  string session_id = 1;
+}
+
+message RevokeSessionResponse {}
+
+// BeginSSOFlowRequest starts an SSO login. The caller redirects the user
+// agent to auth_url and stores state on the server side for validation in
+// the matching CompleteSSOFlow call.
+message BeginSSOFlowRequest {
+  TenantRef tenant = 1;
+  string provider_id = 2;
+  // Where to send the browser after the IdP callback completes.
+  string return_to = 3;
+}
+
+message BeginSSOFlowResponse {
+  string auth_url = 1;
+  string state = 2;
+}
+
+// CompleteSSOFlowRequest carries the callback payload from the IdP.
+// For OIDC this is the authorization code; for SAML the RelayState + assertion.
+message CompleteSSOFlowRequest {
+  string provider_id = 1;
+  string state = 2;
+  // OIDC authorization code, or SAML assertion XML, depending on provider.
+  string payload = 3;
+}
+
+message CompleteSSOFlowResponse {
+  Session session = 1;
+}
+
+// --- Identity provider configuration ---------------------------------------
+
+// ProviderKind distinguishes the supported external IdP types.
+enum ProviderKind {
+  PROVIDER_KIND_UNSPECIFIED = 0;
+  PROVIDER_KIND_OIDC = 1;
+  PROVIDER_KIND_SAML = 2;
+  PROVIDER_KIND_LDAP = 3;
+}
+
+// ProviderConfig is the union over all external IdP configurations. Exactly
+// one of oidc / saml / ldap must be set, matching kind.
+message ProviderConfig {
+  string id = 1;
+  TenantRef tenant = 2;
+  ProviderKind kind = 3;
+  string display_name = 4;
+  bool enabled = 5;
+  OIDCConfig oidc = 6;
+  SAMLConfig saml = 7;
+  LDAPConfig ldap = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// OIDCConfig holds the configuration for an OpenID Connect provider.
+message OIDCConfig {
+  string issuer_url = 1;
+  string client_id = 2;
+  // WRITE-ONLY. Stripped from read responses.
+  string client_secret = 3;
+  repeated string scopes = 4;
+  string redirect_uri = 5;
+}
+
+// SAMLConfig holds the configuration for a SAML 2.0 provider.
+message SAMLConfig {
+  string metadata_url = 1;
+  // Alternative to metadata_url. WRITE-ONLY on update.
+  string metadata_xml = 2;
+  string entity_id = 3;
+  string assertion_consumer_url = 4;
+  string signing_cert_pem = 5;
+}
+
+// LDAPConfig holds the configuration for an LDAP / Active Directory bind.
+message LDAPConfig {
+  // ldaps://host:636
+  string url = 1;
+  string bind_dn = 2;
+  // WRITE-ONLY. Stripped from read responses.
+  string bind_password = 3;
+  string user_base_dn = 4;
+  string user_filter = 5;
+  string group_base_dn = 6;
+  string group_filter = 7;
+  bool start_tls = 8;
+}
+
+// TestProviderResult is the outcome of the "Sign-in Methods" wizard probe.
+// success=true means the provider was reachable, returned a valid metadata
+// document, and (where applicable) a canary bind succeeded.
+message TestProviderResult {
+  bool success = 1;
+  int64 latency_ms = 2;
+  string message = 3;
+  map<string, string> diagnostics = 4;
+}

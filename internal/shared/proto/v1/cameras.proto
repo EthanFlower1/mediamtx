@@ -1,0 +1,217 @@
+// cameras.proto — Kaivue v1 camera CRUD types.
+//
+// Cameras are the central resource of the NVR. Every camera is:
+//   - owned by exactly one tenant
+//   - assigned to exactly one recorder at a time
+//   - addressed by a tenant-stable CameraID and recorder-local path
+//
+// CREDENTIALS ARE NOT IN THIS FILE. Camera usernames/passwords, RTSP creds,
+// ONVIF creds, and TLS client material live in the Directory cryptostore
+// (KAI-251) and are referenced here only by opaque credential_ref strings.
+// Recorders fetch the actual secret via a separate sealed channel.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/auth.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// CameraState tracks lifecycle of a camera record.
+enum CameraState {
+  CAMERA_STATE_UNSPECIFIED = 0;
+  CAMERA_STATE_PROVISIONING = 1;  // created, not yet reachable
+  CAMERA_STATE_ONLINE = 2;
+  CAMERA_STATE_OFFLINE = 3;
+  CAMERA_STATE_DISABLED = 4;      // admin-disabled; not recording
+  CAMERA_STATE_ERROR = 5;         // persistent error state, needs attention
+}
+
+// RecordingMode controls when the recorder writes segments for this camera.
+enum RecordingMode {
+  RECORDING_MODE_UNSPECIFIED = 0;
+  RECORDING_MODE_CONTINUOUS = 1;
+  RECORDING_MODE_MOTION = 2;
+  RECORDING_MODE_SCHEDULE = 3;
+  RECORDING_MODE_EVENT = 4;       // AI event-triggered only
+  RECORDING_MODE_OFF = 5;
+}
+
+// RetentionPolicy bounds how long recorded media is kept on disk. When both
+// days and max_bytes are set, the tighter bound wins.
+message RetentionPolicy {
+  int32 retention_days = 1;
+  // Optional disk-space cap per camera. 0 means no per-camera cap.
+  int64 max_bytes = 2;
+  // Optional override for motion / event clips — longer retention than the
+  // continuous track for the same camera is common.
+  int32 event_retention_days = 3;
+}
+
+// RecordingScheduleEntry describes one rule in a weekly schedule.
+//
+// day_of_week uses ISO 8601 where Monday=1..Sunday=7.
+// start_minute and end_minute are minutes from 00:00 local-to-recorder time.
+message RecordingScheduleEntry {
+  int32 day_of_week = 1;
+  int32 start_minute = 2;
+  int32 end_minute = 3;
+  RecordingMode mode = 4;
+}
+
+// RecordingSchedule is a full weekly schedule. Entries may overlap; the
+// recorder picks the most-specific one (longest interval loses).
+message RecordingSchedule {
+  // IANA timezone, e.g. "America/Los_Angeles". The recorder interprets
+  // schedule entries in this zone.
+  string timezone = 1;
+  repeated RecordingScheduleEntry entries = 2;
+}
+
+// StreamProfile describes a single RTSP sub-stream on the camera.
+// Cameras typically expose a "main" (high-bitrate) and "sub" (low-bitrate)
+// stream. The recorder chooses which to record and which to transcode.
+message StreamProfile {
+  string name = 1;   // "main", "sub", "third"
+  string codec = 2;  // "h264", "h265", "mjpeg"
+  int32 width = 3;
+  int32 height = 4;
+  int32 bitrate_kbps = 5;
+  int32 framerate = 6;
+  // Opaque recorder-local URL the recorder uses to pull this profile.
+  // NEVER contains credentials — the recorder substitutes them at connect
+  // time from the credential_ref.
+  string url = 7;
+}
+
+// CameraConfig is the declarative configuration of a camera. The recorder
+// applies this atomically whenever the config version bumps.
+message CameraConfig {
+  RecordingMode default_mode = 1;
+  RetentionPolicy retention = 2;
+  RecordingSchedule schedule = 3;
+  repeated StreamProfile profiles = 4;
+  // Name of the profile used for continuous recording. Must match one of
+  // profiles[i].name. Empty means "main".
+  string record_profile = 5;
+  // Name of the profile used for live preview. May be empty.
+  string live_profile = 6;
+  // Pre-event buffer: how much media to keep before a motion/AI trigger.
+  google.protobuf.Duration pre_event_buffer = 7;
+  // Post-event buffer: how much media to keep after the trigger clears.
+  google.protobuf.Duration post_event_buffer = 8;
+  // Motion sensitivity, 0-100. 0 disables motion detection.
+  int32 motion_sensitivity = 9;
+  // Whether to enable the onboard audio track (if the camera supports it).
+  bool audio_enabled = 10;
+  // Whether to enable the onboard talkback channel.
+  bool talkback_enabled = 11;
+}
+
+// Camera is the authoritative record for a camera on the Directory side.
+//
+// The Recorder maintains its own local copy (KAI-250); the wire format of
+// camera updates from Directory → Recorder is this message, embedded in a
+// recorder_control AssignmentEvent.
+message Camera {
+  string id = 1;
+  TenantRef tenant = 2;
+  string recorder_id = 3;
+  string name = 4;
+  string description = 5;
+  // Manufacturer / model / firmware — populated by ONVIF probe.
+  string manufacturer = 6;
+  string model = 7;
+  string firmware_version = 8;
+  // Hardware MAC address, when known. Lowercase colon-separated.
+  string mac_address = 9;
+  // IP address the recorder uses to reach the camera. For NAT'd deployments
+  // this is the in-LAN address; the recorder is responsible for reachability.
+  string ip_address = 10;
+  // Opaque reference into the cryptostore. NEVER a plaintext secret.
+  string credential_ref = 11;
+  CameraConfig config = 12;
+  // Monotonically increasing version number. Bumps on every config change.
+  // Recorder uses this to detect out-of-order AssignmentEvents.
+  int64 config_version = 13;
+  CameraState state = 14;
+  // Last time the recorder reported state for this camera.
+  google.protobuf.Timestamp state_reported_at = 15;
+  // Site / group labels for filtering and ACL targeting.
+  repeated string labels = 16;
+  google.protobuf.Timestamp created_at = 17;
+  google.protobuf.Timestamp updated_at = 18;
+}
+
+// --- CRUD envelopes ---------------------------------------------------------
+
+message CreateCameraRequest {
+  TenantRef tenant = 1;
+  string recorder_id = 2;
+  // Inline config. id and timestamps on Camera are server-assigned and
+  // ignored on create.
+  Camera camera = 3;
+  // Initial credential material — written directly to the cryptostore. This
+  // field is WRITE-ONLY and MUST be stripped from any CreateCameraResponse.
+  CameraCredentialsWriteOnly credentials = 4;
+}
+
+message CreateCameraResponse {
+  Camera camera = 1;
+}
+
+message GetCameraRequest {
+  string id = 1;
+}
+
+message GetCameraResponse {
+  Camera camera = 1;
+}
+
+message UpdateCameraRequest {
+  Camera camera = 1;
+  // Optional replacement credentials — WRITE-ONLY.
+  CameraCredentialsWriteOnly credentials = 2;
+  // Field mask: which fields on camera to update. Empty means "all set fields".
+  repeated string update_mask = 3;
+}
+
+message UpdateCameraResponse {
+  Camera camera = 1;
+}
+
+message DeleteCameraRequest {
+  string id = 1;
+  // Whether to also purge recorded media from the recorder's disk.
+  bool purge_recordings = 2;
+}
+
+message DeleteCameraResponse {}
+
+message ListCamerasRequest {
+  TenantRef tenant = 1;
+  string recorder_id = 2;  // optional filter
+  string search = 3;       // name/description substring
+  int32 page_size = 4;
+  string cursor = 5;
+}
+
+message ListCamerasResponse {
+  repeated Camera cameras = 1;
+  string next_cursor = 2;
+}
+
+// CameraCredentialsWriteOnly carries the secret material needed to talk to
+// the camera. It is WRITE-ONLY: it is accepted on Create / Update but MUST
+// NEVER be returned by a read RPC. The server persists it to the
+// cryptostore and issues an opaque credential_ref.
+message CameraCredentialsWriteOnly {
+  string username = 1;
+  string password = 2;
+  // Optional ONVIF bind credentials if they differ from the RTSP creds.
+  string onvif_username = 3;
+  string onvif_password = 4;
+}

@@ -37,7 +37,10 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// parent table; its body is stripped by the SQLite runner so the row is
 	// still recorded but no table is created. This matches the intent: the
 	// schema exists only in real Postgres.
-	want := []int{1, 2, 3, 4, 5, 6}
+	// 0007/0008 are KAI-283 LPR watchlists (SQLite-compatible).
+	// 0009 is KAI-254 ai_events (postgres-only partition stripped) +
+	// camera_state + segment_index_stub (SQLite-compatible).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

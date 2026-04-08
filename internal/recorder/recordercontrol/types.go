@@ -13,6 +13,10 @@ type Camera struct {
 	CredentialRef string
 	ConfigJSON    string
 	ConfigVersion int64
+	// BehavioralConfigJSON carries the KAI-429 behavioral analytics config
+	// for this camera. Empty means no behavioral detectors are configured.
+	// Parsed by the behavioral pipeline via ParseCameraConfig.
+	BehavioralConfigJSON string
 }
 
 // wireEvent is the JSON shape sent by the Directory server over the
@@ -37,13 +41,14 @@ type wireSnapshot struct {
 }
 
 type wireCamera struct {
-	ID            string `json:"id"`
-	TenantID      string `json:"tenant_id"`
-	RecorderID    string `json:"recorder_id"`
-	Name          string `json:"name"`
-	CredentialRef string `json:"credential_ref"`
-	ConfigJSON    string `json:"config_json"`
-	ConfigVersion int64  `json:"config_version"`
+	ID                   string `json:"id"`
+	TenantID             string `json:"tenant_id"`
+	RecorderID           string `json:"recorder_id"`
+	Name                 string `json:"name"`
+	CredentialRef        string `json:"credential_ref"`
+	ConfigJSON           string `json:"config_json"`
+	ConfigVersion        int64  `json:"config_version"`
+	BehavioralConfigJSON string `json:"behavioral_config_json,omitempty"`
 }
 
 type wireCameraAdded struct {
@@ -71,13 +76,14 @@ const (
 
 func wireCameraToCamera(wc wireCamera) Camera {
 	return Camera{
-		ID:            wc.ID,
-		TenantID:      wc.TenantID,
-		RecorderID:    wc.RecorderID,
-		Name:          wc.Name,
-		CredentialRef: wc.CredentialRef,
-		ConfigJSON:    wc.ConfigJSON,
-		ConfigVersion: wc.ConfigVersion,
+		ID:                   wc.ID,
+		TenantID:             wc.TenantID,
+		RecorderID:           wc.RecorderID,
+		Name:                 wc.Name,
+		CredentialRef:        wc.CredentialRef,
+		ConfigJSON:           wc.ConfigJSON,
+		ConfigVersion:        wc.ConfigVersion,
+		BehavioralConfigJSON: wc.BehavioralConfigJSON,
 	}
 }
 

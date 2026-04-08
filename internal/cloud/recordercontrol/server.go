@@ -96,13 +96,17 @@ type wireSnapshot struct {
 }
 
 type wireCamera struct {
-	ID            string `json:"id"`
-	TenantID      string `json:"tenant_id"`
-	RecorderID    string `json:"recorder_id"`
-	Name          string `json:"name"`
-	CredentialRef string `json:"credential_ref"`
-	ConfigJSON    string `json:"config_json"`
-	ConfigVersion int64  `json:"config_version"`
+	ID                   string `json:"id"`
+	TenantID             string `json:"tenant_id"`
+	RecorderID           string `json:"recorder_id"`
+	Name                 string `json:"name"`
+	CredentialRef        string `json:"credential_ref"`
+	ConfigJSON           string `json:"config_json"`
+	ConfigVersion        int64  `json:"config_version"`
+	// BehavioralConfigJSON carries the KAI-429 behavioral analytics config
+	// for this camera. JSON-serialized cloud/behavioral.RecorderCameraConfig.
+	// Empty string means no behavioral detectors are configured.
+	BehavioralConfigJSON string `json:"behavioral_config_json,omitempty"`
 }
 
 type wireCameraAdded struct {
@@ -518,13 +522,14 @@ func cameraPayloadsToWire(cameras []CameraPayload) []wireCamera {
 
 func cameraPayloadToWire(c *CameraPayload) wireCamera {
 	return wireCamera{
-		ID:            c.ID,
-		TenantID:      c.TenantID,
-		RecorderID:    c.RecorderID,
-		Name:          c.Name,
-		CredentialRef: c.CredentialRef,
-		ConfigJSON:    c.ConfigJSON,
-		ConfigVersion: c.ConfigVersion,
+		ID:                   c.ID,
+		TenantID:             c.TenantID,
+		RecorderID:           c.RecorderID,
+		Name:                 c.Name,
+		CredentialRef:        c.CredentialRef,
+		ConfigJSON:           c.ConfigJSON,
+		ConfigVersion:        c.ConfigVersion,
+		BehavioralConfigJSON: c.BehavioralConfigJSON,
 	}
 }
 

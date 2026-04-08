@@ -159,11 +159,11 @@ export function CreateCustomerWizard({
       }
       return;
     }
-    setStep((prev) => Math.min(5, (prev + 1) as StepId));
+    setStep((prev) => Math.min(5, prev + 1) as StepId);
   }
 
   function goBack() {
-    setStep((prev) => Math.max(1, (prev - 1) as StepId));
+    setStep((prev) => Math.max(1, prev - 1) as StepId);
   }
 
   function copyToken() {

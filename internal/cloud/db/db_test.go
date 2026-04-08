@@ -39,7 +39,9 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// no-ops in SQLite. 0009..0013 are the KAI-249 directory schema: recorders,
 	// recording_schedules, retention_policies, cameras, and camera_segment_index
 	// (postgres partition block stripped; SQLite fallback table created).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
+	// 0014 is KAI-254 ai_events (postgres-only partition stripped) +
+	// camera_state + segment_index_stub (SQLite-compatible).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

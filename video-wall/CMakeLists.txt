@@ -48,7 +48,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Qt 6
 # ---------------------------------------------------------------------------
-find_package(Qt6 6.5 REQUIRED COMPONENTS
+find_package(Qt6 6.6 REQUIRED COMPONENTS
     Core
     Gui
     Quick
@@ -57,7 +57,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
     Network
 )
 
-qt_standard_project_setup(REQUIRES 6.5)
+qt_standard_project_setup(REQUIRES 6.6)
 
 # ---------------------------------------------------------------------------
 # Generated version header
@@ -73,6 +73,16 @@ configure_file(
 # ---------------------------------------------------------------------------
 qt_add_executable(KaivueVideoWall
     src/main.cpp
+
+    # Render core — platform-abstract layer (KAI-333a)
+    src/render/TileGrid.cpp
+    src/render/QualityController.cpp
+    src/render/FrameClock.cpp
+    src/render/NullDecoderBackend.cpp
+
+    # Platform backends (guarded by platform preprocessor macros)
+    src/render/D3D12Backend.cpp    # Q_OS_WIN only
+    src/render/VulkanBackend.cpp   # Q_OS_LINUX only
 )
 
 target_include_directories(KaivueVideoWall PRIVATE
@@ -92,6 +102,7 @@ qt_add_qml_module(KaivueVideoWall
 target_link_libraries(KaivueVideoWall PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::GuiPrivate   # QRhi lives in private headers (rhi/qrhi.h)
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
@@ -125,3 +136,9 @@ qt_generate_deploy_qml_app_script(
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+enable_testing()
+add_subdirectory(tests)

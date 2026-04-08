@@ -1,0 +1,177 @@
+// directory_ingest.proto — Recorder → Directory ingest channel.
+//
+// DirectoryIngest is the mirror of RecorderControl: where RecorderControl
+// pushes assignments FROM Directory TO Recorder, DirectoryIngest pushes
+// state, segment index, and AI events FROM Recorder TO Directory.
+//
+// All three RPCs are CLIENT-streaming — the recorder opens a long-lived
+// stream and pushes batches of updates. The server responds with a single
+// summary at close (or on periodic flush).
+//
+// Why client-streaming instead of unary-per-event:
+//   - segment index entries can land at hundreds per minute for a busy site
+//   - AI events come in bursts
+//   - state updates are coalesced by camera
+// One persistent stream is cheaper than thousands of HTTP requests.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/auth.proto";
+import "kaivue/v1/cameras.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// --- StreamCameraState ------------------------------------------------------
+
+// CameraStateUpdate is a single camera's latest health / status snapshot.
+// The recorder coalesces: within a short window (~5s) only the newest
+// update per camera is sent.
+message CameraStateUpdate {
+  string camera_id = 1;
+  CameraState state = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  // If state is ERROR, human-readable detail.
+  string error_message = 4;
+  // Current bitrate observed on the ingest side, in kbps.
+  int32 current_bitrate_kbps = 5;
+  // Framerate observed on the ingest side.
+  int32 current_framerate = 6;
+  // Last frame timestamp as reported by the camera.
+  google.protobuf.Timestamp last_frame_at = 7;
+  // The config_version this state refers to — lets Directory detect stale
+  // reports after a config change.
+  int64 config_version = 8;
+}
+
+message StreamCameraStateRequest {
+  string recorder_id = 1;
+  // A batch of 1..N updates. Batches are optional; the recorder MAY send
+  // single updates per message.
+  repeated CameraStateUpdate updates = 2;
+}
+
+message StreamCameraStateResponse {
+  // Total updates accepted during the whole stream session.
+  int64 accepted = 1;
+  // Updates rejected because they referenced unknown / unassigned cameras.
+  int64 rejected_unknown = 2;
+  // Updates dropped because config_version was stale.
+  int64 rejected_stale = 3;
+}
+
+// --- PublishSegmentIndex ----------------------------------------------------
+
+// SegmentIndexEntry is one recorded media segment on the recorder's disk.
+// Directory stores these so playback can resolve a time range to the right
+// recorder + file without asking the recorder on every query.
+message SegmentIndexEntry {
+  string camera_id = 1;
+  // Segment id is recorder-local and opaque. The recorder maps it to a
+  // filesystem path when serving the segment.
+  string segment_id = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  int64 bytes = 5;
+  // "h264", "h265", "mjpeg"
+  string codec = 6;
+  // Whether this segment includes audio.
+  bool has_audio = 7;
+  // Whether this segment is marked as an event-triggered clip (retained
+  // under event_retention_days rather than retention_days).
+  bool is_event_clip = 8;
+  // Opaque tag — recorder-local bucket / directory / tier.
+  string storage_tier = 9;
+  // Monotonic sequence number within the camera's track. Used to detect
+  // gaps on the Directory side.
+  int64 sequence = 10;
+}
+
+message PublishSegmentIndexRequest {
+  string recorder_id = 1;
+  // Batch of 1..N entries. Recommended batch size: 64-256.
+  repeated SegmentIndexEntry entries = 2;
+}
+
+message PublishSegmentIndexResponse {
+  int64 accepted = 1;
+  int64 rejected_unknown = 2;
+  int64 rejected_duplicate = 3;
+}
+
+// --- PublishAIEvents --------------------------------------------------------
+
+// AIEventKind is the detection type. This list is open-ended; new detector
+// kinds get new numeric values and MUST NOT reuse old ones.
+enum AIEventKind {
+  AI_EVENT_KIND_UNSPECIFIED = 0;
+  AI_EVENT_KIND_MOTION = 1;
+  AI_EVENT_KIND_PERSON = 2;
+  AI_EVENT_KIND_VEHICLE = 3;
+  AI_EVENT_KIND_FACE = 4;
+  AI_EVENT_KIND_LICENSE_PLATE = 5;
+  AI_EVENT_KIND_AUDIO_ALARM = 6;
+  AI_EVENT_KIND_LINE_CROSSING = 7;
+  AI_EVENT_KIND_LOITERING = 8;
+  AI_EVENT_KIND_TAMPER = 9;
+  AI_EVENT_KIND_CUSTOM = 100;  // model-defined; kind_label carries the name
+}
+
+// BoundingBox is a normalized 0..1 rectangle relative to the frame.
+message BoundingBox {
+  float x = 1;
+  float y = 2;
+  float width = 3;
+  float height = 4;
+}
+
+// AIEvent is a single detection. One detection per object per frame; the
+// recorder is expected to group detections into tracks client-side.
+message AIEvent {
+  string event_id = 1;        // recorder-generated ULID / UUID
+  string camera_id = 2;
+  AIEventKind kind = 3;
+  // Custom-model label when kind == AI_EVENT_KIND_CUSTOM; may also be set
+  // alongside a standard kind to carry a class-specific sub-label.
+  string kind_label = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  // Detection confidence, 0..1.
+  float confidence = 6;
+  BoundingBox bbox = 7;
+  // Optional track id — detections with the same track_id are the same
+  // object across frames.
+  string track_id = 8;
+  // Optional linked segment id: the segment that contains the frame this
+  // detection came from. Enables jump-to-playback.
+  string segment_id = 9;
+  // Optional thumbnail reference — small JPEG stored on the recorder's
+  // disk, fetched on demand by the UI. recorder-local opaque id.
+  string thumbnail_ref = 10;
+  // Optional structured metadata: license plate text, face id, etc.
+  map<string, string> attributes = 11;
+}
+
+message PublishAIEventsRequest {
+  string recorder_id = 1;
+  TenantRef tenant = 2;
+  repeated AIEvent events = 3;
+}
+
+message PublishAIEventsResponse {
+  int64 accepted = 1;
+  int64 rejected_unknown = 2;
+}
+
+// DirectoryIngest is the Recorder → Directory client-streaming service.
+service DirectoryIngest {
+  // StreamCameraState pushes coalesced per-camera health updates.
+  rpc StreamCameraState(stream StreamCameraStateRequest) returns (StreamCameraStateResponse);
+
+  // PublishSegmentIndex pushes newly-written segment index entries.
+  rpc PublishSegmentIndex(stream PublishSegmentIndexRequest) returns (PublishSegmentIndexResponse);
+
+  // PublishAIEvents pushes AI detection events.
+  rpc PublishAIEvents(stream PublishAIEventsRequest) returns (PublishAIEventsResponse);
+}

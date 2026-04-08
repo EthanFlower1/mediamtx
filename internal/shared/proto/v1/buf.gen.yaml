@@ -1,0 +1,27 @@
+version: v2
+# Connect-Go + Dart code generation for Kaivue v1 inter-role proto contracts.
+#
+# This file is authored but intentionally NOT executed in KAI-238. Generated
+# sources will land in a follow-up once `buf` and the required plugins are
+# installed in CI. See internal/shared/proto/README.md.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/bluenviron/mediamtx/internal/shared/proto/gen
+plugins:
+  # Go message types
+  - remote: buf.build/protocolbuffers/go:v1.34.2
+    out: ../gen/go
+    opt:
+      - paths=source_relative
+  # Connect-Go service stubs (server + client)
+  - remote: buf.build/connectrpc/go:v1.16.2
+    out: ../gen/go
+    opt:
+      - paths=source_relative
+  # Dart messages for the Flutter client
+  - remote: buf.build/protocolbuffers/dart:v21.1.2
+    out: ../../../../clients/flutter/lib/src/gen/proto
+inputs:
+  - directory: .

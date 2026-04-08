@@ -1,0 +1,168 @@
+// federation_peer.proto — Directory ↔ Directory federation.
+//
+// Federation lets an integrator tenant with a scoped relationship read
+// directory data and mint playback URLs from a customer tenant's Directory
+// instance. Every RPC is tenant-bound and enforced server-side.
+//
+// Authentication: mTLS between Directory instances, plus an
+// integrator-relationship-scoped bearer token carried in the Authorization
+// header. Both are required.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/auth.proto";
+import "kaivue/v1/cameras.proto";
+import "kaivue/v1/directory_ingest.proto";
+import "kaivue/v1/streams.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// --- Ping -------------------------------------------------------------------
+
+message PingRequest {
+  // Client echoes this in case they want RTT without parsing response time.
+  string nonce = 1;
+}
+
+message PingResponse {
+  string nonce = 1;
+  google.protobuf.Timestamp server_time = 2;
+  // Server software version, for diagnostics.
+  string server_version = 3;
+}
+
+// --- GetJWKS ----------------------------------------------------------------
+
+// GetJWKSRequest returns the peer Directory's JWKS document. Peers use it
+// to verify tokens signed by the other side.
+message GetJWKSRequest {}
+
+message GetJWKSResponse {
+  // Raw JWKS JSON. Opaque to the transport layer; consumers parse it with
+  // their JWT library.
+  string jwks_json = 1;
+  // Cache lifetime hint. The client SHOULD honor this before re-fetching.
+  int32 max_age_seconds = 2;
+}
+
+// --- ListUsers --------------------------------------------------------------
+
+message FederatedUser {
+  string id = 1;
+  TenantRef tenant = 2;
+  string username = 3;
+  string email = 4;
+  string display_name = 5;
+  repeated string groups = 6;
+  bool disabled = 7;
+}
+
+message ListUsersRequest {
+  TenantRef tenant = 1;
+  string search = 2;
+  int32 page_size = 3;
+  string cursor = 4;
+}
+
+message ListUsersResponse {
+  repeated FederatedUser users = 1;
+  string next_cursor = 2;
+}
+
+// --- ListGroups -------------------------------------------------------------
+
+message FederatedGroup {
+  string id = 1;
+  TenantRef tenant = 2;
+  string name = 3;
+  string description = 4;
+}
+
+message ListGroupsRequest {
+  TenantRef tenant = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+message ListGroupsResponse {
+  repeated FederatedGroup groups = 1;
+  string next_cursor = 2;
+}
+
+// --- ListCameras ------------------------------------------------------------
+
+message ListCamerasFederatedRequest {
+  TenantRef tenant = 1;
+  string recorder_id = 2;  // optional filter
+  string search = 3;
+  int32 page_size = 4;
+  string cursor = 5;
+}
+
+message ListCamerasFederatedResponse {
+  // Full Camera records, scrubbed of credential_ref by the peer before send.
+  repeated Camera cameras = 1;
+  string next_cursor = 2;
+}
+
+// --- SearchRecordings -------------------------------------------------------
+
+// RecordingHit is a single matching segment — the same shape as a
+// SegmentIndexEntry slice but enriched with peer-side recorder info so the
+// caller knows which peer owns it.
+message RecordingHit {
+  TenantRef tenant = 1;
+  string recorder_id = 2;
+  string camera_id = 3;
+  string segment_id = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp end_time = 6;
+  int64 bytes = 7;
+  bool is_event_clip = 8;
+  // Optional matching AI event ids inside this segment.
+  repeated string matching_event_ids = 9;
+}
+
+message SearchRecordingsRequest {
+  TenantRef tenant = 1;
+  // Optional camera filter.
+  repeated string camera_ids = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  // Optional AI filter.
+  repeated AIEventKind event_kinds = 5;
+  // Free-text search against AI event attributes (e.g. plate text).
+  string query = 6;
+  int32 page_size = 7;
+}
+
+// FederationPeer is the Directory ↔ Directory service.
+service FederationPeer {
+  // Ping is a liveness probe. Unary.
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // GetJWKS returns the peer's signing key set.
+  rpc GetJWKS(GetJWKSRequest) returns (GetJWKSResponse);
+
+  // ListUsers returns users visible through the integrator relationship.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  // ListGroups returns groups visible through the integrator relationship.
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+
+  // ListCameras returns cameras visible through the integrator relationship.
+  rpc ListCameras(ListCamerasFederatedRequest) returns (ListCamerasFederatedResponse);
+
+  // SearchRecordings is server-streaming: results arrive as they're found
+  // across the peer's recorders. The stream terminates when all recorders
+  // have reported or the deadline is reached.
+  rpc SearchRecordings(SearchRecordingsRequest) returns (stream RecordingHit);
+
+  // MintStreamURL asks the peer Directory to sign a StreamClaims token for
+  // one of its cameras. The returned URL points at the peer's recorder
+  // edge, not the caller's.
+  rpc MintStreamURL(MintStreamURLRequest) returns (MintStreamURLResponse);
+}

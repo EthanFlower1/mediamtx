@@ -1,0 +1,147 @@
+// pairing.proto — Recorder pairing handshake.
+//
+// Pairing is how a freshly-flashed Recorder box joins a Directory. The flow:
+//
+//   1. Admin (in the Directory UI) generates a PairingToken bound to a
+//      tenant + suggested recorder mode. The token carries everything the
+//      recorder needs to bootstrap:
+//        - Directory endpoint URL + fingerprint
+//        - Headscale pre-auth key (for the control-plane overlay)
+//        - Step-CA fingerprint + single-use enrol token (for mTLS identity)
+//   2. Admin runs `kaivue-recorder pair <token>` on the recorder box.
+//   3. Recorder enrolls with Headscale + Step-CA, then dials Directory.
+//   4. First call is CompletePairingRequest: recorder proves its new cert
+//      and is marked "paired" in Directory's recorder registry.
+//   5. PairingToken is burned (single-use) regardless of outcome.
+//
+// The PairingToken itself is a short-lived JWT signed by Directory. This
+// .proto describes the DECODED claim set so Go / Dart consumers don't have
+// to re-implement the claim structure.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/auth.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// SuggestedMode tells the recorder which runtime mode it should boot into
+// after pairing. Admins can override via the recorder CLI but this is the
+// default the Directory intends.
+enum SuggestedMode {
+  SUGGESTED_MODE_UNSPECIFIED = 0;
+  // Standalone NVR — no federation, local admin only.
+  SUGGESTED_MODE_STANDALONE = 1;
+  // Tenant recorder — reports to a customer tenant's Directory.
+  SUGGESTED_MODE_TENANT_RECORDER = 2;
+  // Integrator-managed recorder — reports to an integrator Directory that
+  // has a scoped relationship with the customer tenant.
+  SUGGESTED_MODE_MANAGED_RECORDER = 3;
+}
+
+// PairingToken is the decoded claim set of a pairing JWT. It is NEVER
+// transmitted as a proto wire message directly — the wire form is a JWT.
+// This message exists so Go and Dart have a shared type for the decoded
+// claims.
+message PairingToken {
+  // Unique id of this pairing token. Directory marks it as "burned" after
+  // any pair attempt (success or failure) so the token cannot be replayed.
+  string token_id = 1;
+
+  // The tenant the resulting recorder will be bound to.
+  TenantRef tenant = 2;
+
+  // Suggested runtime mode for the recorder after pairing.
+  SuggestedMode suggested_mode = 3;
+
+  // Directory endpoint the recorder should dial after enrolment. Full URL,
+  // including scheme and port, e.g. "https://directory.example.com:443".
+  string directory_endpoint = 4;
+
+  // TLS fingerprint (SHA-256 hex, colon-separated) of the Directory's
+  // serving cert. The recorder pins against this to prevent MITM during
+  // bootstrap, before it has a real trust anchor.
+  string directory_fingerprint = 5;
+
+  // Headscale pre-auth key — single-use, ties the recorder into the control
+  // plane overlay. NEVER logged.
+  string headscale_preauth_key = 6;
+
+  // Headscale coordinator URL.
+  string headscale_endpoint = 7;
+
+  // Step-CA fingerprint (SHA-256 hex of the root cert).
+  string step_ca_fingerprint = 8;
+
+  // Step-CA URL.
+  string step_ca_endpoint = 9;
+
+  // Single-use enrolment token for Step-CA. NEVER logged.
+  string step_ca_enroll_token = 10;
+
+  // Optional site / label hints carried from the admin UI at token-mint
+  // time. The recorder persists these as its initial metadata.
+  repeated string suggested_labels = 11;
+
+  // Optional human-readable name the admin assigned in the pairing wizard.
+  string suggested_name = 12;
+
+  // When the token expires. Recorders MUST reject tokens past this time.
+  google.protobuf.Timestamp expires_at = 13;
+
+  // When the token was issued.
+  google.protobuf.Timestamp issued_at = 14;
+
+  // Who created the token (user id on the Directory side). Informational
+  // only — Directory does its own authorization on the burn side.
+  string created_by = 15;
+}
+
+// --- Wire RPCs --------------------------------------------------------------
+//
+// These are exposed on the Directory's pairing service. The recorder calls
+// them once, during bootstrap; they are NOT part of any steady-state channel.
+
+// CompletePairingRequest is the first RPC the newly-enrolled recorder makes
+// to Directory. It proves possession of the Step-CA-issued cert (via mTLS)
+// AND echoes back the pairing token_id to prove it was the intended
+// recipient.
+message CompletePairingRequest {
+  string token_id = 1;
+  // Recorder-chosen id. MUST be unique within the tenant. Directory rejects
+  // on conflict and the admin must re-issue the pair token.
+  string recorder_id = 2;
+  // Hostname the recorder reports for itself.
+  string hostname = 3;
+  // Initial software version.
+  string software_version = 4;
+  // Platform info (os, arch, kernel).
+  string os = 5;
+  string arch = 6;
+  string kernel_version = 7;
+  // Hardware info that's useful for capacity planning.
+  int64 disk_bytes_total = 8;
+  int32 cpu_cores = 9;
+  int64 memory_bytes = 10;
+}
+
+message CompletePairingResponse {
+  // Assigned recorder_id (may be the one the recorder proposed, or
+  // server-overridden).
+  string recorder_id = 1;
+  // The recorder's initial known_version to pass to StreamAssignments. For
+  // a fresh pair this is 0; the server may pre-seed it if the same
+  // hostname previously paired and was replaced.
+  int64 initial_known_version = 2;
+  // Directory's view of the tenant binding — recorder persists this so it
+  // doesn't trust future-dated claims from a different tenant.
+  TenantRef tenant = 3;
+}
+
+// Pairing is the one-shot bootstrap service. Unary only; no streaming.
+service Pairing {
+  // CompletePairing finalizes a pairing token after mTLS enrolment.
+  rpc CompletePairing(CompletePairingRequest) returns (CompletePairingResponse);
+}

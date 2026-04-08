@@ -17,6 +17,12 @@ import { NotFound } from './routes/NotFound';
 const AdminDashboard = lazy(() =>
   import('./routes/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })),
 );
+// KAI-321: CamerasPage lazy-loaded so the customer-admin initial bundle
+// stays small; the wizard, table, and modals only ship when /admin/cameras
+// is visited.
+const CamerasPage = lazy(() =>
+  import('./routes/admin/CamerasPage').then((m) => ({ default: m.CamerasPage })),
+);
 const FleetDashboard = lazy(() => import('./routes/command/FleetDashboard'));
 
 export function App(): JSX.Element {
@@ -25,6 +31,7 @@ export function App(): JSX.Element {
       <Routes>
         <Route path="/" element={<Navigate to="/admin" replace />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/cameras" element={<CamerasPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CommandCustomers />} />

@@ -7,6 +7,32 @@ on:
     branches: [ main ]
 
 jobs:
+  # KAI-235: Multi-tenant isolation + chaos tests.
+  # These run on EVERY PR and must pass before merge.
+  # They exercise the full auth/permission/audit middleware stack using
+  # in-memory dependencies (no external infra required).
+  cloud_isolation:
+    name: Cloud isolation tests (KAI-235)
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - uses: actions/setup-go@v6
+      with:
+        go-version: "1.26"
+
+    - name: isolation suite (per-endpoint + route coverage)
+      run: go test -race -count=1 -timeout=120s ./internal/cloud/tests/isolation/...
+
+    - name: chaos suite (100-tenant, 1000 cross-tenant attempts)
+      run: go test -race -count=1 -timeout=300s ./internal/cloud/tests/chaos/...
+
+    - name: casbin policy matrix
+      run: go test -race -count=1 -timeout=60s ./internal/cloud/tests/casbin_policies/...
+
   test_64:
     runs-on: ubuntu-22.04
 

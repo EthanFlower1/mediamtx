@@ -8,10 +8,38 @@
 /internal/staticsources/rpicamera/mtxrpicam_*/
 mediamtx
 
-# NVR UI
+# NVR UI (legacy ui/)
 internal/nvr/ui/dist/*
 !internal/nvr/ui/dist/.gitkeep
 ui/node_modules/
+
+# v1 React admin (ui-v2/)
+ui-v2/node_modules/
+ui-v2/dist/
+ui-v2/.vite/
+ui-v2/coverage/
+ui-v2/test-results/
+ui-v2/playwright-report/
+ui-v2/blob-report/
+
+# v1 marketing site (marketing/, Next.js)
+marketing/node_modules/
+marketing/.next/
+marketing/out/
+marketing/.vercel/
+marketing/coverage/
+marketing/.env*.local
+marketing/next-env.d.ts.bak
+
+# v1 docs portal (docs-portal/, Mintlify)
+docs-portal/node_modules/
+docs-portal/.mintlify/
+
+# v1 video wall (video-wall/, Qt + CMake + vcpkg)
+video-wall/build/
+video-wall/cmake-build-*/
+video-wall/vcpkg_installed/
+video-wall/CMakeUserPresets.json
 
 # NVR data (recordings, thumbnails, database, AI models)
 recordings/

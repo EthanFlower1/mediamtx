@@ -69,6 +69,14 @@ const (
 	ActionAIFaceVaultWrite = "ai.facevault.write"
 	ActionAIFaceVaultErase = "ai.facevault.erase"
 	ActionAIModelsUpload   = "ai.models.upload"
+
+	// Customer-integrator relationships (KAI-228, KAI-229).
+	// relationships.read   — list or inspect relationships for a tenant.
+	// relationships.write  — update permissions / markup on an existing relationship.
+	// relationships.grant  — create or approve a new relationship, or revoke one.
+	ActionRelationshipsRead  = "relationships.read"
+	ActionRelationshipsWrite = "relationships.write"
+	ActionRelationshipsGrant = "relationships.grant"
 )
 
 // AllActions is the canonical list of every action constant in this package.
@@ -85,4 +93,5 @@ var AllActions = []string{
 	ActionRecorderPair, ActionRecorderUnpair,
 	ActionIntegratorsCreate, ActionIntegratorsCreateSubReseller, ActionCustomerTenantsCreate, ActionTenantsInviteAdmin,
 	ActionAIConfigure, ActionAIFaceVaultRead, ActionAIFaceVaultWrite, ActionAIFaceVaultErase, ActionAIModelsUpload,
+	ActionRelationshipsRead, ActionRelationshipsWrite, ActionRelationshipsGrant,
 }

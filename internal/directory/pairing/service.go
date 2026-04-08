@@ -31,6 +31,14 @@ type ClusterCAClient interface {
 	// IssueDirectoryServingCert returns the current Directory TLS certificate.
 	// The pairing service derives the DirectoryFingerprint from its leaf.
 	IssueDirectoryServingCert(ctx context.Context) (*tls.Certificate, error)
+	// MintEnrollmentToken produces a short-lived JWK provisioner enrollment token
+	// (KAI-244). The Recorder presents this to step-ca's /1.0/sign endpoint to
+	// obtain its first mTLS leaf certificate without needing a pre-existing cert.
+	//
+	// audience is the full CA /sign URL; issuer is the JWK provisioner name;
+	// sans lists the DNS names / IPs to embed in the issued cert; ttl clamps the
+	// token lifetime (≤ 0 uses the CA default of 10 minutes).
+	MintEnrollmentToken(audience, issuer string, sans []string, ttl time.Duration) (string, error)
 }
 
 // Config parameterises a Service.
@@ -56,6 +64,17 @@ type Config struct {
 	// HeadscaleNamespace is the tailnet namespace Recorders will join.
 	// Defaults to "recorders" if empty.
 	HeadscaleNamespace string
+
+	// StepCASignURL is the full URL of step-ca's /1.0/sign endpoint,
+	// e.g. "https://ca.site.local:9000/1.0/sign". When non-empty, the service
+	// mints a JWK provisioner enrollment token (via ClusterCA.MintEnrollmentToken)
+	// and embeds it in PairingToken.StepCAEnrollToken. If empty the field is
+	// left blank and the Recorder must obtain the token out-of-band.
+	StepCASignURL string
+
+	// StepCAProvisionerName is the JWK provisioner name on the step-ca instance.
+	// Defaults to "kaivue-pairing" if empty.
+	StepCAProvisionerName string
 
 	// Logger is the slog logger. nil defaults to slog.Default().
 	Logger *slog.Logger
@@ -159,6 +178,26 @@ func (svc *Service) Generate(
 	}
 	dirFingerprint := certFingerprint(dirCert)
 
+	// 3b. Mint a JWK provisioner enrollment token so the Recorder can obtain its
+	// first mTLS leaf without a pre-existing cert. Only when StepCASignURL is
+	// configured; otherwise leave the field blank (KAI-244 option (a) seam).
+	var enrollToken string
+	if svc.cfg.StepCASignURL != "" {
+		provisioner := svc.cfg.StepCAProvisionerName
+		if provisioner == "" {
+			provisioner = "kaivue-pairing"
+		}
+		enrollToken, err = svc.cfg.ClusterCA.MintEnrollmentToken(
+			svc.cfg.StepCASignURL,
+			provisioner,
+			nil, // SANs are chosen by the Recorder when it submits the CSR
+			0,   // use CA default TTL
+		)
+		if err != nil {
+			return nil, fmt.Errorf("pairing: mint enrollment token: %w", err)
+		}
+	}
+
 	// 4. Build the token.
 	if suggestedRoles == nil {
 		suggestedRoles = []string{"recorder"}
@@ -169,7 +208,7 @@ func (svc *Service) Generate(
 		DirectoryEndpoint:    svc.cfg.DirectoryEndpoint,
 		HeadscalePreAuthKey:  preAuthKey,
 		StepCAFingerprint:    caFingerprint,
-		StepCAEnrollToken:    "", // TODO(KAI-243): wire JWK provisioner enrollment token from step-ca once KAI-241 exposes it.
+		StepCAEnrollToken:    enrollToken,
 		DirectoryFingerprint: dirFingerprint,
 		SuggestedRoles:       suggestedRoles,
 		ExpiresAt:            now.Add(TokenTTL),

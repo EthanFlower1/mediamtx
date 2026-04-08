@@ -1,0 +1,93 @@
+---
+title: "Alerts and Events"
+description: "Receive push notifications for camera events, acknowledge alerts, and search event history. Coming in Kaivue v1.x."
+---
+
+# Alerts and Events
+
+<Warning>
+  **Coming in Kaivue v1.x** — Push notifications and the in-app event center are not yet available. This page describes how they will work when released. Searching event history via the admin interface is available now for administrators.
+</Warning>
+
+Kaivue can notify you when something happens on your cameras — a person detected, a vehicle arriving, or a camera going offline — so you don't have to watch live video all day.
+
+---
+
+## Enabling push notifications
+
+When alerts ship, you'll enable them like this:
+
+1. Open **Settings** in the Kaivue app.
+2. Tap **Notifications**.
+3. Toggle on the cameras and event types you want to hear about.
+4. The first time you turn this on, your phone will ask for permission to send notifications — tap **Allow**.
+
+Your administrator controls which event types are available for your account. If you don't see a particular event type listed, it may not be enabled for your cameras.
+
+---
+
+## Types of alerts
+
+Here's a plain-language explanation of each alert type:
+
+### Motion detection
+
+A camera detected movement in its field of view. This is the most basic type of alert. It triggers whenever pixels in the image change — a passing car, a person walking by, or even blowing leaves can trigger it.
+
+**How much to trust it:** Motion detection has a high false-positive rate. It's a good starting point but not a precise trigger on its own.
+
+### Object detection (person, vehicle)
+
+The system uses AI to classify what moved — specifically whether it's a person, a vehicle, or another recognized object. This is more precise than raw motion and significantly reduces false alarms.
+
+**How much to trust it:** High confidence for clearly visible people and vehicles in good lighting. Lower confidence at night, at long distances, or with partial occlusion.
+
+### License plate recognition
+
+When a vehicle enters the frame, the system reads the license plate number and compares it against watchlists your administrator has configured. You may receive an alert if a plate matches or does not match an expected list.
+
+**How much to trust it:** Accuracy depends heavily on camera angle, resolution, and lighting conditions. A failed read (no plate detected) does not necessarily mean no vehicle was present.
+
+### Behavioral alerts
+
+The system can detect patterns over time, such as loitering (a person staying in an area longer than expected), line crossing (entering a defined zone), or crowd formation. These are configured per camera by your administrator.
+
+**How much to trust it:** Behavioral alerts require careful calibration. They can be very accurate in controlled environments (a loading dock with predictable traffic patterns) and less reliable in busy, unpredictable areas.
+
+### Face recognition
+
+<Note>
+  Face recognition is **opt-in per camera** and requires explicit configuration by your administrator. It is not enabled by default on any camera. A separate privacy and configuration guide covers this feature. If you have questions about whether face recognition is active on cameras you are observed by, contact your administrator or your organization's privacy officer.
+</Note>
+
+---
+
+## Acknowledging an alert
+
+When a notification arrives:
+
+- Tap it to open the Kaivue app directly to the event that triggered it.
+- Review the clip or snapshot.
+- Tap **Acknowledge** to mark it as reviewed. This removes it from the "unacknowledged" queue and logs your name and timestamp in the audit log.
+- Optionally add a **Note** before acknowledging — for example, "False alarm, was delivery driver" or "Escalated to security team".
+
+---
+
+## Searching event history
+
+The Events screen (tap the bell icon in the bottom navigation) shows a searchable, filterable list of all events recorded by your cameras.
+
+Filter by:
+
+- **Camera** — see events from one specific camera
+- **Date / time range** — narrow down to a specific day or window
+- **Event type** — motion, person, vehicle, license plate, etc.
+- **Status** — unacknowledged, acknowledged, escalated
+
+Tap any event to jump straight to the recording at that moment.
+
+---
+
+## When this ships
+
+Alerts and push notifications are tracked for the Kaivue v1.x release. In the meantime, your administrator can view events through the admin interface and notify you manually if needed.

@@ -1,0 +1,113 @@
+---
+title: "Privacy and Your Data"
+description: "What data Kaivue collects about you, your rights, and how to exercise them."
+---
+
+# Privacy and Your Data
+
+This page explains what information Kaivue stores about you as an end user — as distinct from camera footage, which is covered by your organization's own privacy and retention policy.
+
+---
+
+## What Kaivue stores about you
+
+### Account data
+
+When your administrator creates your account, Kaivue stores:
+
+- Your name, email address, and username
+- A hashed (not readable) version of your password if you use a local account; if you use SSO, no password is stored
+- Your role and permissions within the system
+- The date your account was created and last modified
+
+### Session and access data
+
+Every time you log in, Kaivue records:
+
+- The time and date of the login
+- The IP address of the device you logged in from
+- The device type (mobile or browser) and approximate browser/OS version
+- Whether login succeeded or failed
+
+This information is part of the audit log, which helps your administrator detect unauthorized access.
+
+### Viewing activity
+
+Kaivue records which cameras you opened and when. This is also part of the audit log. Your administrator and their own administrators can see this history. It cannot be hidden.
+
+<Note>
+  This viewing history exists to meet compliance requirements (such as SOC 2 and FedRAMP). If your organization is subject to regulatory oversight, this audit trail may be required. Talk to your administrator or your organization's privacy officer if you have concerns.
+</Note>
+
+### Push notification tokens
+
+If you enable push notifications (once available in v1.x), Kaivue stores a device push token — an identifier your phone's operating system provides — to send notifications to your specific device. This token does not identify you personally and changes periodically.
+
+### Bookmarks and notes
+
+Any bookmarks or notes you add to recordings are stored on the Recording Server associated with your account.
+
+---
+
+## What Kaivue does NOT store about you
+
+- Your location (GPS coordinates are never collected)
+- The contents of your talkback audio sessions beyond the live stream
+- Any biometric data about you as a viewer (face recognition, if enabled, applies to people detected on camera — not to you as a user of the app)
+- Browsing activity outside the Kaivue app
+
+---
+
+## Who can see your data
+
+| Data type | Who can see it |
+|---|---|
+| Your account details (name, email) | Your administrator |
+| Your login history | Your administrator |
+| Your camera viewing history | Your administrator |
+| Your bookmarks | Only you (and your administrator if they access the database directly) |
+| Camera footage | Your administrator and anyone they grant access to |
+
+Kaivue does not sell or share your personal data with third parties. Your integrator (the company that deployed Kaivue for your organization) may have their own data handling practices — consult your organization's privacy notice.
+
+---
+
+## Face recognition opt-out
+
+If face recognition is enabled on any cameras you are observed by, you have the right to opt out of having your face enrolled in any watchlist. To request this:
+
+1. Contact your administrator and state that you are requesting a face recognition opt-out.
+2. Your administrator can remove any enrollment of your face from watchlists in the admin interface.
+3. You may also request confirmation that no image of your face is stored as a reference template.
+
+Face recognition is disabled by default on all cameras and must be explicitly enabled by your administrator on a per-camera basis.
+
+---
+
+## Your rights (GDPR and similar regulations)
+
+If you are in a jurisdiction with personal data protection laws (such as the EU's GDPR, the UK's UK GDPR, or California's CCPA), you may have the following rights:
+
+- **Right of access** — request a copy of the personal data Kaivue holds about you
+- **Right to rectification** — request correction of inaccurate data
+- **Right to erasure ("right to be forgotten")** — request deletion of your personal data
+
+### How to request data deletion
+
+1. Contact your administrator (the person who manages your Kaivue account) or your organization's designated privacy officer.
+2. State that you are making a data erasure request under applicable privacy law.
+3. Your administrator can delete your account and associated personal data (name, email, login history, bookmarks) from the Kaivue system.
+
+<Warning>
+  Deleting your account removes your access to Kaivue permanently. Your viewing activity in the audit log may be retained in anonymized or aggregated form if required for compliance purposes — your administrator can clarify your organization's retention policy.
+</Warning>
+
+Camera footage containing images of you is governed by your organization's video retention policy, not your individual account. For questions about that footage, contact your organization's privacy officer directly.
+
+---
+
+## Security of your data
+
+Kaivue stores your password as a one-way cryptographic hash (bcrypt). It cannot be reversed to reveal your original password. Communication between your device and the Recording Server is encrypted using TLS.
+
+If you believe your account has been accessed without your permission, contact your administrator immediately. They can review the login audit log and revoke active sessions.

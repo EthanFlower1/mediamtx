@@ -1,0 +1,135 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Kaivue Recording Server",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#REPLACE_ME",
+    "light": "#REPLACE_ME",
+    "dark": "#REPLACE_ME"
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://REPLACE_ME.example.com/support"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Sign In",
+    "url": "https://REPLACE_ME.example.com/signin"
+  },
+  "versions": [
+    "v1"
+  ],
+  "languages": [
+    { "language": "en", "default": true },
+    { "language": "es" },
+    { "language": "fr" },
+    { "language": "de" }
+  ],
+  "search": {
+    "prompt": "Search the Kaivue docs..."
+  },
+  "algolia": {
+    "appId": "REPLACE_ME",
+    "apiKey": "placeholder_algolia_search_key",
+    "indexName": "placeholder_kaivue_docs"
+  },
+  "integrations": {
+    "inkeep": {
+      "apiKey": "placeholder_inkeep_api_key",
+      "integrationId": "placeholder_integration_id",
+      "organizationId": "placeholder_org_id"
+    }
+  },
+  "openapi": "api-reference/openapi.yaml",
+  "navigation": [
+    {
+      "group": "End User",
+      "pages": [
+        "end-user/getting-started",
+        "end-user/live-view",
+        "end-user/multi-camera-grid",
+        "end-user/playback",
+        "end-user/alerts-and-events",
+        "end-user/multi-directory-accounts",
+        "end-user/offline-behavior",
+        "end-user/privacy-and-your-data",
+        "end-user/troubleshooting"
+      ]
+    },
+    {
+      "group": "Customer Admin",
+      "pages": [
+        "customer-admin/setup",
+        "customer-admin/users",
+        "customer-admin/cameras",
+        "customer-admin/ai",
+        "customer-admin/integrations",
+        "customer-admin/federation",
+        "customer-admin/billing"
+      ]
+    },
+    {
+      "group": "Integrator",
+      "pages": [
+        "integrator/becoming-partner",
+        "integrator/white-label",
+        "integrator/onboarding",
+        "integrator/fleet-management",
+        "integrator/support",
+        "integrator/certification"
+      ]
+    },
+    {
+      "group": "Developer",
+      "pages": [
+        "developer/api",
+        "developer/sdks",
+        "developer/webhooks",
+        "developer/oauth",
+        "developer/integrations"
+      ]
+    },
+    {
+      "group": "Operator",
+      "pages": [
+        "operator/video-wall",
+        "operator/layouts",
+        "operator/ptz",
+        "operator/alarm-response",
+        "operator/shift-handover"
+      ]
+    },
+    {
+      "group": "Hardware",
+      "pages": [
+        "hardware/compatibility",
+        "hardware/installer-image",
+        "hardware/deployment"
+      ]
+    },
+    {
+      "group": "Compliance",
+      "pages": [
+        "compliance/soc2",
+        "compliance/hipaa",
+        "compliance/gdpr",
+        "compliance/eu-ai-act",
+        "compliance/fedramp"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/introduction"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "website": "https://REPLACE_ME.example.com"
+  }
+}

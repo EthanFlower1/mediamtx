@@ -1,0 +1,117 @@
+---
+title: "Troubleshooting"
+description: "Common problems and step-by-step fixes for Kaivue end users."
+---
+
+# Troubleshooting
+
+Something not working? Here are the most common problems and what to try first. If you're still stuck after these steps, contact your administrator with the error code and correlation ID shown in the app — that information helps diagnose the problem quickly.
+
+---
+
+## I can't log in
+
+### "Incorrect username or password"
+
+1. Double-check your username — it is usually your email address, but some organizations use a short username instead.
+2. Check that Caps Lock is off.
+3. Try a password manager autofill if you're unsure of the exact password stored.
+4. If you've forgotten your password, tap **Forgot password?** on the login screen. If that option isn't available, contact your administrator to reset it.
+
+### "Account locked"
+
+Too many failed login attempts lock your account temporarily. Wait 10–15 minutes and try again, or contact your administrator to unlock it immediately.
+
+### "Server not reachable" or the login screen won't load
+
+1. Check that your device is connected to the correct Wi-Fi network — some Recording Servers are only accessible from a specific network (for example, your office Wi-Fi or a VPN).
+2. If your organization uses VPN for remote access, make sure your VPN is connected before opening the app.
+3. Ask your administrator whether the server address has changed.
+
+### SSO login fails or redirects to an error page
+
+1. Make sure you're using your organization's credentials (not a personal Google or Microsoft account).
+2. Try clearing your browser cache and cookies, then attempt login again.
+3. Contact your administrator — SSO configuration issues are on the server side and require admin action.
+
+---
+
+## A camera shows as offline
+
+A grey or red indicator means the Recording Server can't reach the camera.
+
+**What to try:**
+1. This is usually not something you can fix from the app — the camera itself, its network cable/Wi-Fi connection, or its power supply may be the issue.
+2. Check whether the camera is physically powered on.
+3. If it's a Wi-Fi camera, check whether the camera's access point is working.
+4. Contact your administrator — they can run a connectivity check from the server side and restart or reconfigure the camera.
+
+---
+
+## The live stream won't load
+
+### Spinning indefinitely
+
+1. Wait up to 30 seconds — streams can take a moment to start, especially after the Recording Server restarts.
+2. Go back to the camera list and tap the camera again to re-initiate the connection.
+3. Check your network connection (can you load a website?).
+4. In the live view settings (gear icon), try switching to **LL-HLS mode** — this bypasses WebRTC and uses a more network-friendly protocol.
+5. Try on a different device or browser to rule out a device-specific issue.
+
+### "Stream unavailable" error
+
+The camera is reachable by the server but the stream itself has an error. Check whether the camera shows as "online" in the camera list. If it does, contact your administrator — the stream configuration may need to be repaired.
+
+### Video is extremely delayed (5+ seconds)
+
+You may be in LL-HLS fallback mode instead of WebRTC. In the live view settings, check which protocol is active. If you're on WebRTC but still seeing high latency, your network may be congested. Try connecting to a different network.
+
+### Black screen with audio
+
+Some cameras send audio before video starts. Wait a few seconds. If the black screen persists, try pausing and unpausing the stream. If it continues, contact your administrator — the camera's video output may have a configuration issue.
+
+---
+
+## Push notifications aren't arriving
+
+<Note>
+  Push notifications are coming in Kaivue v1.x and are not yet available. This section will be updated when that feature ships.
+</Note>
+
+Once notifications are available, if they stop arriving:
+
+1. Check that notifications are enabled in your device's system settings for the Kaivue app (iOS: Settings > Kaivue > Notifications; Android: Settings > Apps > Kaivue > Notifications).
+2. Check your in-app notification preferences (Settings > Notifications) — make sure the cameras and event types you care about are toggled on.
+3. Check that Do Not Disturb / Focus mode is not active on your device.
+4. Uninstall and reinstall the app — this refreshes the push notification token.
+5. If you're on a corporate device, your IT department may have mobile device management (MDM) policies that restrict push notifications. Contact your IT administrator.
+
+---
+
+## I can't hear audio on a camera
+
+1. Check that your device volume is turned up and not muted.
+2. Some cameras don't have microphones — check with your administrator whether your camera supports audio.
+3. If you're watching in a browser, the browser may have muted the tab. Look for a speaker icon in the browser tab and unmute it.
+
+---
+
+## The app is slow or laggy
+
+1. Close and reopen the app.
+2. Check your network speed — video streaming is data-intensive. On slow networks (below ~5 Mbps), reduce stream quality in the live view settings.
+3. Clear the app cache: iOS: offload and reinstall the app; Android: Settings > Apps > Kaivue > Storage > Clear cache.
+4. On the web, try a different browser or close other tabs.
+
+---
+
+## I need more help
+
+When contacting your administrator or support team, include:
+
+- **The error code** shown in the app (for example, `KAI-4042`)
+- **The correlation ID** shown below the error message — this is a unique identifier that lets your administrator trace exactly what went wrong on the server
+- **What you were trying to do** when the error appeared
+- **Your device type and OS version**
+
+These details cut troubleshooting time significantly.

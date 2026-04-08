@@ -1,19 +1,11 @@
 {
   "$schema_version": 1,
-  "holder": "KAI-238",
-  "kai_id": "KAI-238",
-  "agent": "onprem-platform",
-  "reason": "scaffold initial Connect-Go proto schemas for inter-role services",
-  "acquired_at": "2026-04-08T03:33:25Z",
-  "expires_at": "2026-04-08T05:33:25Z",
-  "protos_touched": [
-    "recorder_control.proto",
-    "directory_ingest.proto",
-    "federation_peer.proto",
-    "streams.proto",
-    "auth.proto",
-    "cameras.proto",
-    "pairing.proto"
-  ],
+  "holder": null,
+  "kai_id": null,
+  "agent": null,
+  "reason": null,
+  "acquired_at": null,
+  "expires_at": null,
+  "protos_touched": [],
   "notes": "Mutex for internal/shared/proto/v1/. See docs/proto-lock.md. Never edit this file by hand — use scripts/proto-lock.sh."
 }

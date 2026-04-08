@@ -3,12 +3,14 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"time"
 
 	auditmw "github.com/bluenviron/mediamtx/internal/cloud/audit/middleware"
+	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 
 // Server is the cloud control-plane HTTP server. It owns an http.Server, a
@@ -66,6 +68,26 @@ func New(cfg Config) (*Server, error) {
 			path := ServicePath(svc.service, m)
 			s.mux.Handle(path, chainForConnect(unimplementedHandler(svc.service, m)))
 		}
+	}
+
+	// ------------------- KAI-255: Stream URL minting --------
+	//
+	// POST /api/v1/streams/request is a plain JSON endpoint (not Connect-Go)
+	// because it is also consumed by browser clients that cannot use the
+	// Connect wire format. It goes through the same middleware chain as
+	// Connect routes. The Handler adapter injects auth.Claims from the
+	// context key set by authMiddleware.
+	if cfg.StreamsService != nil {
+		s.mux.Handle("/api/v1/streams/request",
+			chainForConnect(cfg.StreamsService.Handler(func(r *http.Request) (*auth.Claims, bool) {
+				return ClaimsFromContext(r.Context())
+			})))
+	}
+	// /.well-known/jwks.json is served outside the auth chain because
+	// Recorders fetch it before they have a valid session token. It is
+	// intentionally unauthenticated and returns only the public key set.
+	if cfg.StreamsIssuer != nil {
+		s.mux.Handle("/.well-known/jwks.json", jwksHandlerFromIssuer(cfg.StreamsIssuer))
 	}
 
 	s.http = &http.Server{
@@ -162,4 +184,39 @@ func (s *Server) River() RiverClient { return s.cfg.River }
 // wired in New() reads s.probes on every request so this swap is live.
 func (s *Server) SetReadinessProbes(p ReadinessProbes) {
 	s.probes = p
+}
+
+// jwksHandlerFromIssuer wraps a streamsIssuer into an http.Handler that
+// serves the JWKS JSON at /.well-known/jwks.json.  It is intentionally
+// outside the auth middleware chain (Recorders must fetch it before they have
+// session tokens) and only handles GET requests.
+func jwksHandlerFromIssuer(iss streamsIssuer) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		raw, err := iss.PublicKeySet()
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": "failed to build JWKS"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(raw)
+	})
+}
+
+// claimsExtractorFunc is the type for the claims extractor used in Handler
+// wiring. It allows tests to inject claims without depending on the context
+// key internals.
+type claimsExtractorFunc = func(*http.Request) (*auth.Claims, bool)
+
+// ensure claimsExtractorFunc is used (compile-time reference keeps the
+// import of shared/auth alive in this file).
+var _ claimsExtractorFunc = func(r *http.Request) (*auth.Claims, bool) {
+	return ClaimsFromContext(r.Context())
 }

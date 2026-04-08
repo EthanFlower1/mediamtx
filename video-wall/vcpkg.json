@@ -1,0 +1,24 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "kaivue-video-wall",
+    "version-string": "0.1.0",
+    "description": "Kaivue Recording Server video wall client (Qt 6 / C++).",
+    "homepage": "https://kaivue.com",
+    "supports": "windows | linux",
+    "dependencies": [
+        {
+            "name": "qtbase",
+            "default-features": false,
+            "features": [
+                "gui",
+                "widgets",
+                "network",
+                "concurrent"
+            ]
+        },
+        "qtdeclarative",
+        "qtmultimedia",
+        "qtlocation"
+    ],
+    "$comment-libwebrtc": "libwebrtc is intentionally NOT listed here. It is added in Wave 2 when streaming lands. Wave 1 is scaffold-only and must build with stock Qt 6 from vcpkg."
+}

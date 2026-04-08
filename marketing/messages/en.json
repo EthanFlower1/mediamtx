@@ -1,0 +1,59 @@
+{
+  "Nav": {
+    "product": "Product",
+    "pricing": "Pricing",
+    "careers": "Careers",
+    "compare": "Compare"
+  },
+  "Cta": {
+    "tryFree": "Try Free",
+    "scheduleDemo": "Schedule Demo",
+    "becomePartner": "Become a Partner",
+    "submitting": "Submitting…",
+    "thanks": "Thanks — we'll be in touch."
+  },
+  "Home": {
+    "heroTitle": "The recording server built for the next decade of video.",
+    "heroSubtitle": "Cloud-managed, on-prem secure, ONVIF-native. Integrators ship faster, customers see clearer.",
+    "valueProp1Title": "Cloud-managed, on-prem secure",
+    "valueProp1Body": "Centralized fleet management without sending video to the cloud.",
+    "valueProp2Title": "ONVIF-native discovery",
+    "valueProp2Body": "Plug in any compliant camera and it just works.",
+    "valueProp3Title": "Integrator-first pricing",
+    "valueProp3Body": "Predictable per-channel licensing with no hidden cloud egress fees."
+  },
+  "Pricing": {
+    "title": "Pricing",
+    "subtitle": "Simple per-channel licensing. Volume discounts for integrators.",
+    "comingSoon": "Detailed pricing coming soon."
+  },
+  "Careers": {
+    "title": "Careers",
+    "subtitle": "We're building the future of video infrastructure.",
+    "noOpenings": "No open positions right now — check back soon."
+  },
+  "Legal": {
+    "termsTitle": "Terms of Service",
+    "privacyTitle": "Privacy Policy",
+    "cookieTitle": "Cookie Policy",
+    "placeholder": "Legal content is being finalized. Please contact legal@kaivue.com for the current version."
+  },
+  "Compare": {
+    "title": "Kaivue vs {competitor}",
+    "subtitle": "How we stack up against {competitor}.",
+    "placeholder": "Comparison content coming soon."
+  },
+  "Footer": {
+    "copyright": "© {year} Kaivue. All rights reserved.",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "cookies": "Cookies"
+  },
+  "LanguageSwitcher": {
+    "label": "Language",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch"
+  }
+}

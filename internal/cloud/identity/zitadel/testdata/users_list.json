@@ -1,0 +1,24 @@
+{
+  "result": [
+    {
+      "userId": "user_alice",
+      "details": { "resourceOwner": "org_cust_1" },
+      "state": "STATE_ACTIVE",
+      "human": {
+        "profile": { "displayName": "Alice Doe" },
+        "email": { "email": "alice@example.com" },
+        "username": "alice"
+      }
+    },
+    {
+      "userId": "user_bob_leak",
+      "details": { "resourceOwner": "org_other" },
+      "state": "STATE_ACTIVE",
+      "human": {
+        "profile": { "displayName": "Bob Cross" },
+        "email": { "email": "bob@other.com" },
+        "username": "bob"
+      }
+    }
+  ]
+}

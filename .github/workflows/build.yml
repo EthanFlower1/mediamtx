@@ -1,0 +1,139 @@
+# KAI-428 — Build pipeline
+#
+# Cross-platform Go build matrix for the Kaivue Recording Server.
+# Augments (does NOT replace) release.yml / nightly_binaries.yml, which still
+# drive the official release tarballs via `make binaries`. This workflow
+# produces per-target binaries with reproducible build flags so they can be
+# consumed by the supply-chain workflow (SBOM + cosign) and by the
+# reproducibility-check workflow.
+#
+# Acceptance criteria addressed (KAI-428):
+#   * GitHub Actions matrix: linux/amd64, linux/arm64, darwin/arm64, windows/amd64
+#   * Reproducible build flags: -trimpath, -buildvcs=true, ldflags strip paths
+#   * Per-target artifact upload
+#
+# This workflow only builds — it does not push, sign, or release.
+
+name: build
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      version:
+        description: "Resolved build version (git tag or short SHA)"
+        value: ${{ jobs.build.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ''
+          - goos: linux
+            goarch: arm64
+            ext: ''
+          - goos: darwin
+            goarch: arm64
+            ext: ''
+          - goos: windows
+            goarch: amd64
+            ext: '.exe'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history is required so `git describe` and -buildvcs can stamp
+          # the binary correctly.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Resolve build version
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Reproducible build environment
+        run: |
+          # Pin SOURCE_DATE_EPOCH to the commit timestamp so any embedded
+          # timestamps are deterministic across rebuilds of the same commit.
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
+          # Disable CGO so we get a fully static build (matches modernc sqlite).
+          echo "CGO_ENABLED=0" >> "${GITHUB_ENV}"
+          # Make module download deterministic.
+          echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          OUT="dist/mediamtx_${{ steps.version.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}${{ matrix.ext }}"
+
+          # Reproducible build flags:
+          #   -trimpath           : strip absolute paths from the binary
+          #   -buildvcs=true      : embed deterministic VCS stamping (commit, dirty)
+          #   -ldflags=-s -w      : strip symbol/debug tables (deterministic)
+          #   -ldflags=-buildid=  : zero out the build ID for byte-identical output
+          #   -ldflags=-X main.Version=...:
+          #                         set the version string from the resolved tag.
+          #                         NOTE: main.go currently has no exported Version
+          #                         var; the linker will silently no-op the -X
+          #                         flag in that case. Once main.go declares
+          #                         `var Version string`, this will start
+          #                         populating it. We keep the flag now so the
+          #                         pipeline is forward-compatible.
+          go build \
+            -trimpath \
+            -buildvcs=true \
+            -tags enable_upgrade \
+            -ldflags "-s -w -buildid= -X main.Version=${{ steps.version.outputs.version }}" \
+            -o "${OUT}" \
+            .
+
+          ls -la "${OUT}"
+          sha256sum "${OUT}" | tee "${OUT}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mediamtx_${{ steps.version.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: |
+            dist/*
+          if-no-files-found: error
+          retention-days: 14

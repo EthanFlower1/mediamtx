@@ -1,0 +1,103 @@
+// recorder_control.proto — Directory → Recorder push channel.
+//
+// RecorderControl is a server-streaming RPC that the Directory uses to push
+// camera assignments (and revocations, and config updates) to a connected
+// Recorder. The Recorder is the CLIENT — it dials Directory, authenticates
+// with its recorder identity cert, and opens a long-lived stream.
+//
+// Lifecycle:
+//   1. Recorder dials StreamAssignments with its current known_version.
+//   2. Directory immediately sends a Snapshot event containing all cameras
+//      currently assigned to this recorder. The snapshot carries the
+//      server's latest version number.
+//   3. Directory then pushes CameraAdded / CameraUpdated / CameraRemoved
+//      events as state changes, each carrying the new version.
+//   4. If the connection drops and resumes, the recorder passes its last
+//      known version; Directory decides whether to send a delta or a fresh
+//      Snapshot.
+//
+// Back-pressure: Directory buffers a bounded queue per recorder. If the
+// recorder can't drain fast enough, Directory logs and sends a Snapshot on
+// reconnect to let the recorder re-sync.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/cameras.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// StreamAssignmentsRequest opens the push stream.
+message StreamAssignmentsRequest {
+  // Recorder identity — server verifies against the recorder cert presented
+  // at mTLS handshake. A mismatch terminates the stream.
+  string recorder_id = 1;
+  // The last config_version the recorder successfully applied. The server
+  // uses this to decide between delta and snapshot.
+  int64 known_version = 2;
+  // Recorder software version (for compat gates on the server side).
+  string recorder_software_version = 3;
+}
+
+// AssignmentEvent is the server-streamed union of all push events.
+message AssignmentEvent {
+  // Monotonic version at the time of this event. Recorder persists this
+  // after applying the event so reconnect can resume.
+  int64 version = 1;
+  google.protobuf.Timestamp emitted_at = 2;
+  // Exactly one of the fields below is set.
+  oneof event {
+    Snapshot snapshot = 10;
+    CameraAdded camera_added = 11;
+    CameraUpdated camera_updated = 12;
+    CameraRemoved camera_removed = 13;
+    Heartbeat heartbeat = 14;
+  }
+}
+
+// Snapshot is the full list of cameras assigned to the recorder at a point
+// in time. Emitted on stream open and whenever the server decides a full
+// resync is cheaper than catching up with deltas.
+message Snapshot {
+  repeated Camera cameras = 1;
+}
+
+// CameraAdded is emitted when a new camera is assigned to this recorder.
+message CameraAdded {
+  Camera camera = 1;
+}
+
+// CameraUpdated is emitted when an existing camera's config changes. The
+// recorder applies it atomically — either the whole new config takes or
+// none of it does.
+message CameraUpdated {
+  Camera camera = 1;
+}
+
+// CameraRemoved is emitted when a camera is deleted, moved to a different
+// recorder, or disabled. The recorder MUST stop recording, tear down all
+// active streams, and (if purge_recordings is set) delete on-disk media.
+message CameraRemoved {
+  string camera_id = 1;
+  bool purge_recordings = 2;
+  string reason = 3;
+}
+
+// Heartbeat is a server-initiated liveness ping. The recorder does not need
+// to respond — it's a health signal on the stream itself. Emitted roughly
+// every 30 seconds while idle.
+message Heartbeat {
+  google.protobuf.Timestamp server_time = 1;
+}
+
+// RecorderControl is the Directory → Recorder push service. Only
+// StreamAssignments exists today; future RPCs (e.g. immediate
+// reboot / firmware commands) will be added via additional server-streams
+// or unary calls as needed.
+service RecorderControl {
+  // StreamAssignments opens a long-lived server-stream of AssignmentEvents.
+  // The stream stays open for the lifetime of the recorder connection.
+  rpc StreamAssignments(StreamAssignmentsRequest) returns (stream AssignmentEvent);
+}

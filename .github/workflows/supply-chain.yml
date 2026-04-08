@@ -1,0 +1,166 @@
+# KAI-428 — Supply chain (SBOM + cosign signing)
+#
+# Generates an SBOM (via syft / anchore/sbom-action) for every build artifact
+# produced by build.yml, and — only on a real GitHub release event — signs the
+# artifacts with cosign.
+#
+# IMPORTANT — human action required before this workflow can sign in production:
+#   1. Generate a cosign keypair:  `cosign generate-key-pair`
+#   2. Add the private key as the repository secret  COSIGN_KEY
+#   3. Add the key password as the repository secret COSIGN_PASSWORD
+#   4. Publish cosign.pub somewhere verifiers can fetch it (e.g. the repo root
+#      or the release notes).
+#
+# Until those secrets exist, the signing job will be skipped because it gates
+# on `github.event_name == 'release'` AND on the secrets being non-empty.
+#
+# This workflow does NOT invoke cosign during normal CI runs — the signing
+# step is gated to release events only.
+
+name: supply-chain
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to build & SBOM (branch, tag, or SHA)'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+  # id-token is needed if we ever switch to keyless cosign (Fulcio/Rekor).
+  id-token: write
+
+jobs:
+  build:
+    name: Build artifacts (reuse build.yml)
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+
+  sbom:
+    name: Generate SBOM (syft)
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - linux_amd64
+          - linux_arm64
+          - darwin_arm64
+          - windows_amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: mediamtx_*_${{ matrix.target }}
+          path: artifacts
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la artifacts || true
+
+      - name: Generate SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: artifacts
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.target }}.spdx.json
+          output-file: sbom-${{ matrix.target }}.spdx.json
+          # Also publish to the GitHub dependency graph on release events.
+          dependency-snapshot: ${{ github.event_name == 'release' }}
+
+      - name: Generate SBOM (CycloneDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: artifacts
+          format: cyclonedx-json
+          artifact-name: sbom-${{ matrix.target }}.cdx.json
+          output-file: sbom-${{ matrix.target }}.cdx.json
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ matrix.target }}
+          path: |
+            sbom-${{ matrix.target }}.spdx.json
+            sbom-${{ matrix.target }}.cdx.json
+          if-no-files-found: error
+          retention-days: 90
+
+  sign:
+    name: Sign artifacts (cosign)
+    needs: [build, sbom]
+    runs-on: ubuntu-22.04
+    # Only run on actual GitHub release events. PRs, pushes, and manual
+    # dispatches never trigger signing.
+    if: github.event_name == 'release'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Guard — verify signing secrets are configured
+        # Fail loudly (but not via a literal error) if a human hasn't
+        # populated the COSIGN_* secrets yet.
+        env:
+          COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          if [[ -z "${COSIGN_KEY:-}" || -z "${COSIGN_PASSWORD:-}" ]]; then
+            echo "::error::COSIGN_KEY / COSIGN_PASSWORD secrets are not set."
+            echo "::error::See .github/workflows/supply-chain.yml header for setup steps."
+            exit 1
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Sign artifacts (key-based)
+        # NOTE: This step intentionally is the ONLY place cosign is invoked.
+        # The signature output (.sig) is uploaded as an artifact below; it is
+        # NOT pushed to a remote registry from this stub. Once we have a
+        # registry destination configured, swap to `cosign sign-blob --bundle`
+        # and (optionally) `cosign attest` for the SBOM attestation.
+        env:
+          COSIGN_KEY: ${{ secrets.COSIGN_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p signatures
+          # Materialize the key from the secret to a tmpfs path.
+          install -m 0600 /dev/null cosign.key
+          printf '%s' "${COSIGN_KEY}" > cosign.key
+          find artifacts -type f \( -name 'mediamtx_*' -o -name 'sbom-*.json' \) | while read -r f; do
+            base="$(basename "$f")"
+            cosign sign-blob \
+              --key cosign.key \
+              --output-signature "signatures/${base}.sig" \
+              --output-certificate "signatures/${base}.pem" \
+              --yes \
+              "$f"
+          done
+          shred -u cosign.key || rm -f cosign.key
+
+      - name: Upload signatures
+        uses: actions/upload-artifact@v7
+        with:
+          name: cosign-signatures
+          path: signatures/
+          if-no-files-found: error
+          retention-days: 365

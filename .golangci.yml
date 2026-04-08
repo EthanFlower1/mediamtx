@@ -6,6 +6,7 @@ linters:
   - bidichk
   - bodyclose
   - copyloopvar
+  - depguard
   - dupl
   - errorlint
   - gochecknoinits
@@ -30,6 +31,58 @@ linters:
       - cmd/backfill
 
   settings:
+    # ----------------------------------------------------------------------
+    # KAI-236: role-package import boundaries.
+    #
+    # The Kaivue Recording Server is split into three role-scoped package
+    # trees under internal/. depguard enforces that the two role packages
+    # never import each other directly; the only sanctioned crossing point
+    # is internal/shared/... (types, protos, certmgr, sidecar, etc.).
+    #
+    #   internal/directory/... <-/-> internal/recorder/...
+    #            \                          /
+    #             +--> internal/shared <---+
+    #
+    # Cross-role communication MUST go through the Connect-Go services in
+    # internal/shared/proto. See docs/architecture/package-layout.md and
+    # internal/README.md.
+    # ----------------------------------------------------------------------
+    depguard:
+      rules:
+        directory-no-recorder:
+          list-mode: lax
+          files:
+          - "**/internal/directory/**/*.go"
+          deny:
+          - pkg: github.com/bluenviron/mediamtx/internal/recorder
+            desc: >-
+              KAI-236: internal/directory must not import internal/recorder.
+              Cross-role calls must go through internal/shared/proto
+              Connect-Go services.
+        recorder-no-directory:
+          list-mode: lax
+          files:
+          - "**/internal/recorder/**/*.go"
+          deny:
+          - pkg: github.com/bluenviron/mediamtx/internal/directory
+            desc: >-
+              KAI-236: internal/recorder must not import internal/directory.
+              Cross-role calls must go through internal/shared/proto
+              Connect-Go services.
+        shared-is-leaf:
+          list-mode: lax
+          files:
+          - "**/internal/shared/**/*.go"
+          deny:
+          - pkg: github.com/bluenviron/mediamtx/internal/directory
+            desc: >-
+              KAI-236: internal/shared is a leaf with respect to role
+              packages and must not import internal/directory.
+          - pkg: github.com/bluenviron/mediamtx/internal/recorder
+            desc: >-
+              KAI-236: internal/shared is a leaf with respect to role
+              packages and must not import internal/recorder.
+
     errcheck:
       exclude-functions:
       - io.Copy

@@ -1,0 +1,119 @@
+// streams.proto — Kaivue v1 stream URL minting types.
+//
+// The "stream claims" model: Directory mints a short-lived, camera-scoped
+// token (StreamClaims) that carries exactly which kinds of media a specific
+// user may consume from a specific camera on a specific recorder. The
+// recorder verifies the token on connect and enforces the claims.
+//
+// Talkback is a dedicated bit because it's write-access — revoking talkback
+// must be independent of revoking read access.
+
+syntax = "proto3";
+
+package kaivue.v1;
+
+import "google/protobuf/timestamp.proto";
+import "kaivue/v1/auth.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1;kaivuev1";
+
+// StreamKind is a bitfield of media capabilities granted by a StreamClaims
+// token. A single token may grant multiple kinds (e.g. LIVE + AUDIO_TALKBACK
+// for an intercom operator).
+//
+// These are explicit uint32 values, NOT a proto enum, because the Go
+// decoder needs bitwise-OR semantics — enums forbid duplicate values and
+// don't support combined masks in a type-safe way across languages.
+enum StreamKindBit {
+  STREAM_KIND_BIT_UNSPECIFIED = 0;
+  STREAM_KIND_BIT_LIVE = 1;            // 1 << 0
+  STREAM_KIND_BIT_PLAYBACK = 2;        // 1 << 1
+  STREAM_KIND_BIT_SNAPSHOT = 4;        // 1 << 2
+  STREAM_KIND_BIT_AUDIO_TALKBACK = 8;  // 1 << 3
+}
+
+// StreamProtocol is the wire protocol the recorder should serve for this
+// stream token. The client negotiates the protocol; the server enforces it.
+enum StreamProtocol {
+  STREAM_PROTOCOL_UNSPECIFIED = 0;
+  STREAM_PROTOCOL_WEBRTC = 1;
+  STREAM_PROTOCOL_HLS = 2;
+  STREAM_PROTOCOL_RTSP = 3;
+  STREAM_PROTOCOL_MP4 = 4;   // for playback / export
+  STREAM_PROTOCOL_JPEG = 5;  // for snapshots
+}
+
+// PlaybackRange constrains a playback stream token to a specific time window.
+// Unset for live / snapshot tokens.
+message PlaybackRange {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+// StreamClaims is the body of the stream JWT that Directory signs and the
+// Recorder verifies. It carries the exact permission scope of the stream.
+//
+// SECURITY: all fields are authoritative and tenant-bound. The recorder
+// MUST re-verify tenant_ref against its own camera registry on connect.
+message StreamClaims {
+  string user_id = 1;
+  TenantRef tenant_ref = 2;
+  string camera_id = 3;
+  string recorder_id = 4;
+  // Bitfield: OR of StreamKindBit values. A token with bits set for both
+  // LIVE and SNAPSHOT is valid for either.
+  uint32 kind = 5;
+  StreamProtocol protocol = 6;
+  // Server-generated nonce to make each mint unique; prevents replay of
+  // previously-signed tokens after revocation.
+  string nonce = 7;
+  // Only set on PLAYBACK tokens.
+  PlaybackRange playback_range = 8;
+  google.protobuf.Timestamp issued_at = 9;
+  google.protobuf.Timestamp expires_at = 10;
+  // Optional client binding: if set, the recorder MUST reject connections
+  // whose remote ip does not match. Used for short-lived share links.
+  string client_ip = 11;
+  // Optional session id the claims were minted from. Revoking the session
+  // revokes all downstream stream tokens.
+  string session_id = 12;
+}
+
+// MintStreamURLRequest asks Directory for a signed URL the client can hand
+// directly to its media player.
+message MintStreamURLRequest {
+  string camera_id = 1;
+  // Bitfield of StreamKindBit values to request. The server MAY grant a
+  // subset if the caller lacks privileges for some of them.
+  uint32 requested_kind = 2;
+  StreamProtocol preferred_protocol = 3;
+  // Only used when requesting a PLAYBACK token.
+  PlaybackRange playback_range = 4;
+  // Optional client ip binding. Empty string means "no binding".
+  string client_ip = 5;
+  // Maximum TTL the caller wants; server MAY return less.
+  int32 max_ttl_seconds = 6;
+}
+
+// MintStreamURLResponse carries the signed URL plus the decoded claims so
+// the caller can display "expires in N seconds" without parsing the token.
+message MintStreamURLResponse {
+  // Fully-formed URL including the signed token, ready to hand to a player.
+  string url = 1;
+  // Decoded claims — informational; the URL is the authoritative credential.
+  StreamClaims claims = 2;
+  // The actual kind bits granted (may be a subset of requested_kind).
+  uint32 granted_kind = 3;
+}
+
+// RevokeStreamRequest invalidates all outstanding tokens for a given
+// (user, camera) pair. Used by the admin "force-disconnect" button.
+message RevokeStreamRequest {
+  string user_id = 1;
+  string camera_id = 2;
+  string reason = 3;
+}
+
+message RevokeStreamResponse {
+  int32 tokens_revoked = 1;
+}

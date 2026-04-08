@@ -1,0 +1,9 @@
+{
+  "active": true,
+  "sub": "user_alice",
+  "urn:zitadel:iam:user:resourceowner:id": "org_cust_1",
+  "urn:zitadel:iam:org:project:roles": ["admin", "viewer"],
+  "iat": 1712500000,
+  "exp": 1712503600,
+  "sid": "sess_abc"
+}

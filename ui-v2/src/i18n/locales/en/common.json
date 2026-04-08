@@ -1,0 +1,8 @@
+{
+  "app.name": "Kaivue",
+  "admin.home.title": "Customer Admin",
+  "admin.settings.title": "Settings",
+  "command.home.title": "Integrator Portal",
+  "command.customers.title": "Customers",
+  "errors.notFound": "Page not found"
+}

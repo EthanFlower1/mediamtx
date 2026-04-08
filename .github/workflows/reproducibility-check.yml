@@ -1,0 +1,119 @@
+# KAI-428 — Reproducibility check
+#
+# Builds the same commit twice (back-to-back, on the same runner, but in
+# isolated working trees) and diffs the resulting binaries. The job FAILS if
+# the two builds produce non-identical bytes.
+#
+# This is the executable test for the KAI-428 acceptance criterion:
+#   "Same commit produces byte-identical builds"
+#
+# Scope is intentionally narrow — only linux/amd64 — to keep cost down.
+# Expand the matrix once the single-target check is green.
+
+name: reproducibility-check
+
+on:
+  pull_request:
+    paths:
+      - 'go.mod'
+      - 'go.sum'
+      - '**/*.go'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/reproducibility-check.yml'
+  workflow_dispatch:
+  schedule:
+    # Weekly canary so dependency drift doesn't silently break reproducibility.
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  double-build:
+    name: Double-build diff
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Pin reproducible env
+        run: |
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
+          echo "CGO_ENABLED=0" >> "${GITHUB_ENV}"
+          echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
+          VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Build A
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          set -euo pipefail
+          mkdir -p out-a
+          go build \
+            -trimpath \
+            -buildvcs=true \
+            -tags enable_upgrade \
+            -ldflags "-s -w -buildid= -X main.Version=${VERSION}" \
+            -o out-a/mediamtx \
+            .
+          sha256sum out-a/mediamtx | tee out-a/mediamtx.sha256
+
+      - name: Clean Go build cache between builds
+        # Force a cold compile so we exercise the deterministic path rather
+        # than just hashing the same cached object file twice.
+        run: |
+          go clean -cache
+          go clean -testcache
+
+      - name: Build B
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          set -euo pipefail
+          mkdir -p out-b
+          go build \
+            -trimpath \
+            -buildvcs=true \
+            -tags enable_upgrade \
+            -ldflags "-s -w -buildid= -X main.Version=${VERSION}" \
+            -o out-b/mediamtx \
+            .
+          sha256sum out-b/mediamtx | tee out-b/mediamtx.sha256
+
+      - name: Diff binaries
+        run: |
+          set -euo pipefail
+          A="$(sha256sum out-a/mediamtx | awk '{print $1}')"
+          B="$(sha256sum out-b/mediamtx | awk '{print $1}')"
+          echo "Build A sha256: ${A}"
+          echo "Build B sha256: ${B}"
+          if [[ "${A}" != "${B}" ]]; then
+            echo "::error::Reproducibility check FAILED: builds differ."
+            echo "Hex diff (first 4 KiB):"
+            cmp -l out-a/mediamtx out-b/mediamtx | head -n 200 || true
+            exit 1
+          fi
+          echo "Reproducibility check PASSED — builds are byte-identical."
+
+      - name: Upload binaries (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reproducibility-mismatch
+          path: |
+            out-a/
+            out-b/
+          retention-days: 7

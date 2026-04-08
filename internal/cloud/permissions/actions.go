@@ -54,6 +54,15 @@ const (
 	ActionRecorderPair   = "recorder.pair"
 	ActionRecorderUnpair = "recorder.unpair"
 
+	// Tenant provisioning (KAI-227). These live on the "platform" meta-tenant
+	// because creating an integrator or a customer tenant is, by definition,
+	// a cross-tenant operation performed by platform staff or a parent
+	// reseller granted `integrators.create_subreseller`.
+	ActionIntegratorsCreate            = "integrators.create"
+	ActionIntegratorsCreateSubReseller = "integrators.create_subreseller"
+	ActionCustomerTenantsCreate        = "customer_tenants.create"
+	ActionTenantsInviteAdmin           = "tenants.invite_admin"
+
 	// AI / face vault.
 	ActionAIConfigure      = "ai.configure"
 	ActionAIFaceVaultRead  = "ai.facevault.read"
@@ -74,5 +83,6 @@ var AllActions = []string{
 	ActionBillingView, ActionBillingChange,
 	ActionAuditRead, ActionSystemHealth, ActionSettingsEdit,
 	ActionRecorderPair, ActionRecorderUnpair,
+	ActionIntegratorsCreate, ActionIntegratorsCreateSubReseller, ActionCustomerTenantsCreate, ActionTenantsInviteAdmin,
 	ActionAIConfigure, ActionAIFaceVaultRead, ActionAIFaceVaultWrite, ActionAIFaceVaultErase, ActionAIModelsUpload,
 }

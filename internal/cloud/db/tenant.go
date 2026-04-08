@@ -176,6 +176,61 @@ func (d *DB) GetIntegrator(ctx context.Context, id, region string) (*Integrator,
 	return &i, nil
 }
 
+// CountIntegratorsByDisplayName returns the number of integrator rows with
+// the given display name within a region. Used by the provisioning service
+// (KAI-227) for duplicate-name rejection before insert.
+func (d *DB) CountIntegratorsByDisplayName(ctx context.Context, displayName, region string) (int, error) {
+	q := fmt.Sprintf(
+		`SELECT COUNT(*) FROM integrators WHERE display_name = %s AND region = %s`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	var n int
+	if err := d.QueryRowContext(ctx, q, displayName, region).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// DeleteIntegrator is the compensating action used by the provisioning
+// service (KAI-227) when a downstream step fails after the row was inserted.
+// It is idempotent: deleting a nonexistent row returns nil.
+func (d *DB) DeleteIntegrator(ctx context.Context, id, region string) error {
+	q := fmt.Sprintf(
+		`DELETE FROM integrators WHERE id = %s AND region = %s`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	_, err := d.ExecContext(ctx, q, id, region)
+	return err
+}
+
+// IntegratorDepth walks the parent_integrator_id chain and returns the
+// inclusive depth of the given integrator (root = 1). Used by the
+// provisioning service (KAI-227) to enforce the 3-level sub-reseller cap.
+func (d *DB) IntegratorDepth(ctx context.Context, id, region string) (int, error) {
+	depth := 0
+	cursor := id
+	for depth < 64 {
+		row := d.QueryRowContext(
+			ctx,
+			fmt.Sprintf(
+				`SELECT parent_integrator_id FROM integrators WHERE id = %s AND region = %s`,
+				d.placeholder(1), d.placeholder(2),
+			),
+			cursor, region,
+		)
+		var parent *string
+		if err := row.Scan(&parent); err != nil {
+			return 0, err
+		}
+		depth++
+		if parent == nil || *parent == "" {
+			return depth, nil
+		}
+		cursor = *parent
+	}
+	return 0, errors.New("integrator depth: chain exceeded safety cap (cycle?)")
+}
+
 // ---------- customer_tenants ----------
 
 // InsertCustomerTenant inserts a new customer tenant.
@@ -222,6 +277,43 @@ func (d *DB) GetCustomerTenant(ctx context.Context, id, region string) (*Custome
 		return nil, err
 	}
 	return &c, nil
+}
+
+// CountCustomerTenantsByDisplayName returns the number of customer tenant
+// rows with the given display name in a region. Used by the provisioning
+// service (KAI-227).
+func (d *DB) CountCustomerTenantsByDisplayName(ctx context.Context, displayName, region string) (int, error) {
+	q := fmt.Sprintf(
+		`SELECT COUNT(*) FROM customer_tenants WHERE display_name = %s AND region = %s`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	var n int
+	if err := d.QueryRowContext(ctx, q, displayName, region).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// DeleteCustomerTenant is the compensating action for the provisioning
+// service (KAI-227). Idempotent.
+func (d *DB) DeleteCustomerTenant(ctx context.Context, id, region string) error {
+	q := fmt.Sprintf(
+		`DELETE FROM customer_tenants WHERE id = %s AND region = %s`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	_, err := d.ExecContext(ctx, q, id, region)
+	return err
+}
+
+// DeleteUser is the compensating action for the provisioning service when
+// initial-admin creation fails after row insertion.
+func (d *DB) DeleteUser(ctx context.Context, id, region string) error {
+	q := fmt.Sprintf(
+		`DELETE FROM users WHERE id = %s AND region = %s`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	_, err := d.ExecContext(ctx, q, id, region)
+	return err
 }
 
 // ---------- users ----------

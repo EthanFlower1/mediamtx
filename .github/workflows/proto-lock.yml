@@ -1,0 +1,149 @@
+name: proto-lock
+
+# Enforces the proto-lock protocol (docs/proto-lock.md).
+#
+# Runs on every PR that touches internal/shared/proto/** OR the lock file itself.
+# Two distinct gates:
+#
+#   1. For proto-lock-acquire PRs (touch ONLY .proto-lock.json):
+#      - verify the new lock holder is set to a non-null KAI id
+#      - verify the base commit's lock was free or expired (CAS check)
+#      - verify nothing else is modified in the PR
+#
+#   2. For real proto-change PRs (touch internal/shared/proto/** with or without lock file):
+#      - verify at least one commit in the PR carries a `Proto-Lock-Holder:` trailer
+#      - verify that holder matches the current lock holder at HEAD of main
+#      - if the PR also releases the lock, verify the release matches the same holder
+
+on:
+  pull_request:
+    paths:
+      - '.proto-lock.json'
+      - 'internal/shared/proto/**'
+      - 'scripts/proto-lock.sh'
+      - '.github/workflows/proto-lock.yml'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install jq
+        run: sudo apt-get install -y --no-install-recommends jq
+
+      - name: Classify PR
+        id: classify
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          changed=$(git diff --name-only "$base_sha...$head_sha")
+          echo "changed files:"
+          echo "$changed"
+
+          touches_lock=0
+          touches_proto=0
+          only_lock=1
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            if [[ "$f" == ".proto-lock.json" ]]; then
+              touches_lock=1
+            elif [[ "$f" == internal/shared/proto/* ]]; then
+              touches_proto=1
+              only_lock=0
+            else
+              only_lock=0
+            fi
+          done <<< "$changed"
+
+          if [[ "$touches_lock" -eq 1 && "$only_lock" -eq 1 ]]; then
+            echo "mode=lock_only" >> "$GITHUB_OUTPUT"
+          elif [[ "$touches_proto" -eq 1 ]]; then
+            echo "mode=proto_change" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=noop" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce — lock-only PR
+        if: steps.classify.outputs.mode == 'lock_only'
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+
+          base_holder=$(git show "${base_sha}:.proto-lock.json" 2>/dev/null | jq -r '.holder // "null"')
+          base_expires=$(git show "${base_sha}:.proto-lock.json" 2>/dev/null | jq -r '.expires_at // empty')
+          head_holder=$(git show "${head_sha}:.proto-lock.json" | jq -r '.holder // "null"')
+
+          base_free=0
+          if [[ "$base_holder" == "null" ]]; then
+            base_free=1
+          elif [[ -n "$base_expires" ]]; then
+            base_epoch=$(date -u -d "$base_expires" +%s 2>/dev/null || echo 0)
+            now_epoch=$(date -u +%s)
+            [[ "$now_epoch" -gt "$base_epoch" ]] && base_free=1
+          fi
+
+          echo "base holder: $base_holder (free=$base_free) — head holder: $head_holder"
+
+          if [[ "$head_holder" == "null" ]]; then
+            echo "::notice::lock-release PR (head holder is null) — allowed"
+            exit 0
+          fi
+
+          if [[ "$base_free" -ne 1 ]]; then
+            echo "::error::cannot acquire lock — base commit shows lock held by $base_holder (not expired). Rebase on main and retry."
+            exit 1
+          fi
+
+          echo "::notice::lock-only acquire PR for $head_holder — base was free, PR modifies only .proto-lock.json"
+
+      - name: Enforce — proto-change PR
+        if: steps.classify.outputs.mode == 'proto_change'
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+
+          # Current holder at main HEAD (the canonical truth right now).
+          main_holder=$(git show "origin/main:.proto-lock.json" 2>/dev/null | jq -r '.holder // "null"' || echo "null")
+          if [[ "$main_holder" == "null" ]]; then
+            main_holder=$(git show "${base_sha}:.proto-lock.json" 2>/dev/null | jq -r '.holder // "null"')
+          fi
+
+          if [[ "$main_holder" == "null" ]]; then
+            echo "::error::proto PR but no lock is held on main. Run scripts/proto-lock.sh acquire first."
+            exit 1
+          fi
+
+          # Read Proto-Lock-Holder trailer from every commit in the PR.
+          mapfile -t commits < <(git rev-list --reverse "${base_sha}..${head_sha}")
+          holder=""
+          for c in "${commits[@]}"; do
+            line=$(git log -1 --format=%B "$c" | grep -E '^Proto-Lock-Holder:' | head -1 || true)
+            if [[ -n "$line" ]]; then
+              holder="${line#Proto-Lock-Holder: }"
+              holder="$(echo "$holder" | tr -d '[:space:]')"
+              break
+            fi
+          done
+
+          if [[ -z "$holder" ]]; then
+            echo "::error::proto PR is missing a 'Proto-Lock-Holder: <KAI-id>' trailer on any commit. Acquire the lock first and add the trailer."
+            exit 1
+          fi
+
+          if [[ "$holder" != "$main_holder" ]]; then
+            echo "::error::proto PR trailer ($holder) does not match current lock holder on main ($main_holder). Rebase after acquiring the lock."
+            exit 1
+          fi
+
+          echo "::notice::proto PR holder $holder matches lock on main — allowed"

@@ -24,7 +24,10 @@ models/*.json
 *.onnx
 
 # Claude Code / Superpowers
-.claude/
+# .claude/ — track agents/, skills/, ignore everything else
+.claude/*
+!.claude/agents/
+!.claude/skills/
 .superpowers/
 /.worktrees
 

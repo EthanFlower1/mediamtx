@@ -12,18 +12,22 @@ import (
 	auditmw "github.com/bluenviron/mediamtx/internal/cloud/audit/middleware"
 	"github.com/bluenviron/mediamtx/internal/cloud/regionrouter"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
+	sharedmetrics "github.com/bluenviron/mediamtx/internal/shared/metrics"
 )
 
 // Server is the cloud control-plane HTTP server. It owns an http.Server, a
 // mux with every Connect-Go service mounted, and the metrics registry.
 type Server struct {
-	cfg      Config
-	http     *http.Server
-	mux      *http.ServeMux
-	metrics  *metricsRegistry
-	limiter  *rateLimiter
-	probes   ReadinessProbes
-	routes   map[string]RouteAuthorization
+	cfg         Config
+	http        *http.Server
+	adminHTTP   *http.Server // separate :9090 admin listener for /metrics
+	mux         *http.ServeMux
+	metrics     *metricsRegistry
+	sharedReg   *sharedmetrics.Registry
+	sharedStd   *sharedmetrics.Standard
+	limiter     *rateLimiter
+	probes      ReadinessProbes
+	routes      map[string]RouteAuthorization
 }
 
 // New constructs a Server ready to Start(). It validates the config, applies
@@ -34,13 +38,35 @@ func New(cfg Config) (*Server, error) {
 	}
 	cfg.defaults()
 
+	// Build the shared Prometheus registry (KAI-422). Standard metrics are
+	// initialised here so the build_info gauge is stamped at process start.
+	sharedReg := sharedmetrics.New()
+	sharedStd := sharedmetrics.Init(sharedReg, sharedmetrics.BuildInfo{
+		Version:   cfg.BuildInfo.Version,
+		Commit:    cfg.BuildInfo.Commit,
+		GoVersion: cfg.BuildInfo.GoVersion,
+	})
+
 	s := &Server{
-		cfg:     cfg,
-		mux:     http.NewServeMux(),
-		metrics: newMetricsRegistry(),
-		limiter: newRateLimiter(cfg.RateLimit),
-		probes:  defaultReadinessProbes(cfg.DB, cfg.Identity, cfg.Enforcer),
-		routes:  defaultRouteAuthorizations(),
+		cfg:       cfg,
+		mux:       http.NewServeMux(),
+		metrics:   newMetricsRegistry(),
+		sharedReg: sharedReg,
+		sharedStd: sharedStd,
+		limiter:   newRateLimiter(cfg.RateLimit),
+		probes:    defaultReadinessProbes(cfg.DB, cfg.Identity, cfg.Enforcer),
+		routes:    defaultRouteAuthorizations(),
+	}
+
+	// Admin metrics listener: /metrics exposed only on MetricsListenAddr.
+	if cfg.MetricsListenAddr != "" {
+		adminMux := http.NewServeMux()
+		adminMux.Handle("/metrics", sharedReg.HTTPHandler())
+		s.adminHTTP = &http.Server{
+			Addr:              cfg.MetricsListenAddr,
+			Handler:           adminMux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
 	}
 
 	// ------------------- Health + metrics -------------------
@@ -134,6 +160,9 @@ func (s *Server) buildConnectChain() Middleware {
 	return chain(
 		recoveryMiddleware(),
 		metricsMiddleware(s.metrics),
+		// KAI-422: shared Prometheus middleware runs after the legacy atomic
+		// middleware so both sets of metrics are populated.
+		sharedmetrics.HTTPMiddleware(s.sharedStd, "cloud-apiserver"),
 		requestIDMiddleware(),
 		tracingMiddleware(s.cfg.Tracer),
 		regionMiddleware(s.cfg.Region, s.cfg.RegionRoutes),
@@ -149,8 +178,35 @@ func (s *Server) buildConnectChain() Middleware {
 // Start begins listening. It blocks until Shutdown is called or the
 // underlying listener errors out. The passed context is NOT the one used
 // for graceful shutdown — call Shutdown(ctx) explicitly.
+//
+// If MetricsListenAddr is non-empty the admin metrics listener is started in
+// a background goroutine. It does not block Start's return; errors from the
+// admin listener are logged but do not terminate the primary server.
 func (s *Server) Start(ctx context.Context) error {
 	lc := net.ListenConfig{}
+
+	// Admin listener (KAI-422): start before the primary so /metrics is
+	// available from the first moment the process announces readiness.
+	if s.adminHTTP != nil {
+		adminLn, err := lc.Listen(ctx, "tcp", s.cfg.MetricsListenAddr)
+		if err != nil {
+			// Non-fatal: log and continue without the admin metrics port.
+			s.cfg.Logger.Warn("apiserver: admin metrics listener failed to start",
+				"addr", s.cfg.MetricsListenAddr,
+				"err", err,
+			)
+		} else {
+			s.cfg.Logger.Info("apiserver: admin metrics listener",
+				"addr", s.cfg.MetricsListenAddr,
+			)
+			go func() {
+				if err := s.adminHTTP.Serve(adminLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					s.cfg.Logger.Error("apiserver: admin metrics listener error", "err", err)
+				}
+			}()
+		}
+	}
+
 	ln, err := lc.Listen(ctx, "tcp", s.cfg.ListenAddr)
 	if err != nil {
 		return err
@@ -171,6 +227,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, s.cfg.ShutdownTimeout)
 	defer cancel()
 	s.cfg.Logger.Info("apiserver: shutting down")
+	// Stop admin listener first so scrapers stop receiving data before the
+	// primary server stops accepting API requests.
+	if s.adminHTTP != nil {
+		_ = s.adminHTTP.Shutdown(ctx)
+	}
 	return s.http.Shutdown(ctx)
 }
 

@@ -229,6 +229,7 @@ describe('CustomersPage', () => {
   it('CustomersPage is registered as a lazy-loaded route in App.tsx', async () => {
     // The lazy-load gate verifies that the page lives behind React.lazy
     // so the table + wizard + create flow are not in the initial bundle.
+    // @ts-expect-error Vite ?raw imports are not in TS types; fallback handles the null case.
     const appSource = await import('../../App?raw').catch(() => null);
     // Vite ?raw imports are not configured in this project; fall back
     // to fetching the source via the Node fs API which Vitest exposes.

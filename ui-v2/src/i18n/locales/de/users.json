@@ -1,0 +1,15 @@
+{
+  "users.page.title": "Benutzer und Berechtigungen",
+  "users.tab.users": "Benutzer",
+  "users.tab.permissions": "Berechtigungen",
+  "users.tab.signInMethods": "Anmeldemethoden",
+  "users.actions.invite": "Benutzer einladen",
+  "users.list.loading": "Benutzer werden geladen…",
+  "users.list.error": "Benutzer konnten nicht geladen werden. Bitte erneut versuchen.",
+  "users.list.empty": "Keine Benutzer gefunden.",
+  "users.status.active": "Aktiv",
+  "users.status.suspended": "Gesperrt",
+  "auth.wizard.test": "Verbindung testen",
+  "auth.wizard.save": "Speichern",
+  "auth.wizard.cancel": "Abbrechen"
+}

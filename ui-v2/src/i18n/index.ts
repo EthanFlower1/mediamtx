@@ -7,6 +7,12 @@ import es from './locales/es/common.json';
 import fr from './locales/fr/common.json';
 import de from './locales/de/common.json';
 
+// KAI-325: users namespace (users, permissions, sign-in methods).
+import enUsers from './locales/en/users.json';
+import esUsers from './locales/es/users.json';
+import frUsers from './locales/fr/users.json';
+import deUsers from './locales/de/users.json';
+
 // KAI-307 + KAI-358: i18n bootstrap.
 //
 // Launch languages: EN, ES, FR, DE. NO hardcoded customer-visible
@@ -23,10 +29,10 @@ void i18n
   .use(initReactI18next)
   .init({
     resources: {
-      en: { common: en },
-      es: { common: es },
-      fr: { common: fr },
-      de: { common: de },
+      en: { common: en, users: enUsers },
+      es: { common: es, users: esUsers },
+      fr: { common: fr, users: frUsers },
+      de: { common: de, users: deUsers },
     },
     fallbackLng: 'en',
     supportedLngs: SUPPORTED_LANGUAGES,

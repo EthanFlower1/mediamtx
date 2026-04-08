@@ -15,6 +15,7 @@ require (
 	github.com/bluenviron/gortmplib v0.3.0
 	github.com/bluenviron/gortsplib/v5 v5.5.0
 	github.com/bluenviron/mediacommon/v2 v2.8.3
+	github.com/casbin/casbin/v2 v2.135.0
 	github.com/datarhei/gosrt v0.10.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-contrib/pprof v1.5.3
@@ -38,6 +39,7 @@ require (
 	github.com/pion/sdp/v3 v3.0.18
 	github.com/pion/transport/v4 v4.0.1
 	github.com/pion/webrtc/v4 v4.2.9
+	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.11.1
 	github.com/yalue/onnxruntime_go v1.27.0
 	golang.org/x/crypto v0.49.0
@@ -54,9 +56,11 @@ require (
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/asticode/go-astikit v0.30.0 // indirect
 	github.com/benburkert/openpgp v0.0.0-20160410205803-c2471f86866c // indirect
+	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
+	github.com/casbin/govaluate v1.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
@@ -98,7 +102,6 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect

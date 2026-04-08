@@ -80,7 +80,7 @@ At the time of writing, KAI-218's migration set contains
 - the partitioned `audit_log` parent table
 - the `tenant_audit_retention` override table
 
-**TODO for KAI-218:** add `0004_audit_log.up.sql` with:
+**TODO for KAI-218:** add `0006_audit_log_partitioned.up.sql` with:
 
 ```sql
 CREATE TABLE audit_log (

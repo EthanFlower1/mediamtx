@@ -25,6 +25,11 @@ const AdminDashboard = lazy(() =>
 const CamerasPage = lazy(() =>
   import('./routes/admin/CamerasPage').then((m) => ({ default: m.CamerasPage })),
 );
+// KAI-322: RecordersPage lazy-loaded — table, pair modal, detail drawer, and
+// unpair confirm only ship when /admin/recorders is visited.
+const RecordersPage = lazy(() =>
+  import('./routes/admin/RecordersPage').then((m) => ({ default: m.RecordersPage })),
+);
 // KAI-325: UsersPage lazy-loaded; the virtualized user list, 6 SSO wizards,
 // and permissions matrix only ship when /admin/users is visited.
 const UsersPage = lazy(() =>
@@ -45,6 +50,7 @@ export function App(): JSX.Element {
         <Route path="/" element={<Navigate to="/admin" replace />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/cameras" element={<CamerasPage />} />
+        <Route path="/admin/recorders" element={<RecordersPage />} />
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />

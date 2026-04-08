@@ -5,6 +5,7 @@
 import FlutterMacOS
 import Foundation
 
+import flutter_appauth
 import flutter_secure_storage_macos
 import flutter_webrtc
 import fvp
@@ -19,6 +20,7 @@ import volume_controller
 import wakelock_plus
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  FlutterAppauthPlugin.register(with: registry.registrar(forPlugin: "FlutterAppauthPlugin"))
   FlutterSecureStoragePlugin.register(with: registry.registrar(forPlugin: "FlutterSecureStoragePlugin"))
   FlutterWebRTCPlugin.register(with: registry.registrar(forPlugin: "FlutterWebRTCPlugin"))
   FvpPlugin.register(with: registry.registrar(forPlugin: "FvpPlugin"))

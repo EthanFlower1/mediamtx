@@ -1,0 +1,301 @@
+// KAI-297 — LoginService.
+//
+// Orchestrates the post-discovery login flow against a
+// [HomeDirectoryConnection]. Three code paths:
+//
+//   1. Local form → POST /api/v1/auth/login
+//   2. SSO        → `beginSso` (launches the authorizer) then `completeSso`
+//                     which POSTs /api/v1/auth/sso/complete
+//   3. Refresh    → POST /api/v1/auth/refresh using the stored refresh token
+//
+// All network I/O is done via a `http.Client` so tests can inject `MockClient`.
+// The SSO flow is additionally abstracted behind `SsoAuthorizer` so tests can
+// drive happy-path + cancellation paths without touching `flutter_appauth`.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show HandshakeException, SocketException;
+
+import 'package:http/http.dart' as http;
+
+import '../state/app_session.dart';
+import '../state/home_directory_connection.dart';
+import 'auth_types.dart';
+import 'sso_authorizer.dart';
+
+/// Custom URL scheme used as the OIDC redirect URI on iOS and Android.
+///
+/// Must match `CFBundleURLTypes` in `ios/Runner/Info.plist` and the
+/// `<intent-filter>` in `android/app/src/main/AndroidManifest.xml`. See the
+/// auth package README for the exact platform snippets.
+const String kKaivueAuthRedirectUri = 'kaivue://auth/callback';
+
+/// Typed HTTP status codes LoginService treats specially.
+const int _httpUnauthorized = 401;
+const int _httpNotFound = 404;
+
+class LoginService {
+  final http.Client _http;
+  final SsoAuthorizer _authorizer;
+
+  LoginService({
+    http.Client? httpClient,
+    SsoAuthorizer? authorizer,
+  })  : _http = httpClient ?? http.Client(),
+        _authorizer = authorizer ?? FakeSsoAuthorizer();
+
+  /// Release the underlying HTTP client. Safe to call multiple times.
+  void dispose() => _http.close();
+
+  Uri _resolve(HomeDirectoryConnection connection, String path) {
+    final base = Uri.parse(connection.endpointUrl);
+    final joined = '${base.path}$path';
+    return base.replace(path: joined);
+  }
+
+  // ---------------- Discovery of auth methods ----------------
+
+  /// GET `<base>/api/v1/auth/methods` and return the advertised methods.
+  ///
+  /// Throws [LoginError] with a typed [LoginErrorKind] on any failure.
+  Future<AvailableAuthMethods> beginLogin(
+      HomeDirectoryConnection connection) async {
+    final uri = _resolve(connection, '/api/v1/auth/methods');
+    http.Response resp;
+    try {
+      resp = await _http
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'timeout: $e');
+    } on SocketException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'socket: $e');
+    } on HandshakeException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'tls: $e');
+    } on http.ClientException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'http: $e');
+    }
+    if (resp.statusCode == _httpNotFound) {
+      throw const LoginError(
+          LoginErrorKind.malformed, 'auth methods endpoint missing');
+    }
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw LoginError(LoginErrorKind.server, 'status ${resp.statusCode}');
+    }
+    try {
+      final parsed = jsonDecode(resp.body);
+      if (parsed is! Map<String, dynamic>) {
+        throw const LoginError(
+            LoginErrorKind.malformed, 'response is not a JSON object');
+      }
+      return AvailableAuthMethods.fromJson(parsed);
+    } on LoginError {
+      rethrow;
+    } catch (e) {
+      throw LoginError(LoginErrorKind.malformed, 'parse error: $e');
+    }
+  }
+
+  // ---------------- Local login ----------------
+
+  /// POST `<base>/api/v1/auth/login` with the supplied credentials.
+  Future<LoginResult> loginLocal(
+    HomeDirectoryConnection connection,
+    String username,
+    String password,
+  ) async {
+    final uri = _resolve(connection, '/api/v1/auth/login');
+    http.Response resp;
+    try {
+      resp = await _http
+          .post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'timeout: $e');
+    } on SocketException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'socket: $e');
+    } on HandshakeException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'tls: $e');
+    } on http.ClientException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'http: $e');
+    }
+
+    if (resp.statusCode == _httpUnauthorized) {
+      throw const LoginError(
+          LoginErrorKind.wrongCredentials, 'server returned 401');
+    }
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw LoginError(LoginErrorKind.server, 'status ${resp.statusCode}');
+    }
+    return _parseLoginResult(resp.body);
+  }
+
+  // ---------------- SSO ----------------
+
+  /// Launch the SSO flow for [providerId]. Resolves to a [SsoFlow] with the
+  /// authorization code (on success), or a cancelled flow if the user bailed
+  /// out of the IdP web view.
+  ///
+  /// Throws [LoginError] with [LoginErrorKind.unknownProvider] if the
+  /// directory doesn't advertise [providerId].
+  Future<SsoFlow> beginSso(
+    HomeDirectoryConnection connection,
+    String providerId, {
+    AvailableAuthMethods? knownMethods,
+  }) async {
+    final methods = knownMethods ?? await beginLogin(connection);
+    final provider = methods.ssoProviders.firstWhere(
+      (p) => p.id == providerId,
+      orElse: () => throw LoginError(
+          LoginErrorKind.unknownProvider, 'provider not advertised: $providerId'),
+    );
+    final flowId =
+        '${DateTime.now().microsecondsSinceEpoch}-${provider.id}';
+    final result = await _authorizer.authorize(
+      provider: provider,
+      redirectUri: kKaivueAuthRedirectUri,
+    );
+    if (result.cancelled || result.authorizationCode == null) {
+      return SsoFlow(
+        flowId: flowId,
+        providerId: providerId,
+        state: result.state,
+        codeVerifier: result.codeVerifier,
+        cancelled: true,
+      );
+    }
+    return SsoFlow(
+      flowId: flowId,
+      providerId: providerId,
+      authorizationCode: result.authorizationCode,
+      state: result.state,
+      codeVerifier: result.codeVerifier,
+    );
+  }
+
+  /// Finish the SSO flow by exchanging the authorization code at
+  /// `/api/v1/auth/sso/complete`. Callers should only invoke this with a
+  /// non-cancelled [SsoFlow].
+  Future<LoginResult> completeSso(
+    HomeDirectoryConnection connection,
+    SsoFlow flow,
+  ) async {
+    if (flow.cancelled || flow.authorizationCode == null) {
+      throw const LoginError(
+          LoginErrorKind.ssoCancelled, 'SSO flow was cancelled');
+    }
+    final uri = _resolve(connection, '/api/v1/auth/sso/complete');
+    http.Response resp;
+    try {
+      resp = await _http
+          .post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'provider_id': flow.providerId,
+              'authorization_code': flow.authorizationCode,
+              'state': flow.state,
+              'code_verifier': flow.codeVerifier,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'timeout: $e');
+    } on SocketException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'socket: $e');
+    } on HandshakeException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'tls: $e');
+    } on http.ClientException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'http: $e');
+    }
+    if (resp.statusCode == _httpUnauthorized) {
+      throw const LoginError(
+          LoginErrorKind.wrongCredentials, 'sso exchange rejected');
+    }
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw LoginError(LoginErrorKind.server, 'status ${resp.statusCode}');
+    }
+    return _parseLoginResult(resp.body);
+  }
+
+  // ---------------- Refresh ----------------
+
+  /// Mint a fresh access token using [session]'s refresh token.
+  ///
+  /// Returns a new [LoginResult]. On expired/revoked refresh token, throws
+  /// [LoginError] with [LoginErrorKind.refreshExpired] so the caller can
+  /// bounce the user back to the login screen.
+  Future<LoginResult> refresh(AppSession session) async {
+    final conn = session.activeConnection;
+    final rt = session.refreshToken;
+    if (conn == null) {
+      throw const LoginError(
+          LoginErrorKind.refreshExpired, 'no active connection');
+    }
+    if (rt == null || rt.isEmpty) {
+      throw const LoginError(
+          LoginErrorKind.refreshExpired, 'no refresh token');
+    }
+    final uri = _resolve(conn, '/api/v1/auth/refresh');
+    http.Response resp;
+    try {
+      resp = await _http
+          .post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'refresh_token': rt}),
+          )
+          .timeout(const Duration(seconds: 10));
+    } on TimeoutException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'timeout: $e');
+    } on SocketException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'socket: $e');
+    } on HandshakeException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'tls: $e');
+    } on http.ClientException catch (e) {
+      throw LoginError(LoginErrorKind.network, 'http: $e');
+    }
+    if (resp.statusCode == _httpUnauthorized) {
+      throw const LoginError(
+          LoginErrorKind.refreshExpired, 'refresh token rejected');
+    }
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw LoginError(LoginErrorKind.server, 'status ${resp.statusCode}');
+    }
+    return _parseLoginResult(resp.body);
+  }
+
+  // ---------------- Helpers ----------------
+
+  LoginResult _parseLoginResult(String body) {
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(body);
+    } catch (e) {
+      throw LoginError(LoginErrorKind.malformed, 'not json: $e');
+    }
+    if (parsed is! Map<String, dynamic>) {
+      throw const LoginError(
+          LoginErrorKind.malformed, 'response is not a JSON object');
+    }
+    try {
+      return LoginResult.fromJson(parsed);
+    } catch (e) {
+      throw LoginError(LoginErrorKind.malformed, 'missing field: $e');
+    }
+  }
+}
+

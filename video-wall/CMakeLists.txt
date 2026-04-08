@@ -89,6 +89,10 @@ qt_add_executable(KaivueVideoWall
     src/map/FilesystemTileProvider.cpp
     src/map/HeatmapOverlay.cpp
     src/map/MapView.cpp
+    # Crash reporter facade — Wave 1 stub. Real Sentry Native (Linux) /
+    # Crashpad (Windows) backend swaps in during Wave 6 hardening; the
+    # public API stays stable so call sites do not move.
+    src/crash/CrashReporter.cpp
 )
 
 target_include_directories(KaivueVideoWall PRIVATE

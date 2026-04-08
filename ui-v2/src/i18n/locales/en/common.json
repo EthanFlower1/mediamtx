@@ -4,5 +4,66 @@
   "admin.settings.title": "Settings",
   "command.home.title": "Integrator Portal",
   "command.customers.title": "Customers",
-  "errors.notFound": "Page not found"
+  "errors.notFound": "Page not found",
+
+  "fleet.dashboard.title": "Fleet Dashboard",
+  "fleet.dashboard.defaultIntegratorName": "Your Integrator",
+  "fleet.dashboard.subtitle": "Managing operations for {{integrator}}",
+  "fleet.dashboard.loading": "Loading fleet data…",
+  "fleet.dashboard.error": "Unable to load fleet data.",
+
+  "fleet.breadcrumb.ariaLabel": "Breadcrumb",
+  "fleet.breadcrumb.integratorPortal": "Integrator Portal",
+
+  "fleet.kpis.regionLabel": "Fleet key performance indicators",
+  "fleet.kpis.totalCustomers": "Total customers",
+  "fleet.kpis.totalCameras": "Cameras managed",
+  "fleet.kpis.totalMrr": "Total MRR",
+  "fleet.kpis.activeIncidents": "Active incidents",
+  "fleet.kpis.uptime": "Fleet uptime",
+
+  "fleet.customerGrid.regionLabel": "Customer health grid",
+  "fleet.customerGrid.title": "Customers ({{count}})",
+  "fleet.customerGrid.empty": "No customers match the current filters.",
+
+  "fleet.customerCard.ariaSummary": "{{name}}, status {{health}}, {{cameras}} cameras, monthly revenue {{mrr}}",
+  "fleet.customerCard.statusSrLabel": "Health status",
+  "fleet.customerCard.tier": "Tier",
+  "fleet.customerCard.cameras": "Cameras",
+  "fleet.customerCard.mrr": "MRR",
+  "fleet.customerCard.uptime": "Uptime",
+
+  "fleet.health.healthy": "Healthy",
+  "fleet.health.degraded": "Degraded",
+  "fleet.health.critical": "Critical",
+
+  "fleet.tier.platinum": "Platinum",
+  "fleet.tier.gold": "Gold",
+  "fleet.tier.silver": "Silver",
+  "fleet.tier.bronze": "Bronze",
+
+  "fleet.labels.retail": "Retail",
+  "fleet.labels.healthcare": "Healthcare",
+  "fleet.labels.logistics": "Logistics",
+  "fleet.labels.education": "Education",
+  "fleet.labels.finance": "Finance",
+
+  "fleet.filters.ariaLabel": "Fleet filters",
+  "fleet.filters.subReseller": "Sub-reseller",
+  "fleet.filters.label": "Label",
+  "fleet.filters.tier": "Tier",
+  "fleet.filters.allSubResellers": "All sub-resellers",
+  "fleet.filters.allLabels": "All labels",
+  "fleet.filters.allTiers": "All tiers",
+  "fleet.filters.reset": "Reset filters",
+
+  "fleet.alerts.sectionLabel": "Cross-customer alert stream",
+  "fleet.alerts.title": "Alerts",
+  "fleet.alerts.count": "{{count}} open",
+  "fleet.alerts.empty": "No active alerts.",
+  "fleet.alerts.severity.info": "Info",
+  "fleet.alerts.severity.warning": "Warning",
+  "fleet.alerts.severity.critical": "Critical",
+  "fleet.alerts.cameraOffline": "Cameras offline at {{customer}}",
+  "fleet.alerts.degradedLink": "Degraded uplink at {{customer}}"
 }

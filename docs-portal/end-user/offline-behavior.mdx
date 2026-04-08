@@ -1,0 +1,71 @@
+---
+title: "Offline Behavior"
+description: "What the Kaivue app does when your network connection is lost. Coming in Kaivue v1.x."
+---
+
+# Offline Behavior
+
+<Warning>
+  **Coming in Kaivue v1.x** — Enhanced offline mode with cached camera lists and stale indicators is not yet available. This page describes the behavior when it ships. Currently, losing network connectivity results in the app showing a connection error.
+</Warning>
+
+Kaivue is a live video application — you need a network connection to watch cameras, access recordings, and receive alerts. However, when you lose connectivity, the app doesn't simply go blank. It falls back gracefully so you know what's happening and what's unavailable.
+
+---
+
+## What the app does when you go offline
+
+When your network connection drops (Wi-Fi loss, VPN disconnect, the Recording Server becoming unreachable):
+
+1. **Your camera list stays visible** — The app caches the list of cameras you last loaded so you can still see camera names and their last-known status. You cannot open a live stream, but you can see which cameras exist.
+
+2. **Stale indicators appear** — Every camera tile gets a yellow "stale" badge showing when its status was last refreshed. This tells you the data is from the cache, not live.
+
+3. **Live view and playback are disabled** — Tapping a camera while offline shows a clear message: "Cannot connect to Recording Server. Check your network and try again." You won't accidentally see a frozen frame as if it were live.
+
+4. **Alerts stop arriving** — Push notifications require a live connection between your device and the Recording Server. While offline, no new alerts can be delivered. Events that occurred while you were offline will appear in your event history when you reconnect.
+
+5. **Settings are still accessible** — You can view (but not change) your notification preferences and account settings while offline.
+
+![App in offline mode showing camera list with stale indicators and a connection status banner](./images/placeholder-offline-banner.png)
+
+---
+
+## What's disabled offline
+
+| Feature | Offline status |
+|---|---|
+| Camera list | Available (cached) |
+| Live view | Unavailable |
+| Playback / recordings | Unavailable |
+| PTZ controls | Unavailable |
+| Talkback | Unavailable |
+| Push notifications | Paused until reconnection |
+| Event history | Shows cached events; new events load on reconnect |
+| Account settings (view) | Available |
+| Account settings (save changes) | Unavailable |
+
+---
+
+## Reconnecting
+
+When your network comes back, the app detects the connection automatically (usually within a few seconds) and:
+
+- Removes the offline banner
+- Refreshes all camera statuses
+- Loads any new events that arrived while you were offline
+- Resumes push notifications
+
+You don't need to manually refresh or restart the app.
+
+---
+
+## On-premises / air-gapped systems
+
+If your Recording Server is on your local network (not cloud-connected), "offline" means you've lost your connection to that local network — not necessarily the internet. Reconnecting to your Wi-Fi or VPN restores full functionality.
+
+---
+
+## When this ships
+
+Enhanced offline mode is tracked for Kaivue v1.x. Until then, losing connectivity shows a standard connection error. Refresh the app when your connection is restored.

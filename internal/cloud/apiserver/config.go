@@ -16,6 +16,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/cloud/audit"
 	"github.com/bluenviron/mediamtx/internal/cloud/db"
 	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/cloud/streams"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 
@@ -25,6 +26,16 @@ import (
 //
 // TODO(KAI-234): widen this interface when job-enqueuing handlers land.
 type RiverClient interface{}
+
+// streamsIssuer is the minimal surface the apiserver needs from
+// streamclaims.Issuer to serve the JWKS endpoint. A local interface avoids
+// the circular import path that would arise if we accepted *streamclaims.Issuer
+// directly (streams imports streamclaims; apiserver imports streams).
+//
+// *streamclaims.Issuer satisfies this interface automatically.
+type streamsIssuer interface {
+	PublicKeySet() ([]byte, error)
+}
 
 // TracerHook is an optional OpenTelemetry tracing hook. The concrete
 // otel.Tracer is avoided to keep this package dependency-free until KAI
@@ -105,6 +116,17 @@ type Config struct {
 	// River is the async job-queue handle (KAI-234). Handlers that need
 	// to enqueue work pull it off the Server via Server.River().
 	River RiverClient
+
+	// StreamsService is the KAI-255 stream URL minting handler.
+	// When non-nil it is mounted at POST /api/v1/streams/request and
+	// /.well-known/jwks.json. If nil, those routes are unregistered.
+	StreamsService *streams.Service
+
+	// StreamsIssuer is the streamclaims.Issuer used to serve
+	// /.well-known/jwks.json. Required when StreamsService is non-nil.
+	// Kept separate so the JWKS endpoint can be mounted without full
+	// service wiring in environments where only key distribution matters.
+	StreamsIssuer streamsIssuer
 }
 
 func (c *Config) validate() error {

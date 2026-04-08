@@ -66,7 +66,7 @@ export function OidcProviderWizard({
     },
   });
 
-  const buildConfig = (values: OidcProviderFormValues): OidcProviderConfig => ({
+  const buildConfig = useCallback((values: OidcProviderFormValues): OidcProviderConfig => ({
     kind: 'oidc',
     enabled: true,
     issuerUrl: values.issuerUrl,
@@ -79,7 +79,7 @@ export function OidcProviderWizard({
       name: values.claimName,
       groups: values.claimGroups,
     },
-  });
+  }), [isMasked]);
 
   const handleNext = useCallback(async () => {
     const valid = await trigger(OIDC_STEP1_FIELDS);
@@ -98,14 +98,14 @@ export function OidcProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const step1Content = (
     <section aria-label={t('auth.oidc.step1.sectionLabel')} data-testid="oidc-wizard-step1">

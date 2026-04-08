@@ -8,3 +8,10 @@ playwright-report
 test-results
 .DS_Store
 *.tsbuildinfo
+# tsc -b build artifacts (config-adjacent .d.ts/.js files)
+playwright.config.d.ts
+playwright.config.js
+vite.config.d.ts
+vite.config.js
+vitest.config.d.ts
+vitest.config.js

@@ -48,14 +48,14 @@ export function OktaProviderWizard({
     },
   });
 
-  const buildConfig = (values: OktaProviderFormValues): OktaProviderConfig => ({
+  const buildConfig = useCallback((values: OktaProviderFormValues): OktaProviderConfig => ({
     kind: 'okta',
     enabled: true,
     domain: values.domain,
     clientId: values.clientId,
     clientSecret: isMasked && !values.clientSecret ? MASK_SENTINEL : values.clientSecret,
     authorizationServerId: values.authorizationServerId,
-  });
+  }), [isMasked]);
 
   const handleTest = useCallback(() => {
     void handleSubmit(async (values) => {
@@ -67,14 +67,14 @@ export function OktaProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const stepContent = (
     <section

@@ -52,14 +52,14 @@ export function EntraProviderWizard({
     },
   });
 
-  const buildConfig = (values: EntraProviderFormValues): EntraProviderConfig => ({
+  const buildConfig = useCallback((values: EntraProviderFormValues): EntraProviderConfig => ({
     kind: 'entra',
     enabled: true,
     clientId: values.clientId,
     clientSecret: isMasked && !values.clientSecret ? MASK_SENTINEL : values.clientSecret,
     tenantId: values.tenantId,
     redirectUri: REDIRECT_URI,
-  });
+  }), [isMasked]);
 
   const handleTest = useCallback(() => {
     void handleSubmit(async (values) => {
@@ -71,14 +71,14 @@ export function EntraProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const stepContent = (
     <section

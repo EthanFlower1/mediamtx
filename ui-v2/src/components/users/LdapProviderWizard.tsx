@@ -66,7 +66,7 @@ export function LdapProviderWizard({
     },
   });
 
-  const buildConfig = (values: LdapProviderFormValues): LdapProviderConfig => ({
+  const buildConfig = useCallback((values: LdapProviderFormValues): LdapProviderConfig => ({
     kind: 'ldap',
     enabled: true,
     host: values.host,
@@ -82,7 +82,7 @@ export function LdapProviderWizard({
       name: values.attrName,
       memberOf: values.attrMemberOf,
     },
-  });
+  }), [isMasked]);
 
   const handleNext = useCallback(async () => {
     const valid = await trigger(LDAP_STEP1_FIELDS);
@@ -99,14 +99,14 @@ export function LdapProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const step1Content = (
     <section aria-label={t('auth.ldap.step1.sectionLabel')} data-testid="ldap-wizard-step1">

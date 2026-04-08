@@ -1,0 +1,10 @@
+{
+  "userId": "user_alice",
+  "details": { "resourceOwner": "org_cust_1" },
+  "state": "STATE_ACTIVE",
+  "human": {
+    "profile": { "givenName": "Alice", "familyName": "Doe", "displayName": "Alice Doe" },
+    "email": { "email": "alice@example.com" },
+    "username": "alice"
+  }
+}

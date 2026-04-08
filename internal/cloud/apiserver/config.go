@@ -137,6 +137,10 @@ type Config struct {
 	// BuildInfo is stamped into the kaivue_build_info gauge at startup.
 	// Zero value is safe (version/commit will be empty strings).
 	BuildInfo BuildInfoConfig
+
+	// BehavioralStore is the KAI-429 behavioral analytics config store.
+	// When non-nil, the four behavioral CRUD routes are mounted.
+	BehavioralStore BehavioralStore
 }
 
 // BuildInfoConfig carries the build metadata for kaivue_build_info (KAI-422).

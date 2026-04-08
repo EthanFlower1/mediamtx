@@ -119,6 +119,11 @@ func New(cfg Config) (*Server, error) {
 		s.mux.Handle("/.well-known/jwks.json", jwksHandlerFromIssuer(cfg.StreamsIssuer))
 	}
 
+	// ------------------- KAI-429: Behavioral config CRUD ---------------
+	if cfg.BehavioralStore != nil {
+		s.RegisterBehavioralRoutes(cfg.BehavioralStore)
+	}
+
 	s.http = &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           s.mux,

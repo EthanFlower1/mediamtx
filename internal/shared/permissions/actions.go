@@ -70,6 +70,12 @@ const (
 	ActionAIFaceVaultErase = "ai.facevault.erase"
 	ActionAIModelsUpload   = "ai.models.upload"
 
+	// Behavioral analytics config (KAI-429).
+	// behavioral.config.read  — viewer role + above may read detector configs.
+	// behavioral.config.write — admin role may create, update, or delete configs.
+	ActionBehavioralConfigRead  = "behavioral.config.read"
+	ActionBehavioralConfigWrite = "behavioral.config.write"
+
 	// Customer-integrator relationships (KAI-228, KAI-229).
 	// relationships.read   — list or inspect relationships for a tenant.
 	// relationships.write  — update permissions / markup on an existing relationship.
@@ -94,4 +100,5 @@ var AllActions = []string{
 	ActionIntegratorsCreate, ActionIntegratorsCreateSubReseller, ActionCustomerTenantsCreate, ActionTenantsInviteAdmin,
 	ActionAIConfigure, ActionAIFaceVaultRead, ActionAIFaceVaultWrite, ActionAIFaceVaultErase, ActionAIModelsUpload,
 	ActionRelationshipsRead, ActionRelationshipsWrite, ActionRelationshipsGrant,
+	ActionBehavioralConfigRead, ActionBehavioralConfigWrite,
 }

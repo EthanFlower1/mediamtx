@@ -1,0 +1,60 @@
+# CMake build artifacts
+build/
+build-*/
+out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+Makefile
+*.cmake
+!cmake/*.cmake
+compile_commands.json
+
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# Qt
+*.autosave
+*.user
+*.user.*
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Binaries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.exp
+*.ilk
+
+# Logs
+*.log

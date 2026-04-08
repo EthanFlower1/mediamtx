@@ -47,13 +47,13 @@ export function GoogleProviderWizard({
     },
   });
 
-  const buildConfig = (values: GoogleProviderFormValues): GoogleProviderConfig => ({
+  const buildConfig = useCallback((values: GoogleProviderFormValues): GoogleProviderConfig => ({
     kind: 'google',
     enabled: true,
     clientId: values.clientId,
     clientSecret: isMasked && !values.clientSecret ? MASK_SENTINEL : values.clientSecret,
     hostedDomain: values.hostedDomain,
-  });
+  }), [isMasked]);
 
   const handleTest = useCallback(() => {
     void handleSubmit(async (values) => {
@@ -65,14 +65,14 @@ export function GoogleProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const stepContent = (
     <section

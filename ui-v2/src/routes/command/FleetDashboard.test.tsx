@@ -173,6 +173,7 @@ describe('FleetDashboard', () => {
     );
     // Print useful diagnostics if this fails.
     if (blocking.length > 0) {
+      // eslint-disable-next-line no-console
       console.error('axe blocking violations:', blocking);
     }
     expect(blocking).toEqual([]);

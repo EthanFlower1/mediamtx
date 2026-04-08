@@ -1,3 +1,7 @@
+/* eslint-disable react-refresh/only-export-components -- this module
+   intentionally exports both the provider component and the useRuntimeContext
+   hook from the same file. Splitting them would require circular imports since
+   the hook depends on the private RuntimeContext created here. */
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 

@@ -12,6 +12,7 @@ import { samlProviderSchema, type SamlProviderFormValues } from '@/lib/authProvi
 
 // Step 1 field names for partial validation.
 const SAML_STEP1_FIELDS: (keyof SamlProviderFormValues)[] = ['metadataUrl', 'metadataXml'];
+const ACS_URL = `${window.location.origin}/api/v1/auth/saml/acs`;
 import { WizardShell } from './WizardShell';
 import type { SamlProviderConfig, TestProviderResult } from '@/api/users';
 
@@ -35,8 +36,6 @@ export function SamlProviderWizard({
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestProviderResult | null>(null);
 
-  const ACS_URL = `${window.location.origin}/api/v1/auth/saml/acs`;
-
   const {
     register,
     handleSubmit,
@@ -55,7 +54,7 @@ export function SamlProviderWizard({
     },
   });
 
-  const buildConfig = (values: SamlProviderFormValues): SamlProviderConfig => ({
+  const buildConfig = useCallback((values: SamlProviderFormValues): SamlProviderConfig => ({
     kind: 'saml',
     enabled: true,
     metadataUrl: values.metadataUrl,
@@ -68,7 +67,7 @@ export function SamlProviderWizard({
       name: values.attrName,
       groups: values.attrGroups,
     },
-  });
+  }), []);
 
   const handleNext = useCallback(async () => {
     const valid = await trigger(SAML_STEP1_FIELDS);
@@ -85,14 +84,14 @@ export function SamlProviderWizard({
         setIsTesting(false);
       }
     })();
-  }, [handleSubmit, onTest]);
+  }, [handleSubmit, onTest, buildConfig]);
 
   const handleSave = useCallback(() => {
     void handleSubmit(async (values) => {
       await onSave(buildConfig(values));
       onClose();
     })();
-  }, [handleSubmit, onSave, onClose]);
+  }, [handleSubmit, onSave, onClose, buildConfig]);
 
   const step1Content = (
     <section aria-label={t('auth.saml.step1.sectionLabel')} data-testid="saml-wizard-step1">

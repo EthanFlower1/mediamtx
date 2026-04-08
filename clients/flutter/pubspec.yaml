@@ -35,6 +35,11 @@ dependencies:
   # `mobile_scanner` provides the QR code camera view on iOS/Android/macOS.
   # Desktop Linux/Windows and web degrade to manual entry.
   mobile_scanner: ^5.0.0
+  # KAI-297 — login flow. `flutter_appauth` drives OIDC SSO with PKCE + the
+  # `kaivue://auth/callback` custom URL scheme on iOS and Android. The client-
+  # facing interface is abstracted behind `SsoAuthorizer` so tests can swap in
+  # a fake without pulling the platform plugin into the Dart test VM.
+  flutter_appauth: ^8.0.0
 
 dev_dependencies:
   flutter_test:

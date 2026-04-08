@@ -1,0 +1,25 @@
+# Terraform state — never commit state files (KAI-231)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform plan files
+*.tfplan
+
+# Terraform working directories
+**/.terraform/
+**/.terraform.lock.hcl
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Sensitive variable files
+*.auto.tfvars
+secrets.tfvars
+
+# Crash log files
+crash.log
+crash.*.log

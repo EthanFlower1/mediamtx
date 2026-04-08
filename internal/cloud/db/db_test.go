@@ -34,13 +34,14 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 		t.Fatalf("applied versions: %v", err)
 	}
 	// 0001..0005 are SQLite-compatible. 0006 is the postgres-only audit_log
-	// parent table; its body is stripped by the SQLite runner so the row is
-	// still recorded but no table is created. This matches the intent: the
-	// schema exists only in real Postgres.
-	// 0007/0008 are KAI-283 LPR watchlists (SQLite-compatible).
-	// 0009 is KAI-254 ai_events (postgres-only partition stripped) +
+	// parent table; its body is stripped but the version row is still recorded.
+	// 0007 (lpr_watchlists) and 0008 (cameras_lpr_enabled) are postgres-only
+	// no-ops in SQLite. 0009..0013 are the KAI-249 directory schema: recorders,
+	// recording_schedules, retention_policies, cameras, and camera_segment_index
+	// (postgres partition block stripped; SQLite fallback table created).
+	// 0014 is KAI-254 ai_events (postgres-only partition stripped) +
 	// camera_state + segment_index_stub (SQLite-compatible).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

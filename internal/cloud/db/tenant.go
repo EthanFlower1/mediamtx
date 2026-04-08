@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -425,6 +426,289 @@ func (d *DB) InsertCustomerIntegratorRelationship(
 		r.MarkupPercent, r.Status, granted, r.GrantedByUserID, r.RevokedAt,
 	)
 	return err
+}
+
+// GetCustomerIntegratorRelationship fetches a single relationship row. Returns
+// nil, nil when the row does not exist.
+func (d *DB) GetCustomerIntegratorRelationship(
+	ctx context.Context,
+	customerTenantID, integratorID, region string,
+) (*CustomerIntegratorRelationship, error) {
+	q := fmt.Sprintf(
+		`SELECT r.customer_tenant_id, r.integrator_id, r.scoped_permissions, r.role_template,
+                r.markup_percent, r.status, r.granted_at, r.granted_by_user_id, r.revoked_at
+         FROM customer_integrator_relationships AS r
+         INNER JOIN customer_tenants AS ct ON ct.id = r.customer_tenant_id
+         WHERE r.customer_tenant_id = %s AND r.integrator_id = %s AND ct.region = %s`,
+		d.placeholder(1), d.placeholder(2), d.placeholder(3),
+	)
+	row := d.QueryRowContext(ctx, q, customerTenantID, integratorID, region)
+	var r CustomerIntegratorRelationship
+	if err := row.Scan(
+		&r.CustomerTenantID, &r.IntegratorID, &r.ScopedPermissions, &r.RoleTemplate,
+		&r.MarkupPercent, &r.Status, &r.GrantedAt, &r.GrantedByUserID, &r.RevokedAt,
+	); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// UpdateCustomerIntegratorRelationship updates the mutable fields
+// (scoped_permissions, role_template, markup_percent, status, revoked_at) of an
+// existing relationship row. The region scope is enforced via the customer_tenants
+// join. Callers set only the fields they change; all fields replace the current
+// row.
+func (d *DB) UpdateCustomerIntegratorRelationship(
+	ctx context.Context,
+	region string,
+	r CustomerIntegratorRelationship,
+) error {
+	q := fmt.Sprintf(
+		`UPDATE customer_integrator_relationships
+         SET scoped_permissions = %s,
+             role_template      = %s,
+             markup_percent     = %s,
+             status             = %s,
+             revoked_at         = %s
+         WHERE customer_tenant_id = %s
+           AND integrator_id      = %s
+           AND customer_tenant_id IN (SELECT id FROM customer_tenants WHERE region = %s)`,
+		d.placeholder(1), d.placeholder(2), d.placeholder(3), d.placeholder(4),
+		d.placeholder(5), d.placeholder(6), d.placeholder(7), d.placeholder(8),
+	)
+	res, err := d.ExecContext(ctx, q,
+		r.ScopedPermissions, r.RoleTemplate, r.MarkupPercent, r.Status,
+		r.RevokedAt, r.CustomerTenantID, r.IntegratorID, region,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("relationship (%s,%s) not found in region %s", r.CustomerTenantID, r.IntegratorID, region)
+	}
+	return nil
+}
+
+// DeleteCustomerIntegratorRelationship removes the relationship row. This is
+// used only for rollback compensation; normal "revoke" uses a status update.
+func (d *DB) DeleteCustomerIntegratorRelationship(ctx context.Context, customerTenantID, integratorID, region string) error {
+	q := fmt.Sprintf(
+		`DELETE FROM customer_integrator_relationships
+         WHERE customer_tenant_id = %s
+           AND integrator_id = %s
+           AND customer_tenant_id IN (SELECT id FROM customer_tenants WHERE region = %s)`,
+		d.placeholder(1), d.placeholder(2), d.placeholder(3),
+	)
+	_, err := d.ExecContext(ctx, q, customerTenantID, integratorID, region)
+	return err
+}
+
+// ListRelationshipsForCustomer returns every relationship record for a given
+// customer tenant, ordered by granted_at ASC. Seam #4: the region is derived
+// from the TenantRef, not the request body.
+func (d *DB) ListRelationshipsForCustomer(
+	ctx context.Context,
+	customer TenantRef,
+) ([]CustomerIntegratorRelationship, error) {
+	if err := customer.Validate(); err != nil {
+		return nil, err
+	}
+	if customer.Type != TenantCustomerTenant {
+		return nil, fmt.Errorf("ListRelationshipsForCustomer: must be customer_tenant, got %q", customer.Type)
+	}
+	q := fmt.Sprintf(
+		`SELECT r.customer_tenant_id, r.integrator_id, r.scoped_permissions, r.role_template,
+                r.markup_percent, r.status, r.granted_at, r.granted_by_user_id, r.revoked_at
+         FROM customer_integrator_relationships r
+         INNER JOIN customer_tenants ct ON ct.id = r.customer_tenant_id
+         WHERE r.customer_tenant_id = %s AND ct.region = %s
+         ORDER BY r.granted_at ASC`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	return d.scanRelationships(ctx, q, customer.ID, customer.Region)
+}
+
+// ListRelationshipsForIntegrator returns every relationship record for a given
+// integrator, ordered by granted_at ASC. The region is scoped to the integrator.
+func (d *DB) ListRelationshipsForIntegrator(
+	ctx context.Context,
+	integratorID, region string,
+) ([]CustomerIntegratorRelationship, error) {
+	if integratorID == "" {
+		return nil, errors.New("integrator id is required")
+	}
+	if region == "" {
+		return nil, errors.New("region is required")
+	}
+	q := fmt.Sprintf(
+		`SELECT r.customer_tenant_id, r.integrator_id, r.scoped_permissions, r.role_template,
+                r.markup_percent, r.status, r.granted_at, r.granted_by_user_id, r.revoked_at
+         FROM customer_integrator_relationships r
+         INNER JOIN integrators i ON i.id = r.integrator_id
+         WHERE r.integrator_id = %s AND i.region = %s
+         ORDER BY r.granted_at ASC`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	return d.scanRelationships(ctx, q, integratorID, region)
+}
+
+// ListRelationshipsForIntegratorSubtree returns relationships for an integrator
+// and all of its sub-reseller descendants (KAI-229). The walk is bounded by the
+// MaxSubResellerDepth cap. Each returned row's IntegratorID indicates which
+// node in the subtree owns that relationship.
+func (d *DB) ListRelationshipsForIntegratorSubtree(
+	ctx context.Context,
+	rootIntegratorID, region string,
+) ([]CustomerIntegratorRelationship, error) {
+	if rootIntegratorID == "" {
+		return nil, errors.New("integrator id is required")
+	}
+	// Collect the full subtree of integrator ids, then fetch relationships for
+	// all of them in a single query. BFS bounded at 64 nodes (chain cannot
+	// exceed MaxSubResellerDepth but we stay safely bounded).
+	ids, err := d.collectIntegratorSubtree(ctx, rootIntegratorID, region, 64)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	// Build a WHERE IN clause. Dialect-specific placeholders.
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = region
+	for i, id := range ids {
+		placeholders[i] = d.placeholder(i + 2)
+		args[i+1] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	q := fmt.Sprintf(
+		`SELECT r.customer_tenant_id, r.integrator_id, r.scoped_permissions, r.role_template,
+                r.markup_percent, r.status, r.granted_at, r.granted_by_user_id, r.revoked_at
+         FROM customer_integrator_relationships r
+         INNER JOIN integrators i ON i.id = r.integrator_id
+         WHERE i.region = %s AND r.integrator_id IN (%s)
+         ORDER BY r.granted_at ASC`,
+		d.placeholder(1), inClause,
+	)
+	rows, err := d.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []CustomerIntegratorRelationship
+	for rows.Next() {
+		var r CustomerIntegratorRelationship
+		if err := rows.Scan(
+			&r.CustomerTenantID, &r.IntegratorID, &r.ScopedPermissions, &r.RoleTemplate,
+			&r.MarkupPercent, &r.Status, &r.GrantedAt, &r.GrantedByUserID, &r.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// collectIntegratorSubtree performs a BFS from rootID and returns the IDs of
+// the root plus all descendants, bounded by maxNodes to prevent runaway queries
+// on corrupted data.
+func (d *DB) collectIntegratorSubtree(ctx context.Context, rootID, region string, maxNodes int) ([]string, error) {
+	visited := make(map[string]struct{})
+	queue := []string{rootID}
+	var result []string
+	for len(queue) > 0 && len(result) < maxNodes {
+		current := queue[0]
+		queue = queue[1:]
+		if _, seen := visited[current]; seen {
+			continue
+		}
+		visited[current] = struct{}{}
+		result = append(result, current)
+
+		// Fetch direct children.
+		q := fmt.Sprintf(
+			`SELECT id FROM integrators WHERE parent_integrator_id = %s AND region = %s`,
+			d.placeholder(1), d.placeholder(2),
+		)
+		rows, err := d.QueryContext(ctx, q, current, region)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var childID string
+			if err := rows.Scan(&childID); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			queue = append(queue, childID)
+		}
+		if err := rows.Close(); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+// ListChildIntegrators returns the direct children of an integrator.
+func (d *DB) ListChildIntegrators(ctx context.Context, parentID, region string) ([]Integrator, error) {
+	q := fmt.Sprintf(
+		`SELECT id, parent_integrator_id, display_name, legal_name, contact_email,
+                billing_mode, wholesale_discount_percent, brand_config_id,
+                billing_account_id, status, region, created_at, updated_at
+         FROM integrators
+         WHERE parent_integrator_id = %s AND region = %s
+         ORDER BY created_at ASC`,
+		d.placeholder(1), d.placeholder(2),
+	)
+	rows, err := d.QueryContext(ctx, q, parentID, region)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Integrator
+	for rows.Next() {
+		var i Integrator
+		if err := rows.Scan(
+			&i.ID, &i.ParentIntegratorID, &i.DisplayName, &i.LegalName, &i.ContactEmail,
+			&i.BillingMode, &i.WholesaleDiscountPercent, &i.BrandConfigID,
+			&i.BillingAccountID, &i.Status, &i.Region, &i.CreatedAt, &i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, i)
+	}
+	return out, rows.Err()
+}
+
+// scanRelationships is the shared row-scanner for relationship queries.
+func (d *DB) scanRelationships(ctx context.Context, q string, args ...interface{}) ([]CustomerIntegratorRelationship, error) {
+	rows, err := d.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []CustomerIntegratorRelationship
+	for rows.Next() {
+		var r CustomerIntegratorRelationship
+		if err := rows.Scan(
+			&r.CustomerTenantID, &r.IntegratorID, &r.ScopedPermissions, &r.RoleTemplate,
+			&r.MarkupPercent, &r.Status, &r.GrantedAt, &r.GrantedByUserID, &r.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // ---------- on_prem_directories ----------

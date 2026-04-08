@@ -121,11 +121,17 @@ func translateToSQLite(s string) string {
 	s = postgresOnlyRe.ReplaceAllString(s, "")
 
 	// Type mappings (case-sensitive because all migrations use upper-case types).
+	// Partial indexes (WHERE clauses) must be wrapped in postgres-only markers
+	// in the migration files rather than stripped here — this keeps the
+	// translator simple and the migration files self-documenting.
 	replacements := []struct{ from, to string }{
 		{"TIMESTAMPTZ", "DATETIME"},
 		{"JSONB", "TEXT"},
 		{"NUMERIC(5,2)", "REAL"},
 		{"BIGSERIAL", "INTEGER"},
+		{"BIGINT", "INTEGER"},
+		{"BYTEA", "BLOB"},
+		{"BOOLEAN", "INTEGER"},
 		{"NOW()", "CURRENT_TIMESTAMP"},
 		{"::jsonb", ""},
 	}

@@ -1,0 +1,166 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Kaivue cloud central Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "KAI-422 — Integrator Portal: fleet-wide KPIs across all tenants. tenant_id label required on every query.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "id": 1,
+      "title": "Total Tenants Active",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none" },
+      "targets": [
+        {
+          "expr": "count(count by (tenant_id) (kaivue_requests_total))",
+          "legendFormat": "active tenants",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Relationships Granted (total)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none" },
+      "targets": [
+        { "expr": "sum(kaivue_relationships_granted_total)", "legendFormat": "granted", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Stream URLs Minted (last 1h)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none" },
+      "targets": [
+        {
+          "expr": "sum(increase(kaivue_streams_minted_total[1h]))",
+          "legendFormat": "minted URLs",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "Connected Recorders (fleet)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none" },
+      "targets": [
+        { "expr": "sum(kaivue_recordercontrol_connected)", "legendFormat": "connected", "refId": "A" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 5,
+      "title": "Request Rate per Tenant",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id) (rate(kaivue_requests_total[5m]))",
+          "legendFormat": "{{tenant_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "Error Rate per Tenant",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (tenant_id, code) (rate(kaivue_errors_total[5m]))",
+          "legendFormat": "{{tenant_id}} / {{code}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 7,
+      "title": "Stream Minting Rate by Protocol",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (protocol, result) (rate(kaivue_streams_minted_total[5m]))",
+          "legendFormat": "{{protocol}} / {{result}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": 8,
+      "title": "Recorder Reconnects by Reason",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "footer": { "show": false } },
+      "targets": [
+        {
+          "expr": "sum by (reason) (increase(kaivue_recordercontrol_reconnects_total[1h]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 9,
+      "title": "Directory Ingest Messages",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (stream, result) (rate(kaivue_directoryingest_messages_total[5m]))",
+          "legendFormat": "{{stream}} / {{result}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "60s",
+  "schemaVersion": 38,
+  "tags": ["kaivue", "integrator"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kaivue — Integrator Portal",
+  "uid": "kaivue-integrator-portal",
+  "version": 1
+}

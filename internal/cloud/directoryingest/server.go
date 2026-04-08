@@ -222,6 +222,16 @@ type wireAIEventsResponse struct {
 // -----------------------------------------------------------------------
 
 // Config configures the DirectoryIngest HTTP handlers.
+// MetricsProvider is the narrow surface directoryingest needs from the
+// shared metrics registry (KAI-422). A nil value disables metrics (safe).
+type MetricsProvider interface {
+	// IngestMessagesTotal increments the message counter with the given
+	// stream name and result label.
+	IngestMessagesTotal(stream, result string)
+	// BackpressureDropsTotal increments the backpressure drop counter.
+	BackpressureDropsTotal()
+}
+
 type Config struct {
 	// CameraState persists camera health updates. Required.
 	CameraState CameraStateStore
@@ -236,6 +246,9 @@ type Config struct {
 	// MaxBatchBytes is the maximum body size for a single streamed batch
 	// line. Zero defaults to 4 MiB.
 	MaxBatchBytes int64
+	// Metrics is the optional Prometheus metrics provider (KAI-422). Nil
+	// means metrics are silently disabled (fail-open policy).
+	Metrics MetricsProvider
 }
 
 func (c *Config) validate() error {

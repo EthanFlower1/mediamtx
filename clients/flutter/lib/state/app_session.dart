@@ -262,13 +262,13 @@ class AppSessionNotifier extends StateNotifier<AppSession> {
 // `Provider` for the service, then a `StateNotifierProvider` for the state.
 
 /// Override this in tests with `secureTokenStoreProvider.overrideWithValue(...)`
-/// to inject an [InMemorySecureTokenStore]. Production wires it to a
-/// `flutter_secure_storage` adapter (added in a follow-up — it's a separate
-/// dependency to keep this PR pure-state).
+/// to inject an [InMemorySecureTokenStore]. The production override lives in
+/// `lib/main.dart` (`productionOverrides()`) and wires this to
+/// `FlutterSecureStorageTokenStore` on native platforms.
 final secureTokenStoreProvider = Provider<SecureTokenStore>((ref) {
-  // Default to in-memory until the flutter_secure_storage adapter ships in
-  // KAI-296. This keeps tests hermetic and avoids importing the platform
-  // plugin from the state layer.
+  // Default fallback for tests and web: in-memory only. Native production
+  // builds replace this via the override list in main.dart so the platform
+  // plugin is never imported from the state layer.
   return InMemorySecureTokenStore();
 });
 

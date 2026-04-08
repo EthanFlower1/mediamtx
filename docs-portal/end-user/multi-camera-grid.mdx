@@ -1,0 +1,52 @@
+---
+title: "Multi-Camera Grid"
+description: "Watch multiple cameras at once in a grid layout. Coming in Kaivue v1.x."
+---
+
+# Multi-Camera Grid
+
+<Warning>
+  **Coming in Kaivue v1.x** — The multi-camera grid view is not yet available. This page describes how it will work when released. Check with your administrator or the [Kaivue changelog](../developer/api) for release timing.
+</Warning>
+
+The multi-camera grid lets you watch several cameras on one screen — useful for monitoring multiple areas at a glance without switching back and forth.
+
+---
+
+## How it will work
+
+You'll be able to select 2 to 16 cameras and arrange them in a grid. The app automatically picks the best layout based on how many cameras you choose (2x1, 2x2, 3x3, and so on).
+
+![Multi-camera grid with four live feeds arranged in a 2x2 layout](./images/placeholder-multi-camera-grid.png)
+
+---
+
+## Live streams vs. snapshot thumbnails
+
+To keep your network and device running smoothly, the grid uses two different display modes depending on how many cameras you're watching:
+
+| Number of cameras | Display mode |
+|---|---|
+| 1–4 cameras | **Live stream** — full motion video, same as single camera view |
+| 5 or more cameras | **Snapshot thumbnails** — still images refreshed every few seconds |
+
+When you have 5 or more cameras in the grid, each tile shows a regularly-updated snapshot rather than continuous video. This prevents overloading your network and device with too many simultaneous streams. Tap any tile to open that camera's full live view.
+
+---
+
+## What you'll be able to do
+
+- Add cameras to your grid from your camera list
+- Rearrange tiles by dragging them
+- Save grid layouts as named views (for example, "Front Entrance" or "Warehouse Floor")
+- Switch between saved layouts instantly
+- Click or tap any tile to expand it to single-camera view
+- Mute or unmute audio per tile
+
+---
+
+## When this ships
+
+This feature is tracked as part of the Kaivue v1.x release cycle. When it becomes available, your app will update automatically (mobile) or you'll see a prompt to refresh (web). Your administrator will also be notified.
+
+In the meantime, you can watch cameras one at a time using [Live View](./live-view).

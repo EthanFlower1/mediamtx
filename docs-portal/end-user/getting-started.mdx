@@ -1,0 +1,86 @@
+---
+title: "Getting Started"
+description: "Set up the Kaivue app for the first time and see your first camera in minutes."
+---
+
+# Getting Started
+
+Welcome to Kaivue. This guide walks you through your very first login — from finding your Recording Server to watching your first live camera feed.
+
+## What you need
+
+- The Kaivue mobile app installed on your phone (iOS or Android), **or** a modern browser on your computer (Chrome, Firefox, Safari, Edge)
+- A username and password (or an SSO account) provided by your administrator
+- Your phone or computer on the same local network as your Recording Server, or access through your organization's VPN / public URL
+
+---
+
+## Step 1: Discover your Recording Server
+
+Your Kaivue Recording Server (also called a "Directory") is the device or server that stores your camera footage and manages access. There are three ways to find it:
+
+### Option A: Automatic discovery (recommended on local networks)
+
+When you open the Kaivue app on your phone while connected to the same Wi-Fi network as your Recording Server, the app scans automatically using mDNS (a technology similar to how your phone finds printers). Any nearby Kaivue servers appear in a list — tap the one you want to connect to.
+
+![App showing a list of auto-discovered Recording Servers on the local network](./images/placeholder-discovery-list.png)
+
+### Option B: QR code
+
+Your administrator may have printed or emailed a QR code that encodes your server's address. In the app, tap **Scan QR code** and point your camera at it. The connection is configured automatically.
+
+![QR code scanning screen in the Kaivue app](./images/placeholder-qr-scan.png)
+
+### Option C: Enter the address manually
+
+If you're connecting from outside your local network (for example, through a VPN or a public domain name), tap **Enter address manually** and type the hostname or IP address your administrator gave you. It typically looks like `nvr.yourcompany.com` or `192.168.1.100`.
+
+![Manual address entry screen](./images/placeholder-manual-address.png)
+
+---
+
+## Step 2: Log in
+
+Once the app connects to your Recording Server, the login screen appears.
+
+### Local account login
+
+Type your username and password, then tap **Sign In**.
+
+![Login form with username and password fields](./images/placeholder-login-form.png)
+
+<Tip>
+  If you forgot your password, tap **Forgot password?** and follow the reset instructions. If you don't see that option, contact your administrator — password reset may be managed by your organization.
+</Tip>
+
+### SSO login (Single Sign-On)
+
+If your organization uses a company identity provider (like Microsoft Entra, Okta, or Google Workspace), tap **Sign in with [your organization]** instead. You'll be redirected to your organization's familiar login page, then returned to Kaivue automatically.
+
+![SSO login button on the login screen](./images/placeholder-sso-button.png)
+
+---
+
+## Step 3: Verify you can see a camera
+
+After you log in, you land on the camera list (or a dashboard your administrator has configured). You should see at least one camera listed.
+
+Tap any camera name to open its live feed.
+
+![Home screen showing a list of cameras with status indicators](./images/placeholder-camera-list.png)
+
+If the stream loads and you see a live image, you're all set. If something goes wrong, check the [troubleshooting guide](./troubleshooting).
+
+---
+
+## What's next?
+
+- [Watch live video from a single camera](./live-view) — includes PTZ controls, talkback, and snapshot
+- [Search and review recorded footage](./playback) — jump to any time in the past
+- [Understand alerts and events](./alerts-and-events) — know when something happened
+
+---
+
+<Note>
+  **On-premises / air-gapped setup:** If your organization's Recording Server is not connected to the internet, everything works the same — discovery, login, and live view all run entirely on your local network. The only difference is that some cloud-based features (like remote access without a VPN) may not be available. Your administrator can tell you which access method applies.
+</Note>

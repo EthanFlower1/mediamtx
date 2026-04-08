@@ -1,0 +1,98 @@
+---
+title: "Live View"
+description: "Watch a live camera feed, control PTZ cameras, use talkback, and take snapshots."
+---
+
+# Live View
+
+The Live View screen is where you watch a camera in real time. Open it by tapping any camera on your home screen.
+
+---
+
+## Selecting a camera
+
+From your camera list, tap the camera you want to watch. The live feed opens full-screen (on mobile) or in the main panel (on desktop/web).
+
+![Live view screen showing a camera feed with overlay controls](./images/placeholder-live-view.png)
+
+---
+
+## How streaming works: WebRTC and LL-HLS
+
+Kaivue tries to give you the lowest-latency stream possible. Here's what happens behind the scenes (you don't need to think about this — the app switches automatically):
+
+1. **WebRTC** — The same low-latency streaming technology your browser and phone already use for video calls (Zoom, FaceTime, Google Meet). When WebRTC works, your video arrives in under a second.
+2. **LL-HLS fallback** — If WebRTC can't connect (for example, on certain corporate networks or VPNs that block peer-to-peer traffic), the app falls back to LL-HLS (Low-Latency HTTP Live Streaming), which adds a small amount of additional delay (typically 2–5 seconds) but works through nearly any network.
+
+A small indicator in the corner of the stream tells you which protocol is active.
+
+<Info>
+  If you consistently see the LL-HLS indicator and want to try improving latency, ask your network administrator whether UDP traffic is allowed on your network.
+</Info>
+
+---
+
+## PTZ controls (Pan, Tilt, Zoom)
+
+If your camera supports remote movement, a directional pad and zoom slider appear as an overlay on the video.
+
+![PTZ control overlay on a live camera feed](./images/placeholder-ptz-controls.png)
+
+| Control | What it does |
+|---|---|
+| Arrow buttons | Pan (left/right) and tilt (up/down) the camera |
+| Pinch gesture (mobile) | Optical or digital zoom in/out |
+| Zoom slider | Zoom in/out with a slider control |
+| **Home** button | Return the camera to its preset home position |
+| **Presets** button | Jump to a saved preset position (your administrator defines these) |
+
+<Warning>
+  PTZ controls affect the physical camera for everyone watching. If your organization has multiple viewers, coordinate before moving the camera.
+</Warning>
+
+---
+
+## Talkback (two-way audio)
+
+If your camera has a built-in speaker and your administrator has enabled talkback, you'll see a microphone button on the live view screen.
+
+- Tap and **hold** the microphone button to speak. Release to stop.
+- The camera's speaker broadcasts your voice in real time.
+
+![Talkback microphone button on the live view screen](./images/placeholder-talkback-button.png)
+
+The first time you use talkback, your browser or phone will ask for microphone permission — tap **Allow**.
+
+---
+
+## Snapshot
+
+Tap the camera icon (snapshot button) to save a still image from the current frame to your device's photo library or browser downloads folder.
+
+![Snapshot button on the live view toolbar](./images/placeholder-snapshot-button.png)
+
+---
+
+## Fullscreen
+
+- **Mobile:** The feed is already full-screen. Rotate your device to landscape for a wider view.
+- **Web browser:** Click the fullscreen icon in the bottom-right corner of the video player.
+
+---
+
+## Pinch to zoom (mobile)
+
+On the live view screen, pinch with two fingers to zoom in on any part of the image. This is a digital zoom applied on your device — it does not move the physical camera. To move the camera itself, use the PTZ controls instead.
+
+---
+
+## Troubleshooting: stream won't load
+
+If the stream shows a loading spinner or an error message, try these steps in order:
+
+1. **Check your network connection.** Is your phone or computer on Wi-Fi? Is the Wi-Fi connected? Try loading a website to confirm internet (or local network) access.
+2. **Check whether the camera is offline.** Go back to your camera list — if the camera shows a red or grey status dot, the camera itself may be powered off or disconnected. Contact your administrator.
+3. **Wait 30 seconds and reload.** Streams occasionally stall briefly when the Recording Server restarts or when network traffic is high.
+4. **Try a different stream protocol.** In settings (tap the gear icon on the live view screen), you can force LL-HLS mode if WebRTC is causing problems on your network.
+5. **Check your VPN.** If you're accessing remotely via VPN, confirm the VPN is connected. WebRTC may not work over all VPN configurations — try LL-HLS mode.
+6. **Still stuck?** See the full [troubleshooting guide](./troubleshooting) or contact your administrator.

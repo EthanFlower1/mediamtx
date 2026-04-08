@@ -36,6 +36,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/servers/rtsp"
 	"github.com/bluenviron/mediamtx/internal/servers/srt"
 	"github.com/bluenviron/mediamtx/internal/servers/webrtc"
+	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 )
 
 //go:generate go run ./versiongetter
@@ -288,6 +289,51 @@ outer:
 	p.closeResources(nil, false)
 }
 
+// dispatchRuntimeMode reads p.conf.Mode and invokes the shared
+// runtime.Dispatch shim so the correct subsystems start. It is
+// called exactly once, during initial resource creation.
+//
+// Legacy mode (empty string) is the default and intentionally a
+// no-op: the rest of createResources continues to run unchanged so
+// that upgrading an existing deployment has no behavior impact.
+//
+// Directory / Recorder / AllInOne hooks log a clearly marked stub
+// message today; they will be replaced with real boot calls as
+// the dependent tickets (KAI-226, KAI-246, KAI-243, KAI-244, KAI-250)
+// land.
+func (p *Core) dispatchRuntimeMode() error {
+	mode := p.conf.Mode.Runtime()
+	p.Log(logger.Info, "runtime mode: %s", mode.String())
+
+	hooks := kairuntime.Hooks{
+		StartLegacy: func() error {
+			// No-op: existing MediaMTX/NVR boot flow in
+			// createResources is the legacy code path.
+			return nil
+		},
+		StartDirectory: func() error {
+			p.Log(logger.Warn,
+				"[KAI-237] directory subsystem boot is a stub; "+
+					"real wiring tracked in KAI-226 / KAI-246")
+			return nil
+		},
+		StartRecorder: func() error {
+			p.Log(logger.Warn,
+				"[KAI-237] recorder subsystem boot is a stub; "+
+					"real wiring tracked in KAI-226 / KAI-246 / KAI-250")
+			return nil
+		},
+		AutoPair: func() error {
+			p.Log(logger.Warn,
+				"[KAI-237] all-in-one auto-pairing is a stub; "+
+					"real pairing tracked in KAI-243 / KAI-244")
+			return nil
+		},
+	}
+
+	return kairuntime.Dispatch(mode, hooks)
+}
+
 func (p *Core) createResources(initial bool) error {
 	var err error
 
@@ -322,6 +368,16 @@ func (p *Core) createResources(initial bool) error {
 			p.Log(logger.Warn,
 				"configuration file not found (looked in %s), using an empty configuration",
 				strings.Join(list, ", "))
+		}
+
+		// KAI-237: dispatch on the configured runtime mode. The legacy
+		// mode (empty string / unset) is a no-op and lets the existing
+		// boot sequence below run exactly as before. The Directory,
+		// Recorder, and AllInOne hooks are stubs today; real wiring
+		// lands with KAI-246 (sidecar), KAI-226 (directory client),
+		// and KAI-243/KAI-244 (pairing).
+		if err = p.dispatchRuntimeMode(); err != nil {
+			return err
 		}
 
 		// on Linux, try to raise the number of file descriptors that can be opened

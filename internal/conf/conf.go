@@ -240,6 +240,10 @@ var defaultAuthInternalUsers = []AuthInternalUser{
 
 // Conf is a configuration.
 type Conf struct {
+	// Runtime mode (KAI-237). Selects which Kaivue subsystems boot.
+	// Empty string preserves the pre-KAI-237 single-NVR behavior.
+	Mode RuntimeMode `json:"mode"`
+
 	// General
 	LogLevel            LogLevel        `json:"logLevel"`
 	LogDestinations     LogDestinations `json:"logDestinations"`
@@ -614,6 +618,13 @@ func (conf Conf) Clone() *Conf {
 func (conf *Conf) Validate(l logger.Writer) error {
 	if l == nil {
 		l = &nilLogger{}
+	}
+
+	// Runtime mode (KAI-237). An empty value means legacy / single-NVR
+	// behavior and is always allowed. Anything else must be one of the
+	// known modes.
+	if err := conf.Mode.Runtime().Validate(); err != nil {
+		return fmt.Errorf("'mode': %w", err)
 	}
 
 	// General (deprecated params)

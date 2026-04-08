@@ -1,0 +1,24 @@
+{
+  "description": "Fall detection: person height drops from 0.5 to 0.2 (60% drop) within 0.3s. Expected: one fall event.",
+  "tenant_id": "tenant-A",
+  "camera_id": "cam-1",
+  "height_drop_fraction": 0.40,
+  "window_seconds": 0.5,
+  "frames": [
+    {
+      "offset_ms": 0,
+      "detections": [{"track_id": 20, "class": "person", "confidence": 0.95, "box": {"x1": 0.3, "y1": 0.2, "x2": 0.5, "y2": 0.7}}]
+    },
+    {
+      "offset_ms": 150,
+      "detections": [{"track_id": 20, "class": "person", "confidence": 0.95, "box": {"x1": 0.3, "y1": 0.6, "x2": 0.5, "y2": 0.75}}]
+    },
+    {
+      "offset_ms": 300,
+      "detections": [{"track_id": 20, "class": "person", "confidence": 0.95, "box": {"x1": 0.3, "y1": 0.68, "x2": 0.5, "y2": 0.75}}]
+    }
+  ],
+  "expected_events": [
+    {"kind": "fall", "track_id": 20}
+  ]
+}

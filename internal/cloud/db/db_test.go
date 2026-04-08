@@ -46,7 +46,9 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// (postgres partman block stripped in SQLite; fallback tables created).
 	// 0017 is KAI-357 integrator_email_domains + dkim_keys (per-tenant sender
 	// domain + DKIM keypair metadata; private key bytes live in KAI-251 cryptostore).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
+	// 0018 is KAI-429 behavioral_config (SQLite-compatible; JSONB → TEXT,
+	// TIMESTAMPTZ → DATETIME, BOOLEAN → INTEGER via translateToSQLite).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

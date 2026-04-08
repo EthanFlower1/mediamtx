@@ -1,11 +1,13 @@
 {
   "$schema_version": 1,
-  "holder": null,
-  "kai_id": null,
-  "agent": null,
-  "reason": null,
-  "acquired_at": null,
-  "expires_at": null,
-  "protos_touched": [],
+  "holder": "KAI-254",
+  "kai_id": "KAI-254",
+  "agent": "onprem-platform",
+  "reason": "DirectoryIngest service: StreamCameraState + PublishSegmentIndex + PublishAIEvents",
+  "acquired_at": "2026-04-08T21:57:27Z",
+  "expires_at": "2026-04-08T23:57:27Z",
+  "protos_touched": [
+    "internal/shared/proto/v1/directory_ingest.proto"
+  ],
   "notes": "Mutex for internal/shared/proto/v1/. See docs/proto-lock.md. Never edit this file by hand — use scripts/proto-lock.sh."
 }

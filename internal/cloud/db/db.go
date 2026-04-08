@@ -151,6 +151,18 @@ func (d *DB) Migrate(ctx context.Context) error {
 	return nil
 }
 
+// Placeholder returns the driver-specific query placeholder for position i
+// (1-based). Postgres uses $1, $2, …; SQLite uses ?. This is the public
+// version of the unexported placeholder helper in tenant.go, exposed so
+// sibling packages (internal/cloud/cameras, etc.) can build tenant-scoped
+// queries without duplicating the dialect check.
+func (d *DB) Placeholder(i int) string {
+	if d.dialect == DialectPostgres {
+		return fmt.Sprintf("$%d", i)
+	}
+	return "?"
+}
+
 // AppliedVersions returns the list of applied migration versions, ascending.
 // Useful for diagnostics and for the multi-tenant isolation chaos test
 // (KAI-235) to assert the expected schema shape.

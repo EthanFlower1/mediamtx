@@ -28,6 +28,13 @@ dependencies:
   fl_chart: ^0.69.2
   share_plus: ^10.1.4
   path_provider: ^2.1.0
+  # KAI-296 — discovery flow.
+  # `multicast_dns` is used for LAN browsing. It is no-op on web and unreliable
+  # on some desktop configurations; MdnsDiscovery.isSupported gates usage.
+  multicast_dns: ^0.3.2
+  # `mobile_scanner` provides the QR code camera view on iOS/Android/macOS.
+  # Desktop Linux/Windows and web degrade to manual entry.
+  mobile_scanner: ^5.0.0
 
 dev_dependencies:
   flutter_test:

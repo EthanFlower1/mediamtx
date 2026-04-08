@@ -4,6 +4,19 @@ All notable changes to MediaMTX NVR are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- Runtime mode selection via the top-level `mode:` field in `mediamtx.yml`
+  (KAI-237). Supported values: `directory`, `recorder`, `all-in-one`.
+  Omitting the field preserves the pre-KAI-237 single-NVR behavior.
+  Non-legacy modes currently log stub messages; real subsystem wiring
+  lands in KAI-226, KAI-246, KAI-243, KAI-244, and KAI-250.
+- `internal/shared/runtime` package exposing `ModeDirectory`,
+  `ModeRecorder`, `ModeAllInOne` constants and a `Dispatch` shim used
+  by `internal/core` at boot.
+
 ## [1.0.0] - 2026-04-03
 
 ### Highlights

@@ -49,7 +49,8 @@ jobs:
         run: |
           SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
           echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
-          echo "CGO_ENABLED=0" >> "${GITHUB_ENV}"
+          # CGO required — see build.yml MATRIX NOTE. onnxruntime_go is cgo-only.
+          echo "CGO_ENABLED=1" >> "${GITHUB_ENV}"
           echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
           VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
           echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"

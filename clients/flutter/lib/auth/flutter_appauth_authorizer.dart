@@ -44,9 +44,9 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
     try {
       final response = await _appAuth.authorize(request);
       // `flutter_appauth` in v8 returns a non-nullable AuthorizationResponse;
-      // user cancellation surfaces as a thrown PlatformException which we
-      // catch below. Both shapes (null vs throw) are handled here so the
-      // adapter stays compatible across major versions of the plugin.
+      // user cancellation surfaces as a thrown FlutterAppAuthUserCancelledException
+      // which we catch below. The `response == null` branch is defensive for
+      // older plugin versions.
       // ignore: unnecessary_null_comparison
       if (response == null) {
         return SsoAuthorizationResult.cancelled(
@@ -59,11 +59,10 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
         state: response.authorizationAdditionalParameters?['state'] ?? state,
         codeVerifier: response.codeVerifier ?? verifier,
       );
-    } catch (e) {
-      // `flutter_appauth` raises a PlatformException on cancellation on some
-      // platforms. We conservatively treat any exception as a cancellation
-      // here — the calling LoginService decides whether to show an error UI
-      // based on whether `authorizationCode` came back.
+    } on FlutterAppAuthUserCancelledException {
+      // User explicitly cancelled (closed the browser tab / hit system back).
+      // Surface as a cancelled result so the UI can show a neutral toast
+      // instead of an error banner.
       return SsoAuthorizationResult.cancelled(
         state: state,
         codeVerifier: verifier,

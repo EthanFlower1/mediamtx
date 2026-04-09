@@ -12,8 +12,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../state/app_session.dart';
 import '../../state/home_directory_connection.dart';
 import '../auth_providers.dart';
+import '../auth_types.dart';
 import 'local_login_form.dart';
 import 'login_error_banner.dart';
 import 'sso_button_list.dart';
@@ -30,6 +32,29 @@ class LoginScreen extends ConsumerWidget {
     final s = ref.watch(authStringsProvider);
     final methodsAsync = ref.watch(authMethodsProvider(connection));
     final loginState = ref.watch(loginStateProvider);
+
+    // On a successful login, hand the LoginResult to AppSessionNotifier.
+    // KAI-298's lifecycle picks up the new tokens and persists them through
+    // the SecureTokenStore override wired in main.dart.
+    ref.listen<LoginState>(loginStateProvider, (prev, next) {
+      if (next.phase == LoginPhase.success && next.result != null) {
+        final LoginResult r = next.result!;
+        final notifier = ref.read(appSessionProvider.notifier);
+        // `setTokens` requires an active connection; activate first so the
+        // token namespace exists even for a first-time login.
+        () async {
+          await notifier.activateConnection(
+            connection: connection,
+            userId: r.user.userId,
+            tenantRef: r.user.tenantRef,
+          );
+          await notifier.setTokens(
+            accessToken: r.accessToken,
+            refreshToken: r.refreshToken,
+          );
+        }();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(title: Text(s.loginScreenTitle)),

@@ -162,6 +162,13 @@ class LoginStateNotifier extends StateNotifier<LoginState> {
     } on LoginError catch (e) {
       state = LoginState(phase: LoginPhase.error, error: e);
       return;
+    } catch (e) {
+      state = LoginState(
+        phase: LoginPhase.error,
+        error: LoginError(
+            LoginErrorKind.malformed, 'sso authorizer failed: $e'),
+      );
+      return;
     }
     if (flow.cancelled) {
       state = LoginState(phase: LoginPhase.cancelled, pendingSso: flow);

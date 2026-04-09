@@ -98,27 +98,27 @@ NVR servers communicate with the cloud portal via an outbound-only WebSocket con
 
 The cloud can send commands to servers via the WebSocket:
 
-| Command | Description |
-|---------|-------------|
-| `config.get` | Retrieve current configuration |
-| `config.update` | Push configuration changes |
-| `server.restart` | Restart the NVR process |
-| `server.upgrade` | Trigger OTA firmware/binary update |
-| `camera.snapshot` | Request a live snapshot from a camera |
-| `diagnostics.collect` | Gather logs and system info |
+| Command               | Description                           |
+| --------------------- | ------------------------------------- |
+| `config.get`          | Retrieve current configuration        |
+| `config.update`       | Push configuration changes            |
+| `server.restart`      | Restart the NVR process               |
+| `server.upgrade`      | Trigger OTA firmware/binary update    |
+| `camera.snapshot`     | Request a live snapshot from a camera |
+| `diagnostics.collect` | Gather logs and system info           |
 
 All commands use a request-response pattern with a correlation ID and 30-second timeout.
 
 ### 3.4 Cloud Infrastructure
 
-| Component | Technology |
-|-----------|------------|
-| API server | Go (Gin) containerized, auto-scaling |
-| Database | PostgreSQL (AWS RDS / GCP Cloud SQL) |
-| WebSocket gateway | Dedicated Go service behind ALB |
-| Object storage | S3-compatible for snapshots, reports |
-| Auth | OAuth 2.0 + OIDC (Auth0 or Cognito) |
-| CDN | CloudFront for static portal assets |
+| Component         | Technology                           |
+| ----------------- | ------------------------------------ |
+| API server        | Go (Gin) containerized, auto-scaling |
+| Database          | PostgreSQL (AWS RDS / GCP Cloud SQL) |
+| WebSocket gateway | Dedicated Go service behind ALB      |
+| Object storage    | S3-compatible for snapshots, reports |
+| Auth              | OAuth 2.0 + OIDC (Auth0 or Cognito)  |
+| CDN               | CloudFront for static portal assets  |
 
 ## 4. Dashboard Wireframes
 
@@ -220,25 +220,25 @@ All commands use a request-response pattern with a correlation ID and 30-second 
 
 ### 6.1 REST API (Portal)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/v1/servers` | List servers for current org |
-| GET | `/v1/servers/:id` | Server detail + telemetry |
-| POST | `/v1/servers/register` | Generate registration token |
-| POST | `/v1/servers/:id/command` | Send command to server |
-| GET | `/v1/org` | Current org details |
-| PATCH | `/v1/org` | Update org settings |
-| GET | `/v1/org/users` | List org users |
-| POST | `/v1/org/users/invite` | Invite user to org |
+| Method | Endpoint                  | Description                  |
+| ------ | ------------------------- | ---------------------------- |
+| GET    | `/v1/servers`             | List servers for current org |
+| GET    | `/v1/servers/:id`         | Server detail + telemetry    |
+| POST   | `/v1/servers/register`    | Generate registration token  |
+| POST   | `/v1/servers/:id/command` | Send command to server       |
+| GET    | `/v1/org`                 | Current org details          |
+| PATCH  | `/v1/org`                 | Update org settings          |
+| GET    | `/v1/org/users`           | List org users               |
+| POST   | `/v1/org/users/invite`    | Invite user to org           |
 
 ### 6.2 WebSocket API (Server-Cloud)
 
-| Direction | Message Type | Payload |
-|-----------|-------------|---------|
-| Server -> Cloud | `heartbeat` | Telemetry JSON |
-| Server -> Cloud | `event` | Alert, camera status change |
-| Cloud -> Server | `command` | Command + correlation ID |
-| Server -> Cloud | `command_response` | Result + correlation ID |
+| Direction       | Message Type       | Payload                     |
+| --------------- | ------------------ | --------------------------- |
+| Server -> Cloud | `heartbeat`        | Telemetry JSON              |
+| Server -> Cloud | `event`            | Alert, camera status change |
+| Cloud -> Server | `command`          | Command + correlation ID    |
+| Server -> Cloud | `command_response` | Result + correlation ID     |
 
 ## 7. Deployment and Scaling
 

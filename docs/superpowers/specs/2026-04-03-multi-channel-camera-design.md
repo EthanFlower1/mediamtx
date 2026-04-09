@@ -59,26 +59,26 @@ type DiscoveredChannel struct {
 
 ### New `devices` Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT PK | UUID |
-| `name` | TEXT NOT NULL | User-assigned device name |
-| `manufacturer` | TEXT | From ONVIF GetDeviceInformation |
-| `model` | TEXT | From ONVIF |
-| `firmware_version` | TEXT | From ONVIF |
-| `onvif_endpoint` | TEXT | Device ONVIF address |
-| `onvif_username` | TEXT | Shared credentials |
-| `onvif_password` | TEXT | Encrypted at rest |
-| `channel_count` | INTEGER DEFAULT 1 | Number of video sources |
-| `created_at` | TEXT NOT NULL | Timestamp |
-| `updated_at` | TEXT NOT NULL | Timestamp |
+| Column             | Type              | Description                     |
+| ------------------ | ----------------- | ------------------------------- |
+| `id`               | TEXT PK           | UUID                            |
+| `name`             | TEXT NOT NULL     | User-assigned device name       |
+| `manufacturer`     | TEXT              | From ONVIF GetDeviceInformation |
+| `model`            | TEXT              | From ONVIF                      |
+| `firmware_version` | TEXT              | From ONVIF                      |
+| `onvif_endpoint`   | TEXT              | Device ONVIF address            |
+| `onvif_username`   | TEXT              | Shared credentials              |
+| `onvif_password`   | TEXT              | Encrypted at rest               |
+| `channel_count`    | INTEGER DEFAULT 1 | Number of video sources         |
+| `created_at`       | TEXT NOT NULL     | Timestamp                       |
+| `updated_at`       | TEXT NOT NULL     | Timestamp                       |
 
 ### Changes to `cameras` Table
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `device_id` | TEXT NULL | FK to devices(id), NULL for standalone cameras |
-| `channel_index` | INTEGER NULL | 0-based channel number within device |
+| Column          | Type         | Description                                    |
+| --------------- | ------------ | ---------------------------------------------- |
+| `device_id`     | TEXT NULL    | FK to devices(id), NULL for standalone cameras |
+| `channel_index` | INTEGER NULL | 0-based channel number within device           |
 
 ### Migration Strategy
 

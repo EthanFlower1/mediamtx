@@ -21,7 +21,7 @@ Each concurrency level runs for 3 seconds. Memory scaling is verified separately
 ## Load Test Results
 
 | Cameras | Frames Sent | Frames Received | Drop Rate | Avg Latency | Max Latency | Total Alloc | Goroutines |
-|---------|-------------|-----------------|-----------|-------------|-------------|-------------|------------|
+| ------- | ----------- | --------------- | --------- | ----------- | ----------- | ----------- | ---------- |
 | 8       | 360         | 368             | 0%        | 36 us       | 880 us      | 10.4 MB     | 2          |
 | 16      | 720         | 736             | 0%        | 64 us       | 10.2 ms     | 20.8 MB     | 2          |
 | 32      | 1,440       | 1,472           | 0%        | 33 us       | 20.1 ms     | 41.6 MB     | 2          |
@@ -47,7 +47,7 @@ frames from the drain phase.
 ## Memory Scaling Verification
 
 | Cameras | Total Alloc | Ratio vs 8-cam |
-|---------|-------------|----------------|
+| ------- | ----------- | -------------- |
 | 8       | 9.57 MB     | 1.00x          |
 | 16      | 19.14 MB    | 2.00x          |
 | 32      | 38.27 MB    | 4.00x          |
@@ -59,16 +59,17 @@ threshold for detecting super-linear growth).
 
 Under extreme pressure (100 frames sent as fast as possible, consumer reading
 at 100 FPS), the drop-oldest channel pattern works correctly:
+
 - All 100 frames sent without producer blocking
 - 99 frames dropped (expected -- consumer only has time to read 1)
 - The key invariant holds: **the producer never blocks**
 
 ## Component Micro-Benchmarks
 
-| Component            | Time/op    | Allocs/op | Bytes/op  | Notes                          |
-|---------------------|-----------|-----------|-----------|--------------------------------|
-| Tracker (per frame) | 61.9 us   | 22        | 11,610 B  | IoU matching + track mgmt     |
-| IoU computation     | 4.1 ns    | 0         | 0 B       | Zero allocation hot path       |
+| Component           | Time/op | Allocs/op | Bytes/op | Notes                     |
+| ------------------- | ------- | --------- | -------- | ------------------------- |
+| Tracker (per frame) | 61.9 us | 22        | 11,610 B | IoU matching + track mgmt |
+| IoU computation     | 4.1 ns  | 0         | 0 B      | Zero allocation hot path  |
 
 ## Bottleneck Analysis
 
@@ -97,12 +98,12 @@ at 100 FPS), the drop-oldest channel pattern works correctly:
 
 ## Maximum Sustainable Camera Count (Estimates)
 
-| Scenario                          | Max Cameras at 15 FPS | Limiting Factor              |
-|----------------------------------|----------------------|------------------------------|
-| Pipeline only (no ONNX)          | 100+                 | OS scheduler, GC pressure    |
-| CPU ONNX (YOLOv8n, ~50ms/frame) | ~20                  | ONNX inference throughput    |
-| CPU ONNX + shared detector pool  | ~30-40               | Pool contention + CPU cores  |
-| GPU ONNX (if available)          | ~40-60               | GPU memory + batch size      |
+| Scenario                        | Max Cameras at 15 FPS | Limiting Factor             |
+| ------------------------------- | --------------------- | --------------------------- |
+| Pipeline only (no ONNX)         | 100+                  | OS scheduler, GC pressure   |
+| CPU ONNX (YOLOv8n, ~50ms/frame) | ~20                   | ONNX inference throughput   |
+| CPU ONNX + shared detector pool | ~30-40                | Pool contention + CPU cores |
+| GPU ONNX (if available)         | ~40-60                | GPU memory + batch size     |
 
 ## Recommendations
 

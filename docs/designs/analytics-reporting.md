@@ -23,55 +23,55 @@ Analytics and Reporting provides NVR operators with structured reports on system
 
 ### 3.1 System Health Report
 
-| Metric | Description | Granularity |
-|--------|-------------|-------------|
-| CPU usage | Average, peak, and 95th percentile | Hourly / Daily |
-| Memory usage | Average and peak | Hourly / Daily |
-| Disk usage | Used, free, growth rate | Daily |
-| Disk IOPS | Read/write operations per second | Hourly |
-| Network throughput | Inbound/outbound Mbps | Hourly |
-| Server uptime | Uptime percentage and restart events | Daily / Monthly |
-| Temperature | CPU/system temperature (where available) | Hourly |
+| Metric             | Description                              | Granularity     |
+| ------------------ | ---------------------------------------- | --------------- |
+| CPU usage          | Average, peak, and 95th percentile       | Hourly / Daily  |
+| Memory usage       | Average and peak                         | Hourly / Daily  |
+| Disk usage         | Used, free, growth rate                  | Daily           |
+| Disk IOPS          | Read/write operations per second         | Hourly          |
+| Network throughput | Inbound/outbound Mbps                    | Hourly          |
+| Server uptime      | Uptime percentage and restart events     | Daily / Monthly |
+| Temperature        | CPU/system temperature (where available) | Hourly          |
 
 ### 3.2 Camera Uptime Report
 
-| Metric | Description | Granularity |
-|--------|-------------|-------------|
-| Uptime percentage | Time camera was online vs. total time | Daily / Monthly |
-| Offline incidents | Count, duration, and timestamps of outages | Per incident |
-| Mean time to recovery (MTTR) | Average time from offline to online | Monthly |
-| Recording gaps | Time ranges where recording was expected but missing | Per incident |
-| Stream quality | Average bitrate, resolution, frame rate | Daily |
+| Metric                       | Description                                          | Granularity     |
+| ---------------------------- | ---------------------------------------------------- | --------------- |
+| Uptime percentage            | Time camera was online vs. total time                | Daily / Monthly |
+| Offline incidents            | Count, duration, and timestamps of outages           | Per incident    |
+| Mean time to recovery (MTTR) | Average time from offline to online                  | Monthly         |
+| Recording gaps               | Time ranges where recording was expected but missing | Per incident    |
+| Stream quality               | Average bitrate, resolution, frame rate              | Daily           |
 
 ### 3.3 Storage Report
 
-| Metric | Description | Granularity |
-|--------|-------------|-------------|
-| Total storage used | By camera, by day | Daily |
-| Storage growth rate | GB/day trend | Weekly |
-| Retention compliance | Are recordings being retained for the configured period? | Daily |
-| Oldest recording | Per camera, oldest available recording timestamp | Daily |
-| Storage forecast | Estimated days until disk full at current growth rate | Weekly |
+| Metric               | Description                                              | Granularity |
+| -------------------- | -------------------------------------------------------- | ----------- |
+| Total storage used   | By camera, by day                                        | Daily       |
+| Storage growth rate  | GB/day trend                                             | Weekly      |
+| Retention compliance | Are recordings being retained for the configured period? | Daily       |
+| Oldest recording     | Per camera, oldest available recording timestamp         | Daily       |
+| Storage forecast     | Estimated days until disk full at current growth rate    | Weekly      |
 
 ### 3.4 User Activity Report (Cloud Portal)
 
-| Metric | Description | Granularity |
-|--------|-------------|-------------|
-| Login events | Successful and failed logins per user | Daily |
-| Active sessions | Concurrent session count over time | Hourly |
-| Playback activity | Which cameras/time ranges were viewed, by whom | Per event |
-| Configuration changes | Audit trail of settings modifications | Per event |
-| API usage | Request count by endpoint and user | Daily |
+| Metric                | Description                                    | Granularity |
+| --------------------- | ---------------------------------------------- | ----------- |
+| Login events          | Successful and failed logins per user          | Daily       |
+| Active sessions       | Concurrent session count over time             | Hourly      |
+| Playback activity     | Which cameras/time ranges were viewed, by whom | Per event   |
+| Configuration changes | Audit trail of settings modifications          | Per event   |
+| API usage             | Request count by endpoint and user             | Daily       |
 
 ### 3.5 Alert Summary Report
 
-| Metric | Description | Granularity |
-|--------|-------------|-------------|
-| Alerts by type | Count of each alert type (camera offline, storage, etc.) | Daily / Monthly |
-| Alerts by severity | Distribution of info/warning/critical | Daily / Monthly |
-| Alert response time | Time from alert to acknowledgment (if applicable) | Per alert |
-| Top alerting cameras | Cameras generating the most alerts | Monthly |
-| Alert trends | Week-over-week and month-over-month comparison | Weekly / Monthly |
+| Metric               | Description                                              | Granularity      |
+| -------------------- | -------------------------------------------------------- | ---------------- |
+| Alerts by type       | Count of each alert type (camera offline, storage, etc.) | Daily / Monthly  |
+| Alerts by severity   | Distribution of info/warning/critical                    | Daily / Monthly  |
+| Alert response time  | Time from alert to acknowledgment (if applicable)        | Per alert        |
+| Top alerting cameras | Cameras generating the most alerts                       | Monthly          |
+| Alert trends         | Week-over-week and month-over-month comparison           | Weekly / Monthly |
 
 ## 4. Scheduled Report Generation
 
@@ -106,12 +106,12 @@ Analytics and Reporting provides NVR operators with structured reports on system
 
 ### 4.2 Supported Frequencies
 
-| Frequency | Options |
-|-----------|---------|
-| Daily | Time of day |
-| Weekly | Day of week + time |
-| Monthly | Day of month + time |
-| Quarterly | Month + day + time |
+| Frequency | Options                      |
+| --------- | ---------------------------- |
+| Daily     | Time of day                  |
+| Weekly    | Day of week + time           |
+| Monthly   | Day of month + time          |
+| Quarterly | Month + day + time           |
 | On-demand | Manual trigger via API or UI |
 
 ### 4.3 Scheduling Engine
@@ -188,17 +188,17 @@ loading-dock,Loading Dock,100.00,0,0,0
 
 ### 6.1 Widget Types
 
-| Widget | Visualization | Data Source |
-|--------|--------------|-------------|
-| **Server Status** | Status indicator (green/yellow/red) | Real-time heartbeat |
-| **Camera Uptime** | Horizontal bar chart (per camera) | Aggregated from events |
-| **Storage Usage** | Donut chart (used vs. free) | Real-time disk stats |
-| **Storage Forecast** | Line chart with projection | Trend calculation |
-| **CPU/Memory Trend** | Time-series line chart | Telemetry samples |
-| **Alert Activity** | Stacked bar chart (by severity) | Alert history |
-| **Top Alerting Cameras** | Ranked list | Alert aggregation |
-| **Recording Gaps** | Timeline visualization (gantt-style) | Recording index |
-| **Active Users** | Counter with sparkline | Session data (cloud) |
+| Widget                   | Visualization                        | Data Source            |
+| ------------------------ | ------------------------------------ | ---------------------- |
+| **Server Status**        | Status indicator (green/yellow/red)  | Real-time heartbeat    |
+| **Camera Uptime**        | Horizontal bar chart (per camera)    | Aggregated from events |
+| **Storage Usage**        | Donut chart (used vs. free)          | Real-time disk stats   |
+| **Storage Forecast**     | Line chart with projection           | Trend calculation      |
+| **CPU/Memory Trend**     | Time-series line chart               | Telemetry samples      |
+| **Alert Activity**       | Stacked bar chart (by severity)      | Alert history          |
+| **Top Alerting Cameras** | Ranked list                          | Alert aggregation      |
+| **Recording Gaps**       | Timeline visualization (gantt-style) | Recording index        |
+| **Active Users**         | Counter with sparkline               | Session data (cloud)   |
 
 ### 6.2 Widget Configuration
 
@@ -277,20 +277,20 @@ Camera uptime is derived from existing camera status events in the NVR event log
 
 ## 8. API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/v1/reports` | List generated reports |
-| POST | `/v1/reports/generate` | Trigger on-demand report generation |
-| GET | `/v1/reports/:id` | Get report metadata |
-| GET | `/v1/reports/:id/download` | Download report file (PDF/CSV) |
-| DELETE | `/v1/reports/:id` | Delete a generated report |
-| GET | `/v1/reports/schedules` | List report schedules |
-| POST | `/v1/reports/schedules` | Create a report schedule |
-| PUT | `/v1/reports/schedules/:id` | Update a schedule |
-| DELETE | `/v1/reports/schedules/:id` | Delete a schedule |
-| GET | `/v1/analytics/telemetry` | Query aggregated telemetry data |
-| GET | `/v1/analytics/camera-uptime` | Query camera uptime data |
-| GET | `/v1/analytics/widgets/:type` | Get data for a specific widget type |
+| Method | Endpoint                      | Description                         |
+| ------ | ----------------------------- | ----------------------------------- |
+| GET    | `/v1/reports`                 | List generated reports              |
+| POST   | `/v1/reports/generate`        | Trigger on-demand report generation |
+| GET    | `/v1/reports/:id`             | Get report metadata                 |
+| GET    | `/v1/reports/:id/download`    | Download report file (PDF/CSV)      |
+| DELETE | `/v1/reports/:id`             | Delete a generated report           |
+| GET    | `/v1/reports/schedules`       | List report schedules               |
+| POST   | `/v1/reports/schedules`       | Create a report schedule            |
+| PUT    | `/v1/reports/schedules/:id`   | Update a schedule                   |
+| DELETE | `/v1/reports/schedules/:id`   | Delete a schedule                   |
+| GET    | `/v1/analytics/telemetry`     | Query aggregated telemetry data     |
+| GET    | `/v1/analytics/camera-uptime` | Query camera uptime data            |
+| GET    | `/v1/analytics/widgets/:type` | Get data for a specific widget type |
 
 ## 9. Open Questions
 

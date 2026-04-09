@@ -18,27 +18,30 @@ When no license is present, MediaMTX NVR operates in a free tier with limited fu
 
 ### Tier Structure
 
-| Tier | Camera Limit | Features | Use Case |
-|------|-------------|----------|----------|
-| **Community** | 4 cameras | Live view, recording, playback, ONVIF discovery, basic schedules | Home/hobbyist |
-| **Pro** | 16 cameras | Community + AI analytics, smart detection, per-camera storage quotas, schedule templates, email alerts | Prosumer / small business |
-| **Business** | 64 cameras | Pro + multi-user roles, audit logging, config backup/restore, LDAP/SSO (future), priority support | SMB / multi-site |
-| **Enterprise** | Unlimited | Business + HA clustering (future), custom integrations, SLA support, white-labeling | Large deployments |
+| Tier           | Camera Limit | Features                                                                                               | Use Case                  |
+| -------------- | ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------- |
+| **Community**  | 4 cameras    | Live view, recording, playback, ONVIF discovery, basic schedules                                       | Home/hobbyist             |
+| **Pro**        | 16 cameras   | Community + AI analytics, smart detection, per-camera storage quotas, schedule templates, email alerts | Prosumer / small business |
+| **Business**   | 64 cameras   | Pro + multi-user roles, audit logging, config backup/restore, LDAP/SSO (future), priority support      | SMB / multi-site          |
+| **Enterprise** | Unlimited    | Business + HA clustering (future), custom integrations, SLA support, white-labeling                    | Large deployments         |
 
 ### License Types
 
 **Subscription (annual)**
+
 - Tied to a calendar year from activation date
 - Includes updates released during the subscription period
 - After expiry: downgrades to Community tier after grace period
 
 **Perpetual + Maintenance**
+
 - One-time purchase for the current major version
 - Includes 1 year of updates (maintenance window)
 - After maintenance expires: continues working on installed version, no new updates
 - After major version bump: requires new license for the new major version
 
 **Site License**
+
 - Covers all instances at a single physical location
 - Keyed to a site identifier rather than machine fingerprint
 - Useful for enterprise deployments with many servers
@@ -62,7 +65,13 @@ The key decodes to a signed payload:
   "tier": "pro",
   "type": "subscription",
   "cameras": 16,
-  "features": ["ai_analytics", "smart_detection", "storage_quotas", "schedule_templates", "email_alerts"],
+  "features": [
+    "ai_analytics",
+    "smart_detection",
+    "storage_quotas",
+    "schedule_templates",
+    "email_alerts"
+  ],
   "maintenance_exp": 1775174400,
   "site_id": "",
   "fingerprint_hash": "sha256:...",
@@ -163,17 +172,19 @@ The fingerprint uniquely identifies an installation without being fragile to har
 
 **Fingerprint components (hashed together with SHA-256):**
 
-| Component | Source | Stability |
-|-----------|--------|-----------|
-| Machine ID | `/etc/machine-id` (Linux), `IOPlatformUUID` (macOS), `MachineGuid` registry key (Windows) | Stable across reboots |
-| Database ID | Random UUID generated on first DB creation, stored in `system_config` table | Stable unless DB is recreated |
+| Component   | Source                                                                                    | Stability                     |
+| ----------- | ----------------------------------------------------------------------------------------- | ----------------------------- |
+| Machine ID  | `/etc/machine-id` (Linux), `IOPlatformUUID` (macOS), `MachineGuid` registry key (Windows) | Stable across reboots         |
+| Database ID | Random UUID generated on first DB creation, stored in `system_config` table               | Stable unless DB is recreated |
 
 The fingerprint is a SHA-256 hash of these two values concatenated. Using two components means:
+
 - Copying the binary to a new machine changes the Machine ID
 - Copying the database to a new machine also changes the Machine ID
 - Reinstalling on the same machine preserves the Machine ID; the Database ID changes but the activation certificate includes a tolerance for DB recreation within 24 hours
 
 **Docker/VM considerations:**
+
 - Docker: mount a persistent volume for `/etc/machine-id` or use the Database ID as primary identifier
 - VM clones: detected by duplicate fingerprints during online validation; offline mode trusts the certificate
 
@@ -248,17 +259,17 @@ func (m *Manager) Status() LicenseStatus         // full status for UI display
 
 **Where enforcement happens:**
 
-| Check | Location | Behavior When Unlicensed |
-|-------|----------|--------------------------|
-| Camera count | `POST /api/cameras` (camera creation) | Reject with 402 + message indicating tier limit |
-| AI analytics | AI pipeline startup | Skip pipeline init, log warning |
-| Smart detection | Detection event processing | Events still recorded but not processed |
-| Storage quotas | Quota configuration API | Reject quota configuration, allow unlimited with default retention |
-| Schedule templates | Schedule template API | Reject template creation, allow basic schedules |
-| Email alerts | Alert dispatch | Log alert locally, skip email send |
-| Multi-user | User creation API | Reject non-admin user creation |
-| Audit logging | Audit log middleware | Skip audit log writes |
-| Config backup | Backup API | Reject backup/restore operations |
+| Check              | Location                              | Behavior When Unlicensed                                           |
+| ------------------ | ------------------------------------- | ------------------------------------------------------------------ |
+| Camera count       | `POST /api/cameras` (camera creation) | Reject with 402 + message indicating tier limit                    |
+| AI analytics       | AI pipeline startup                   | Skip pipeline init, log warning                                    |
+| Smart detection    | Detection event processing            | Events still recorded but not processed                            |
+| Storage quotas     | Quota configuration API               | Reject quota configuration, allow unlimited with default retention |
+| Schedule templates | Schedule template API                 | Reject template creation, allow basic schedules                    |
+| Email alerts       | Alert dispatch                        | Log alert locally, skip email send                                 |
+| Multi-user         | User creation API                     | Reject non-admin user creation                                     |
+| Audit logging      | Audit log middleware                  | Skip audit log writes                                              |
+| Config backup      | Backup API                            | Reject backup/restore operations                                   |
 
 **Enforcement is advisory at the API layer, not at the data layer.** If a camera was added while licensed and the license later expires, the camera continues to function. New cameras beyond the Community limit cannot be added. This avoids disrupting active surveillance.
 
@@ -289,15 +300,16 @@ func (n *NVR) Initialize() error {
 
 Grace periods prevent sudden service disruption when a license cannot be validated.
 
-| Scenario | Grace Period | Behavior During Grace | After Grace Expires |
-|----------|-------------|----------------------|---------------------|
-| Online validation fails (network issue) | 30 days | Full licensed functionality continues | Downgrade to Community tier |
-| Subscription expires | 14 days | Full licensed functionality continues | Downgrade to Community tier |
-| License revoked (online detection) | 7 days | Warning banner in UI, full functionality | Downgrade to Community tier |
-| Offline certificate expires | 30 days | Warning banner in UI, full functionality | Downgrade to Community tier |
-| Perpetual license + major version upgrade | 90 days | Full functionality on new version | Downgrade to Community tier on new version; old version unaffected |
+| Scenario                                  | Grace Period | Behavior During Grace                    | After Grace Expires                                                |
+| ----------------------------------------- | ------------ | ---------------------------------------- | ------------------------------------------------------------------ |
+| Online validation fails (network issue)   | 30 days      | Full licensed functionality continues    | Downgrade to Community tier                                        |
+| Subscription expires                      | 14 days      | Full licensed functionality continues    | Downgrade to Community tier                                        |
+| License revoked (online detection)        | 7 days       | Warning banner in UI, full functionality | Downgrade to Community tier                                        |
+| Offline certificate expires               | 30 days      | Warning banner in UI, full functionality | Downgrade to Community tier                                        |
+| Perpetual license + major version upgrade | 90 days      | Full functionality on new version        | Downgrade to Community tier on new version; old version unaffected |
 
 **Grace period behavior:**
+
 - Warning banner displayed in UI with countdown
 - System alert generated (email if configured)
 - Audit log entry created

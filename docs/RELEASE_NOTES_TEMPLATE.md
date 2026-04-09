@@ -51,11 +51,13 @@
    - Back up the SQLite database file.
 
 2. **Stop the running server.**
+
    ```bash
    systemctl stop mediamtx
    ```
 
 3. **Replace the binary** (or pull the new Docker image).
+
    ```bash
    # Binary install
    cp mediamtx /usr/local/bin/mediamtx
@@ -69,6 +71,7 @@
 5. **Review configuration changes.** Compare `mediamtx.yml` against the new sample config for any added or renamed keys.
 
 6. **Start the server.**
+
    ```bash
    systemctl start mediamtx
    ```
@@ -99,4 +102,4 @@ If you encounter issues:
 
 ---
 
-*Full changelog: [vX.Y-1.Z...vX.Y.Z](https://github.com/EthanFlower1/mediamtx/compare/vX.Y-1.Z...vX.Y.Z)*
+_Full changelog: [vX.Y-1.Z...vX.Y.Z](https://github.com/EthanFlower1/mediamtx/compare/vX.Y-1.Z...vX.Y.Z)_

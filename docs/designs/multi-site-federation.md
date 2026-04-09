@@ -70,20 +70,20 @@ FederationCluster
 
 ### 3.3 Inter-Site Communication
 
-| Layer | Protocol | Purpose |
-|-------|----------|---------|
-| Control plane | gRPC over mTLS | Metadata queries, federation state sync |
-| Data plane | RTSP/HLS over TLS | Live and recorded video streaming |
-| Discovery | mDNS (LAN) / Registry (WAN) | Site and camera discovery |
+| Layer         | Protocol                    | Purpose                                 |
+| ------------- | --------------------------- | --------------------------------------- |
+| Control plane | gRPC over mTLS              | Metadata queries, federation state sync |
+| Data plane    | RTSP/HLS over TLS           | Live and recorded video streaming       |
+| Discovery     | mDNS (LAN) / Registry (WAN) | Site and camera discovery               |
 
 #### Control Plane Messages
 
-| Message | Direction | Description |
-|---------|-----------|-------------|
-| `SyncCatalog` | Bidirectional | Exchange camera lists and metadata |
-| `SearchRecordings` | Request/Response | Query another site's recording index |
-| `RequestStream` | Request/Response | Initiate video stream from remote site |
-| `HealthPing` | Bidirectional | Keepalive and latency measurement |
+| Message            | Direction        | Description                            |
+| ------------------ | ---------------- | -------------------------------------- |
+| `SyncCatalog`      | Bidirectional    | Exchange camera lists and metadata     |
+| `SearchRecordings` | Request/Response | Query another site's recording index   |
+| `RequestStream`    | Request/Response | Initiate video stream from remote site |
+| `HealthPing`       | Bidirectional    | Keepalive and latency measurement      |
 
 ## 4. Site Discovery
 
@@ -173,10 +173,10 @@ Client --> Local NVR --> Remote NVR --> Video Segments
 
 ### 6.2 Direct vs. Proxied Playback
 
-| Mode | When Used | Pros | Cons |
-|------|-----------|------|------|
-| Proxied | Default; client behind NAT | Simple client config | Double bandwidth at local site |
-| Direct | Client can reach remote site | Lower latency, less local load | Requires client-to-remote connectivity |
+| Mode    | When Used                    | Pros                           | Cons                                   |
+| ------- | ---------------------------- | ------------------------------ | -------------------------------------- |
+| Proxied | Default; client behind NAT   | Simple client config           | Double bandwidth at local site         |
+| Direct  | Client can reach remote site | Lower latency, less local load | Requires client-to-remote connectivity |
 
 - The system defaults to proxied mode and falls back automatically.
 - Direct mode is offered when the client can reach the remote site's endpoint (determined by a connectivity probe).
@@ -196,12 +196,12 @@ Client --> Local NVR --> Remote NVR --> Video Segments
 
 ### 7.2 Bandwidth Controls
 
-| Control | Description | Default |
-|---------|-------------|---------|
-| `max_wan_bitrate` | Per-site outbound cap for federated streams | 50 Mbps |
-| `max_concurrent_remote_streams` | Limit simultaneous cross-site playbacks | 4 |
-| `catalog_sync_interval` | How often camera catalogs are exchanged | 5 minutes |
-| `prefer_substream` | Use secondary stream for remote playback | true |
+| Control                         | Description                                 | Default   |
+| ------------------------------- | ------------------------------------------- | --------- |
+| `max_wan_bitrate`               | Per-site outbound cap for federated streams | 50 Mbps   |
+| `max_concurrent_remote_streams` | Limit simultaneous cross-site playbacks     | 4         |
+| `catalog_sync_interval`         | How often camera catalogs are exchanged     | 5 minutes |
+| `prefer_substream`              | Use secondary stream for remote playback    | true      |
 
 ### 7.3 Bandwidth Estimation
 

@@ -17,13 +17,13 @@ New file with custom SOAP against the Media2 service (`ver20/media/wsdl` / `tr2`
 
 #### Public Functions
 
-| Function | SOAP Operation | Returns |
-|----------|---------------|---------|
-| `GetOSDs(xaddr, user, pass, configToken)` | `tr2:GetOSDs` | `[]OSD, error` |
-| `GetOSDOptions(xaddr, user, pass, configToken)` | `tr2:GetOSDOptions` | `*OSDOptions, error` |
-| `CreateOSD(xaddr, user, pass, osd OSDConfig)` | `tr2:CreateOSD` | `string (token), error` |
-| `SetOSD(xaddr, user, pass, osd OSDConfig)` | `tr2:SetOSD` | `error` |
-| `DeleteOSD(xaddr, user, pass, token)` | `tr2:DeleteOSD` | `error` |
+| Function                                        | SOAP Operation      | Returns                 |
+| ----------------------------------------------- | ------------------- | ----------------------- |
+| `GetOSDs(xaddr, user, pass, configToken)`       | `tr2:GetOSDs`       | `[]OSD, error`          |
+| `GetOSDOptions(xaddr, user, pass, configToken)` | `tr2:GetOSDOptions` | `*OSDOptions, error`    |
+| `CreateOSD(xaddr, user, pass, osd OSDConfig)`   | `tr2:CreateOSD`     | `string (token), error` |
+| `SetOSD(xaddr, user, pass, osd OSDConfig)`      | `tr2:SetOSD`        | `error`                 |
+| `DeleteOSD(xaddr, user, pass, token)`           | `tr2:DeleteOSD`     | `error`                 |
 
 #### SOAP Helper
 
@@ -99,6 +99,7 @@ DELETE /cameras/:id/osd/:token       → DeleteOSD
 #### Handler Pattern
 
 Each handler in `cameras.go` follows the established pattern:
+
 1. Get camera from DB by `:id`
 2. Check ONVIF endpoint exists (400 if not)
 3. Decrypt password via `h.decryptPassword()`
@@ -109,17 +110,21 @@ Each handler in `cameras.go` follows the established pattern:
 #### Request/Response Examples
 
 **GET /cameras/:id/osd**
+
 ```json
-[{
-  "token": "OSD_1",
-  "video_source_token": "VS_1",
-  "type": "Text",
-  "position": {"type": "LowerLeft"},
-  "text_string": {"type": "DateAndTime", "is_persistent_text": true}
-}]
+[
+  {
+    "token": "OSD_1",
+    "video_source_token": "VS_1",
+    "type": "Text",
+    "position": { "type": "LowerLeft" },
+    "text_string": { "type": "DateAndTime", "is_persistent_text": true }
+  }
+]
 ```
 
 **POST /cameras/:id/osd**
+
 ```json
 // Request
 {
@@ -133,6 +138,7 @@ Each handler in `cameras.go` follows the established pattern:
 ```
 
 **PUT /cameras/:id/osd/:token**
+
 ```json
 // Request
 {
@@ -147,9 +153,10 @@ Each handler in `cameras.go` follows the established pattern:
 ```
 
 **DELETE /cameras/:id/osd/:token**
+
 ```json
 // Response 200
-{"message": "OSD deleted"}
+{ "message": "OSD deleted" }
 ```
 
 #### Validation (Create/Set)
@@ -162,18 +169,18 @@ Each handler in `cameras.go` follows the established pattern:
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `internal/nvr/onvif/osd.go` | **New** — SOAP types, helpers, 5 public functions |
-| `internal/nvr/api/cameras.go` | Add 5 handler methods |
-| `internal/nvr/api/router.go` | Register 5 routes |
+| File                          | Change                                            |
+| ----------------------------- | ------------------------------------------------- |
+| `internal/nvr/onvif/osd.go`   | **New** — SOAP types, helpers, 5 public functions |
+| `internal/nvr/api/cameras.go` | Add 5 handler methods                             |
+| `internal/nvr/api/router.go`  | Register 5 routes                                 |
 
 ## Error Handling
 
-| Condition | HTTP Status |
-|-----------|-------------|
-| Camera not found | 404 |
-| No ONVIF endpoint | 400 |
-| Media2 not supported (ErrOSDNotSupported) | 501 |
-| Device unreachable / SOAP fault | 503 |
-| Invalid request body / validation failure | 400 |
+| Condition                                 | HTTP Status |
+| ----------------------------------------- | ----------- |
+| Camera not found                          | 404         |
+| No ONVIF endpoint                         | 400         |
+| Media2 not supported (ErrOSDNotSupported) | 501         |
+| Device unreachable / SOAP fault           | 503         |
+| Invalid request body / validation failure | 400         |

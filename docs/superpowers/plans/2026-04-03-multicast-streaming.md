@@ -12,20 +12,21 @@
 
 ## File Map
 
-| Action | File | Responsibility |
-|--------|------|----------------|
-| Create | `internal/nvr/onvif/multicast.go` | ONVIF SOAP functions: GetStreamUriMulticast, GetMulticastConfig, SetMulticastConfig |
-| Create | `internal/nvr/onvif/multicast_test.go` | Unit tests for multicast validation and SOAP parsing |
-| Modify | `internal/nvr/db/migrations.go` | Migration 31: add multicast columns to cameras table |
-| Modify | `internal/nvr/db/cameras.go` | Add multicast fields to Camera struct and update scan/update queries |
-| Modify | `internal/nvr/api/cameras.go` | Add GetMulticast and UpdateMulticast handlers |
-| Modify | `internal/nvr/api/router.go` | Register GET/PUT `/cameras/:id/multicast` routes |
+| Action | File                                   | Responsibility                                                                      |
+| ------ | -------------------------------------- | ----------------------------------------------------------------------------------- |
+| Create | `internal/nvr/onvif/multicast.go`      | ONVIF SOAP functions: GetStreamUriMulticast, GetMulticastConfig, SetMulticastConfig |
+| Create | `internal/nvr/onvif/multicast_test.go` | Unit tests for multicast validation and SOAP parsing                                |
+| Modify | `internal/nvr/db/migrations.go`        | Migration 31: add multicast columns to cameras table                                |
+| Modify | `internal/nvr/db/cameras.go`           | Add multicast fields to Camera struct and update scan/update queries                |
+| Modify | `internal/nvr/api/cameras.go`          | Add GetMulticast and UpdateMulticast handlers                                       |
+| Modify | `internal/nvr/api/router.go`           | Register GET/PUT `/cameras/:id/multicast` routes                                    |
 
 ---
 
 ### Task 1: ONVIF Multicast SOAP Functions
 
 **Files:**
+
 - Create: `internal/nvr/onvif/multicast.go`
 - Create: `internal/nvr/onvif/multicast_test.go`
 
@@ -551,6 +552,7 @@ git commit -m "feat(onvif): add multicast SOAP functions and validation"
 ### Task 2: Database Migration and Camera Model
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go` (after line 454, append migration 31)
 - Modify: `internal/nvr/db/cameras.go` (Camera struct, scan, update queries)
 
@@ -642,6 +644,7 @@ git commit -m "feat(db): add multicast config columns to cameras table"
 ### Task 3: API Endpoints — GetMulticast and UpdateMulticast
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (add handler methods)
 - Modify: `internal/nvr/api/router.go` (register routes)
 
@@ -849,6 +852,7 @@ git commit -m "feat(api): add GET/PUT multicast endpoints for per-camera multica
 ### Task 4: Stream Source Switching on Refresh
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (RefreshCapabilities handler, around line 826)
 
 When a camera is refreshed and multicast is enabled, the stream source should use the multicast URI instead of the unicast URI.
@@ -858,6 +862,7 @@ When a camera is refreshed and multicast is enabled, the stream source should us
 In `internal/nvr/api/cameras.go`, in the `RefreshCapabilities` handler, after the streams are recreated (after line 826), add multicast-aware source selection:
 
 Find this block (around line 828):
+
 ```go
 	nvrLogInfo("cameras", fmt.Sprintf("Refreshed capabilities for camera %q: %d profiles found, streams recreated", cam.Name, len(result.Profiles)))
 ```
@@ -921,6 +926,7 @@ Expected: PASS (or pre-existing failures only)
 - [ ] **Step 4: Commit any remaining fixes**
 
 If any test fixes were needed, commit them:
+
 ```bash
 git add -A
 git commit -m "fix: address test issues from multicast implementation"

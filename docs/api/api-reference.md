@@ -31,15 +31,15 @@ All endpoints return errors in a consistent JSON format:
 
 Common HTTP status codes:
 
-| Code | Meaning |
-|------|---------|
+| Code | Meaning                                                  |
+| ---- | -------------------------------------------------------- |
 | 400  | Bad request -- malformed JSON or missing required fields |
-| 401  | Unauthorized -- missing or invalid JWT token |
-| 403  | Forbidden -- insufficient permissions |
-| 404  | Not found -- resource does not exist |
-| 409  | Conflict -- resource already exists |
-| 429  | Too many requests -- rate limit exceeded |
-| 500  | Internal server error |
+| 401  | Unauthorized -- missing or invalid JWT token             |
+| 403  | Forbidden -- insufficient permissions                    |
+| 404  | Not found -- resource does not exist                     |
+| 409  | Conflict -- resource already exists                      |
+| 429  | Too many requests -- rate limit exceeded                 |
+| 500  | Internal server error                                    |
 
 ---
 
@@ -112,6 +112,7 @@ Common HTTP status codes:
 Log in with username and password. Returns JWT access and refresh tokens.
 
 **Request:**
+
 ```json
 {
   "username": "admin",
@@ -120,6 +121,7 @@ Log in with username and password. Returns JWT access and refresh tokens.
 ```
 
 **Response (200):**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJSUzI1NiIs...",
@@ -135,6 +137,7 @@ Log in with username and password. Returns JWT access and refresh tokens.
 Create the initial admin user during first-time setup.
 
 **Request:**
+
 ```json
 {
   "username": "admin",
@@ -143,6 +146,7 @@ Create the initial admin user during first-time setup.
 ```
 
 **Response (201):**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJSUzI1NiIs...",
@@ -157,6 +161,7 @@ Create the initial admin user during first-time setup.
 Exchange a refresh token for a new access token.
 
 **Request:**
+
 ```json
 {
   "refreshToken": "eyJhbGciOiJSUzI1NiIs..."
@@ -164,6 +169,7 @@ Exchange a refresh token for a new access token.
 ```
 
 **Response (200):**
+
 ```json
 {
   "accessToken": "eyJhbGciOiJSUzI1NiIs...",
@@ -178,6 +184,7 @@ Exchange a refresh token for a new access token.
 Revoke a refresh token.
 
 **Request:**
+
 ```json
 {
   "refreshToken": "eyJhbGciOiJSUzI1NiIs..."
@@ -193,6 +200,7 @@ Revoke a refresh token.
 Returns the JSON Web Key Set for token verification.
 
 **Response (200):**
+
 ```json
 {
   "keys": [
@@ -215,6 +223,7 @@ Returns the JSON Web Key Set for token verification.
 Change the authenticated user's password.
 
 **Request:**
+
 ```json
 {
   "currentPassword": "oldpass",
@@ -235,6 +244,7 @@ Change the authenticated user's password.
 List all cameras.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -257,6 +267,7 @@ List all cameras.
 Add a new camera.
 
 **Request:**
+
 ```json
 {
   "name": "Front Door",
@@ -270,6 +281,7 @@ Add a new camera.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "cam-abc123",
@@ -285,6 +297,7 @@ Add a new camera.
 Add a multi-channel camera (e.g., NVR with multiple video sources).
 
 **Request:**
+
 ```json
 {
   "name": "NVR Unit",
@@ -297,6 +310,7 @@ Add a multi-channel camera (e.g., NVR with multiple video sources).
 ```
 
 **Response (201):**
+
 ```json
 [
   { "id": "cam-ch1", "name": "NVR Unit - Channel 1", "channel": 1 },
@@ -311,6 +325,7 @@ Add a multi-channel camera (e.g., NVR with multiple video sources).
 Get a single camera by ID.
 
 **Response (200):**
+
 ```json
 {
   "id": "cam-abc123",
@@ -328,6 +343,7 @@ Get a single camera by ID.
 Update a camera's configuration.
 
 **Request:**
+
 ```json
 {
   "name": "Front Entrance",
@@ -336,6 +352,7 @@ Update a camera's configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "id": "cam-abc123",
@@ -362,6 +379,7 @@ Delete a camera and its associated configuration.
 Start an ONVIF camera discovery scan on the local network. Returns immediately; poll status via the status endpoint.
 
 **Response (202):**
+
 ```json
 {
   "message": "discovery started"
@@ -375,6 +393,7 @@ Start an ONVIF camera discovery scan on the local network. Returns immediately; 
 Get the status of a running discovery scan.
 
 **Response (200):**
+
 ```json
 {
   "running": true,
@@ -389,6 +408,7 @@ Get the status of a running discovery scan.
 Get the results from the most recent discovery scan.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -407,6 +427,7 @@ Get the results from the most recent discovery scan.
 Probe a specific ONVIF device for its capabilities and streams.
 
 **Request:**
+
 ```json
 {
   "host": "192.168.1.100",
@@ -417,6 +438,7 @@ Probe a specific ONVIF device for its capabilities and streams.
 ```
 
 **Response (200):**
+
 ```json
 {
   "name": "HIKVISION DS-2CD2143G2-I",
@@ -433,6 +455,7 @@ Probe a specific ONVIF device for its capabilities and streams.
 Refresh a camera's ONVIF capabilities from the device.
 
 **Response (200):**
+
 ```json
 {
   "message": "capabilities refreshed"
@@ -446,6 +469,7 @@ Refresh a camera's ONVIF capabilities from the device.
 Rotate the stored ONVIF credentials for a camera.
 
 **Request:**
+
 ```json
 {
   "username": "admin",
@@ -454,6 +478,7 @@ Rotate the stored ONVIF credentials for a camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "credentials updated"
@@ -471,6 +496,7 @@ Rotate the stored ONVIF credentials for a camera.
 Send a PTZ (Pan-Tilt-Zoom) command to a camera.
 
 **Request:**
+
 ```json
 {
   "action": "continuousMove",
@@ -481,6 +507,7 @@ Send a PTZ (Pan-Tilt-Zoom) command to a camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "ok"
@@ -494,6 +521,7 @@ Send a PTZ (Pan-Tilt-Zoom) command to a camera.
 List PTZ presets configured on the camera.
 
 **Response (200):**
+
 ```json
 [
   { "token": "1", "name": "Home" },
@@ -508,6 +536,7 @@ List PTZ presets configured on the camera.
 Get PTZ capability details for a camera.
 
 **Response (200):**
+
 ```json
 {
   "absoluteMove": true,
@@ -525,6 +554,7 @@ Get PTZ capability details for a camera.
 Get current PTZ position and move status.
 
 **Response (200):**
+
 ```json
 {
   "position": { "pan": 0.0, "tilt": 0.0, "zoom": 1.0 },
@@ -539,6 +569,7 @@ Get current PTZ position and move status.
 Get current imaging settings (brightness, contrast, etc.) for a camera.
 
 **Response (200):**
+
 ```json
 {
   "brightness": 50.0,
@@ -556,6 +587,7 @@ Get current imaging settings (brightness, contrast, etc.) for a camera.
 Update imaging settings on the camera.
 
 **Request:**
+
 ```json
 {
   "brightness": 60.0,
@@ -564,6 +596,7 @@ Update imaging settings on the camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "settings updated"
@@ -577,6 +610,7 @@ Update imaging settings on the camera.
 Get available imaging setting ranges and options.
 
 **Response (200):**
+
 ```json
 {
   "brightness": { "min": 0, "max": 100 },
@@ -591,6 +625,7 @@ Get available imaging setting ranges and options.
 Get the current imaging status from the camera.
 
 **Response (200):**
+
 ```json
 {
   "focusStatus": { "position": 0.5, "moveStatus": "IDLE" }
@@ -604,6 +639,7 @@ Get the current imaging status from the camera.
 Get available focus move options.
 
 **Response (200):**
+
 ```json
 {
   "absolute": { "min": 0.0, "max": 1.0 },
@@ -619,6 +655,7 @@ Get available focus move options.
 Move the camera focus.
 
 **Request:**
+
 ```json
 {
   "absolute": { "position": 0.5, "speed": 0.5 }
@@ -626,6 +663,7 @@ Move the camera focus.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "ok"
@@ -639,6 +677,7 @@ Move the camera focus.
 Stop an in-progress focus move.
 
 **Response (200):**
+
 ```json
 {
   "message": "ok"
@@ -652,6 +691,7 @@ Stop an in-progress focus move.
 Update the retention period for a camera's recordings.
 
 **Request:**
+
 ```json
 {
   "retentionDays": 60
@@ -659,6 +699,7 @@ Update the retention period for a camera's recordings.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "retention updated"
@@ -672,6 +713,7 @@ Update the retention period for a camera's recordings.
 Get an estimated storage usage for a camera based on current settings.
 
 **Response (200):**
+
 ```json
 {
   "estimatedDailyGB": 12.5,
@@ -687,6 +729,7 @@ Get an estimated storage usage for a camera based on current settings.
 Update the motion detection timeout for a camera.
 
 **Request:**
+
 ```json
 {
   "motionTimeoutSec": 30
@@ -694,6 +737,7 @@ Update the motion detection timeout for a camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "motion timeout updated"
@@ -711,10 +755,19 @@ Update the motion detection timeout for a camera.
 List ONVIF media profiles for a camera.
 
 **Response (200):**
+
 ```json
 [
-  { "token": "mainStream", "name": "Main Stream", "videoSourceToken": "V_SRC_000" },
-  { "token": "subStream", "name": "Sub Stream", "videoSourceToken": "V_SRC_000" }
+  {
+    "token": "mainStream",
+    "name": "Main Stream",
+    "videoSourceToken": "V_SRC_000"
+  },
+  {
+    "token": "subStream",
+    "name": "Sub Stream",
+    "videoSourceToken": "V_SRC_000"
+  }
 ]
 ```
 
@@ -725,6 +778,7 @@ List ONVIF media profiles for a camera.
 Create a new media profile on the camera.
 
 **Request:**
+
 ```json
 {
   "name": "Custom Profile"
@@ -732,6 +786,7 @@ Create a new media profile on the camera.
 ```
 
 **Response (201):**
+
 ```json
 {
   "token": "profile_3",
@@ -754,6 +809,7 @@ Delete a media profile from the camera.
 List available video sources on the camera.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -771,6 +827,7 @@ List available video sources on the camera.
 Get the video encoder configuration for a specific profile token.
 
 **Response (200):**
+
 ```json
 {
   "token": "V_ENC_001",
@@ -789,6 +846,7 @@ Get the video encoder configuration for a specific profile token.
 Update the video encoder configuration.
 
 **Request:**
+
 ```json
 {
   "resolution": { "width": 1920, "height": 1080 },
@@ -798,6 +856,7 @@ Update the video encoder configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "encoder updated"
@@ -811,6 +870,7 @@ Update the video encoder configuration.
 Get available video encoder configuration options (supported resolutions, bitrate ranges, etc.).
 
 **Response (200):**
+
 ```json
 {
   "resolutions": [
@@ -833,6 +893,7 @@ Get available video encoder configuration options (supported resolutions, bitrat
 Get the multicast streaming configuration for a camera.
 
 **Response (200):**
+
 ```json
 {
   "enabled": false,
@@ -849,6 +910,7 @@ Get the multicast streaming configuration for a camera.
 Update the multicast streaming configuration.
 
 **Request:**
+
 ```json
 {
   "enabled": true,
@@ -859,6 +921,7 @@ Update the multicast streaming configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "multicast updated"
@@ -876,6 +939,7 @@ Update the multicast streaming configuration.
 Create a Media2 profile on the camera.
 
 **Request:**
+
 ```json
 {
   "name": "Media2 Profile"
@@ -883,6 +947,7 @@ Create a Media2 profile on the camera.
 ```
 
 **Response (201):**
+
 ```json
 {
   "token": "m2_profile_1",
@@ -905,6 +970,7 @@ Delete a Media2 profile.
 Add a configuration to a Media2 profile.
 
 **Request:**
+
 ```json
 {
   "type": "VideoEncoder",
@@ -913,6 +979,7 @@ Add a configuration to a Media2 profile.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "configuration added"
@@ -926,6 +993,7 @@ Add a configuration to a Media2 profile.
 Remove a configuration from a Media2 profile.
 
 **Request:**
+
 ```json
 {
   "type": "VideoEncoder",
@@ -934,6 +1002,7 @@ Remove a configuration from a Media2 profile.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "configuration removed"
@@ -947,10 +1016,9 @@ Remove a configuration from a Media2 profile.
 List video source configurations (Media2).
 
 **Response (200):**
+
 ```json
-[
-  { "token": "VSC_001", "sourceToken": "V_SRC_000", "name": "Main Source" }
-]
+[{ "token": "VSC_001", "sourceToken": "V_SRC_000", "name": "Main Source" }]
 ```
 
 ### PUT `/cameras/:id/media2/video-source-configs/:token`
@@ -960,6 +1028,7 @@ List video source configurations (Media2).
 Update a video source configuration.
 
 **Request:**
+
 ```json
 {
   "bounds": { "x": 0, "y": 0, "width": 1920, "height": 1080 }
@@ -967,6 +1036,7 @@ Update a video source configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "video source config updated"
@@ -980,6 +1050,7 @@ Update a video source configuration.
 Get options for a video source configuration.
 
 **Response (200):**
+
 ```json
 {
   "maxWidth": 2560,
@@ -994,10 +1065,9 @@ Get options for a video source configuration.
 List audio source configurations (Media2).
 
 **Response (200):**
+
 ```json
-[
-  { "token": "ASC_001", "sourceToken": "A_SRC_000", "name": "Microphone" }
-]
+[{ "token": "ASC_001", "sourceToken": "A_SRC_000", "name": "Microphone" }]
 ```
 
 ### PUT `/cameras/:id/media2/audio-source-configs/:token`
@@ -1007,6 +1077,7 @@ List audio source configurations (Media2).
 Update an audio source configuration.
 
 **Response (200):**
+
 ```json
 {
   "message": "audio source config updated"
@@ -1024,6 +1095,7 @@ Update an audio source configuration.
 Get ONVIF device information (manufacturer, model, firmware, serial number).
 
 **Response (200):**
+
 ```json
 {
   "manufacturer": "HIKVISION",
@@ -1041,10 +1113,18 @@ Get ONVIF device information (manufacturer, model, firmware, serial number).
 Get the list of ONVIF services supported by the camera.
 
 **Response (200):**
+
 ```json
 [
-  { "namespace": "http://www.onvif.org/ver10/device/wsdl", "xaddr": "http://192.168.1.100/onvif/device_service", "version": { "major": 17, "minor": 6 } },
-  { "namespace": "http://www.onvif.org/ver10/media/wsdl", "xaddr": "http://192.168.1.100/onvif/Media" }
+  {
+    "namespace": "http://www.onvif.org/ver10/device/wsdl",
+    "xaddr": "http://192.168.1.100/onvif/device_service",
+    "version": { "major": 17, "minor": 6 }
+  },
+  {
+    "namespace": "http://www.onvif.org/ver10/media/wsdl",
+    "xaddr": "http://192.168.1.100/onvif/Media"
+  }
 ]
 ```
 
@@ -1059,6 +1139,7 @@ Get the list of ONVIF services supported by the camera.
 Get the device date/time configuration.
 
 **Response (200):**
+
 ```json
 {
   "dateTimeType": "NTP",
@@ -1075,6 +1156,7 @@ Get the device date/time configuration.
 Set the device date/time.
 
 **Request:**
+
 ```json
 {
   "dateTimeType": "Manual",
@@ -1083,6 +1165,7 @@ Set the device date/time.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "datetime updated"
@@ -1096,6 +1179,7 @@ Set the device date/time.
 Get the device hostname.
 
 **Response (200):**
+
 ```json
 {
   "name": "IPCAM-FRONT"
@@ -1109,6 +1193,7 @@ Get the device hostname.
 Set the device hostname.
 
 **Request:**
+
 ```json
 {
   "name": "IPCAM-ENTRANCE"
@@ -1116,6 +1201,7 @@ Set the device hostname.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "hostname updated"
@@ -1129,6 +1215,7 @@ Set the device hostname.
 Reboot the camera device.
 
 **Response (200):**
+
 ```json
 {
   "message": "reboot initiated"
@@ -1142,6 +1229,7 @@ Reboot the camera device.
 Get ONVIF scopes from the device.
 
 **Response (200):**
+
 ```json
 {
   "scopes": [
@@ -1158,6 +1246,7 @@ Get ONVIF scopes from the device.
 Set (replace) device scopes.
 
 **Request:**
+
 ```json
 {
   "scopes": ["onvif://www.onvif.org/name/CustomScope"]
@@ -1165,6 +1254,7 @@ Set (replace) device scopes.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "scopes updated"
@@ -1178,6 +1268,7 @@ Set (replace) device scopes.
 Add scopes to the device.
 
 **Request:**
+
 ```json
 {
   "scopes": ["onvif://www.onvif.org/location/building1"]
@@ -1185,6 +1276,7 @@ Add scopes to the device.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "scopes added"
@@ -1198,6 +1290,7 @@ Add scopes to the device.
 Remove scopes from the device.
 
 **Request:**
+
 ```json
 {
   "scopes": ["onvif://www.onvif.org/location/building1"]
@@ -1205,6 +1298,7 @@ Remove scopes from the device.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "scopes removed"
@@ -1218,6 +1312,7 @@ Remove scopes from the device.
 Get the device's ONVIF discovery mode.
 
 **Response (200):**
+
 ```json
 {
   "discoveryMode": "Discoverable"
@@ -1231,6 +1326,7 @@ Get the device's ONVIF discovery mode.
 Set the device's discovery mode.
 
 **Request:**
+
 ```json
 {
   "discoveryMode": "NonDiscoverable"
@@ -1238,6 +1334,7 @@ Set the device's discovery mode.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "discovery mode updated"
@@ -1251,6 +1348,7 @@ Set the device's discovery mode.
 Retrieve the device system log.
 
 **Response (200):**
+
 ```json
 {
   "log": "2025-06-15 12:00:00 System started\n..."
@@ -1264,6 +1362,7 @@ Retrieve the device system log.
 Get device support information.
 
 **Response (200):**
+
 ```json
 {
   "info": "Manufacturer support data..."
@@ -1277,6 +1376,7 @@ Get device support information.
 List network interfaces on the device.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -1294,6 +1394,7 @@ List network interfaces on the device.
 Update a network interface configuration on the device.
 
 **Request:**
+
 ```json
 {
   "ipv4": { "address": "192.168.1.101", "prefixLength": 24, "dhcp": false }
@@ -1301,6 +1402,7 @@ Update a network interface configuration on the device.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "interface updated"
@@ -1314,6 +1416,7 @@ Update a network interface configuration on the device.
 Get network protocols configuration from the device.
 
 **Response (200):**
+
 ```json
 [
   { "name": "HTTP", "enabled": true, "port": 80 },
@@ -1328,6 +1431,7 @@ Get network protocols configuration from the device.
 Set network protocols on the device.
 
 **Response (200):**
+
 ```json
 {
   "message": "protocols updated"
@@ -1341,6 +1445,7 @@ Set network protocols on the device.
 Get DNS configuration from the device.
 
 **Response (200):**
+
 ```json
 {
   "fromDHCP": false,
@@ -1356,6 +1461,7 @@ Get DNS configuration from the device.
 Set DNS configuration on the device.
 
 **Response (200):**
+
 ```json
 {
   "message": "dns updated"
@@ -1369,6 +1475,7 @@ Set DNS configuration on the device.
 Get NTP configuration from the device.
 
 **Response (200):**
+
 ```json
 {
   "fromDHCP": false,
@@ -1383,6 +1490,7 @@ Get NTP configuration from the device.
 Set NTP configuration on the device.
 
 **Response (200):**
+
 ```json
 {
   "message": "ntp updated"
@@ -1396,6 +1504,7 @@ Set NTP configuration on the device.
 Get the default gateway configuration.
 
 **Response (200):**
+
 ```json
 {
   "ipv4Address": "192.168.1.1"
@@ -1409,6 +1518,7 @@ Get the default gateway configuration.
 Set the default gateway.
 
 **Request:**
+
 ```json
 {
   "ipv4Address": "192.168.1.1"
@@ -1416,6 +1526,7 @@ Set the default gateway.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "gateway updated"
@@ -1429,10 +1540,9 @@ Set the default gateway.
 List user accounts on the camera device.
 
 **Response (200):**
+
 ```json
-[
-  { "username": "admin", "level": "Administrator" }
-]
+[{ "username": "admin", "level": "Administrator" }]
 ```
 
 ### POST `/cameras/:id/device/users`
@@ -1442,6 +1552,7 @@ List user accounts on the camera device.
 Create a user account on the camera device.
 
 **Request:**
+
 ```json
 {
   "username": "operator",
@@ -1451,6 +1562,7 @@ Create a user account on the camera device.
 ```
 
 **Response (201):**
+
 ```json
 {
   "message": "user created"
@@ -1464,6 +1576,7 @@ Create a user account on the camera device.
 Update a user account on the camera device.
 
 **Request:**
+
 ```json
 {
   "password": "newpass",
@@ -1472,6 +1585,7 @@ Update a user account on the camera device.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "user updated"
@@ -1497,9 +1611,13 @@ Delete a user account from the camera device.
 List relay outputs available on the camera.
 
 **Response (200):**
+
 ```json
 [
-  { "token": "relay1", "properties": { "mode": "Bistable", "idleState": "open" } }
+  {
+    "token": "relay1",
+    "properties": { "mode": "Bistable", "idleState": "open" }
+  }
 ]
 ```
 
@@ -1510,6 +1628,7 @@ List relay outputs available on the camera.
 Set the state of a relay output (trigger alarm output, gate, etc.).
 
 **Request:**
+
 ```json
 {
   "logicalState": "active"
@@ -1517,6 +1636,7 @@ Set the state of a relay output (trigger alarm output, gate, etc.).
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "relay state set"
@@ -1534,6 +1654,7 @@ Set the state of a relay output (trigger alarm output, gate, etc.).
 Get audio capabilities of the camera.
 
 **Response (200):**
+
 ```json
 {
   "inputSupported": true,
@@ -1549,10 +1670,9 @@ Get audio capabilities of the camera.
 List available audio sources on the camera.
 
 **Response (200):**
+
 ```json
-[
-  { "token": "A_SRC_000", "channels": 1 }
-]
+[{ "token": "A_SRC_000", "channels": 1 }]
 ```
 
 ### GET `/cameras/:id/audio/source-configs`
@@ -1562,9 +1682,15 @@ List available audio sources on the camera.
 List audio source configurations.
 
 **Response (200):**
+
 ```json
 [
-  { "token": "ASC_001", "name": "Microphone", "sourceToken": "A_SRC_000", "useCount": 1 }
+  {
+    "token": "ASC_001",
+    "name": "Microphone",
+    "sourceToken": "A_SRC_000",
+    "useCount": 1
+  }
 ]
 ```
 
@@ -1575,10 +1701,9 @@ List audio source configurations.
 List audio source configurations compatible with a specific profile.
 
 **Response (200):**
+
 ```json
-[
-  { "token": "ASC_001", "name": "Microphone" }
-]
+[{ "token": "ASC_001", "name": "Microphone" }]
 ```
 
 ### GET `/cameras/:id/audio/source-configs/:token`
@@ -1588,6 +1713,7 @@ List audio source configurations compatible with a specific profile.
 Get a specific audio source configuration.
 
 **Response (200):**
+
 ```json
 {
   "token": "ASC_001",
@@ -1603,6 +1729,7 @@ Get a specific audio source configuration.
 Update an audio source configuration.
 
 **Response (200):**
+
 ```json
 {
   "message": "audio source config updated"
@@ -1616,6 +1743,7 @@ Update an audio source configuration.
 Get available options for an audio source configuration.
 
 **Response (200):**
+
 ```json
 {
   "inputTokens": ["A_SRC_000"],
@@ -1630,6 +1758,7 @@ Get available options for an audio source configuration.
 Add an audio source configuration to a profile.
 
 **Request:**
+
 ```json
 {
   "profileToken": "mainStream",
@@ -1638,6 +1767,7 @@ Add an audio source configuration to a profile.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "audio source added to profile"
@@ -1651,6 +1781,7 @@ Add an audio source configuration to a profile.
 Remove an audio source configuration from a profile.
 
 **Request:**
+
 ```json
 {
   "profileToken": "mainStream",
@@ -1659,6 +1790,7 @@ Remove an audio source configuration from a profile.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "audio source removed from profile"
@@ -1684,6 +1816,7 @@ Open a WebSocket connection for two-way audio (talk-back) with the camera.
 Get backchannel audio capabilities and status.
 
 **Response (200):**
+
 ```json
 {
   "supported": true,
@@ -1700,10 +1833,9 @@ Get backchannel audio capabilities and status.
 List audio outputs on the camera.
 
 **Response (200):**
+
 ```json
-[
-  { "token": "A_OUT_000", "name": "Speaker" }
-]
+[{ "token": "A_OUT_000", "name": "Speaker" }]
 ```
 
 ### GET `/cameras/:id/audio/output-configs`
@@ -1713,10 +1845,9 @@ List audio outputs on the camera.
 List audio output configurations.
 
 **Response (200):**
+
 ```json
-[
-  { "token": "AOC_001", "name": "Speaker Output", "outputToken": "A_OUT_000" }
-]
+[{ "token": "AOC_001", "name": "Speaker Output", "outputToken": "A_OUT_000" }]
 ```
 
 ### PUT `/cameras/:id/audio/output-configs/:token`
@@ -1726,6 +1857,7 @@ List audio output configurations.
 Update an audio output configuration.
 
 **Response (200):**
+
 ```json
 {
   "message": "audio output config updated"
@@ -1739,10 +1871,9 @@ Update an audio output configuration.
 List audio decoder configurations.
 
 **Response (200):**
+
 ```json
-[
-  { "token": "ADC_001", "name": "G711 Decoder" }
-]
+[{ "token": "ADC_001", "name": "G711 Decoder" }]
 ```
 
 ### PUT `/cameras/:id/audio/decoder-configs/:token`
@@ -1752,6 +1883,7 @@ List audio decoder configurations.
 Update an audio decoder configuration.
 
 **Response (200):**
+
 ```json
 {
   "message": "decoder config updated"
@@ -1765,6 +1897,7 @@ Update an audio decoder configuration.
 Get options for an audio decoder configuration.
 
 **Response (200):**
+
 ```json
 {
   "encodings": ["G711", "AAC", "PCM"]
@@ -1784,6 +1917,7 @@ List recordings stored on the camera's SD card (ONVIF Profile G).
 **Query parameters:** `start`, `end` (ISO 8601 timestamps)
 
 **Response (200):**
+
 ```json
 [
   {
@@ -1804,6 +1938,7 @@ Get a playback URI for an edge recording.
 **Query parameters:** `recordingToken`, `start`, `end`
 
 **Response (200):**
+
 ```json
 {
   "uri": "rtsp://192.168.1.100:554/playback?token=rec001"
@@ -1817,6 +1952,7 @@ Get a playback URI for an edge recording.
 Start a replay session for edge playback.
 
 **Request:**
+
 ```json
 {
   "recordingToken": "rec001"
@@ -1824,6 +1960,7 @@ Start a replay session for edge playback.
 ```
 
 **Response (200):**
+
 ```json
 {
   "sessionId": "session-abc",
@@ -1838,6 +1975,7 @@ Start a replay session for edge playback.
 Import a recording from the camera's SD card to the NVR.
 
 **Request:**
+
 ```json
 {
   "recordingToken": "rec001",
@@ -1847,6 +1985,7 @@ Import a recording from the camera's SD card to the NVR.
 ```
 
 **Response (202):**
+
 ```json
 {
   "message": "import started",
@@ -1865,6 +2004,7 @@ Import a recording from the camera's SD card to the NVR.
 Start a Profile G RTSP replay session.
 
 **Request:**
+
 ```json
 {
   "recordingToken": "rec001"
@@ -1872,6 +2012,7 @@ Start a Profile G RTSP replay session.
 ```
 
 **Response (200):**
+
 ```json
 {
   "sessionId": "session-123",
@@ -1888,6 +2029,7 @@ Get the replay URI for a recording.
 **Query parameters:** `recordingToken`
 
 **Response (200):**
+
 ```json
 {
   "uri": "rtsp://192.168.1.100:554/replay"
@@ -1901,6 +2043,7 @@ Get the replay URI for a recording.
 Get replay service capabilities.
 
 **Response (200):**
+
 ```json
 {
   "rtp_rtsp_tcp": true,
@@ -1920,6 +2063,7 @@ Get replay service capabilities.
 Get recording configuration on the device.
 
 **Response (200):**
+
 ```json
 {
   "maxRecordings": 20,
@@ -1934,6 +2078,7 @@ Get recording configuration on the device.
 Create a recording on the device.
 
 **Request:**
+
 ```json
 {
   "sourceToken": "mainStream"
@@ -1941,6 +2086,7 @@ Create a recording on the device.
 ```
 
 **Response (201):**
+
 ```json
 {
   "recordingToken": "rec_new_001"
@@ -1962,6 +2108,7 @@ Delete a recording from the device.
 Create a recording job on the device.
 
 **Request:**
+
 ```json
 {
   "recordingToken": "rec_new_001",
@@ -1970,6 +2117,7 @@ Create a recording job on the device.
 ```
 
 **Response (201):**
+
 ```json
 {
   "jobToken": "job_001"
@@ -1991,6 +2139,7 @@ Delete a recording job from the device.
 Get the state of a recording job.
 
 **Response (200):**
+
 ```json
 {
   "state": "Active",
@@ -2009,6 +2158,7 @@ Get the state of a recording job.
 Create a track within a recording on the device.
 
 **Request:**
+
 ```json
 {
   "trackType": "Video",
@@ -2017,6 +2167,7 @@ Create a track within a recording on the device.
 ```
 
 **Response (201):**
+
 ```json
 {
   "trackToken": "track_001"
@@ -2038,6 +2189,7 @@ Delete a track from a recording on the device.
 Get configuration for a specific track.
 
 **Response (200):**
+
 ```json
 {
   "trackToken": "track_001",
@@ -2057,6 +2209,7 @@ Get configuration for a specific track.
 Update AI detection settings for a camera.
 
 **Request:**
+
 ```json
 {
   "enabled": true,
@@ -2068,6 +2221,7 @@ Update AI detection settings for a camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "AI config updated"
@@ -2081,6 +2235,7 @@ Update AI detection settings for a camera.
 Update audio transcoding settings for a camera.
 
 **Request:**
+
 ```json
 {
   "enabled": true,
@@ -2090,6 +2245,7 @@ Update audio transcoding settings for a camera.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "audio transcode updated"
@@ -2107,6 +2263,7 @@ Update audio transcoding settings for a camera.
 Get the most recent AI detections for a camera (for live overlay).
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2141,6 +2298,7 @@ Query historical detections for a camera.
 **Query parameters:** `start`, `end`, `label`, `minConfidence`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 {
   "detections": [
@@ -2166,10 +2324,9 @@ Query historical detections for a camera.
 List analytics rules configured on the camera.
 
 **Response (200):**
+
 ```json
-[
-  { "name": "LineCross1", "type": "LineDetector", "enabled": true }
-]
+[{ "name": "LineCross1", "type": "LineDetector", "enabled": true }]
 ```
 
 ### POST `/cameras/:id/analytics/rules`
@@ -2179,6 +2336,7 @@ List analytics rules configured on the camera.
 Create an analytics rule on the camera.
 
 **Request:**
+
 ```json
 {
   "name": "LineCross1",
@@ -2189,6 +2347,7 @@ Create an analytics rule on the camera.
 ```
 
 **Response (201):**
+
 ```json
 {
   "message": "rule created"
@@ -2202,6 +2361,7 @@ Create an analytics rule on the camera.
 Update an analytics rule.
 
 **Response (200):**
+
 ```json
 {
   "message": "rule updated"
@@ -2223,10 +2383,9 @@ Delete an analytics rule.
 List analytics modules available on the camera.
 
 **Response (200):**
+
 ```json
-[
-  { "name": "MotionDetector", "type": "tt:MotionDetection", "maxInstances": 16 }
-]
+[{ "name": "MotionDetector", "type": "tt:MotionDetection", "maxInstances": 16 }]
 ```
 
 ---
@@ -2240,9 +2399,15 @@ List analytics modules available on the camera.
 List metadata configurations on the camera (Profile T).
 
 **Response (200):**
+
 ```json
 [
-  { "token": "META_001", "name": "MetadataConfig", "analyticsEnabled": true, "eventsEnabled": true }
+  {
+    "token": "META_001",
+    "name": "MetadataConfig",
+    "analyticsEnabled": true,
+    "eventsEnabled": true
+  }
 ]
 ```
 
@@ -2253,6 +2418,7 @@ List metadata configurations on the camera (Profile T).
 Get a specific metadata configuration.
 
 **Response (200):**
+
 ```json
 {
   "token": "META_001",
@@ -2270,6 +2436,7 @@ Get a specific metadata configuration.
 Update a metadata configuration.
 
 **Request:**
+
 ```json
 {
   "analyticsEnabled": true,
@@ -2279,6 +2446,7 @@ Update a metadata configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "metadata config updated"
@@ -2292,6 +2460,7 @@ Update a metadata configuration.
 Add a metadata configuration to a profile.
 
 **Request:**
+
 ```json
 {
   "profileToken": "mainStream",
@@ -2300,6 +2469,7 @@ Add a metadata configuration to a profile.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "metadata added to profile"
@@ -2313,6 +2483,7 @@ Add a metadata configuration to a profile.
 Remove a metadata configuration from a profile.
 
 **Response (200):**
+
 ```json
 {
   "message": "metadata removed from profile"
@@ -2330,9 +2501,15 @@ Remove a metadata configuration from a profile.
 List all on-screen display (OSD) overlays on the camera.
 
 **Response (200):**
+
 ```json
 [
-  { "token": "OSD_001", "type": "Text", "position": { "type": "UpperLeft" }, "textString": "Camera 1" }
+  {
+    "token": "OSD_001",
+    "type": "Text",
+    "position": { "type": "UpperLeft" },
+    "textString": "Camera 1"
+  }
 ]
 ```
 
@@ -2343,6 +2520,7 @@ List all on-screen display (OSD) overlays on the camera.
 Get available OSD options (fonts, positions, etc.).
 
 **Response (200):**
+
 ```json
 {
   "maxOSDs": 8,
@@ -2358,6 +2536,7 @@ Get available OSD options (fonts, positions, etc.).
 Create an OSD overlay.
 
 **Request:**
+
 ```json
 {
   "type": "Text",
@@ -2367,6 +2546,7 @@ Create an OSD overlay.
 ```
 
 **Response (201):**
+
 ```json
 {
   "token": "OSD_002"
@@ -2380,6 +2560,7 @@ Create an OSD overlay.
 Update an OSD overlay.
 
 **Response (200):**
+
 ```json
 {
   "message": "OSD updated"
@@ -2407,6 +2588,7 @@ Query NVR recordings. Supports filtering and pagination.
 **Query parameters:** `cameraId`, `start`, `end`, `limit`, `offset`, `hasMotion`
 
 **Response (200):**
+
 ```json
 {
   "recordings": [
@@ -2438,6 +2620,7 @@ Download a recording file.
 Export a time range of recordings for a camera.
 
 **Request:**
+
 ```json
 {
   "cameraId": "cam-abc123",
@@ -2448,6 +2631,7 @@ Export a time range of recordings for a camera.
 ```
 
 **Response (202):**
+
 ```json
 {
   "message": "export started",
@@ -2462,6 +2646,7 @@ Export a time range of recordings for a camera.
 Trigger manual cleanup of expired recordings.
 
 **Response (200):**
+
 ```json
 {
   "deleted": 15,
@@ -2478,6 +2663,7 @@ Get a timeline of recordings for a single camera.
 **Query parameters:** `cameraId`, `start`, `end`, `bucketMinutes`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2498,10 +2684,11 @@ Get timelines for multiple cameras in one request.
 **Query parameters:** `cameraIds` (comma-separated), `start`, `end`
 
 **Response (200):**
+
 ```json
 {
-  "cam-abc123": [ { "start": "...", "end": "...", "hasMotion": false } ],
-  "cam-def456": [ { "start": "...", "end": "...", "hasMotion": true } ]
+  "cam-abc123": [{ "start": "...", "end": "...", "hasMotion": false }],
+  "cam-def456": [{ "start": "...", "end": "...", "hasMotion": true }]
 }
 ```
 
@@ -2514,9 +2701,14 @@ Get a motion intensity heatmap over a time range.
 **Query parameters:** `cameraId`, `start`, `end`, `buckets`
 
 **Response (200):**
+
 ```json
 [
-  { "start": "2025-06-15T08:00:00Z", "end": "2025-06-15T08:05:00Z", "intensity": 0.75 }
+  {
+    "start": "2025-06-15T08:00:00Z",
+    "end": "2025-06-15T08:05:00Z",
+    "intensity": 0.75
+  }
 ]
 ```
 
@@ -2531,16 +2723,22 @@ Get a motion intensity heatmap over a time range.
 Create a bulk export job spanning multiple cameras and time ranges.
 
 **Request:**
+
 ```json
 {
   "items": [
-    { "cameraId": "cam-abc123", "start": "2025-06-15T08:00:00Z", "end": "2025-06-15T09:00:00Z" }
+    {
+      "cameraId": "cam-abc123",
+      "start": "2025-06-15T08:00:00Z",
+      "end": "2025-06-15T09:00:00Z"
+    }
   ],
   "format": "mp4"
 }
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "bulk-export-001",
@@ -2555,9 +2753,14 @@ Create a bulk export job spanning multiple cameras and time ranges.
 List bulk export jobs.
 
 **Response (200):**
+
 ```json
 [
-  { "id": "bulk-export-001", "status": "completed", "createdAt": "2025-06-15T10:00:00Z" }
+  {
+    "id": "bulk-export-001",
+    "status": "completed",
+    "createdAt": "2025-06-15T10:00:00Z"
+  }
 ]
 ```
 
@@ -2568,6 +2771,7 @@ List bulk export jobs.
 Get the status of a bulk export job.
 
 **Response (200):**
+
 ```json
 {
   "id": "bulk-export-001",
@@ -2605,6 +2809,7 @@ Delete a bulk export job and its files.
 Get a summary of recording integrity status.
 
 **Response (200):**
+
 ```json
 {
   "total": 1000,
@@ -2621,6 +2826,7 @@ Get a summary of recording integrity status.
 Trigger an integrity verification scan.
 
 **Response (202):**
+
 ```json
 {
   "message": "verification started"
@@ -2634,6 +2840,7 @@ Trigger an integrity verification scan.
 Move a corrupted recording to quarantine.
 
 **Response (200):**
+
 ```json
 {
   "message": "recording quarantined"
@@ -2647,6 +2854,7 @@ Move a corrupted recording to quarantine.
 Restore a quarantined recording.
 
 **Response (200):**
+
 ```json
 {
   "message": "recording restored"
@@ -2664,6 +2872,7 @@ Restore a quarantined recording.
 Get aggregate recording statistics.
 
 **Response (200):**
+
 ```json
 {
   "totalRecordings": 5000,
@@ -2683,6 +2892,7 @@ Get aggregate recording statistics.
 Get recording gaps for a specific camera.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2704,6 +2914,7 @@ Get recording gaps for a specific camera.
 Get recording health status per camera.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2728,6 +2939,7 @@ List motion events for a camera.
 **Query parameters:** `start`, `end`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2748,6 +2960,7 @@ List all events (motion, AI detections, etc.) for a camera.
 **Query parameters:** `start`, `end`, `type`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2769,6 +2982,7 @@ Purge events for a camera.
 **Query parameters:** `before` (ISO 8601 timestamp, optional)
 
 **Response (200):**
+
 ```json
 {
   "deleted": 500
@@ -2786,6 +3000,7 @@ Purge events for a camera.
 List saved video clips.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2806,6 +3021,7 @@ List saved video clips.
 Save a video clip from recordings.
 
 **Request:**
+
 ```json
 {
   "cameraId": "cam-abc123",
@@ -2816,6 +3032,7 @@ Save a video clip from recordings.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "clip-002",
@@ -2844,6 +3061,7 @@ List all bookmarks.
 **Query parameters:** `cameraId`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -2866,10 +3084,9 @@ Search bookmarks by title or notes.
 **Query parameters:** `q`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
-[
-  { "id": "bm-001", "title": "Suspicious activity" }
-]
+[{ "id": "bm-001", "title": "Suspicious activity" }]
 ```
 
 ### GET `/bookmarks/mine`
@@ -2879,10 +3096,9 @@ Search bookmarks by title or notes.
 List bookmarks created by the authenticated user.
 
 **Response (200):**
+
 ```json
-[
-  { "id": "bm-001", "title": "Suspicious activity" }
-]
+[{ "id": "bm-001", "title": "Suspicious activity" }]
 ```
 
 ### GET `/bookmarks/:id`
@@ -2892,6 +3108,7 @@ List bookmarks created by the authenticated user.
 Get a single bookmark.
 
 **Response (200):**
+
 ```json
 {
   "id": "bm-001",
@@ -2909,6 +3126,7 @@ Get a single bookmark.
 Create a bookmark.
 
 **Request:**
+
 ```json
 {
   "cameraId": "cam-abc123",
@@ -2919,6 +3137,7 @@ Create a bookmark.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "bm-002"
@@ -2932,6 +3151,7 @@ Create a bookmark.
 Update a bookmark.
 
 **Request:**
+
 ```json
 {
   "title": "Updated title",
@@ -2940,6 +3160,7 @@ Update a bookmark.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "bookmark updated"
@@ -2965,6 +3186,7 @@ Delete a bookmark.
 Capture a screenshot from a camera's live stream.
 
 **Response (201):**
+
 ```json
 {
   "id": "ss-001",
@@ -2983,6 +3205,7 @@ List all screenshots.
 **Query parameters:** `cameraId`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3023,9 +3246,13 @@ List available timeline thumbnails for a camera.
 **Query parameters:** `start`, `end`
 
 **Response (200):**
+
 ```json
 [
-  { "filename": "thumb_2025-06-15T12-00-00.jpg", "timestamp": "2025-06-15T12:00:00Z" }
+  {
+    "filename": "thumb_2025-06-15T12-00-00.jpg",
+    "timestamp": "2025-06-15T12:00:00Z"
+  }
 ]
 ```
 
@@ -3048,6 +3275,7 @@ Serve a specific thumbnail image.
 List streams for a camera (main, sub, etc.).
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3067,6 +3295,7 @@ List streams for a camera (main, sub, etc.).
 Create a new stream for a camera.
 
 **Request:**
+
 ```json
 {
   "role": "sub",
@@ -3075,6 +3304,7 @@ Create a new stream for a camera.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "stream-002",
@@ -3089,6 +3319,7 @@ Create a new stream for a camera.
 Update a stream.
 
 **Request:**
+
 ```json
 {
   "rtspUrl": "rtsp://192.168.1.100:554/Streaming/Channels/103"
@@ -3096,6 +3327,7 @@ Update a stream.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "stream updated"
@@ -3109,6 +3341,7 @@ Update a stream.
 Update the role assignments for a stream.
 
 **Request:**
+
 ```json
 {
   "role": "main"
@@ -3116,6 +3349,7 @@ Update the role assignments for a stream.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "roles updated"
@@ -3137,6 +3371,7 @@ Delete a stream.
 Update retention settings for a specific stream.
 
 **Request:**
+
 ```json
 {
   "retentionDays": 14
@@ -3144,6 +3379,7 @@ Update retention settings for a specific stream.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "retention updated"
@@ -3157,6 +3393,7 @@ Update retention settings for a specific stream.
 Get storage usage breakdown by stream for a camera.
 
 **Response (200):**
+
 ```json
 [
   { "streamId": "stream-001", "role": "main", "sizeBytes": 107374182400 },
@@ -3175,6 +3412,7 @@ Get storage usage breakdown by stream for a camera.
 List recording rules for a camera.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3194,6 +3432,7 @@ List recording rules for a camera.
 Create a recording rule.
 
 **Request:**
+
 ```json
 {
   "type": "motion",
@@ -3203,6 +3442,7 @@ Create a recording rule.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "rule-002"
@@ -3216,6 +3456,7 @@ Create a recording rule.
 Update a recording rule.
 
 **Request:**
+
 ```json
 {
   "enabled": false
@@ -3223,6 +3464,7 @@ Update a recording rule.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "rule updated"
@@ -3244,6 +3486,7 @@ Delete a recording rule.
 Get the current recording status for a camera (active rules, recording state).
 
 **Response (200):**
+
 ```json
 {
   "recording": true,
@@ -3263,6 +3506,7 @@ Get the current recording status for a camera (active rules, recording state).
 List schedule templates.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3280,6 +3524,7 @@ List schedule templates.
 Create a schedule template.
 
 **Request:**
+
 ```json
 {
   "name": "Night Shift",
@@ -3288,6 +3533,7 @@ Create a schedule template.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "tpl-002"
@@ -3301,6 +3547,7 @@ Create a schedule template.
 Update a schedule template.
 
 **Response (200):**
+
 ```json
 {
   "message": "template updated"
@@ -3326,6 +3573,7 @@ Delete a schedule template.
 Assign a recording schedule to a camera's stream.
 
 **Request:**
+
 ```json
 {
   "streamId": "stream-001",
@@ -3334,6 +3582,7 @@ Assign a recording schedule to a camera's stream.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "schedule assigned"
@@ -3351,6 +3600,7 @@ Assign a recording schedule to a camera's stream.
 List active sessions for the current user.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3379,6 +3629,7 @@ Revoke a specific session.
 Get the session timeout configuration.
 
 **Response (200):**
+
 ```json
 {
   "timeoutMinutes": 720
@@ -3392,6 +3643,7 @@ Get the session timeout configuration.
 Set the session timeout.
 
 **Request:**
+
 ```json
 {
   "timeoutMinutes": 480
@@ -3399,6 +3651,7 @@ Set the session timeout.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "timeout updated"
@@ -3416,6 +3669,7 @@ Set the session timeout.
 List all NVR users.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3434,6 +3688,7 @@ List all NVR users.
 Create a new user.
 
 **Request:**
+
 ```json
 {
   "username": "operator1",
@@ -3443,6 +3698,7 @@ Create a new user.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "user-002",
@@ -3458,6 +3714,7 @@ Create a new user.
 Get a user by ID.
 
 **Response (200):**
+
 ```json
 {
   "id": "user-001",
@@ -3473,6 +3730,7 @@ Get a user by ID.
 Update a user.
 
 **Request:**
+
 ```json
 {
   "role": "viewer"
@@ -3480,6 +3738,7 @@ Update a user.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "user updated"
@@ -3513,6 +3772,7 @@ Revoke all sessions for a specific user.
 Health check endpoint.
 
 **Response (200):**
+
 ```json
 {
   "status": "ok"
@@ -3526,6 +3786,7 @@ Health check endpoint.
 Get system information (version, uptime, OS details).
 
 **Response (200):**
+
 ```json
 {
   "version": "1.5.0",
@@ -3543,6 +3804,7 @@ Get system information (version, uptime, OS details).
 Get storage usage information.
 
 **Response (200):**
+
 ```json
 {
   "totalBytes": 1099511627776,
@@ -3560,6 +3822,7 @@ Get storage usage information.
 Get system performance metrics from the ring-buffer collector.
 
 **Response (200):**
+
 ```json
 {
   "cpuPercent": 12.5,
@@ -3579,6 +3842,7 @@ Get system performance metrics from the ring-buffer collector.
 Get disk I/O statistics.
 
 **Response (200):**
+
 ```json
 {
   "readBytesPerSec": 52428800,
@@ -3595,6 +3859,7 @@ Get disk I/O statistics.
 Update disk I/O warning thresholds.
 
 **Request:**
+
 ```json
 {
   "warningPercent": 75,
@@ -3603,6 +3868,7 @@ Update disk I/O warning thresholds.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "thresholds updated"
@@ -3616,6 +3882,7 @@ Update disk I/O warning thresholds.
 Get database health status.
 
 **Response (200):**
+
 ```json
 {
   "status": "healthy",
@@ -3632,6 +3899,7 @@ Get database health status.
 Get a summary of the current system configuration.
 
 **Response (200):**
+
 ```json
 {
   "nvr": true,
@@ -3659,6 +3927,7 @@ Import a system configuration file.
 **Request:** `multipart/form-data` with a config file.
 
 **Response (200):**
+
 ```json
 {
   "message": "configuration imported",
@@ -3677,6 +3946,7 @@ Import a system configuration file.
 Get the current SMTP configuration for email alerts.
 
 **Response (200):**
+
 ```json
 {
   "host": "smtp.example.com",
@@ -3694,6 +3964,7 @@ Get the current SMTP configuration for email alerts.
 Update the SMTP configuration.
 
 **Request:**
+
 ```json
 {
   "host": "smtp.example.com",
@@ -3706,6 +3977,7 @@ Update the SMTP configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "SMTP config updated"
@@ -3719,6 +3991,7 @@ Update the SMTP configuration.
 Send a test email to verify SMTP configuration.
 
 **Request:**
+
 ```json
 {
   "to": "admin@example.com"
@@ -3726,6 +3999,7 @@ Send a test email to verify SMTP configuration.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "test email sent"
@@ -3739,6 +4013,7 @@ Send a test email to verify SMTP configuration.
 List alert rules.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3759,6 +4034,7 @@ List alert rules.
 Create an alert rule.
 
 **Request:**
+
 ```json
 {
   "name": "Camera Offline Alert",
@@ -3770,6 +4046,7 @@ Create an alert rule.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "ar-002"
@@ -3783,6 +4060,7 @@ Create an alert rule.
 Update an alert rule.
 
 **Response (200):**
+
 ```json
 {
   "message": "alert rule updated"
@@ -3806,6 +4084,7 @@ List triggered alerts.
 **Query parameters:** `acknowledged`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3827,6 +4106,7 @@ List triggered alerts.
 Acknowledge an alert.
 
 **Response (200):**
+
 ```json
 {
   "message": "alert acknowledged"
@@ -3844,6 +4124,7 @@ Acknowledge an alert.
 Create a system backup.
 
 **Response (201):**
+
 ```json
 {
   "filename": "backup_2025-06-15T12-00-00.tar.gz",
@@ -3859,6 +4140,7 @@ Create a system backup.
 List available backups.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -3892,6 +4174,7 @@ Delete a backup file.
 Validate a backup file before restoring.
 
 **Request:**
+
 ```json
 {
   "filename": "backup_2025-06-15T12-00-00.tar.gz"
@@ -3899,6 +4182,7 @@ Validate a backup file before restoring.
 ```
 
 **Response (200):**
+
 ```json
 {
   "valid": true,
@@ -3915,6 +4199,7 @@ Validate a backup file before restoring.
 Restore from a backup.
 
 **Request:**
+
 ```json
 {
   "filename": "backup_2025-06-15T12-00-00.tar.gz"
@@ -3922,6 +4207,7 @@ Restore from a backup.
 ```
 
 **Response (202):**
+
 ```json
 {
   "message": "restore initiated, system will restart"
@@ -3935,6 +4221,7 @@ Restore from a backup.
 Configure automatic backup schedule.
 
 **Request:**
+
 ```json
 {
   "enabled": true,
@@ -3944,6 +4231,7 @@ Configure automatic backup schedule.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "backup schedule updated"
@@ -3957,6 +4245,7 @@ Configure automatic backup schedule.
 Get the current backup schedule.
 
 **Response (200):**
+
 ```json
 {
   "enabled": true,
@@ -3978,6 +4267,7 @@ Get the current backup schedule.
 Get the active security configuration (CORS, CSP, rate limiting).
 
 **Response (200):**
+
 ```json
 {
   "cors": {
@@ -4010,6 +4300,7 @@ Get the active security configuration (CORS, CSP, rate limiting).
 Check for available system updates.
 
 **Response (200):**
+
 ```json
 {
   "currentVersion": "1.5.0",
@@ -4026,6 +4317,7 @@ Check for available system updates.
 Apply an available update.
 
 **Response (202):**
+
 ```json
 {
   "message": "update started, system will restart"
@@ -4039,6 +4331,7 @@ Apply an available update.
 Rollback to the previous version.
 
 **Response (202):**
+
 ```json
 {
   "message": "rollback initiated"
@@ -4052,6 +4345,7 @@ Rollback to the previous version.
 Get update history.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4073,6 +4367,7 @@ Get update history.
 Get TLS certificate status.
 
 **Response (200):**
+
 ```json
 {
   "enabled": true,
@@ -4093,6 +4388,7 @@ Upload a TLS certificate and private key.
 **Request:** `multipart/form-data` with `cert` and `key` files.
 
 **Response (200):**
+
 ```json
 {
   "message": "certificate uploaded",
@@ -4107,6 +4403,7 @@ Upload a TLS certificate and private key.
 Generate a self-signed TLS certificate.
 
 **Request:**
+
 ```json
 {
   "commonName": "nvr.local",
@@ -4115,6 +4412,7 @@ Generate a self-signed TLS certificate.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "self-signed certificate generated",
@@ -4165,6 +4463,7 @@ Serve an HLS video segment.
 Get storage health and sync status.
 
 **Response (200):**
+
 ```json
 {
   "healthy": true,
@@ -4181,9 +4480,14 @@ Get storage health and sync status.
 List files pending deletion or sync.
 
 **Response (200):**
+
 ```json
 [
-  { "path": "/recordings/old-file.mp4", "reason": "retention_expired", "scheduledAt": "2025-06-15T00:00:00Z" }
+  {
+    "path": "/recordings/old-file.mp4",
+    "reason": "retention_expired",
+    "scheduledAt": "2025-06-15T00:00:00Z"
+  }
 ]
 ```
 
@@ -4194,6 +4498,7 @@ List files pending deletion or sync.
 Trigger a storage sync for a specific camera.
 
 **Response (202):**
+
 ```json
 {
   "message": "sync triggered"
@@ -4211,11 +4516,16 @@ Trigger a storage sync for a specific camera.
 List all storage quotas (global and per-camera).
 
 **Response (200):**
+
 ```json
 {
   "global": { "maxBytes": 1099511627776, "usedBytes": 549755813888 },
   "cameras": [
-    { "cameraId": "cam-abc123", "maxBytes": 214748364800, "usedBytes": 107374182400 }
+    {
+      "cameraId": "cam-abc123",
+      "maxBytes": 214748364800,
+      "usedBytes": 107374182400
+    }
   ]
 }
 ```
@@ -4227,6 +4537,7 @@ List all storage quotas (global and per-camera).
 Set the global storage quota.
 
 **Request:**
+
 ```json
 {
   "maxBytes": 2199023255552
@@ -4234,6 +4545,7 @@ Set the global storage quota.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "global quota updated"
@@ -4247,6 +4559,7 @@ Set the global storage quota.
 Get overall quota utilization status.
 
 **Response (200):**
+
 ```json
 {
   "usagePercent": 50.0,
@@ -4263,6 +4576,7 @@ Get overall quota utilization status.
 Set a per-camera storage quota.
 
 **Request:**
+
 ```json
 {
   "maxBytes": 214748364800
@@ -4270,6 +4584,7 @@ Set a per-camera storage quota.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "camera quota updated"
@@ -4289,6 +4604,7 @@ Search recordings and detections using natural language (CLIP embeddings).
 **Query parameters:** `q`, `cameraId`, `start`, `end`, `limit`
 
 **Response (200):**
+
 ```json
 {
   "results": [
@@ -4310,6 +4626,7 @@ Search recordings and detections using natural language (CLIP embeddings).
 Trigger a backfill of CLIP embeddings for existing recordings.
 
 **Response (202):**
+
 ```json
 {
   "message": "backfill started"
@@ -4327,6 +4644,7 @@ Trigger a backfill of CLIP embeddings for existing recordings.
 Create an evidence export package (for law enforcement or legal use). Audit-logged.
 
 **Request:**
+
 ```json
 {
   "cameraIds": ["cam-abc123"],
@@ -4338,6 +4656,7 @@ Create an evidence export package (for law enforcement or legal use). Audit-logg
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "ev-001",
@@ -4352,6 +4671,7 @@ Create an evidence export package (for law enforcement or legal use). Audit-logg
 List evidence exports.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4384,6 +4704,7 @@ Search recordings on camera edge storage (ONVIF Profile G).
 **Query parameters:** `cameraId`, `start`, `end`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4403,6 +4724,7 @@ Search events on camera edge storage.
 **Query parameters:** `cameraId`, `start`, `end`, `type`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4426,6 +4748,7 @@ List audit log entries.
 **Query parameters:** `userId`, `action`, `start`, `end`, `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4457,6 +4780,7 @@ Export audit logs as CSV or JSON.
 Get audit log retention settings.
 
 **Response (200):**
+
 ```json
 {
   "retentionDays": 90
@@ -4470,6 +4794,7 @@ Get audit log retention settings.
 Update audit log retention settings.
 
 **Request:**
+
 ```json
 {
   "retentionDays": 180
@@ -4477,6 +4802,7 @@ Update audit log retention settings.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "retention updated"
@@ -4494,9 +4820,14 @@ Update audit log retention settings.
 List camera groups.
 
 **Response (200):**
+
 ```json
 [
-  { "id": "grp-001", "name": "Building A", "cameraIds": ["cam-abc123", "cam-def456"] }
+  {
+    "id": "grp-001",
+    "name": "Building A",
+    "cameraIds": ["cam-abc123", "cam-def456"]
+  }
 ]
 ```
 
@@ -4507,6 +4838,7 @@ List camera groups.
 Create a camera group.
 
 **Request:**
+
 ```json
 {
   "name": "Building A",
@@ -4515,6 +4847,7 @@ Create a camera group.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "grp-001"
@@ -4528,6 +4861,7 @@ Create a camera group.
 Get a camera group by ID.
 
 **Response (200):**
+
 ```json
 {
   "id": "grp-001",
@@ -4543,6 +4877,7 @@ Get a camera group by ID.
 Update a camera group.
 
 **Request:**
+
 ```json
 {
   "name": "Building A - Main",
@@ -4551,6 +4886,7 @@ Update a camera group.
 ```
 
 **Response (200):**
+
 ```json
 {
   "message": "group updated"
@@ -4576,6 +4912,7 @@ Delete a camera group.
 List ONVIF devices (physical devices that may have multiple cameras/channels).
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4595,6 +4932,7 @@ List ONVIF devices (physical devices that may have multiple cameras/channels).
 Get a device by ID.
 
 **Response (200):**
+
 ```json
 {
   "id": "dev-001",
@@ -4624,6 +4962,7 @@ Delete a device and all its associated cameras.
 List PTZ tours.
 
 **Response (200):**
+
 ```json
 [
   {
@@ -4645,6 +4984,7 @@ List PTZ tours.
 Create a PTZ tour.
 
 **Request:**
+
 ```json
 {
   "name": "Perimeter Check",
@@ -4657,6 +4997,7 @@ Create a PTZ tour.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "tour-001"
@@ -4670,14 +5011,13 @@ Create a PTZ tour.
 Get a tour by ID.
 
 **Response (200):**
+
 ```json
 {
   "id": "tour-001",
   "name": "Perimeter Check",
   "cameraId": "cam-abc123",
-  "presets": [
-    { "presetToken": "1", "dwellSec": 10, "speed": 0.5 }
-  ]
+  "presets": [{ "presetToken": "1", "dwellSec": 10, "speed": 0.5 }]
 }
 ```
 
@@ -4688,6 +5028,7 @@ Get a tour by ID.
 Update a tour.
 
 **Response (200):**
+
 ```json
 {
   "message": "tour updated"
@@ -4713,6 +5054,7 @@ Delete a tour.
 Create an export job to produce a downloadable clip.
 
 **Request:**
+
 ```json
 {
   "cameraId": "cam-abc123",
@@ -4723,6 +5065,7 @@ Create an export job to produce a downloadable clip.
 ```
 
 **Response (201):**
+
 ```json
 {
   "id": "exp-001",
@@ -4737,10 +5080,9 @@ Create an export job to produce a downloadable clip.
 List export jobs.
 
 **Response (200):**
+
 ```json
-[
-  { "id": "exp-001", "status": "completed", "progress": 100 }
-]
+[{ "id": "exp-001", "status": "completed", "progress": 100 }]
 ```
 
 ### GET `/exports/:id`
@@ -4750,6 +5092,7 @@ List export jobs.
 Get an export job's status.
 
 **Response (200):**
+
 ```json
 {
   "id": "exp-001",
@@ -4786,6 +5129,7 @@ Download the completed export file.
 Get the current connection state for a camera.
 
 **Response (200):**
+
 ```json
 {
   "cameraId": "cam-abc123",
@@ -4804,10 +5148,15 @@ Get connection state history for a camera.
 **Query parameters:** `limit`, `offset`
 
 **Response (200):**
+
 ```json
 [
   { "state": "connected", "timestamp": "2025-06-15T08:00:00Z" },
-  { "state": "disconnected", "timestamp": "2025-06-15T07:55:00Z", "reason": "timeout" }
+  {
+    "state": "disconnected",
+    "timestamp": "2025-06-15T07:55:00Z",
+    "reason": "timeout"
+  }
 ]
 ```
 
@@ -4818,6 +5167,7 @@ Get connection state history for a camera.
 Get a connection reliability summary.
 
 **Response (200):**
+
 ```json
 {
   "uptimePercent": 99.5,
@@ -4834,9 +5184,15 @@ Get a connection reliability summary.
 Get commands queued while camera was disconnected.
 
 **Response (200):**
+
 ```json
 [
-  { "id": "cmd-001", "type": "ptz", "queuedAt": "2025-06-15T07:56:00Z", "status": "pending" }
+  {
+    "id": "cmd-001",
+    "type": "ptz",
+    "queuedAt": "2025-06-15T07:56:00Z",
+    "status": "pending"
+  }
 ]
 ```
 
@@ -4847,6 +5203,7 @@ Get commands queued while camera was disconnected.
 Get connection states for all cameras.
 
 **Response (200):**
+
 ```json
 [
   { "cameraId": "cam-abc123", "state": "connected" },

@@ -12,22 +12,23 @@
 
 ## File Structure
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/events.go` | Event types, classifyTopic(), GetEventProperties SOAP, XML parsing |
-| `internal/nvr/onvif/events_test.go` | Unit tests for classifyTopic() and GetEventProperties XML parsing |
-| `internal/nvr/onvif/device.go` | Call GetEventProperties during ProbeDeviceFull, add topics to ProbeResult |
-| `internal/nvr/db/migrations.go` | Migration 31: add supported_event_topics column |
-| `internal/nvr/db/cameras.go` | Add SupportedEventTopics field to Camera struct, update all queries |
-| `internal/nvr/api/cameras.go` | Save supported_event_topics during probe/refresh |
-| `internal/nvr/api/events.go` | SSE publish methods for new event types |
-| `internal/nvr/scheduler/scheduler.go` | Handle new event types in both event callbacks |
+| File                                  | Responsibility                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| `internal/nvr/onvif/events.go`        | Event types, classifyTopic(), GetEventProperties SOAP, XML parsing        |
+| `internal/nvr/onvif/events_test.go`   | Unit tests for classifyTopic() and GetEventProperties XML parsing         |
+| `internal/nvr/onvif/device.go`        | Call GetEventProperties during ProbeDeviceFull, add topics to ProbeResult |
+| `internal/nvr/db/migrations.go`       | Migration 31: add supported_event_topics column                           |
+| `internal/nvr/db/cameras.go`          | Add SupportedEventTopics field to Camera struct, update all queries       |
+| `internal/nvr/api/cameras.go`         | Save supported_event_topics during probe/refresh                          |
+| `internal/nvr/api/events.go`          | SSE publish methods for new event types                                   |
+| `internal/nvr/scheduler/scheduler.go` | Handle new event types in both event callbacks                            |
 
 ---
 
 ### Task 1: Add New Event Type Constants and Extend classifyTopic
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events.go:20-27` (DetectedEventType constants)
 - Modify: `internal/nvr/onvif/events.go:515-524` (classifyTopic function)
 - Create: `internal/nvr/onvif/events_test.go`
@@ -164,6 +165,7 @@ git commit -m "feat(events): add DigitalInput, SignalLoss, HardwareFailure, Rela
 ### Task 2: Add parseEvents Test for New Event Types
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events_test.go`
 
 - [ ] **Step 1: Write test for parseEvents handling new event types**
@@ -277,6 +279,7 @@ git commit -m "test(events): add parseEvents test covering all event types"
 ### Task 3: Implement GetEventProperties SOAP Method
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events.go` (add GetEventProperties method and XML types)
 - Modify: `internal/nvr/onvif/events_test.go` (add parsing test)
 
@@ -487,6 +490,7 @@ git commit -m "feat(events): implement GetEventProperties SOAP call and topic pa
 ### Task 4: Database Migration and Camera Model Update
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go` (add migration 31)
 - Modify: `internal/nvr/db/cameras.go` (add SupportedEventTopics field, update all queries)
 
@@ -519,6 +523,7 @@ VALUES addition: one more `?`
 Args addition: `cam.SupportedEventTopics,`
 
 The full INSERT column list becomes:
+
 ```
 INSERT INTO cameras (id, name, onvif_endpoint, onvif_username, onvif_password,
     onvif_profile_token, rtsp_url, ptz_capable, mediamtx_path, status, tags,
@@ -566,6 +571,7 @@ git commit -m "feat(db): add supported_event_topics column to cameras table"
 ### Task 5: Integrate GetEventProperties into ProbeDeviceFull
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/device.go` (add SupportedEventTopics to ProbeResult, call GetEventProperties)
 - Modify: `internal/nvr/api/cameras.go` (save supported_event_topics on refresh)
 
@@ -653,6 +659,7 @@ git commit -m "feat(probe): call GetEventProperties during probe and store suppo
 ### Task 6: Add SSE Publish Methods for New Event Types
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go` (add four publish methods)
 
 - [ ] **Step 1: Add publish methods**
@@ -732,6 +739,7 @@ git commit -m "feat(events): add SSE publish methods for new event types"
 ### Task 7: Handle New Event Types in Scheduler Callbacks
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go` (extend both event callbacks)
 
 - [ ] **Step 1: Extend startEventPipelineLocked callback**

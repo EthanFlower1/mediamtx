@@ -14,27 +14,28 @@
 
 ## File Structure
 
-| File | Responsibility |
-|------|---------------|
-| `internal/nvr/onvif/backchannel.go` | ONVIF audio output/decoder queries, codec negotiation, custom SOAP for backchannel stream URI |
-| `internal/nvr/onvif/backchannel_test.go` | Unit tests for ONVIF backchannel functions |
-| `internal/nvr/onvif/audio.go` | Updated: populate AudioBackchannel in Capabilities |
-| `internal/nvr/backchannel/rtp.go` | RTP audio packet construction (G.711 and AAC payload types) |
-| `internal/nvr/backchannel/rtp_test.go` | Unit tests for RTP packing |
-| `internal/nvr/backchannel/rtsp.go` | RTSP backchannel connection (DESCRIBE/SETUP/PLAY, interleaved TCP, keep-alive) |
-| `internal/nvr/backchannel/rtsp_test.go` | Unit tests for RTSP connection lifecycle |
-| `internal/nvr/backchannel/manager.go` | Session lifecycle (start/send/stop, idle timer, one-session-per-camera) |
-| `internal/nvr/backchannel/manager_test.go` | Unit tests for session manager |
-| `internal/nvr/api/backchannel.go` | WebSocket + REST handlers for backchannel API |
-| `internal/nvr/api/backchannel_test.go` | Unit tests for API handlers |
-| `internal/nvr/api/router.go` | Updated: register backchannel routes |
-| `internal/nvr/nvr.go` | Updated: initialize manager, wire into router config, cleanup on shutdown |
+| File                                       | Responsibility                                                                                |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `internal/nvr/onvif/backchannel.go`        | ONVIF audio output/decoder queries, codec negotiation, custom SOAP for backchannel stream URI |
+| `internal/nvr/onvif/backchannel_test.go`   | Unit tests for ONVIF backchannel functions                                                    |
+| `internal/nvr/onvif/audio.go`              | Updated: populate AudioBackchannel in Capabilities                                            |
+| `internal/nvr/backchannel/rtp.go`          | RTP audio packet construction (G.711 and AAC payload types)                                   |
+| `internal/nvr/backchannel/rtp_test.go`     | Unit tests for RTP packing                                                                    |
+| `internal/nvr/backchannel/rtsp.go`         | RTSP backchannel connection (DESCRIBE/SETUP/PLAY, interleaved TCP, keep-alive)                |
+| `internal/nvr/backchannel/rtsp_test.go`    | Unit tests for RTSP connection lifecycle                                                      |
+| `internal/nvr/backchannel/manager.go`      | Session lifecycle (start/send/stop, idle timer, one-session-per-camera)                       |
+| `internal/nvr/backchannel/manager_test.go` | Unit tests for session manager                                                                |
+| `internal/nvr/api/backchannel.go`          | WebSocket + REST handlers for backchannel API                                                 |
+| `internal/nvr/api/backchannel_test.go`     | Unit tests for API handlers                                                                   |
+| `internal/nvr/api/router.go`               | Updated: register backchannel routes                                                          |
+| `internal/nvr/nvr.go`                      | Updated: initialize manager, wire into router config, cleanup on shutdown                     |
 
 ---
 
 ### Task 1: ONVIF Audio Output and Decoder Queries
 
 **Files:**
+
 - Create: `internal/nvr/onvif/backchannel.go`
 - Create: `internal/nvr/onvif/backchannel_test.go`
 
@@ -413,6 +414,7 @@ git commit -m "feat(onvif): add audio output and decoder configuration queries f
 ### Task 2: Custom SOAP for Backchannel Stream URI
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/backchannel.go`
 - Modify: `internal/nvr/onvif/backchannel_test.go`
 
@@ -577,6 +579,7 @@ git commit -m "feat(onvif): add custom SOAP for backchannel stream URI"
 ### Task 3: Update AudioBackchannel Capability Detection
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/audio.go`
 - Modify: `internal/nvr/onvif/client.go:114-126`
 
@@ -638,6 +641,7 @@ git commit -m "feat(onvif): add BackchannelCodec field to AudioCapabilities"
 ### Task 4: RTP Audio Packet Construction
 
 **Files:**
+
 - Create: `internal/nvr/backchannel/rtp.go`
 - Create: `internal/nvr/backchannel/rtp_test.go`
 
@@ -868,6 +872,7 @@ git commit -m "feat(backchannel): add RTP audio packet construction"
 ### Task 5: RTSP Backchannel Connection
 
 **Files:**
+
 - Create: `internal/nvr/backchannel/rtsp.go`
 - Create: `internal/nvr/backchannel/rtsp_test.go`
 
@@ -1148,6 +1153,7 @@ git commit -m "feat(backchannel): add RTSP backchannel connection with interleav
 ### Task 6: Session Manager
 
 **Files:**
+
 - Create: `internal/nvr/backchannel/manager.go`
 - Create: `internal/nvr/backchannel/manager_test.go`
 
@@ -1565,6 +1571,7 @@ git commit -m "feat(backchannel): add session manager with idle keep-alive"
 ### Task 7: WebSocket and REST API Handlers
 
 **Files:**
+
 - Create: `internal/nvr/api/backchannel.go`
 - Create: `internal/nvr/api/backchannel_test.go`
 
@@ -2042,6 +2049,7 @@ git commit -m "feat(api): add backchannel WebSocket and REST API handlers"
 ### Task 8: Route Registration and NVR Integration
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go:29-50` (RouterConfig), `router.go:246-268` (routes)
 - Modify: `internal/nvr/nvr.go:38-71` (NVR struct), `nvr.go:494-531` (Close), `nvr.go:808-828` (RegisterRoutes)
 
@@ -2155,6 +2163,7 @@ git commit -m "feat: integrate backchannel manager into NVR lifecycle and API ro
 ### Task 9: End-to-End Verification
 
 **Files:**
+
 - No new files — verify everything works together.
 
 - [ ] **Step 1: Run all backchannel tests**

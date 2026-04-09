@@ -71,18 +71,18 @@ Ticket
 
 ### 3.2 Ticket Categories
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| `camera_issue` | Camera connectivity, quality, configuration | Camera offline, poor image quality |
-| `recording` | Recording failures, gaps, playback | Missing recordings, corrupt files |
-| `storage` | Disk space, retention, performance | Disk full, slow write speed |
-| `network` | Network configuration, connectivity | RTSP timeout, WebRTC failure |
-| `authentication` | Login, permissions, certificates | Cannot log in, permission denied |
-| `installation` | Setup, upgrade, migration | Install failure, upgrade error |
-| `performance` | CPU, memory, system responsiveness | High CPU, slow UI |
-| `integration` | ONVIF, API, third-party | ONVIF discovery fails, API error |
-| `feature_request` | Enhancement requests | New feature suggestion |
-| `billing` | License, subscription, invoicing | License expired, billing question |
+| Category          | Description                                 | Examples                           |
+| ----------------- | ------------------------------------------- | ---------------------------------- |
+| `camera_issue`    | Camera connectivity, quality, configuration | Camera offline, poor image quality |
+| `recording`       | Recording failures, gaps, playback          | Missing recordings, corrupt files  |
+| `storage`         | Disk space, retention, performance          | Disk full, slow write speed        |
+| `network`         | Network configuration, connectivity         | RTSP timeout, WebRTC failure       |
+| `authentication`  | Login, permissions, certificates            | Cannot log in, permission denied   |
+| `installation`    | Setup, upgrade, migration                   | Install failure, upgrade error     |
+| `performance`     | CPU, memory, system responsiveness          | High CPU, slow UI                  |
+| `integration`     | ONVIF, API, third-party                     | ONVIF discovery fails, API error   |
+| `feature_request` | Enhancement requests                        | New feature suggestion             |
+| `billing`         | License, subscription, invoicing            | License expired, billing question  |
 
 ### 3.3 Ticket Lifecycle
 
@@ -121,15 +121,15 @@ Ticket
 
 ### 3.4 Ticket API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/v1/support/tickets` | Create a ticket |
-| GET | `/v1/support/tickets` | List tickets (filtered by org, status, etc.) |
-| GET | `/v1/support/tickets/:id` | Get ticket detail |
-| PATCH | `/v1/support/tickets/:id` | Update ticket (status, priority, assignee) |
-| POST | `/v1/support/tickets/:id/comments` | Add a comment |
-| POST | `/v1/support/tickets/:id/attachments` | Upload an attachment |
-| POST | `/v1/support/tickets/:id/diagnose` | Trigger remote diagnostics |
+| Method | Endpoint                              | Description                                  |
+| ------ | ------------------------------------- | -------------------------------------------- |
+| POST   | `/v1/support/tickets`                 | Create a ticket                              |
+| GET    | `/v1/support/tickets`                 | List tickets (filtered by org, status, etc.) |
+| GET    | `/v1/support/tickets/:id`             | Get ticket detail                            |
+| PATCH  | `/v1/support/tickets/:id`             | Update ticket (status, priority, assignee)   |
+| POST   | `/v1/support/tickets/:id/comments`    | Add a comment                                |
+| POST   | `/v1/support/tickets/:id/attachments` | Upload an attachment                         |
+| POST   | `/v1/support/tickets/:id/diagnose`    | Trigger remote diagnostics                   |
 
 ## 4. Remote Diagnostics
 
@@ -158,25 +158,25 @@ Support Agent                Cloud Portal              NVR Server
 
 ### 4.3 Diagnostic Data Collected
 
-| Category | Data | Sensitive? |
-|----------|------|-----------|
-| **System** | OS version, kernel, architecture, uptime | No |
-| | CPU model, core count, current usage | No |
-| | Memory total, used, available | No |
-| | Disk partitions, usage, filesystem types | No |
-| | Network interfaces, IPs (anonymizable) | Low |
-| **NVR** | MediaMTX version, build info | No |
-| | Configuration (with secrets redacted) | Low |
-| | Camera list with connection status | No |
-| | Recording status and storage stats | No |
-| | License info | No |
-| **Logs** | Last 1000 lines of NVR log | Medium |
-| | Last 500 lines of system journal (NVR service) | Medium |
-| **Network** | Connectivity test results (DNS, NTP, RTSP per camera) | Low |
-| | Latency measurements to cameras | No |
-| **Database** | SQLite integrity check result | No |
-| | Table row counts (no actual data) | No |
-| | Database file size | No |
+| Category     | Data                                                  | Sensitive? |
+| ------------ | ----------------------------------------------------- | ---------- |
+| **System**   | OS version, kernel, architecture, uptime              | No         |
+|              | CPU model, core count, current usage                  | No         |
+|              | Memory total, used, available                         | No         |
+|              | Disk partitions, usage, filesystem types              | No         |
+|              | Network interfaces, IPs (anonymizable)                | Low        |
+| **NVR**      | MediaMTX version, build info                          | No         |
+|              | Configuration (with secrets redacted)                 | Low        |
+|              | Camera list with connection status                    | No         |
+|              | Recording status and storage stats                    | No         |
+|              | License info                                          | No         |
+| **Logs**     | Last 1000 lines of NVR log                            | Medium     |
+|              | Last 500 lines of system journal (NVR service)        | Medium     |
+| **Network**  | Connectivity test results (DNS, NTP, RTSP per camera) | Low        |
+|              | Latency measurements to cameras                       | No         |
+| **Database** | SQLite integrity check result                         | No         |
+|              | Table row counts (no actual data)                     | No         |
+|              | Database file size                                    | No         |
 
 ### 4.4 Privacy and Security
 
@@ -223,14 +223,14 @@ KnowledgeBase
 
 ### 5.2 Content Types
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **How-To Guide** | Step-by-step instructions | "How to add an ONVIF camera" |
-| **Troubleshooting** | Problem/cause/solution format | "Camera shows offline but is powered on" |
-| **FAQ** | Common questions | "What ports does MediaMTX use?" |
-| **Reference** | Technical specifications | "Supported ONVIF profiles" |
-| **Release Notes** | Version changelog | "What's new in v1.5.0" |
-| **Video Tutorial** | Embedded video with transcript | "Initial NVR setup walkthrough" |
+| Type                | Description                    | Example                                  |
+| ------------------- | ------------------------------ | ---------------------------------------- |
+| **How-To Guide**    | Step-by-step instructions      | "How to add an ONVIF camera"             |
+| **Troubleshooting** | Problem/cause/solution format  | "Camera shows offline but is powered on" |
+| **FAQ**             | Common questions               | "What ports does MediaMTX use?"          |
+| **Reference**       | Technical specifications       | "Supported ONVIF profiles"               |
+| **Release Notes**   | Version changelog              | "What's new in v1.5.0"                   |
+| **Video Tutorial**  | Embedded video with transcript | "Initial NVR setup walkthrough"          |
 
 ### 5.3 Search
 
@@ -246,12 +246,12 @@ KnowledgeBase
 
 ### 5.5 Knowledge Base API
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/v1/support/kb/categories` | List categories |
-| GET | `/v1/support/kb/articles` | List/search articles |
-| GET | `/v1/support/kb/articles/:slug` | Get article by slug |
-| POST | `/v1/support/kb/articles/:id/feedback` | Submit helpfulness feedback |
+| Method | Endpoint                               | Description                 |
+| ------ | -------------------------------------- | --------------------------- |
+| GET    | `/v1/support/kb/categories`            | List categories             |
+| GET    | `/v1/support/kb/articles`              | List/search articles        |
+| GET    | `/v1/support/kb/articles/:slug`        | Get article by slug         |
+| POST   | `/v1/support/kb/articles/:id/feedback` | Submit helpfulness feedback |
 
 ### 5.6 White-Label Knowledge Base
 
@@ -263,15 +263,15 @@ KnowledgeBase
 
 ### 6.1 SLA Definitions
 
-| Metric | Starter | Professional | Enterprise |
-|--------|---------|-------------|------------|
-| **Response time** (first reply) | 48 business hours | 24 hours (calendar) | 4 hours (calendar) |
-| **Resolution target** | Best effort | 5 business days | 2 business days |
-| **Availability** | Business hours (M-F 9-5) | Business hours + extended (M-F 8-8) | 24/7/365 |
-| **Channels** | Email, portal | Email, portal, chat | Email, portal, chat, phone |
-| **Named contacts** | 1 | 3 | Unlimited |
-| **Remote diagnostics** | Manual upload only | Cloud-assisted | Cloud-assisted + proactive monitoring |
-| **Escalation path** | Standard | Priority queue | Dedicated support engineer |
+| Metric                          | Starter                  | Professional                        | Enterprise                            |
+| ------------------------------- | ------------------------ | ----------------------------------- | ------------------------------------- |
+| **Response time** (first reply) | 48 business hours        | 24 hours (calendar)                 | 4 hours (calendar)                    |
+| **Resolution target**           | Best effort              | 5 business days                     | 2 business days                       |
+| **Availability**                | Business hours (M-F 9-5) | Business hours + extended (M-F 8-8) | 24/7/365                              |
+| **Channels**                    | Email, portal            | Email, portal, chat                 | Email, portal, chat, phone            |
+| **Named contacts**              | 1                        | 3                                   | Unlimited                             |
+| **Remote diagnostics**          | Manual upload only       | Cloud-assisted                      | Cloud-assisted + proactive monitoring |
+| **Escalation path**             | Standard                 | Priority queue                      | Dedicated support engineer            |
 
 ### 6.2 SLA Calculation
 
@@ -282,12 +282,12 @@ KnowledgeBase
 
 ### 6.3 SLA Breach Handling
 
-| Threshold | Action |
-|-----------|--------|
-| 75% of response SLA elapsed | Warning notification to assigned agent |
-| 100% of response SLA elapsed | Escalation to team lead; ticket flagged as "SLA breached" |
-| 75% of resolution SLA elapsed | Warning to agent and team lead |
-| 100% of resolution SLA elapsed | Escalation to support manager; customer notification |
+| Threshold                      | Action                                                    |
+| ------------------------------ | --------------------------------------------------------- |
+| 75% of response SLA elapsed    | Warning notification to assigned agent                    |
+| 100% of response SLA elapsed   | Escalation to team lead; ticket flagged as "SLA breached" |
+| 75% of resolution SLA elapsed  | Warning to agent and team lead                            |
+| 100% of resolution SLA elapsed | Escalation to support manager; customer notification      |
 
 ### 6.4 SLA Reporting
 
@@ -350,13 +350,13 @@ KnowledgeBase
 
 ## 8. Integration Points
 
-| System | Integration |
-|--------|-------------|
+| System                            | Integration                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------- |
 | Cloud Management Portal (KAI-103) | Server context auto-populated in tickets; diagnostic commands sent via portal |
-| Push Notifications (KAI-105) | Ticket updates delivered as push notifications to mobile app |
-| Analytics/Reporting (KAI-107) | SLA compliance metrics feed into monthly reports |
-| White-Label (KAI-106) | Branded support portal; partner escalation workflows |
-| Email | Ticket creation via email; reply-by-email for comments |
+| Push Notifications (KAI-105)      | Ticket updates delivered as push notifications to mobile app                  |
+| Analytics/Reporting (KAI-107)     | SLA compliance metrics feed into monthly reports                              |
+| White-Label (KAI-106)             | Branded support portal; partner escalation workflows                          |
+| Email                             | Ticket creation via email; reply-by-email for comments                        |
 
 ## 9. Email Integration
 

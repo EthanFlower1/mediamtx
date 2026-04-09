@@ -4,16 +4,16 @@ This guide documents camera models tested with MediaMTX NVR, the ONVIF profiles 
 
 ## Tested Cameras
 
-| Manufacturer | Model | Firmware | ONVIF Version | Profile S | Profile T | PTZ | Events | Snapshots | Audio Backchannel | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Hikvision | DS-2CD2143G2-I | V5.7.x | 21.06 | Yes | Yes | N/A (fixed) | Yes | Yes | No | Dual-stream (main + sub). Motion events via PullPoint. |
-| Hikvision | DS-2DE4A425IWG-E | V5.7.x | 21.06 | Yes | Yes | Yes | Yes | Yes | Yes | 25x zoom PTZ. Presets and continuous move supported. |
-| Dahua | IPC-HDW3849H-AS-PV | V2.820.x | 21.12 | Yes | Yes | N/A (fixed) | Yes | Yes | Yes | Full-color with active deterrence. Two-way audio works. |
-| Dahua | SD49425GB-HNR | V2.820.x | 21.12 | Yes | Yes | Yes | Yes | Yes | Yes | 25x PTZ. Tour and preset support confirmed. |
-| Axis | P3265-LVE | 11.x | 21.12 | Yes | Yes | N/A (fixed) | Yes | Yes | No | Rock-solid ONVIF. Edge analytics events via ONVIF. |
-| Axis | Q6135-LE | 11.x | 21.12 | Yes | Yes | Yes | Yes | Yes | Yes | PTZ with autotracking. All services fully compliant. |
-| Reolink | RLC-810A | V3.1.x | 2.6.1 | Yes | No | N/A (fixed) | Partial | Yes | No | No Profile T. Motion events may not fire via PullPoint; use polling. |
-| Reolink | RLC-823A | V3.1.x | 2.6.1 | Yes | No | Yes (limited) | Partial | Yes | No | Pan/tilt only, no zoom. ONVIF event support is limited. |
+| Manufacturer | Model              | Firmware | ONVIF Version | Profile S | Profile T | PTZ           | Events  | Snapshots | Audio Backchannel | Notes                                                                |
+| ------------ | ------------------ | -------- | ------------- | --------- | --------- | ------------- | ------- | --------- | ----------------- | -------------------------------------------------------------------- |
+| Hikvision    | DS-2CD2143G2-I     | V5.7.x   | 21.06         | Yes       | Yes       | N/A (fixed)   | Yes     | Yes       | No                | Dual-stream (main + sub). Motion events via PullPoint.               |
+| Hikvision    | DS-2DE4A425IWG-E   | V5.7.x   | 21.06         | Yes       | Yes       | Yes           | Yes     | Yes       | Yes               | 25x zoom PTZ. Presets and continuous move supported.                 |
+| Dahua        | IPC-HDW3849H-AS-PV | V2.820.x | 21.12         | Yes       | Yes       | N/A (fixed)   | Yes     | Yes       | Yes               | Full-color with active deterrence. Two-way audio works.              |
+| Dahua        | SD49425GB-HNR      | V2.820.x | 21.12         | Yes       | Yes       | Yes           | Yes     | Yes       | Yes               | 25x PTZ. Tour and preset support confirmed.                          |
+| Axis         | P3265-LVE          | 11.x     | 21.12         | Yes       | Yes       | N/A (fixed)   | Yes     | Yes       | No                | Rock-solid ONVIF. Edge analytics events via ONVIF.                   |
+| Axis         | Q6135-LE           | 11.x     | 21.12         | Yes       | Yes       | Yes           | Yes     | Yes       | Yes               | PTZ with autotracking. All services fully compliant.                 |
+| Reolink      | RLC-810A           | V3.1.x   | 2.6.1         | Yes       | No        | N/A (fixed)   | Partial | Yes       | No                | No Profile T. Motion events may not fire via PullPoint; use polling. |
+| Reolink      | RLC-823A           | V3.1.x   | 2.6.1         | Yes       | No        | Yes (limited) | Partial | Yes       | No                | Pan/tilt only, no zoom. ONVIF event support is limited.              |
 
 ### Legend
 
@@ -28,19 +28,19 @@ This guide documents camera models tested with MediaMTX NVR, the ONVIF profiles 
 
 MediaMTX NVR queries camera capabilities at connection time and adapts automatically. The table below shows which ONVIF services and profiles are supported by the NVR software itself.
 
-| ONVIF Service | Namespace | NVR Support | Required Profile |
-|---|---|---|---|
-| Device Management | `devicemgmt` | Yes | Core |
-| Media (Profile S) | `media` | Yes | S |
-| Media2 (Profile T) | `ver20/media` | Yes | T |
-| PTZ | `ptz` | Yes | S (optional) |
-| Imaging | `imaging` | Yes | S (optional) |
-| Events (PullPoint) | `events` | Yes | S |
-| Analytics | `analytics` | Yes | T (optional) |
-| DeviceIO | `deviceio` | Yes | Core |
-| Recording | `recording` | Read-only query | G |
-| Replay | `replay` | Read-only query | G |
-| Search | `search` | Read-only query | G |
+| ONVIF Service      | Namespace     | NVR Support     | Required Profile |
+| ------------------ | ------------- | --------------- | ---------------- |
+| Device Management  | `devicemgmt`  | Yes             | Core             |
+| Media (Profile S)  | `media`       | Yes             | S                |
+| Media2 (Profile T) | `ver20/media` | Yes             | T                |
+| PTZ                | `ptz`         | Yes             | S (optional)     |
+| Imaging            | `imaging`     | Yes             | S (optional)     |
+| Events (PullPoint) | `events`      | Yes             | S                |
+| Analytics          | `analytics`   | Yes             | T (optional)     |
+| DeviceIO           | `deviceio`    | Yes             | Core             |
+| Recording          | `recording`   | Read-only query | G                |
+| Replay             | `replay`      | Read-only query | G                |
+| Search             | `search`      | Read-only query | G                |
 
 ### Minimum Requirements
 
@@ -99,6 +99,7 @@ curl -s http://localhost:9997/v3/cameras/{camera-id}/capabilities | jq .
 ```
 
 Record:
+
 - Manufacturer and model
 - Firmware version (check the camera's web UI)
 - ONVIF version (returned in the capabilities response under `services[].version`)
@@ -151,11 +152,11 @@ If you prefer to report without a PR, open a GitHub issue with this template:
 
 ## Troubleshooting Common Issues
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| Camera not found in discovery | ONVIF disabled on camera, or camera on different subnet | Enable ONVIF in camera web UI; ensure NVR and camera are on the same VLAN |
-| "connect to ONVIF device" error | Wrong credentials or camera unreachable | Verify username/password; confirm camera IP is reachable via ping |
-| Stream connects but no video | Codec mismatch or firewall blocking RTSP | Set camera to H.264 baseline; open UDP ports 6970-6999 or use TCP transport |
-| Events not firing | Camera does not support PullPoint, or event service misconfigured | Check capabilities for `events: true`; for Reolink, use polling mode |
-| Snapshot returns 401 | Separate auth required for snapshot URI | MediaMTX retries with digest auth automatically; verify camera credentials are correct |
-| PTZ commands ignored | Wrong profile token or PTZ not supported | Confirm camera has a PTZ-capable profile; use the primary profile token |
+| Symptom                         | Likely Cause                                                      | Fix                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Camera not found in discovery   | ONVIF disabled on camera, or camera on different subnet           | Enable ONVIF in camera web UI; ensure NVR and camera are on the same VLAN              |
+| "connect to ONVIF device" error | Wrong credentials or camera unreachable                           | Verify username/password; confirm camera IP is reachable via ping                      |
+| Stream connects but no video    | Codec mismatch or firewall blocking RTSP                          | Set camera to H.264 baseline; open UDP ports 6970-6999 or use TCP transport            |
+| Events not firing               | Camera does not support PullPoint, or event service misconfigured | Check capabilities for `events: true`; for Reolink, use polling mode                   |
+| Snapshot returns 401            | Separate auth required for snapshot URI                           | MediaMTX retries with digest auth automatically; verify camera credentials are correct |
+| PTZ commands ignored            | Wrong profile token or PTZ not supported                          | Confirm camera has a PTZ-capable profile; use the primary profile token                |

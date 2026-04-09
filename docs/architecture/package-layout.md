@@ -1,16 +1,16 @@
 # Package layout — Kaivue Recording Server
 
-Status: **active** — introduced by KAI-236 as part of *MS: On-Prem Foundation
-& Hardware Compatibility*. Reference: design doc §4.2.
+Status: **active** — introduced by KAI-236 as part of _MS: On-Prem Foundation
+& Hardware Compatibility_. Reference: design doc §4.2.
 
 ## Goals
 
 The Kaivue Recording Server ships as a single Go binary that runs in three
 modes on customer hardware:
 
-* `directory` — the cloud-aware control plane for a single tenant.
-* `recorder` — camera capture and on-disk recording for one or more cameras.
-* `all-in-one` — both roles in one process, for small sites.
+- `directory` — the cloud-aware control plane for a single tenant.
+- `recorder` — camera capture and on-disk recording for one or more cameras.
+- `all-in-one` — both roles in one process, for small sites.
 
 To make those modes truly independent at build time and at runtime, the Go
 package tree under `internal/` is split into three role-scoped trees with
@@ -34,23 +34,23 @@ internal/
 
 KAI-236 creates the three role trees as **skeletons** (`doc.go` only) — no
 existing code is moved. Subsequent tickets in the
-*On-Prem Foundation & Hardware Compatibility* milestone (KAI-237 onward)
+_On-Prem Foundation & Hardware Compatibility_ milestone (KAI-237 onward)
 migrate code out of `internal/nvr/` into the appropriate role.
 
 ## Boundary rules
 
 | From                  | `internal/shared/...` | `internal/directory/...` | `internal/recorder/...` |
-|-----------------------|:---------------------:|:------------------------:|:-----------------------:|
-| `internal/directory/` | allowed               | (self)                   | **forbidden**           |
-| `internal/recorder/`  | allowed               | **forbidden**            | (self)                  |
-| `internal/shared/`    | (self)                | **forbidden**            | **forbidden**           |
+| --------------------- | :-------------------: | :----------------------: | :---------------------: |
+| `internal/directory/` |        allowed        |          (self)          |      **forbidden**      |
+| `internal/recorder/`  |        allowed        |      **forbidden**       |         (self)          |
+| `internal/shared/`    |        (self)         |      **forbidden**       |      **forbidden**      |
 
-* The two role packages **never** import each other directly. All
+- The two role packages **never** import each other directly. All
   cross-role communication rides Connect-Go services defined in
   `internal/shared/proto/v1/`.
-* `internal/shared/` is a **leaf** with respect to the role packages: it
+- `internal/shared/` is a **leaf** with respect to the role packages: it
   exposes types and primitives, never depends on a role.
-* Editing anything under `internal/shared/proto/` requires the proto-lock
+- Editing anything under `internal/shared/proto/` requires the proto-lock
   (see `docs/proto-lock.md`).
 
 ## Enforcement
@@ -59,11 +59,11 @@ The boundary is enforced by a `depguard` linter configured in
 `.golangci.yml`. The relevant rules are tagged `KAI-236` in comments and
 include three rule sets:
 
-* `directory-no-recorder` — denies any import of
+- `directory-no-recorder` — denies any import of
   `github.com/bluenviron/mediamtx/internal/recorder` from files under
   `internal/directory/`.
-* `recorder-no-directory` — the symmetric rule for the Recorder role.
-* `shared-is-leaf` — denies any import of either role package from files
+- `recorder-no-directory` — the symmetric rule for the Recorder role.
+- `shared-is-leaf` — denies any import of either role package from files
   under `internal/shared/`.
 
 CI runs `golangci-lint run ./...` and blocks PRs that violate the rules.
@@ -78,13 +78,13 @@ re-run the command — you should see a `depguard` error referencing KAI-236.
 
 ## Why this matters
 
-* **Independent builds.** A pure-Recorder image must not transitively pull
+- **Independent builds.** A pure-Recorder image must not transitively pull
   in the Directory's Zitadel client, Casbin policy, or cloud sync. Import
   boundaries make that guarantee mechanical, not aspirational.
-* **Stable cross-role contract.** With the wire shape (`shared/proto`) as
+- **Stable cross-role contract.** With the wire shape (`shared/proto`) as
   the contract, either side can refactor freely without coordinating Go API
   changes.
-* **Failure isolation.** The Recorder must keep recording when the
+- **Failure isolation.** The Recorder must keep recording when the
   Directory, the cloud, or the mesh is unreachable. A leaky Go-level
   dependency would tempt code to assume Directory is in-process.
 

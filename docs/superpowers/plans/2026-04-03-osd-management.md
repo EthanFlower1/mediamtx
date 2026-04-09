@@ -12,17 +12,18 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `internal/nvr/onvif/osd.go` | Create | OSD SOAP types, XML parsing, 5 public functions (GetOSDs, GetOSDOptions, CreateOSD, SetOSD, DeleteOSD) |
-| `internal/nvr/api/cameras.go` | Modify | Add 5 handler methods for OSD endpoints |
-| `internal/nvr/api/router.go` | Modify | Register 5 OSD routes under protected group |
+| File                          | Action | Responsibility                                                                                         |
+| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| `internal/nvr/onvif/osd.go`   | Create | OSD SOAP types, XML parsing, 5 public functions (GetOSDs, GetOSDOptions, CreateOSD, SetOSD, DeleteOSD) |
+| `internal/nvr/api/cameras.go` | Modify | Add 5 handler methods for OSD endpoints                                                                |
+| `internal/nvr/api/router.go`  | Modify | Register 5 OSD routes under protected group                                                            |
 
 ---
 
 ### Task 1: OSD SOAP Types and GetOSDs
 
 **Files:**
+
 - Create: `internal/nvr/onvif/osd.go`
 
 This task creates the new file with all XML response types, the Go data types, the error sentinel, and the `GetOSDs` function.
@@ -328,6 +329,7 @@ git commit -m "feat(osd): add OSD types, XML parsing, and GetOSDs function"
 ### Task 2: GetOSDOptions, CreateOSD, SetOSD, DeleteOSD
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/osd.go`
 
 Add the remaining four public functions to `osd.go`.
@@ -608,6 +610,7 @@ git commit -m "feat(osd): add GetOSDOptions, CreateOSD, SetOSD, DeleteOSD functi
 ### Task 3: API Handlers
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (append after analytics handlers, ~line 1600)
 
 Add 5 handler methods to `CameraHandler`.
@@ -908,6 +911,7 @@ git commit -m "feat(osd): add OSD API handlers with validation"
 ### Task 4: Route Registration
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go` (~line 280, after analytics routes)
 
 - [ ] **Step 1: Add OSD routes**
@@ -952,6 +956,7 @@ Expected: No issues reported.
 - [ ] **Step 3: Verify all three files are in expected state**
 
 Confirm the following files exist and contain the expected code:
+
 - `internal/nvr/onvif/osd.go` — should contain `GetOSDs`, `GetOSDOptions`, `CreateOSD`, `SetOSD`, `DeleteOSD`, `buildOSDXML`, `convertOSDs`, `convertOSDOptions`, `formatOSDColor`, `validateOSDConfig` (wait — `validateOSDConfig` is in cameras.go, not osd.go)
 - `internal/nvr/api/cameras.go` — should contain `GetOSDs`, `GetOSDOptions`, `CreateOSD`, `SetOSD`, `DeleteOSD` handler methods and `validateOSDConfig`
 - `internal/nvr/api/router.go` — should contain 5 OSD route registrations

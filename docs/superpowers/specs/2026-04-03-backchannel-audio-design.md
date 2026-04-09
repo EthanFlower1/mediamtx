@@ -18,6 +18,7 @@ Flutter Client                NVR Backend                  ONVIF Camera
 ```
 
 **Key decisions:**
+
 - Audio proxied through NVR (not direct client-to-camera) for remote access and credential isolation
 - WebSocket transport from Flutter to NVR for low-latency bidirectional communication
 - Auto-negotiate codec with camera (prefer AAC, fall back to G.711)
@@ -62,18 +63,18 @@ type BackchannelCodec struct {
 
 **Functions:**
 
-| Function | Purpose |
-|----------|---------|
-| `GetAudioOutputs(xaddr, user, pass)` | List audio output tokens from camera |
-| `GetAudioOutputConfigurations(xaddr, user, pass)` | List audio output configurations |
-| `SetAudioOutputConfiguration(xaddr, user, pass, cfg)` | Update an audio output configuration |
-| `GetAudioDecoderConfigurations(xaddr, user, pass)` | List audio decoder configurations |
-| `SetAudioDecoderConfiguration(xaddr, user, pass, cfg)` | Update an audio decoder configuration |
-| `GetAudioDecoderOptions(xaddr, user, pass, token)` | Query supported codecs, bitrates, sample rates |
-| `NegotiateBackchannelCodec(xaddr, user, pass)` | Auto-select best codec (AAC > G.711) based on camera capabilities |
-| `GetBackchannelStreamURI(xaddr, user, pass, profileToken)` | Custom SOAP call for backchannel RTSP URI |
-| `AddAudioOutputToProfile(xaddr, user, pass, profileToken, configToken)` | Attach audio output config to media profile |
-| `AddAudioDecoderToProfile(xaddr, user, pass, profileToken, configToken)` | Attach audio decoder config to media profile |
+| Function                                                                 | Purpose                                                           |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `GetAudioOutputs(xaddr, user, pass)`                                     | List audio output tokens from camera                              |
+| `GetAudioOutputConfigurations(xaddr, user, pass)`                        | List audio output configurations                                  |
+| `SetAudioOutputConfiguration(xaddr, user, pass, cfg)`                    | Update an audio output configuration                              |
+| `GetAudioDecoderConfigurations(xaddr, user, pass)`                       | List audio decoder configurations                                 |
+| `SetAudioDecoderConfiguration(xaddr, user, pass, cfg)`                   | Update an audio decoder configuration                             |
+| `GetAudioDecoderOptions(xaddr, user, pass, token)`                       | Query supported codecs, bitrates, sample rates                    |
+| `NegotiateBackchannelCodec(xaddr, user, pass)`                           | Auto-select best codec (AAC > G.711) based on camera capabilities |
+| `GetBackchannelStreamURI(xaddr, user, pass, profileToken)`               | Custom SOAP call for backchannel RTSP URI                         |
+| `AddAudioOutputToProfile(xaddr, user, pass, profileToken, configToken)`  | Attach audio output config to media profile                       |
+| `AddAudioDecoderToProfile(xaddr, user, pass, profileToken, configToken)` | Attach audio decoder config to media profile                      |
 
 **Custom SOAP for GetBackchannelStreamURI:** The onvif-go library's `GetStreamUri` does not support backchannel parameters. A custom SOAP request is needed, following the existing pattern in `media2.go`. The request includes `<StreamType>RTP-Unicast</StreamType>` with backchannel transport per the ONVIF streaming specification.
 
@@ -115,15 +116,16 @@ type Manager struct {
 
 **Manager methods:**
 
-| Method | Behavior |
-|--------|----------|
-| `NewManager(credentialFunc)` | Constructor; takes function to look up decrypted ONVIF credentials by camera ID |
-| `StartSession(ctx, cameraID)` | Negotiate codec, establish RTSP backchannel (or reuse idle connection). Returns `BackchannelCodec` so client knows what format to encode |
-| `SendAudio(cameraID, audioData)` | Forward audio frames to camera via RTP over the active RTSP connection |
-| `StopSession(cameraID)` | Transition to idle, start 30s teardown timer |
-| `CloseAll()` | Graceful shutdown — tear down all RTSP connections |
+| Method                           | Behavior                                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `NewManager(credentialFunc)`     | Constructor; takes function to look up decrypted ONVIF credentials by camera ID                                                          |
+| `StartSession(ctx, cameraID)`    | Negotiate codec, establish RTSP backchannel (or reuse idle connection). Returns `BackchannelCodec` so client knows what format to encode |
+| `SendAudio(cameraID, audioData)` | Forward audio frames to camera via RTP over the active RTSP connection                                                                   |
+| `StopSession(cameraID)`          | Transition to idle, start 30s teardown timer                                                                                             |
+| `CloseAll()`                     | Graceful shutdown — tear down all RTSP connections                                                                                       |
 
 **Concurrency rules:**
+
 - One active session per camera. Second client gets `"camera busy"` error.
 - When `StopSession` is called, RTSP connection stays open for 30s. If `StartSession` is called again within that window, it reuses the connection and skips codec negotiation.
 - On RTSP connection failure, session is cleaned up; next `StartSession` retries from scratch.
@@ -131,6 +133,7 @@ type Manager struct {
 #### `rtsp.go` — RTSP Backchannel Connection
 
 Handles RTSP session for sending audio to the camera:
+
 - RTSP DESCRIBE, SETUP (with backchannel transport), PLAY
 - Sends RTP audio packets over the established interleaved TCP channel
 - RTSP OPTIONS keep-alive pings to prevent timeout
@@ -153,20 +156,20 @@ Protected by existing JWT middleware.
 
 **Client → Server:**
 
-| Message | Format | Purpose |
-|---------|--------|---------|
-| Start session | Text: `{"type":"start"}` | Begin push-to-talk |
-| Audio data | Binary: raw encoded frames | Audio in negotiated codec |
-| Stop session | Text: `{"type":"stop"}` | End push-to-talk (connection stays open) |
-| Connection close | — | Implicitly stops session |
+| Message          | Format                     | Purpose                                  |
+| ---------------- | -------------------------- | ---------------------------------------- |
+| Start session    | Text: `{"type":"start"}`   | Begin push-to-talk                       |
+| Audio data       | Binary: raw encoded frames | Audio in negotiated codec                |
+| Stop session     | Text: `{"type":"stop"}`    | End push-to-talk (connection stays open) |
+| Connection close | —                          | Implicitly stops session                 |
 
 **Server → Client:**
 
-| Message | Format | Purpose |
-|---------|--------|---------|
+| Message         | Format                                                                         | Purpose                            |
+| --------------- | ------------------------------------------------------------------------------ | ---------------------------------- |
 | Session started | `{"type":"session_started","codec":"G711","sample_rate":8000,"bitrate":64000}` | Tells client what format to encode |
-| Session stopped | `{"type":"session_stopped"}` | Confirms stop |
-| Error | `{"type":"error","message":"..."}` | Error conditions |
+| Session stopped | `{"type":"session_stopped"}`                                                   | Confirms stop                      |
+| Error           | `{"type":"error","message":"..."}`                                             | Error conditions                   |
 
 **Error conditions:** `"backchannel not supported"`, `"camera busy"`, `"connection failed"`, `"connection lost"`
 
@@ -174,19 +177,20 @@ Protected by existing JWT middleware.
 
 All under `/api/cameras/:id/audio/` prefix, JWT-protected.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/outputs` | List audio outputs |
-| GET | `/output-configs` | List audio output configurations |
-| PUT | `/output-configs/:token` | Update audio output configuration |
-| GET | `/decoder-configs` | List audio decoder configurations |
-| PUT | `/decoder-configs/:token` | Update audio decoder configuration |
-| GET | `/decoder-options/:token` | Get supported codecs/bitrates/sample rates |
-| GET | `/backchannel/info` | Get backchannel capability + negotiated codec without starting a session |
+| Method | Path                      | Purpose                                                                  |
+| ------ | ------------------------- | ------------------------------------------------------------------------ |
+| GET    | `/outputs`                | List audio outputs                                                       |
+| GET    | `/output-configs`         | List audio output configurations                                         |
+| PUT    | `/output-configs/:token`  | Update audio output configuration                                        |
+| GET    | `/decoder-configs`        | List audio decoder configurations                                        |
+| PUT    | `/decoder-configs/:token` | Update audio decoder configuration                                       |
+| GET    | `/decoder-options/:token` | Get supported codecs/bitrates/sample rates                               |
+| GET    | `/backchannel/info`       | Get backchannel capability + negotiated codec without starting a session |
 
 ### Handler: `internal/nvr/api/backchannel.go`
 
 `BackchannelHandler` struct holds:
+
 - Reference to `backchannel.Manager`
 - Credential decryption function
 - Database access for camera lookup
@@ -194,6 +198,7 @@ All under `/api/cameras/:id/audio/` prefix, JWT-protected.
 ## Integration & Lifecycle
 
 **NVR startup** (`internal/nvr/nvr.go`):
+
 1. Create `backchannel.Manager` with credential lookup function
 2. Create `BackchannelHandler` with manager reference
 3. Register WebSocket and REST routes on the Gin router
@@ -203,15 +208,15 @@ All under `/api/cameras/:id/audio/` prefix, JWT-protected.
 
 ## File Summary
 
-| File | Purpose |
-|------|---------|
-| `internal/nvr/onvif/backchannel.go` | ONVIF audio output/decoder operations + custom SOAP for backchannel URI |
-| `internal/nvr/onvif/audio.go` | Updated: populate `AudioBackchannel` capability |
-| `internal/nvr/backchannel/manager.go` | Session lifecycle management (start, send, stop, keep-alive) |
-| `internal/nvr/backchannel/rtsp.go` | RTSP backchannel connection handling |
-| `internal/nvr/backchannel/rtp.go` | RTP audio packet construction |
-| `internal/nvr/api/backchannel.go` | WebSocket + REST API handlers |
-| `internal/nvr/nvr.go` | Updated: initialize manager, register routes, shutdown cleanup |
+| File                                  | Purpose                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `internal/nvr/onvif/backchannel.go`   | ONVIF audio output/decoder operations + custom SOAP for backchannel URI |
+| `internal/nvr/onvif/audio.go`         | Updated: populate `AudioBackchannel` capability                         |
+| `internal/nvr/backchannel/manager.go` | Session lifecycle management (start, send, stop, keep-alive)            |
+| `internal/nvr/backchannel/rtsp.go`    | RTSP backchannel connection handling                                    |
+| `internal/nvr/backchannel/rtp.go`     | RTP audio packet construction                                           |
+| `internal/nvr/api/backchannel.go`     | WebSocket + REST API handlers                                           |
+| `internal/nvr/nvr.go`                 | Updated: initialize manager, register routes, shutdown cleanup          |
 
 ## Future Work (Not In Scope)
 

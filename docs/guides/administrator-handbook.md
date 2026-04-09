@@ -20,62 +20,62 @@ All server configuration lives in `mediamtx.yml`. The file is read at startup; s
 
 ### Core NVR Settings
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `nvr` | bool | `false` | Enable NVR functionality (camera management, ONVIF, recording timeline). |
-| `nvrDatabase` | string | `~/.mediamtx/nvr.db` | Path to the SQLite database that stores cameras, users, recordings metadata, and rules. |
-| `nvrJWTSecret` | string | _(auto-generated)_ | 256-bit hex secret used to sign NVR JWTs **and** encrypt stored ONVIF credentials. Never share or reset this value without a backup -- doing so makes existing encrypted credentials unrecoverable. |
+| Key            | Type   | Default              | Description                                                                                                                                                                                         |
+| -------------- | ------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nvr`          | bool   | `false`              | Enable NVR functionality (camera management, ONVIF, recording timeline).                                                                                                                            |
+| `nvrDatabase`  | string | `~/.mediamtx/nvr.db` | Path to the SQLite database that stores cameras, users, recordings metadata, and rules.                                                                                                             |
+| `nvrJWTSecret` | string | _(auto-generated)_   | 256-bit hex secret used to sign NVR JWTs **and** encrypt stored ONVIF credentials. Never share or reset this value without a backup -- doing so makes existing encrypted credentials unrecoverable. |
 
 ### Control API
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `api` | bool | `true` | Enable the HTTP Control API. |
-| `apiAddress` | string | `:9997` | Listen address for the API. |
-| `apiEncryption` | bool | `false` | Serve the API over HTTPS. |
-| `apiServerKey` | string | `server.key` | Path to TLS private key (when `apiEncryption` is true). |
-| `apiServerCert` | string | `server.crt` | Path to TLS certificate (when `apiEncryption` is true). |
-| `apiAllowOrigins` | list | `['*']` | Allowed CORS origins. Restrict in production. |
-| `apiTrustedProxies` | list | `[]` | IPs/CIDRs of reverse proxies that may set `X-Forwarded-For`. |
+| Key                 | Type   | Default      | Description                                                  |
+| ------------------- | ------ | ------------ | ------------------------------------------------------------ |
+| `api`               | bool   | `true`       | Enable the HTTP Control API.                                 |
+| `apiAddress`        | string | `:9997`      | Listen address for the API.                                  |
+| `apiEncryption`     | bool   | `false`      | Serve the API over HTTPS.                                    |
+| `apiServerKey`      | string | `server.key` | Path to TLS private key (when `apiEncryption` is true).      |
+| `apiServerCert`     | string | `server.crt` | Path to TLS certificate (when `apiEncryption` is true).      |
+| `apiAllowOrigins`   | list   | `['*']`      | Allowed CORS origins. Restrict in production.                |
+| `apiTrustedProxies` | list   | `[]`         | IPs/CIDRs of reverse proxies that may set `X-Forwarded-For`. |
 
 ### Playback Server
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `playback` | bool | `true` | Enable the playback server for downloading recordings. |
-| `playbackAddress` | string | `:9996` | Listen address. |
-| `playbackEncryption` | bool | `false` | Serve over HTTPS. |
-| `playbackAllowOrigins` | list | `['*']` | CORS origins. |
+| Key                    | Type   | Default | Description                                            |
+| ---------------------- | ------ | ------- | ------------------------------------------------------ |
+| `playback`             | bool   | `true`  | Enable the playback server for downloading recordings. |
+| `playbackAddress`      | string | `:9996` | Listen address.                                        |
+| `playbackEncryption`   | bool   | `false` | Serve over HTTPS.                                      |
+| `playbackAllowOrigins` | list   | `['*']` | CORS origins.                                          |
 
 ### Streaming Protocols
 
 MediaMTX exposes multiple streaming protocols. Disable any you do not need.
 
-| Protocol | Enable Key | Default Port(s) |
-|----------|-----------|-----------------|
-| RTSP | `rtsp: true` | TCP 8554, UDP 8000-8007 |
-| RTMP | `rtmp: true` | TCP 1935 |
-| HLS | `hls: true` | TCP 8888 |
-| WebRTC | `webrtc: true` | TCP 8889, UDP 8189 |
-| SRT | `srt: true` | UDP 8890 |
+| Protocol | Enable Key     | Default Port(s)         |
+| -------- | -------------- | ----------------------- |
+| RTSP     | `rtsp: true`   | TCP 8554, UDP 8000-8007 |
+| RTMP     | `rtmp: true`   | TCP 1935                |
+| HLS      | `hls: true`    | TCP 8888                |
+| WebRTC   | `webrtc: true` | TCP 8889, UDP 8189      |
+| SRT      | `srt: true`    | UDP 8890                |
 
 Each protocol has its own encryption, address, and TLS key/cert options. See comments in `mediamtx.yml` for full details.
 
 ### Metrics and Profiling
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `metrics` | `false` | Enable Prometheus-compatible `/metrics` endpoint on port 9998. |
-| `pprof` | `false` | Enable Go pprof endpoint on port 9999. **Never expose to the internet.** |
+| Key       | Default | Description                                                              |
+| --------- | ------- | ------------------------------------------------------------------------ |
+| `metrics` | `false` | Enable Prometheus-compatible `/metrics` endpoint on port 9998.           |
+| `pprof`   | `false` | Enable Go pprof endpoint on port 9999. **Never expose to the internet.** |
 
 ### Logging
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `logLevel` | `info` | Verbosity: `error`, `warn`, `info`, `debug`. Use `debug` only for troubleshooting. |
-| `logDestinations` | `[stdout]` | One or more of `stdout`, `file`, `syslog`. |
-| `logFile` | `mediamtx.log` | Log file path (when `file` is a destination). |
-| `logStructured` | `false` | Emit logs as JSONL for ingestion by log aggregators. |
+| Key               | Default        | Description                                                                        |
+| ----------------- | -------------- | ---------------------------------------------------------------------------------- |
+| `logLevel`        | `info`         | Verbosity: `error`, `warn`, `info`, `debug`. Use `debug` only for troubleshooting. |
+| `logDestinations` | `[stdout]`     | One or more of `stdout`, `file`, `syslog`.                                         |
+| `logFile`         | `mediamtx.log` | Log file path (when `file` is a destination).                                      |
+| `logStructured`   | `false`        | Emit logs as JSONL for ingestion by log aggregators.                               |
 
 ### Path Defaults and Camera Paths
 
@@ -83,24 +83,24 @@ Camera sources are defined under the `paths:` key. Each path maps a name to a so
 
 Key path-level settings:
 
-| Key | Description |
-|-----|-------------|
-| `source` | Stream source URL (`rtsp://...`, `publisher`, etc.). |
-| `sourceOnDemand` | Pull source only when a viewer connects. |
-| `record` | Enable recording for this path. |
-| `recordPath` | Template for segment file paths. |
-| `recordFormat` | Segment container format (`fmp4`). |
-| `recordSegmentDuration` | Duration per segment file. |
+| Key                     | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `source`                | Stream source URL (`rtsp://...`, `publisher`, etc.). |
+| `sourceOnDemand`        | Pull source only when a viewer connects.             |
+| `record`                | Enable recording for this path.                      |
+| `recordPath`            | Template for segment file paths.                     |
+| `recordFormat`          | Segment container format (`fmp4`).                   |
+| `recordSegmentDuration` | Duration per segment file.                           |
 
 ### Authentication Methods
 
 MediaMTX supports three authentication backends configured via `authMethod`:
 
-| Value | Description |
-|-------|-------------|
+| Value      | Description                                                                |
+| ---------- | -------------------------------------------------------------------------- |
 | `internal` | Users and permissions defined in `mediamtx.yml` under `authInternalUsers`. |
-| `http` | Each auth request is forwarded to an external HTTP endpoint. |
-| `jwt` | Tokens are validated against a JWKS endpoint. |
+| `http`     | Each auth request is forwarded to an external HTTP endpoint.               |
+| `jwt`      | Tokens are validated against a JWKS endpoint.                              |
 
 The NVR subsystem adds its own user database and JWT-based auth layer on top of these, managed through the NVR API (see below).
 
@@ -112,11 +112,11 @@ The NVR subsystem adds its own user database and JWT-based auth layer on top of 
 
 The NVR user system defines three roles with increasing privilege:
 
-| Role | Capabilities |
-|------|-------------|
-| `viewer` | View live streams, browse recordings for permitted cameras. Default role for new users. |
+| Role       | Capabilities                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `viewer`   | View live streams, browse recordings for permitted cameras. Default role for new users.        |
 | `operator` | Everything a viewer can do, plus control PTZ, trigger manual recordings, and manage bookmarks. |
-| `admin` | Full access: user management, camera configuration, system settings, backups, security. |
+| `admin`    | Full access: user management, camera configuration, system settings, backups, security.        |
 
 ### Camera Permissions
 
@@ -183,10 +183,10 @@ Authorization: Bearer <admin-jwt>
 Recording storage depends on camera count, resolution, codec, and retention period. Rough estimates for H.264:
 
 | Resolution | Bitrate (typical) | Per camera per day | Per camera per 30 days |
-|------------|-------------------|-------------------|----------------------|
-| 1080p | 4 Mbps | ~43 GB | ~1.3 TB |
-| 4K | 10 Mbps | ~108 GB | ~3.2 TB |
-| 720p | 2 Mbps | ~22 GB | ~650 GB |
+| ---------- | ----------------- | ------------------ | ---------------------- |
+| 1080p      | 4 Mbps            | ~43 GB             | ~1.3 TB                |
+| 4K         | 10 Mbps           | ~108 GB            | ~3.2 TB                |
+| 720p       | 2 Mbps            | ~22 GB             | ~650 GB                |
 
 H.265 (HEVC) typically requires 30-40% less storage at equivalent quality.
 
@@ -196,11 +196,11 @@ H.265 (HEVC) typically requires 30-40% less storage at equivalent quality.
 
 The NVR supports per-scope storage quotas with warning thresholds:
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `quota_bytes` | -- | Maximum allowed bytes. |
-| `warning_percent` | 80 | Quota usage percentage that triggers a warning status. |
-| `critical_percent` | 90 | Quota usage percentage that triggers a critical status. |
+| Field              | Default | Description                                             |
+| ------------------ | ------- | ------------------------------------------------------- |
+| `quota_bytes`      | --      | Maximum allowed bytes.                                  |
+| `warning_percent`  | 80      | Quota usage percentage that triggers a warning status.  |
+| `critical_percent` | 90      | Quota usage percentage that triggers a critical status. |
 
 Quota status values: `ok`, `warning`, `critical`, `exceeded`.
 
@@ -215,13 +215,13 @@ Authorization: Bearer <admin-jwt>
 
 Recording behavior is controlled per camera through recording rules:
 
-| Field | Description |
-|-------|-------------|
-| `mode` | `continuous` (always record) or `motion` (record on events only). |
-| `days` | Comma-separated days of the week (e.g., `mon,tue,wed,thu,fri`). |
-| `start_time` / `end_time` | Time window for the rule (24-hour format). |
-| `post_event_seconds` | Seconds to continue recording after a motion event ends. |
-| `enabled` | Toggle the rule without deleting it. |
+| Field                     | Description                                                       |
+| ------------------------- | ----------------------------------------------------------------- |
+| `mode`                    | `continuous` (always record) or `motion` (record on events only). |
+| `days`                    | Comma-separated days of the week (e.g., `mon,tue,wed,thu,fri`).   |
+| `start_time` / `end_time` | Time window for the rule (24-hour format).                        |
+| `post_event_seconds`      | Seconds to continue recording after a motion event ends.          |
+| `enabled`                 | Toggle the rule without deleting it.                              |
 
 ### Filesystem Recommendations
 
@@ -392,20 +392,20 @@ Use this checklist to harden a production deployment. Items are ordered by impac
 
 ## Quick Reference: Common API Endpoints
 
-| Endpoint | Method | Auth | Description |
-|----------|--------|------|-------------|
-| `/api/nvr/auth/login` | POST | none | Obtain a JWT token. |
-| `/api/nvr/users` | GET/POST | admin | List or create users. |
-| `/api/nvr/users/:id` | GET/PUT/DELETE | admin | Manage a specific user. |
-| `/api/nvr/cameras` | GET/POST | admin | List or add cameras. |
-| `/api/nvr/recordings` | GET | operator+ | Query recording segments. |
-| `/api/nvr/recording-rules` | GET/POST | admin | Manage recording rules. |
-| `/api/nvr/storage/quota` | GET | admin | Check storage quota status. |
-| `/api/nvr/audit` | GET | admin | View audit log. |
-| `/api/nvr/system/backups` | GET/POST | admin | List or create backups. |
-| `/api/nvr/system/backups/restore` | POST | admin | Restore from backup. |
-| `/api/nvr/system/tls/status` | GET | admin | Check TLS certificate status. |
-| `/api/nvr/system/updates` | GET | admin | Check for system updates. |
+| Endpoint                          | Method         | Auth      | Description                   |
+| --------------------------------- | -------------- | --------- | ----------------------------- |
+| `/api/nvr/auth/login`             | POST           | none      | Obtain a JWT token.           |
+| `/api/nvr/users`                  | GET/POST       | admin     | List or create users.         |
+| `/api/nvr/users/:id`              | GET/PUT/DELETE | admin     | Manage a specific user.       |
+| `/api/nvr/cameras`                | GET/POST       | admin     | List or add cameras.          |
+| `/api/nvr/recordings`             | GET            | operator+ | Query recording segments.     |
+| `/api/nvr/recording-rules`        | GET/POST       | admin     | Manage recording rules.       |
+| `/api/nvr/storage/quota`          | GET            | admin     | Check storage quota status.   |
+| `/api/nvr/audit`                  | GET            | admin     | View audit log.               |
+| `/api/nvr/system/backups`         | GET/POST       | admin     | List or create backups.       |
+| `/api/nvr/system/backups/restore` | POST           | admin     | Restore from backup.          |
+| `/api/nvr/system/tls/status`      | GET            | admin     | Check TLS certificate status. |
+| `/api/nvr/system/updates`         | GET            | admin     | Check for system updates.     |
 
 ---
 

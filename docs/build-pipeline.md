@@ -9,11 +9,11 @@ build locally.
 
 The pipeline is split across three workflow files under `.github/workflows/`:
 
-| Workflow | File | Trigger | Purpose |
-|---|---|---|---|
-| Build matrix | `build.yml` | push to `main`, tags `v*`, PRs, `workflow_call` | Cross-compile per target and upload artifacts |
-| Supply chain | `supply-chain.yml` | GitHub Releases, manual dispatch | Generate SBOM (syft) + cosign signing (release only) |
-| Reproducibility | `reproducibility-check.yml` | PRs touching Go code, manual, weekly cron | Build the same commit twice and diff the bytes |
+| Workflow        | File                        | Trigger                                         | Purpose                                              |
+| --------------- | --------------------------- | ----------------------------------------------- | ---------------------------------------------------- |
+| Build matrix    | `build.yml`                 | push to `main`, tags `v*`, PRs, `workflow_call` | Cross-compile per target and upload artifacts        |
+| Supply chain    | `supply-chain.yml`          | GitHub Releases, manual dispatch                | Generate SBOM (syft) + cosign signing (release only) |
+| Reproducibility | `reproducibility-check.yml` | PRs touching Go code, manual, weekly cron       | Build the same commit twice and diff the bytes       |
 
 `build.yml` is the source of truth for how a binary is produced. The other two
 workflows reuse it via `workflow_call`.
@@ -143,7 +143,6 @@ grype sbom:local.spdx.json
 
 2. Add the repository secrets in GitHub (Settings -> Secrets and variables ->
    Actions):
-
    - `COSIGN_KEY` -> contents of `cosign.key`
    - `COSIGN_PASSWORD` -> the password you used during keygen
 

@@ -50,6 +50,13 @@ dependencies:
   # no Dart-side iOS plugin is added here to keep the dependency graph small.
   # Desktop and Web fall back to the foreground Timer.periodic path.
   workmanager: ^0.5.2
+  # KAI-303 — push notifications scaffold.
+  # firebase_messaging drives APNs + FCM (we do NOT init Firebase in this
+  # PR — actual init waits for google-services config to land in a
+  # separate credential-landing PR). flutter_local_notifications presents
+  # the in-app banner + OS notification on receipt.
+  firebase_messaging: ^15.1.3
+  flutter_local_notifications: ^17.2.3
 
 dev_dependencies:
   flutter_test:

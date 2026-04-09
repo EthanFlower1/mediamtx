@@ -1,4 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        KAI-303 — Push notifications scaffold.
+
+        POST_NOTIFICATIONS is runtime-requested on Android 13+ (API 33).
+        On earlier APIs this permission is auto-granted and the runtime
+        prompt is a no-op.
+
+        STILL MISSING (tracked for lead-sre in the KAI-306 build pipeline):
+          * google-services.json in android/app/
+          * The `com.google.gms.google-services` plugin application in
+            android/app/build.gradle + classpath in android/build.gradle
+          * Firebase project wired to the FCM Server Key in the dispatcher
+        Do NOT add fake credentials here. The above land in a follow-up
+        credential PR.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE"/>
     <application
         android:label="nvr_client"
         android:name="${applicationName}"
@@ -36,6 +54,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!--
+            KAI-303 — FCM default notification channel + icon metadata.
+            Declared here so native code can resolve a stable channel id
+            before google-services.json lands. The Firebase messaging
+            service itself is auto-registered by the firebase_messaging
+            plugin manifest merger once the plugin is added.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kaivue_default" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

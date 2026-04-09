@@ -60,6 +60,27 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!--
+		KAI-303 — Push notifications scaffold.
+
+		`remote-notification` background mode lets APNs wake the app for
+		silent content-available pushes so the client can refresh state.
+
+		STILL MISSING (tracked for lead-sre in the KAI-306 build pipeline):
+		  * APNs authentication key (.p8) + Key ID + Team ID, registered
+		    in the Apple Developer portal and supplied to Firebase /
+		    the dispatcher.
+		  * The matching Push Notifications capability in Runner.xcodeproj
+		    entitlements (aps-environment = production).
+		  * GoogleService-Info.plist (if FCM is used on iOS).
+
+		Do NOT add fake credentials here. The above land in a follow-up
+		credential PR.
+	-->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

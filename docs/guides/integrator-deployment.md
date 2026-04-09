@@ -279,17 +279,17 @@ Use this checklist before deploying at a new site. Complete each section and ret
 
 ### 2. Network Infrastructure
 
-- [ ] Network switch model and port count: **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] Network switch model and port count: ********\_\_\_\_********
 - [ ] PoE budget sufficient for cameras: \_**\_ W available, \_\_** W required
-- [ ] PoE standard confirmed (802.3af / 802.3at / 802.3bt): \***\*\_\_\_\_\*\***
+- [ ] PoE standard confirmed (802.3af / 802.3at / 802.3bt): ****\_\_\_\_****
 - [ ] Uplink speed to core switch: \_\_\_\_ Gbps
 - [ ] VLAN support available on switch: Yes / No
-- [ ] Camera VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
-- [ ] Management VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
-- [ ] Client VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
+- [ ] Camera VLAN ID: \_**\_ CIDR: ********\_\_**********
+- [ ] Management VLAN ID: \_**\_ CIDR: ********\_\_**********
+- [ ] Client VLAN ID: \_**\_ CIDR: ********\_\_**********
 - [ ] DHCP server available for camera VLAN: Yes / No
 - [ ] DNS available on management network: Yes / No
-- [ ] NTP server address: **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] NTP server address: ********\_\_\_\_********
 
 ### 3. Camera Inventory
 
@@ -308,14 +308,14 @@ Use this checklist before deploying at a new site. Complete each section and ret
 
 ### 4. Server Specification
 
-- [ ] CPU: **\*\*\*\***\_\_\_\_**\*\*\*\*** (minimum: 4 cores for 16 cameras, 8 cores for 32+)
+- [ ] CPU: ********\_\_\_\_******** (minimum: 4 cores for 16 cameras, 8 cores for 32+)
 - [ ] RAM: \_\_\_\_ GB (minimum: 8 GB for 16 cameras, 16 GB for 32+)
 - [ ] OS storage: \_\_\_\_ GB SSD
 - [ ] Recording storage: \_\_\_\_ TB (see bandwidth planning for sizing)
 - [ ] Storage type: Local disk / NAS / SAN
 - [ ] If NAS/SAN: protocol (NFS / iSCSI / SMB), confirmed throughput: \_\_\_\_ MB/s
-- [ ] NIC count and speed: **\*\*\*\***\_\_\_\_**\*\*\*\***
-- [ ] OS: **\*\*\*\***\_\_\_\_**\*\*\*\*** (Linux recommended)
+- [ ] NIC count and speed: ********\_\_\_\_********
+- [ ] OS: ********\_\_\_\_******** (Linux recommended)
 
 ### 5. Bandwidth Verification
 
@@ -339,7 +339,7 @@ Use this checklist before deploying at a new site. Complete each section and ret
 ### 7. WAN / Remote Access (if applicable)
 
 - [ ] WAN link speed: \_**\_ Mbps upload / \_\_** Mbps download
-- [ ] VPN or ZTNA solution: **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] VPN or ZTNA solution: ********\_\_\_\_********
 - [ ] STUN/TURN server configured for remote WebRTC access
 - [ ] Remote viewer count estimated: \_\_\_\_
 - [ ] WAN bandwidth sufficient per multi-site sizing table above
@@ -350,7 +350,7 @@ Use this checklist before deploying at a new site. Complete each section and ret
 - [ ] Calculated total storage required: \_\_\_\_ TB
 - [ ] Storage headroom (20% recommended): \_\_\_\_ TB
 - [ ] Disk health monitoring configured (SMART / RAID alerts)
-- [ ] Backup strategy for NVR database (SQLite): **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] Backup strategy for NVR database (SQLite): ********\_\_\_\_********
 
 ### 9. Go-Live Verification
 

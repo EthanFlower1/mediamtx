@@ -1,0 +1,34 @@
+# PLACEHOLDER: KAI-399 will replace this with the auto-generated OpenAPI spec from Connect-Go protos. KAI-431 (proto compilation audit) must land first.
+openapi: 3.1.0
+x-spec-status: placeholder
+info:
+  title: Kaivue Recording Server API
+  version: 0.0.0-placeholder
+  description: |
+    Placeholder OpenAPI shell for the Kaivue Recording Server API.
+    Replace this file with the auto-generated spec from the backend build pipeline.
+    See KAI-399 and KAI-431 for the production wiring plan.
+servers:
+  - url: https://nvr.example.local/api/v1
+    description: On-premise NVR instance (replace with your server address)
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the Recording Server API. This endpoint exists today in the apiserver.
+      operationId: getHealth
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "algolia": {
+    "appId": "YOUR_ALGOLIA_APP_ID",
+    "apiKey": "YOUR_ALGOLIA_SEARCH_ONLY_API_KEY",
+    "indexName": "kaivue_docs"
+  },
+  "integrations": {
+    "inkeep": {
+      "apiKey": "YOUR_INKEEP_API_KEY",
+      "integrationId": "YOUR_INKEEP_INTEGRATION_ID",
+      "organizationId": "YOUR_INKEEP_ORG_ID"
+    }
+  }
+}

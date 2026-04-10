@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"runtime"
-	"syscall"
 )
 
 // Minimum requirements.
@@ -108,13 +107,7 @@ func (c *Checker) checkDisk() CheckResult {
 
 	getDisk := c.getDiskInfo
 	if getDisk == nil {
-		getDisk = func(p string) (uint64, error) {
-			var stat syscall.Statfs_t
-			if err := syscall.Statfs(p, &stat); err != nil {
-				return 0, err
-			}
-			return stat.Bavail * uint64(stat.Bsize), nil
-		}
+		getDisk = defaultDiskFree
 	}
 
 	freeBytes, err := getDisk(path)

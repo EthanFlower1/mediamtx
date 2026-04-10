@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"syscall"
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
@@ -145,13 +144,10 @@ func (e *Evaluator) checkDiskUsage(rule *db.AlertRule) (triggered bool, severity
 		path = "./recordings/"
 	}
 
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(path, &stat); err != nil {
+	totalBytes, freeBytes, err := diskUsage(path)
+	if err != nil {
 		return false, "", "", ""
 	}
-
-	totalBytes := stat.Blocks * uint64(stat.Bsize)
-	freeBytes := stat.Bavail * uint64(stat.Bsize)
 	if totalBytes == 0 {
 		return false, "", "", ""
 	}

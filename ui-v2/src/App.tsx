@@ -54,11 +54,17 @@ const AiSettingsPage = lazy(() =>
 // and retention overview only ship when /admin/schedules is visited.
 const SchedulesPage = lazy(() =>
   import('./routes/admin/SchedulesPage').then((m) => ({ default: m.SchedulesPage })),
+);
 // KAI-324: EventsPage lazy-loaded — the virtualized AI detection list,
 // filter bar, semantic search toggle, and CSV/PDF export only ship when
 // /admin/events is visited.
 const EventsPage = lazy(() =>
   import('./routes/admin/EventsPage').then((m) => ({ default: m.EventsPage })),
+);
+// KAI-329: SystemHealthPage lazy-loaded — health dashboard, remote access
+// controls, and quick settings only ship when /admin/health is visited.
+const SystemHealthPage = lazy(() =>
+  import('./routes/admin/SystemHealthPage').then((m) => ({ default: m.SystemHealthPage })),
 );
 const FleetDashboard = lazy(() => import('./routes/command/FleetDashboard'));
 const CustomersPage = lazy(() => import('./routes/command/CustomersPage'));
@@ -95,6 +101,7 @@ export function App(): JSX.Element {
         <Route path="/admin/ai-settings" element={<AiSettingsPage />} />
         <Route path="/admin/schedules" element={<SchedulesPage />} />
         <Route path="/admin/events" element={<EventsPage />} />
+        <Route path="/admin/health" element={<SystemHealthPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CustomersPage />} />

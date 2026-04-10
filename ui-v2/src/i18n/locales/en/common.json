@@ -670,9 +670,7 @@
   "brand.publish.warning": "This will apply the current brand settings to all customer tenants. This action takes effect immediately and cannot be undone.",
   "brand.publish.cancel": "Cancel",
   "brand.publish.confirm": "Publish now",
-  "brand.publish.publishing": "Publishing..."
-
-  "faceVault.audit.face.modelVersionTransitioned": "Model version transitioned"
+  "brand.publish.publishing": "Publishing...",
 
   "schedules.title": "Recording Schedules",
   "schedules.page.label": "Customer admin recording schedules",
@@ -738,7 +736,7 @@
   "schedules.bulkAssign.modal.camerasSelected": "{{count}} cameras selected",
   "schedules.bulkAssign.modal.schedule": "Target schedule",
   "schedules.bulkAssign.modal.selectSchedule": "Select a schedule…",
-  "schedules.bulkAssign.modal.confirm": "Assign cameras"
+  "schedules.bulkAssign.modal.confirm": "Assign cameras",
 
   "mobileBuilds.page.title": "Mobile App Builds",
   "mobileBuilds.page.subtitle": "Manage white-label iOS and Android builds for your customers.",
@@ -814,7 +812,7 @@
   "mobileBuilds.distribution.track.production": "Production",
   "mobileBuilds.distribution.autoSubmit": "Auto-submit for review",
   "mobileBuilds.distribution.enabled": "Enabled",
-  "mobileBuilds.distribution.disabled": "Disabled"
+  "mobileBuilds.distribution.disabled": "Disabled",
 
   "staff.title": "Staff Management",
   "staff.subtitle": "Manage your integrator staff accounts and role assignments.",
@@ -878,7 +876,7 @@
   "staff.remove.typeToConfirm": "Type REMOVE to confirm",
   "staff.remove.typeHint": "This is a destructive action.",
   "staff.remove.cancel": "Cancel",
-  "staff.remove.confirm": "Remove staff"
+  "staff.remove.confirm": "Remove staff",
 
   "events.page.title": "Events",
   "events.page.label": "Customer admin AI events",
@@ -927,5 +925,62 @@
   "events.export.pdfButton": "Export PDF",
   "events.export.csvReady": "CSV ready — {{count}} rows.",
   "events.export.pdfRendering": "Rendering PDF…",
-  "events.export.pdfReady": "PDF ready — {{pages}} pages."
+  "events.export.pdfReady": "PDF ready — {{pages}} pages.",
+
+  "staff.remove.confirm": "Remove staff",
+
+  "permissions.page.title": "Customer Permissions",
+  "permissions.page.subtitle": "Define what capabilities each customer tenant has access to.",
+  "permissions.page.loading": "Loading permissions matrix...",
+  "permissions.page.error": "Unable to load permissions. Please retry.",
+  "permissions.breadcrumb.ariaLabel": "Breadcrumb",
+  "permissions.breadcrumb.integratorPortal": "Integrator Portal",
+  "permissions.state.enabled": "Enabled",
+  "permissions.state.disabled": "Disabled",
+  "permissions.state.inherited": "Inherited",
+  "permissions.category.cameras": "Cameras",
+  "permissions.category.recordings": "Recordings",
+  "permissions.category.aiFeatures": "AI Features",
+  "permissions.category.users": "Users",
+  "permissions.category.billing": "Billing",
+  "permissions.category.apiAccess": "API Access",
+  "permissions.category.whiteLabel": "White-Label",
+  "permissions.category.alerts": "Alerts",
+  "permissions.sub.objectDetection": "Object Detection",
+  "permissions.sub.faceRecognition": "Face Recognition",
+  "permissions.sub.lpr": "License Plate Recognition",
+  "permissions.sub.behavioral": "Behavioral Analytics",
+  "permissions.sub.semanticSearch": "Semantic Search",
+  "permissions.sub.customModels": "Custom Models",
+  "permissions.sub.addCameras": "Add Cameras",
+  "permissions.sub.ptzControl": "PTZ Control",
+  "permissions.sub.deleteCameras": "Delete Cameras",
+  "permissions.sub.viewRecordings": "View Recordings",
+  "permissions.sub.exportRecordings": "Export Recordings",
+  "permissions.sub.deleteRecordings": "Delete Recordings",
+  "permissions.matrix.ariaLabel": "Customer permissions matrix",
+  "permissions.matrix.tenantColumn": "Customer",
+  "permissions.matrix.planColumn": "Plan",
+  "permissions.matrix.selectAll": "Select all tenants",
+  "permissions.matrix.selectTenant": "Select {{name}}",
+  "permissions.matrix.expandRow": "Expand sub-permissions for {{name}}",
+  "permissions.matrix.expand": "expand",
+  "permissions.matrix.collapse": "collapse",
+  "permissions.matrix.cellLabel": "{{tenant}}, {{category}}: {{state}}",
+  "permissions.matrix.subCellLabel": "{{tenant}}, {{category}} / {{sub}}: {{state}}",
+  "permissions.planBanner.text": "Dashed-border cells indicate permissions inherited from the tenant's plan tier. Solid borders indicate custom overrides.",
+  "permissions.bulk.ariaLabel": "Bulk permission actions",
+  "permissions.bulk.selected": "{{count}} selected",
+  "permissions.bulk.enable": "Enable {{category}}",
+  "permissions.bulk.disable": "Disable {{category}}",
+  "permissions.save.button": "Save changes ({{count}})",
+  "permissions.save.pendingChanges": "{{count}} pending changes",
+  "permissions.diffPreview.title": "Review permission changes",
+  "permissions.diffPreview.description": "{{count}} permission changes will be applied:",
+  "permissions.diffPreview.cancel": "Cancel",
+  "permissions.diffPreview.confirm": "Apply changes",
+  "permissions.diffPreview.saving": "Saving...",
+  "permissions.audit.regionLabel": "Permission change audit trail",
+  "permissions.audit.title": "Audit Trail",
+  "permissions.audit.empty": "No recent permission changes."
 }

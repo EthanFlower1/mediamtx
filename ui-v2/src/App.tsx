@@ -50,6 +50,11 @@ const PlaybackPage = lazy(() =>
 const AiSettingsPage = lazy(() =>
   import('./routes/admin/AiSettingsPage').then((m) => ({ default: m.AiSettingsPage })),
 );
+// KAI-326: SchedulesPage lazy-loaded; schedule templates, weekly timeline,
+// and retention overview only ship when /admin/schedules is visited.
+const SchedulesPage = lazy(() =>
+  import('./routes/admin/SchedulesPage').then((m) => ({ default: m.SchedulesPage })),
+);
 const FleetDashboard = lazy(() => import('./routes/command/FleetDashboard'));
 const CustomersPage = lazy(() => import('./routes/command/CustomersPage'));
 // KAI-310: BrandConfigPage lazy-loaded; brand settings form, preview panel,
@@ -73,6 +78,7 @@ export function App(): JSX.Element {
         <Route path="/admin/live" element={<LiveViewPage />} />
         <Route path="/admin/playback/:eventId" element={<PlaybackPage />} />
         <Route path="/admin/ai-settings" element={<AiSettingsPage />} />
+        <Route path="/admin/schedules" element={<SchedulesPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CustomersPage />} />

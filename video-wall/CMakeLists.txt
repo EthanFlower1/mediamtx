@@ -83,6 +83,12 @@ qt_add_executable(KaivueVideoWall
     # Platform backends (guarded by platform preprocessor macros)
     src/render/D3D12Backend.cpp    # Q_OS_WIN only
     src/render/VulkanBackend.cpp   # Q_OS_LINUX only
+
+    # Map view — floor plans + geographic + camera placement (KAI-338)
+    src/map/CameraPlacementModel.cpp
+    src/map/FilesystemTileProvider.cpp
+    src/map/HeatmapOverlay.cpp
+    src/map/MapView.cpp
 )
 
 target_include_directories(KaivueVideoWall PRIVATE

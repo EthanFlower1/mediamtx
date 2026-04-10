@@ -36,3 +36,36 @@ set_tests_properties(tst_render_core PROPERTIES
     LABELS "render"
     TIMEOUT 120
 )
+
+# ---------------------------------------------------------------------------
+# Map view unit tests (KAI-338)
+# Headless — uses NullTileProvider and offscreen QImage painting; no GPU,
+# no network, no real map tiles. Safe for CI containers.
+# ---------------------------------------------------------------------------
+qt_add_executable(tst_map_view
+    map/tst_map_view.cpp
+
+    # Map sources (compiled into the test target so no shared library
+    # is needed at this scaffold stage — mirrors tst_render_core).
+    "${CMAKE_SOURCE_DIR}/src/map/CameraPlacementModel.cpp"
+    "${CMAKE_SOURCE_DIR}/src/map/FilesystemTileProvider.cpp"
+    "${CMAKE_SOURCE_DIR}/src/map/HeatmapOverlay.cpp"
+    "${CMAKE_SOURCE_DIR}/src/map/MapView.cpp"
+)
+
+target_include_directories(tst_map_view PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+
+target_link_libraries(tst_map_view PRIVATE
+    Qt6::Test
+    Qt6::Gui
+    Qt6::Core
+)
+
+add_test(NAME tst_map_view COMMAND tst_map_view)
+set_tests_properties(tst_map_view PROPERTIES
+    LABELS "map"
+    TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

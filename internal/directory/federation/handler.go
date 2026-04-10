@@ -8,6 +8,7 @@ import (
 	connect "connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	kaivuev1 "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1"
 	"github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1/kaivuev1connect"
 )
@@ -28,6 +29,23 @@ type Config struct {
 	// JWKSProvider returns this Directory's JWKS document.
 	JWKSProvider JWKSProvider
 
+	// GrantManager is the federation Casbin grant manager used to filter
+	// catalog results by the requesting peer's grants. Required for
+	// ListUsers, ListGroups, ListCameras.
+	GrantManager *permissions.FederationGrantManager
+
+	// UserStore is the local user directory. Optional — if nil, ListUsers
+	// returns CodeUnimplemented.
+	UserStore UserStore
+
+	// GroupStore is the local group directory. Optional — if nil, ListGroups
+	// returns CodeUnimplemented.
+	GroupStore GroupStore
+
+	// CameraStore is the local camera registry. Optional — if nil,
+	// ListCameras returns CodeUnimplemented.
+	CameraStore CameraStore
+
 	// Logger is the structured logger. Nil defaults to slog.Default().
 	Logger *slog.Logger
 }
@@ -43,9 +61,10 @@ func (c *Config) validate() error {
 }
 
 // Handler implements the FederationPeerServiceHandler interface from
-// Connect-Go generated code. Ping and GetJWKS are fully implemented;
-// all other RPCs embed UnimplementedFederationPeerServiceHandler to
-// return CodeUnimplemented, ready for KAI-465 and KAI-466 to fill in.
+// Connect-Go generated code. Ping, GetJWKS, ListUsers, ListGroups, and
+// ListCameras are fully implemented. The remaining RPCs (SearchRecordings,
+// MintStreamURL) embed UnimplementedFederationPeerServiceHandler to return
+// CodeUnimplemented, ready for KAI-466 to fill in.
 type Handler struct {
 	kaivuev1connect.UnimplementedFederationPeerServiceHandler
 

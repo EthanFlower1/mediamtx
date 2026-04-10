@@ -1,8 +1,9 @@
 // Package federation implements the FederationPeerService, which exposes
 // Directory-to-Directory RPCs over Connect-Go with mTLS authentication.
 //
-// This is the service scaffold for KAI-464. Ping and GetJWKS are fully
-// implemented; the remaining RPCs (ListUsers, ListGroups, ListCameras,
-// SearchRecordings, MintStreamURL) return Unimplemented and will be filled
-// in by KAI-465 and KAI-466.
+// KAI-464 laid the scaffold with Ping and GetJWKS. KAI-465 adds the three
+// catalog RPCs (ListUsers, ListGroups, ListCameras), each filtered by Casbin
+// grants for the requesting peer using the "federation:<peer_directory_id>"
+// subject prefix. SearchRecordings and MintStreamURL remain Unimplemented
+// and will be filled in by KAI-466.
 package federation

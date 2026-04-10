@@ -56,8 +56,12 @@ models/*.json
 .claude/*
 !.claude/agents/
 !.claude/skills/
+.claude-flow/
 .superpowers/
 /.worktrees
+
+# Root node_modules (if any tooling is installed at repo root)
+node_modules/
 
 # Flutter
 clients/flutter/.dart_tool/

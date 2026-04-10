@@ -1,0 +1,6 @@
+# KAI-354 — Fastlane Gemfile for iOS. Checked in so CI runners install a
+# pinned version via bundler-cache.
+
+source "https://rubygems.org"
+
+gem "fastlane", "~> 2.220"

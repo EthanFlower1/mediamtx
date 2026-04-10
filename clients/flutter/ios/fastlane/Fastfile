@@ -1,0 +1,62 @@
+# KAI-354 — Fastlane iOS lanes for per-integrator mobile builds.
+#
+# Required env vars (injected by .github/workflows/integrator-mobile-build.yml,
+# which in turn reads them from the per-integrator vault — see KAI-355):
+#
+#   INTEGRATOR_ID                          e.g. "acme"
+#   BUNDLE_ID                              e.g. "com.acme.kaivue"
+#   APP_NAME                               e.g. "Acme Security"
+#   VERSION_NAME                           e.g. "1.2.3"
+#   VERSION_CODE                           e.g. "42"
+#
+#   MATCH_PASSWORD                         Fastlane match encryption passphrase
+#   MATCH_GIT_BASIC_AUTHORIZATION          base64(user:token) for match repo
+#   APP_STORE_CONNECT_API_KEY_ID           ASC API key id
+#   APP_STORE_CONNECT_API_KEY_ISSUER_ID    ASC issuer id
+#   APP_STORE_CONNECT_API_KEY_KEY          ASC .p8 contents (literal)
+#
+# TODO(KAI-355): every secret above is per-integrator — resolve from vault
+# keyed by INTEGRATOR_ID before invoking these lanes.
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and ship a per-integrator iOS release to TestFlight."
+  lane :ios_integrator_release do
+    integrator_id = ENV.fetch("INTEGRATOR_ID")
+    bundle_id     = ENV.fetch("BUNDLE_ID")
+    version_name  = ENV.fetch("VERSION_NAME", nil)
+    version_code  = ENV.fetch("VERSION_CODE", nil)
+
+    UI.message("Building iOS release for integrator=#{integrator_id} bundle=#{bundle_id}")
+
+    api_key = app_store_connect_api_key(
+      key_id:       ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+      issuer_id:    ENV.fetch("APP_STORE_CONNECT_API_KEY_ISSUER_ID"),
+      key_content:  ENV.fetch("APP_STORE_CONNECT_API_KEY_KEY"),
+      in_house:     false,
+    )
+
+    # TODO(KAI-355): select per-integrator match git_url from vault.
+    match(
+      type:          "appstore",
+      app_identifier: bundle_id,
+      readonly:       true,
+      api_key:        api_key,
+    )
+
+    # Flutter has already produced the .xcarchive via `flutter build ipa`;
+    # we only need to re-export and sign. If the workflow changes to hand off
+    # an unarchived project, swap this for build_app(...).
+    ipa_path = Dir["../build/ios/ipa/*.ipa"].first
+    UI.user_error!("No .ipa produced by `flutter build ipa`") if ipa_path.nil?
+
+    pilot(
+      api_key:                    api_key,
+      ipa:                        ipa_path,
+      app_identifier:             bundle_id,
+      skip_waiting_for_build_processing: true,
+      changelog: "Integrator #{integrator_id} build #{version_name}+#{version_code}",
+    )
+  end
+end

@@ -1,0 +1,27 @@
+{
+  "id": "acme",
+  "appName": "Acme Security",
+  "bundleId": "com.acme.kaivue",
+  "version": {
+    "name": "1.0.0",
+    "code": 1
+  },
+  "branding": {
+    "primaryColor": "#0B5CD5",
+    "secondaryColor": "#F2B441",
+    "logo": "assets/acme/logo.svg",
+    "icon": "assets/acme/icon-1024.png",
+    "splash": "assets/acme/splash.png"
+  },
+  "strings": {
+    "supportEmail": "support@acme.example",
+    "websiteUrl": "https://acme.example",
+    "tagline": "Professional security, simplified."
+  },
+  "store": {
+    "appleTeamId": "TODO_KAI_355",
+    "appStoreAppId": "0000000000",
+    "playPackageName": "com.acme.kaivue",
+    "privacyPolicyUrl": "https://acme.example/privacy"
+  }
+}

@@ -1,0 +1,6 @@
+# KAI-354 — Android Appfile template. Package name comes from per-job env.
+
+package_name(ENV["BUNDLE_ID"]) # e.g. com.acme.kaivue
+
+# TODO(KAI-355): vault provides per-integrator Play JSON key as
+# SUPPLY_JSON_KEY_DATA (literal JSON contents). supply() picks it up via env.

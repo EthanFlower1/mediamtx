@@ -1,0 +1,12 @@
+# KAI-354 — iOS Appfile template.
+#
+# Fastlane reads this to know which Apple ID / bundle id to talk to. Because
+# we build many integrators from one repo we DO NOT hard-code either value —
+# both come from env vars set per-job by integrator-mobile-build.yml.
+#
+# TODO(KAI-355): vault provides per-integrator APPLE_ID + TEAM_ID.
+
+app_identifier(ENV["BUNDLE_ID"]) # e.g. com.acme.kaivue
+apple_id(ENV["APPLE_ID"])        if ENV["APPLE_ID"]
+team_id(ENV["APPLE_TEAM_ID"])    if ENV["APPLE_TEAM_ID"]
+itc_team_id(ENV["APPLE_ITC_TEAM_ID"]) if ENV["APPLE_ITC_TEAM_ID"]

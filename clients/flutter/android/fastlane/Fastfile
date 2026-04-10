@@ -1,0 +1,49 @@
+# KAI-354 — Fastlane Android lanes for per-integrator mobile builds.
+#
+# Required env vars (injected by .github/workflows/integrator-mobile-build.yml):
+#
+#   INTEGRATOR_ID          e.g. "acme"
+#   BUNDLE_ID              e.g. "com.acme.kaivue"
+#   APP_NAME               e.g. "Acme Security"
+#   VERSION_NAME           e.g. "1.2.3"
+#   VERSION_CODE           e.g. "42"
+#   SUPPLY_JSON_KEY_DATA   Play Service Account JSON contents (literal)
+#
+# TODO(KAI-355): all secrets above are per-integrator — resolve from vault
+# keyed by INTEGRATOR_ID before invoking these lanes.
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload a per-integrator Android AAB to the Play internal track."
+  lane :android_integrator_release do
+    integrator_id = ENV.fetch("INTEGRATOR_ID")
+    bundle_id     = ENV.fetch("BUNDLE_ID")
+    version_name  = ENV.fetch("VERSION_NAME", nil)
+    version_code  = ENV.fetch("VERSION_CODE", nil)
+
+    UI.message("Shipping Android release for integrator=#{integrator_id} bundle=#{bundle_id}")
+
+    # The AAB is produced by `flutter build appbundle --flavor integrator`
+    # in the integrator-mobile-build workflow. Point supply at it.
+    aab_glob = "../build/app/outputs/bundle/integratorRelease/*.aab"
+    aab_path = Dir[aab_glob].first
+    UI.user_error!("No .aab found at #{aab_glob}") if aab_path.nil?
+
+    mapping_path = Dir["../build/app/outputs/mapping/integratorRelease/mapping.txt"].first
+
+    supply(
+      package_name:          bundle_id,
+      track:                 "internal",
+      aab:                   aab_path,
+      mapping:               mapping_path,
+      json_key_data:         ENV.fetch("SUPPLY_JSON_KEY_DATA"),
+      release_status:        "draft",
+      skip_upload_metadata:  true,
+      skip_upload_images:    true,
+      skip_upload_screenshots: true,
+      version_name:          version_name,
+      version_code:          version_code ? version_code.to_i : nil,
+    )
+  end
+end

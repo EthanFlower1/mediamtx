@@ -3,10 +3,9 @@ variable "environment" {
   type        = string
 }
 
-variable "approved_regions" {
-  description = "AWS regions allowed by the region-restriction SCP"
-  type        = list(string)
-  default     = ["us-east-2"]
+variable "aws_account_id" {
+  description = "AWS account ID"
+  type        = string
 }
 
 variable "tags" {

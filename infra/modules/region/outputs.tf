@@ -80,3 +80,30 @@ output "zitadel_internal_endpoint" {
   value       = module.zitadel.internal_endpoint
   sensitive   = true
 }
+
+# --- KAI-215: Additional EKS outputs ---
+
+output "eks_oidc_provider_arn" {
+  description = "EKS OIDC provider ARN for IRSA"
+  value       = module.eks.oidc_provider_arn
+}
+
+output "eks_node_role_arn" {
+  description = "IAM role ARN for EKS worker nodes"
+  value       = module.eks.node_role_arn
+}
+
+output "eks_karpenter_role_arn" {
+  description = "IAM role ARN for Karpenter controller"
+  value       = module.eks.karpenter_role_arn
+}
+
+output "eks_karpenter_instance_profile" {
+  description = "Instance profile name for Karpenter-provisioned nodes"
+  value       = module.eks.karpenter_instance_profile_name
+}
+
+output "eks_node_security_group_id" {
+  description = "Security group ID for EKS worker nodes"
+  value       = module.eks.node_security_group_id
+}

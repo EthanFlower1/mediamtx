@@ -45,7 +45,16 @@ module "eks" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnet_ids
   kms_key_arn     = module.kms.eks_key_arn
-  tags            = local.common_tags
+
+  # Node group sizing
+  system_node_instance_types   = var.system_node_instance_types
+  workload_node_instance_types = var.workload_node_instance_types
+
+  # aws-auth role bindings
+  eks_admin_role_arn = var.eks_admin_role_arn
+  ci_role_arn        = var.ci_role_arn
+
+  tags = local.common_tags
 
   depends_on = [module.vpc, module.kms]
 }

@@ -77,11 +77,11 @@ This is a Series A / early Series B scale company commitment.
 
 The VMS market is currently segmented into three categories with little overlap:
 
-| Segment | Leaders | Strengths | Weaknesses |
-|---|---|---|---|
-| **Cloud-native** | Verkada, Eagle Eye Networks, Rhombus | Polished UX, AI quality, mobile-first, easy to onboard | Expensive, vendor lock-in (Verkada hardware), no air-gap, weak white-label |
-| **Enterprise on-prem** | Milestone XProtect, Genetec Security Center, Avigilon (Motorola) | Deep integrations, ONVIF compliance, federation, mature enterprise features, on-prem reliability | Dated UX, slow innovation, weak AI, complex installation, premium pricing |
-| **SMB / prosumer** | UniFi Protect, Synology Surveillance Station, Hanwha WAVE | Low cost, easy install, hardware integration | Limited features, weak enterprise support, no integrator program |
+| Segment                | Leaders                                                          | Strengths                                                                                        | Weaknesses                                                                 |
+| ---------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Cloud-native**       | Verkada, Eagle Eye Networks, Rhombus                             | Polished UX, AI quality, mobile-first, easy to onboard                                           | Expensive, vendor lock-in (Verkada hardware), no air-gap, weak white-label |
+| **Enterprise on-prem** | Milestone XProtect, Genetec Security Center, Avigilon (Motorola) | Deep integrations, ONVIF compliance, federation, mature enterprise features, on-prem reliability | Dated UX, slow innovation, weak AI, complex installation, premium pricing  |
+| **SMB / prosumer**     | UniFi Protect, Synology Surveillance Station, Hanwha WAVE        | Low cost, easy install, hardware integration                                                     | Limited features, weak enterprise support, no integrator program           |
 
 **The unfilled gap is "cloud-native ergonomics + enterprise depth + integrator-first model + on-prem-capable deployment in the same product."** No incumbent fills it. Building this product is the strategic wedge.
 
@@ -104,6 +104,7 @@ The product is designed to make integrators evangelists, not just users. The int
 Direct customers (no integrator) are also supported in v1. A small business owner finds the marketing site, signs up self-serve, configures the product themselves, and never interacts with an integrator. The product handles this case with the same architecture — it's a `customer_tenant` with no `integrator_relationships` rows. The same React admin works. The same Flutter client works. The same billing infrastructure works.
 
 Direct customers are valuable because:
+
 - They generate inbound demand the marketing site can capture
 - They self-validate the product (PLG)
 - They occasionally upgrade to enterprise tier and become large accounts
@@ -147,6 +148,7 @@ The starting point is the existing MediaMTX NVR product — a single-binary Go a
 **The current architecture has zero concept of multi-tenancy, no cloud component, no integrator hierarchy, no federation, no AI beyond basic motion detection, and no compliance program.** This rewrite is a transformation from "single-NVR product with potential" to "industry-leading multi-tenant cloud platform."
 
 A few existing design documents partially overlap with this rewrite:
+
 - `docs/designs/cloud-management-portal.md` (KAI-103) — describes a cloud portal for fleet management. This rewrite absorbs and supersedes most of it, expanding significantly.
 - `docs/designs/multi-site-federation.md` (KAI-104) — describes Directory-to-Directory federation. This rewrite carries it forward with cloud-first adjustments.
 - `docs/designs/white-label-program.md` — describes white-label conceptually. This rewrite specifies it concretely as Level 3 with per-integrator mobile builds.
@@ -159,13 +161,13 @@ A few existing design documents partially overlap with this rewrite:
 
 The product presents five distinct customer-facing surfaces, each with the right tool for its job:
 
-| # | Surface | Tech | Targets | Audience |
-|---|---|---|---|---|
-| 1 | **End-user viewing app** | Flutter | iOS, Android, macOS, Windows, Linux, **Web** | End users (security operators, business owners, anyone watching cameras) |
-| 2 | **Admin web app** | React (one codebase, two runtime contexts) | Web browser only | Customer admins (single-tenant context) + integrator staff (multi-tenant context) |
-| 3 | **Video wall client** | Qt 6 / C++ native desktop | Windows primary, Linux secondary | SOC operators driving multi-monitor displays |
-| 4 | **Marketing website** | Next.js + Sanity CMS | Public web | Prospects, lead capture, SEO |
-| 5 | **Documentation portal** | Mintlify | Public web + searchable | Developers, integrators, customers |
+| #   | Surface                  | Tech                                       | Targets                                      | Audience                                                                          |
+| --- | ------------------------ | ------------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1   | **End-user viewing app** | Flutter                                    | iOS, Android, macOS, Windows, Linux, **Web** | End users (security operators, business owners, anyone watching cameras)          |
+| 2   | **Admin web app**        | React (one codebase, two runtime contexts) | Web browser only                             | Customer admins (single-tenant context) + integrator staff (multi-tenant context) |
+| 3   | **Video wall client**    | Qt 6 / C++ native desktop                  | Windows primary, Linux secondary             | SOC operators driving multi-monitor displays                                      |
+| 4   | **Marketing website**    | Next.js + Sanity CMS                       | Public web                                   | Prospects, lead capture, SEO                                                      |
+| 5   | **Documentation portal** | Mintlify                                   | Public web + searchable                      | Developers, integrators, customers                                                |
 
 The end-user app's **single Flutter codebase compiles to all six end-user targets with feature parity guaranteed**. This is the central architectural commitment for the customer experience: a feature shipped on iOS automatically appears on every other target without separate work. Maintaining feature parity across multiple separately-implemented codebases is the failure mode this avoids.
 
@@ -175,11 +177,11 @@ The admin web app uses **one React codebase with two runtime contexts** (GitHub-
 
 The on-prem product (the Go binary that customers install on their hardware) has three runtime roles, selectable by config:
 
-| Mode | Subsystems | Typical deployment |
-|---|---|---|
-| `directory` | Directory only (identity client + camera registry + sidecars) | Dedicated directory host for large customers |
-| `recorder` | Recorder only (camera capture, recording, local stream serving) | Standalone recording nodes joined to a Directory |
-| `all-in-one` | Both Directory and Recorder in one process | Default for SMB / mid-market customers with one box |
+| Mode         | Subsystems                                                      | Typical deployment                                  |
+| ------------ | --------------------------------------------------------------- | --------------------------------------------------- |
+| `directory`  | Directory only (identity client + camera registry + sidecars)   | Dedicated directory host for large customers        |
+| `recorder`   | Recorder only (camera capture, recording, local stream serving) | Standalone recording nodes joined to a Directory    |
+| `all-in-one` | Both Directory and Recorder in one process                      | Default for SMB / mid-market customers with one box |
 
 A **Gateway** subsystem handles streaming proxy duties for off-LAN clients. It's co-resident with the Directory in v1 (same binary, separable internal subsystem), can be split to its own process in v2.
 
@@ -339,11 +341,11 @@ Three primary data flow patterns characterize the architecture:
 
 The product supports three customer deployment modes seamlessly:
 
-| Mode | Cloud connection | Identity source | Fleet management | Recording archive | Use case |
-|---|---|---|---|---|---|
-| **Cloud-connected** | Persistent outbound | Cloud Zitadel | Cloud (integrator portal) | Cloud R2 (optional) | The default. ~80% of customers. |
-| **Hybrid** | Periodic / scheduled | Cloud Zitadel | Cloud + local fallback | Cloud R2 (optional) | Customers with intermittent connectivity but who still want cloud features. ~15%. |
-| **Air-gapped** | None | Local Zitadel sidecar | Local on-prem React admin only | Local only | Federal, defense, healthcare with strict data residency, sensitive industrial. ~5%. |
+| Mode                | Cloud connection     | Identity source       | Fleet management               | Recording archive   | Use case                                                                            |
+| ------------------- | -------------------- | --------------------- | ------------------------------ | ------------------- | ----------------------------------------------------------------------------------- |
+| **Cloud-connected** | Persistent outbound  | Cloud Zitadel         | Cloud (integrator portal)      | Cloud R2 (optional) | The default. ~80% of customers.                                                     |
+| **Hybrid**          | Periodic / scheduled | Cloud Zitadel         | Cloud + local fallback         | Cloud R2 (optional) | Customers with intermittent connectivity but who still want cloud features. ~15%.   |
+| **Air-gapped**      | None                 | Local Zitadel sidecar | Local on-prem React admin only | Local only          | Federal, defense, healthcare with strict data residency, sensitive industrial. ~5%. |
 
 The customer chooses their mode at install time (or migrates between modes later). The same Go binary supports all three modes. Air-gapped customers lose the integrator portal (no integrator), the cloud archive, and cloud-side AI inference — but they retain everything else. **Recording, viewing, federation between sites, AI at the edge, white-label, and the full Flutter app experience all work without the cloud.**
 
@@ -525,28 +527,28 @@ The cloud is built for multi-region active-active deployment but ships in a sing
 
 ### 5.4 Cloud platform tech stack
 
-| Component | Technology |
-|---|---|
-| Container orchestration | AWS EKS (managed Kubernetes) |
-| Primary database | AWS RDS Postgres (Aurora optional) with `pgvector` for AI embeddings |
-| Cache + session store | AWS ElastiCache for Redis |
-| Object storage | **Cloudflare R2** (for cloud archive — chosen specifically for zero egress fees) + AWS S3 (for non-recording assets like logos, exports, snapshots) |
-| Load balancing | AWS ALB (regional) + CloudFront (CDN for static assets) |
-| Identity sidecar | Zitadel (multi-tenant instance, regional) |
-| Streaming engine sidecar | MediaMTX (one instance per Gateway region) |
-| Service mesh | Istio (for inter-service mTLS, traffic management, observability) |
-| API protocol | Connect-Go (gRPC + HTTP/JSON over the same handlers) |
-| Background jobs | River (Go-native, Postgres-backed) for tenant provisioning, billing batches, cloud archive transitions |
-| Event bus | NATS (for cross-service event distribution) |
-| Search infrastructure | OpenSearch for log/event search; pgvector for AI semantic search in v1, migrate to Qdrant in v1.x at scale |
-| Observability | Prometheus + Grafana + OpenTelemetry; OTLP exporter with optional customer-collector destinations |
-| Logging aggregation | Vector → Loki, with optional customer-side OTLP forwarding |
-| CI/CD | GitHub Actions for code; ArgoCD for Kubernetes deployments |
-| Infrastructure as Code | Terraform with per-region modules |
-| Secrets management | AWS Secrets Manager + sealed-secrets in Kubernetes |
-| Cluster autoscaling | Karpenter (better than Cluster Autoscaler for diverse workloads) |
-| Cost monitoring | OpenCost + AWS Cost Explorer |
-| Security scanning | Snyk, Trivy, Falco, gVisor for sandboxing custom AI models |
+| Component                | Technology                                                                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container orchestration  | AWS EKS (managed Kubernetes)                                                                                                                        |
+| Primary database         | AWS RDS Postgres (Aurora optional) with `pgvector` for AI embeddings                                                                                |
+| Cache + session store    | AWS ElastiCache for Redis                                                                                                                           |
+| Object storage           | **Cloudflare R2** (for cloud archive — chosen specifically for zero egress fees) + AWS S3 (for non-recording assets like logos, exports, snapshots) |
+| Load balancing           | AWS ALB (regional) + CloudFront (CDN for static assets)                                                                                             |
+| Identity sidecar         | Zitadel (multi-tenant instance, regional)                                                                                                           |
+| Streaming engine sidecar | MediaMTX (one instance per Gateway region)                                                                                                          |
+| Service mesh             | Istio (for inter-service mTLS, traffic management, observability)                                                                                   |
+| API protocol             | Connect-Go (gRPC + HTTP/JSON over the same handlers)                                                                                                |
+| Background jobs          | River (Go-native, Postgres-backed) for tenant provisioning, billing batches, cloud archive transitions                                              |
+| Event bus                | NATS (for cross-service event distribution)                                                                                                         |
+| Search infrastructure    | OpenSearch for log/event search; pgvector for AI semantic search in v1, migrate to Qdrant in v1.x at scale                                          |
+| Observability            | Prometheus + Grafana + OpenTelemetry; OTLP exporter with optional customer-collector destinations                                                   |
+| Logging aggregation      | Vector → Loki, with optional customer-side OTLP forwarding                                                                                          |
+| CI/CD                    | GitHub Actions for code; ArgoCD for Kubernetes deployments                                                                                          |
+| Infrastructure as Code   | Terraform with per-region modules                                                                                                                   |
+| Secrets management       | AWS Secrets Manager + sealed-secrets in Kubernetes                                                                                                  |
+| Cluster autoscaling      | Karpenter (better than Cluster Autoscaler for diverse workloads)                                                                                    |
+| Cost monitoring          | OpenCost + AWS Cost Explorer                                                                                                                        |
+| Security scanning        | Snyk, Trivy, Falco, gVisor for sandboxing custom AI models                                                                                          |
 
 ---
 
@@ -618,6 +620,7 @@ type Claims struct {
 The Zitadel adapter implements `IdentityProvider` against Zitadel's gRPC management API, with multi-tenant scoping mapped to Zitadel's organization hierarchy.
 
 **Mapping**:
+
 - Each Integrator → one Zitadel **organization**
 - Each Customer Tenant → one Zitadel **organization** (sibling to integrator orgs)
 - Each User → one Zitadel **user** in the appropriate organization
@@ -631,24 +634,25 @@ The Zitadel adapter implements `IdentityProvider` against Zitadel's gRPC managem
 
 Customers and integrators can configure any combination of these auth methods per tenant:
 
-| Method | Implementation |
-|---|---|
-| **Local** | Username + password stored in Zitadel, hashed with Argon2id, brute-force protected via rate limiting + lockout |
-| **OIDC** | Microsoft Entra ID, Google Workspace, Okta, Generic OIDC (Keycloak / Authentik / Auth0 / Authelia / etc.) |
-| **SAML 2.0** | Any SAML 2.0 IdP via Zitadel's SAML support |
-| **LDAP / Active Directory** | Direct LDAP bind via Zitadel's LDAP federation |
+| Method                      | Implementation                                                                                                 |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Local**                   | Username + password stored in Zitadel, hashed with Argon2id, brute-force protected via rate limiting + lockout |
+| **OIDC**                    | Microsoft Entra ID, Google Workspace, Okta, Generic OIDC (Keycloak / Authentik / Auth0 / Authelia / etc.)      |
+| **SAML 2.0**                | Any SAML 2.0 IdP via Zitadel's SAML support                                                                    |
+| **LDAP / Active Directory** | Direct LDAP bind via Zitadel's LDAP federation                                                                 |
 
 Six per-IdP wizards in the React admin (Microsoft Entra, Google Workspace, Okta, Generic OIDC, LDAP, SAML) walk the customer through provider setup with screenshots, test buttons, and actionable error messages. Customers never see Zitadel's UI or error codes.
 
 ### 6.4 Token format and verification
 
-| Token type | Signing | TTL | Storage |
-|---|---|---|---|
-| **Access token (session)** | RS256 JWT signed by Zitadel | ~1 hour | Client-side secure storage (Keychain / Keystore / encrypted browser storage) |
-| **Refresh token** | Opaque, server-side | ~30 days, rotating | Server-side in Zitadel; client stores the opaque value |
-| **Stream token** | RS256 JWT signed by the cloud's stream signing key | ~5 minutes | Never stored, minted on demand per stream request |
+| Token type                 | Signing                                            | TTL                | Storage                                                                      |
+| -------------------------- | -------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| **Access token (session)** | RS256 JWT signed by Zitadel                        | ~1 hour            | Client-side secure storage (Keychain / Keystore / encrypted browser storage) |
+| **Refresh token**          | Opaque, server-side                                | ~30 days, rotating | Server-side in Zitadel; client stores the opaque value                       |
+| **Stream token**           | RS256 JWT signed by the cloud's stream signing key | ~5 minutes         | Never stored, minted on demand per stream request                            |
 
 **Token verification** is a shared package (`internal/shared/auth/verifier`) used identically by:
+
 - Cloud control plane (verifies tokens on every API request)
 - On-prem Directory (verifies tokens for local API requests)
 - On-prem Recorder (verifies stream tokens for stream requests)
@@ -705,17 +709,18 @@ const (
 
 Customer admins can define custom roles, but five built-ins ship with the product:
 
-| Role | Permissions |
-|---|---|
-| `viewer` | view.live, view.playback, view.thumbnails |
-| `operator` | viewer + export.clip, ptz.control, audio.listen, audio.talkback |
-| `investigator` | operator + recordings.export, audit.read, ai.inference |
-| `admin` | investigator + config.read, config.write, permissions.grant, integrations.configure |
-| `owner` | admin + billing.manage, federation.manage, ai.model.deploy |
+| Role           | Permissions                                                                         |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `viewer`       | view.live, view.playback, view.thumbnails                                           |
+| `operator`     | viewer + export.clip, ptz.control, audio.listen, audio.talkback                     |
+| `investigator` | operator + recordings.export, audit.read, ai.inference                              |
+| `admin`        | investigator + config.read, config.write, permissions.grant, integrations.configure |
+| `owner`        | admin + billing.manage, federation.manage, ai.model.deploy                          |
 
 ### 7.3 Resource patterns
 
 Casbin policy entries support:
+
 - `camera:id:abc-123` — exact camera by ID
 - `camera:tag:warehouse` — all cameras with the given tag
 - `camera:recorder:wh-01` — all cameras assigned to the given Recorder
@@ -873,23 +878,24 @@ service DirectoryIngest {
 ```
 
 Three streams in the upward direction:
+
 1. **State**: per-camera connection status, bitrate, fps, last frame, errors. Debounced (one update on change + heartbeat every ~10s).
 2. **Segment index**: batches of newly-recorded segment metadata every ~30s. Idempotent on `(camera_id, start_time)`.
 3. **AI events**: batches of AI detection events as they happen. Used by the cloud's event store, search index, and notification system.
 
 ### 8.4 Recorder offline behavior — the central invariant
 
-| Operation | Works without cloud / Directory? |
-|---|---|
-| Capture from assigned cameras | ✓ Indefinitely (cached assignments) |
-| Record to local disk | ✓ Indefinitely |
-| Run AI inference at the edge | ✓ Indefinitely (models cached locally) |
-| Serve LAN-direct playback to clients with valid tokens | ✓ Until JWKS cache expires (~1 day max) |
-| Accept new client connections | ✓ With valid token |
-| Receive new camera assignments | ✗ Queued in cloud, applied on reconnect |
-| Receive permission updates | ✗ Cached; ~5 min revocation latency in normal cases |
-| New users log in | ✗ Requires cloud (or local Zitadel for air-gapped) |
-| Cloud archive of recordings | ✗ Suspended; local recording continues normally |
+| Operation                                              | Works without cloud / Directory?                    |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| Capture from assigned cameras                          | ✓ Indefinitely (cached assignments)                 |
+| Record to local disk                                   | ✓ Indefinitely                                      |
+| Run AI inference at the edge                           | ✓ Indefinitely (models cached locally)              |
+| Serve LAN-direct playback to clients with valid tokens | ✓ Until JWKS cache expires (~1 day max)             |
+| Accept new client connections                          | ✓ With valid token                                  |
+| Receive new camera assignments                         | ✗ Queued in cloud, applied on reconnect             |
+| Receive permission updates                             | ✗ Cached; ~5 min revocation latency in normal cases |
+| New users log in                                       | ✗ Requires cloud (or local Zitadel for air-gapped)  |
+| Cloud archive of recordings                            | ✗ Suspended; local recording continues normally     |
 
 **The invariant is non-negotiable: recording never stops as long as the Recorder has power and disk.** Every other failure is recoverable; capture and storage are protected by every mechanism.
 
@@ -938,14 +944,14 @@ LAN-direct is always tried first when applicable because it has the best latency
 
 ### 9.3 Protocol matrix
 
-| Protocol | Used for | When |
-|---|---|---|
-| **WebRTC** | Live, low-latency | Default for live view in Flutter and admin console |
-| **LL-HLS** | Live, fallback | When WebRTC negotiation fails |
-| **HLS** | Playback / scrubbing | Default for recorded video |
-| **MJPEG** | Snapshots / thumbnails | Single-frame requests, grid views |
-| **RTSP-over-TLS** | Power user / video wall | Optional, permission-gated |
-| **WebRTC data channel** | Audio talkback | Same peer connection as live view |
+| Protocol                | Used for                | When                                               |
+| ----------------------- | ----------------------- | -------------------------------------------------- |
+| **WebRTC**              | Live, low-latency       | Default for live view in Flutter and admin console |
+| **LL-HLS**              | Live, fallback          | When WebRTC negotiation fails                      |
+| **HLS**                 | Playback / scrubbing    | Default for recorded video                         |
+| **MJPEG**               | Snapshots / thumbnails  | Single-frame requests, grid views                  |
+| **RTSP-over-TLS**       | Power user / video wall | Optional, permission-gated                         |
+| **WebRTC data channel** | Audio talkback          | Same peer connection as live view                  |
 
 ### 9.4 MediaMTX as the streaming engine
 
@@ -991,13 +997,13 @@ Echo cancellation is handled by the platform-native WebRTC stack on each client 
 
 ### 9.7 Bandwidth management
 
-| Control | Where | Purpose |
-|---|---|---|
-| `max_streams_per_user` | Cloud Directory token minting | Prevents one user from saturating |
-| `max_streams_per_camera` | Recorder | Caps concurrent viewers per camera |
-| `max_gateway_throughput_mbps` | Gateway | Bandwidth ceiling on the Gateway |
-| `prefer_substream_off_lan` | Cloud Directory routing | When client is off-LAN, mint URL for ONVIF sub-stream instead of main stream |
-| `auto_quality` | Flutter client | Client measures throughput and downgrades |
+| Control                       | Where                         | Purpose                                                                      |
+| ----------------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `max_streams_per_user`        | Cloud Directory token minting | Prevents one user from saturating                                            |
+| `max_streams_per_camera`      | Recorder                      | Caps concurrent viewers per camera                                           |
+| `max_gateway_throughput_mbps` | Gateway                       | Bandwidth ceiling on the Gateway                                             |
+| `prefer_substream_off_lan`    | Cloud Directory routing       | When client is off-LAN, mint URL for ONVIF sub-stream instead of main stream |
+| `auto_quality`                | Flutter client                | Client measures throughput and downgrades                                    |
 
 For the Tier 3 cloud relay, **bandwidth metering per (customer, camera, hour)** is captured for the billing system to charge overage if applicable.
 
@@ -1015,22 +1021,22 @@ For the Tier 3 cloud relay, **bandwidth metering per (customer, camera, hour)** 
 
 Cloud archive uses tiered storage for cost efficiency. Tier transitions happen automatically based on age.
 
-| Tier | Storage class | Use case | Retrieval | Cost |
-|---|---|---|---|---|
-| **Hot** | Cloudflare R2 standard | First ~30 days | Instant | Highest |
-| **Warm** | Cloudflare R2 (with infrequent access patterns) | 30-90 days | Instant, slightly more expensive per request | Medium |
-| **Cold** | Cloudflare R2 with cold storage tier | 90 days - 1 year | Instant, much lower storage cost | Low |
-| **Archive** | Backblaze B2 cold archive (chosen for cost) | 1+ years, compliance retention | 12-48 hour retrieval delay, lowest cost | Lowest |
+| Tier        | Storage class                                   | Use case                       | Retrieval                                    | Cost    |
+| ----------- | ----------------------------------------------- | ------------------------------ | -------------------------------------------- | ------- |
+| **Hot**     | Cloudflare R2 standard                          | First ~30 days                 | Instant                                      | Highest |
+| **Warm**    | Cloudflare R2 (with infrequent access patterns) | 30-90 days                     | Instant, slightly more expensive per request | Medium  |
+| **Cold**    | Cloudflare R2 with cold storage tier            | 90 days - 1 year               | Instant, much lower storage cost             | Low     |
+| **Archive** | Backblaze B2 cold archive (chosen for cost)     | 1+ years, compliance retention | 12-48 hour retrieval delay, lowest cost      | Lowest  |
 
 Customers configure retention policies per camera (per camera, not per Recorder — the same Recorder can have a 7-year-retention cash register camera and a 30-day-retention parking lot camera). The system automatically transitions segments between tiers as they age.
 
 ### 10.3 Three encryption modes
 
-| Mode | Key holder | Server can decrypt? | Use case |
-|---|---|---|---|
-| **Standard** | Cloudflare R2 platform | Yes (server-side) | Default for most customers, simplest |
-| **SSE-KMS** | Customer's AWS KMS keys | Server can decrypt only with KMS access | HIPAA, SOC 2 — customer can audit and revoke key access |
-| **Client-side CMK** | Customer's master key (held only on the on-prem Recorder) | **No, ever** | Federal, defense, ultra-sensitive — even your cloud team cannot decrypt |
+| Mode                | Key holder                                                | Server can decrypt?                     | Use case                                                                |
+| ------------------- | --------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------- |
+| **Standard**        | Cloudflare R2 platform                                    | Yes (server-side)                       | Default for most customers, simplest                                    |
+| **SSE-KMS**         | Customer's AWS KMS keys                                   | Server can decrypt only with KMS access | HIPAA, SOC 2 — customer can audit and revoke key access                 |
+| **Client-side CMK** | Customer's master key (held only on the on-prem Recorder) | **No, ever**                            | Federal, defense, ultra-sensitive — even your cloud team cannot decrypt |
 
 **Client-side encryption with customer-managed keys** (CSE-CMK) is the strongest option. Recordings are encrypted at the Recorder before being uploaded. The cloud stores ciphertext only. Playback works because the Flutter client downloads encrypted segments and decrypts them locally using the customer's key.
 
@@ -1040,13 +1046,13 @@ The trade-off with CSE-CMK: if the customer loses their master key, **recordings
 
 Cloud archive uploads are real bandwidth. Several controls minimize the cost:
 
-| Control | What it does |
-|---|---|
-| **Upload throttling** | Per-camera and per-Recorder upload rate caps. Default: don't saturate the customer's connection. |
-| **Scheduled uploads** | Optionally only upload during off-hours (configurable per Recorder) |
-| **Sub-stream archive** | Upload only the lower-bitrate ONVIF sub-stream instead of the main stream — ~80% bandwidth/storage savings |
-| **AI-driven selective archive** | Only upload segments where motion / objects / people / faces / vehicles were detected. Skip empty hours. |
-| **Pause/resume** | Customer can pause uploads (e.g., during high-traffic business hours) and resume later |
+| Control                         | What it does                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Upload throttling**           | Per-camera and per-Recorder upload rate caps. Default: don't saturate the customer's connection.           |
+| **Scheduled uploads**           | Optionally only upload during off-hours (configurable per Recorder)                                        |
+| **Sub-stream archive**          | Upload only the lower-bitrate ONVIF sub-stream instead of the main stream — ~80% bandwidth/storage savings |
+| **AI-driven selective archive** | Only upload segments where motion / objects / people / faces / vehicles were detected. Skip empty hours.   |
+| **Pause/resume**                | Customer can pause uploads (e.g., during high-traffic business hours) and resume later                     |
 
 For playback from cloud archive, **Cloudflare R2 has zero egress fees**, which means customers can play back as much archived video as they want without surprise bandwidth bills. This is a major differentiator vs S3-based cloud archive offerings.
 
@@ -1088,47 +1094,52 @@ The AI platform is one of the two biggest competitive differentiators (alongside
 
 Hybrid inference with intelligent routing per feature and per customer hardware:
 
-| Feature | Edge | Cloud |
-|---|---|---|
-| Lightweight object detection | ✓ Always | Fallback only |
-| Heavy object detection | ✓ If GPU appliance present | ✓ Otherwise |
-| Face recognition | ✓ If GPU appliance present | ✓ Otherwise (face vault stays in cloud, encrypted) |
-| LPR | ✓ If GPU appliance present | ✓ Otherwise |
-| Behavioral analytics | ✓ Always | — |
-| Audio analytics | ✓ Always | — |
-| Smart search via CLIP | Embeddings computed at edge | Vector index + search queries in cloud |
-| Cross-camera tracking | — | ✓ Cloud only (needs multi-camera data) |
-| Anomaly detection | Per-camera state at edge | Cross-time correlation in cloud |
-| Smart event summaries | — | ✓ Cloud only (LLM-driven) |
-| Forensic search | — | ✓ Cloud only (combines multiple sources) |
-| Custom model upload | ✓ Either, customer's choice | ✓ |
+| Feature                      | Edge                        | Cloud                                              |
+| ---------------------------- | --------------------------- | -------------------------------------------------- |
+| Lightweight object detection | ✓ Always                    | Fallback only                                      |
+| Heavy object detection       | ✓ If GPU appliance present  | ✓ Otherwise                                        |
+| Face recognition             | ✓ If GPU appliance present  | ✓ Otherwise (face vault stays in cloud, encrypted) |
+| LPR                          | ✓ If GPU appliance present  | ✓ Otherwise                                        |
+| Behavioral analytics         | ✓ Always                    | —                                                  |
+| Audio analytics              | ✓ Always                    | —                                                  |
+| Smart search via CLIP        | Embeddings computed at edge | Vector index + search queries in cloud             |
+| Cross-camera tracking        | —                           | ✓ Cloud only (needs multi-camera data)             |
+| Anomaly detection            | Per-camera state at edge    | Cross-time correlation in cloud                    |
+| Smart event summaries        | —                           | ✓ Cloud only (LLM-driven)                          |
+| Forensic search              | —                           | ✓ Cloud only (combines multiple sources)           |
+| Custom model upload          | ✓ Either, customer's choice | ✓                                                  |
 
 The customer's GPU appliance (when they purchase one in v1.x) handles edge inference for the heavier features. v1 customers without GPU appliances run lightweight features at the edge and heavy features in the cloud.
 
 ### 11.3 ML infrastructure
 
 **Edge inference**:
+
 - ONNX Runtime + Core ML on Apple Silicon
 - TensorRT on NVIDIA GPUs (Jetson Orin for the v1.x edge AI appliance)
 - ONNX Runtime + DirectML on Windows
 - Standard ONNX Runtime on Linux/CPU
 
 **Cloud inference**:
+
 - NVIDIA Triton Inference Server hosted in EKS
 - GPU instances (g5.2xlarge or g5.4xlarge) auto-scaling based on inference queue depth
 - Per-model autoscaling so quiet models don't pay for GPU capacity
 
 **Model serving lifecycle**:
+
 - Models versioned in a model registry (custom or MLflow)
 - Per-model performance metrics (latency, accuracy, false positive rate, drift detection)
 - A/B test framework for new model versions
 - Rollback if regression detected
 
 **Vector database**:
+
 - v1: pgvector (PostgreSQL extension) — adequate for ~1M-10M vectors per tenant, lives in your existing Postgres
 - v1.x: migrate to Qdrant or Weaviate as scale demands (well-trodden migration path, no architectural disruption)
 
 **Custom model upload security**:
+
 - Models scanned for known malicious patterns before deployment (using ONNX model scanners and a small custom signature scanner)
 - Sandbox execution via gVisor containers in EKS (cloud) or namespaced/seccomp'd processes (edge)
 - Per-tenant resource quotas (CPU, GPU memory, inference rate)
@@ -1140,6 +1151,7 @@ The customer's GPU appliance (when they purchase one in v1.x) handles edge infer
 **Critical**: face recognition is classified as "high-risk AI" under the EU AI Act (effective August 2026) and is regulated under various US state laws (Illinois BIPA, Texas CUBI, Washington's biometric law, etc.).
 
 **Architectural commitments to compliance**:
+
 - Face recognition is **opt-in per camera**, not on by default
 - Face vault is **encrypted with customer-managed keys** (CSE-CMK)
 - Face data has **explicit retention policy** with auto-deletion
@@ -1178,9 +1190,9 @@ Federation use cases:
 
 Two distinct PKI domains:
 
-| PKI domain | Issued by | Used for |
-|---|---|---|
-| **Per-site cluster CA** | Each site's embedded `step-ca` | Directory ↔ Recorder mTLS within one site |
+| PKI domain                | Issued by                                                                                                         | Used for                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **Per-site cluster CA**   | Each site's embedded `step-ca`                                                                                    | Directory ↔ Recorder mTLS within one site     |
 | **Federation cluster CA** | The founding Directory's `step-ca` (for air-gapped) OR cloud's identity service (for cloud-connected federations) | Directory ↔ Directory mTLS between peer sites |
 
 The customer never sees either CA. Both are managed entirely by the on-prem Directory binary (or the cloud).
@@ -1260,6 +1272,7 @@ Cert lifetime: ~24 hours, auto-renewed when remaining lifetime drops below ~8 ho
 The cluster CA is **only for server-to-server mTLS**. Customer-facing TLS (the Directory's React admin console at `:8443`, the Gateway's public endpoint for off-LAN clients, the Flutter Web bundle URLs) uses **Let's Encrypt** via the embedded Lego client.
 
 Three modes:
+
 - **Auto via Let's Encrypt** — for customers with public DNS + reachable HTTP-01 or DNS-01 challenge endpoints
 - **Auto via cloud-issued** — for customers using the cloud-managed deployment, where the cloud handles cert provisioning via its own ACME automation
 - **Self-signed fallback** — for LAN-only / air-gapped deployments where the customer accepts a one-time browser warning
@@ -1330,6 +1343,7 @@ Customer's Directory/Gateway maintains an outbound TLS WebSocket to the hosted r
 **Critical**: the relay never decrypts video bytes. It's a TLS frame multiplexer, not a video proxy. Customer video bytes flow as opaque encrypted bytes through the relay; both endpoints (client and Recorder) terminate TLS, the relay just forwards frames.
 
 **Why this matters**:
+
 - Privacy: relay cannot see customer video
 - Bandwidth costs: relay bandwidth is bounded by frame multiplexing, not video transcoding
 - Compliance: customers in regulated industries can use the relay because nothing is decoded
@@ -1358,14 +1372,14 @@ The cloud Directory or on-prem Directory mints stream URLs containing all enable
 
 One Flutter codebase compiles to:
 
-| Target | Distribution |
-|---|---|
-| iOS | Apple App Store + integrator-branded builds in v1 |
-| Android | Google Play Store + integrator-branded builds in v1 |
-| macOS | Mac App Store + direct download |
-| Windows | Microsoft Store + direct download |
-| Linux | Flatpak + AppImage + Snap |
-| Web | Served by the cloud at `app.yourbrand.com` and by the on-prem Directory at `https://nvr.acme.local` |
+| Target  | Distribution                                                                                        |
+| ------- | --------------------------------------------------------------------------------------------------- |
+| iOS     | Apple App Store + integrator-branded builds in v1                                                   |
+| Android | Google Play Store + integrator-branded builds in v1                                                 |
+| macOS   | Mac App Store + direct download                                                                     |
+| Windows | Microsoft Store + direct download                                                                   |
+| Linux   | Flatpak + AppImage + Snap                                                                           |
+| Web     | Served by the cloud at `app.yourbrand.com` and by the on-prem Directory at `https://nvr.acme.local` |
 
 **Feature parity is a hard requirement.** A feature shipped on iOS automatically appears on every other target. This is the central architectural commitment for the customer experience.
 
@@ -1381,6 +1395,7 @@ Same Flutter app, same UI, different backend depending on which mode the user se
 ### 15.3 Discovery flow
 
 Three discovery paths to add a new connection:
+
 1. Type the URL directly (probes `/api/v1/discover` to fetch metadata + auth methods)
 2. mDNS LAN discovery (browse for `_mediamtx-directory._tcp.local`)
 3. QR code from the React admin's invite UI
@@ -1388,6 +1403,7 @@ Three discovery paths to add a new connection:
 ### 15.4 Login flow
 
 White-labeled login screen that fetches available auth methods from `/api/v1/discover` and renders appropriately:
+
 - Local form (email + password) → posts to `/api/v1/auth/login`
 - SSO buttons (Microsoft, Google, Okta, custom) → opens in-app browser via `flutter_appauth` with PKCE flow → returns via custom URL scheme → app calls `/api/v1/auth/sso/complete`
 
@@ -1398,6 +1414,7 @@ The Flutter app speaks **exactly one auth protocol on the wire (OIDC + local for
 Tokens stored in `flutter_secure_storage` (iOS Keychain / Android Keystore / encrypted browser storage on Web), keyed by connection ID so multi-Directory account switching works.
 
 Token refresh:
+
 - Access tokens auto-refresh when within 5 minutes of expiry
 - Background refresh via `WorkManager` (Android) and `BGTaskScheduler` (iOS)
 - Refresh failure (refresh token expired or revoked) bounces user to login screen
@@ -1459,68 +1476,69 @@ Runtime detects context from URL + auth token + `/api/v1/discover` probe. Differ
 
 ### 16.2 Customer admin pages
 
-| Page | Purpose |
-|---|---|
-| **Dashboard** | Overview of cameras, recent events, system health, alerts |
-| **Cameras** | List, add (ONVIF discovery wizard), edit, move between Recorders, delete |
-| **Recorders** | List paired Recorders, add new (token generation), pair status |
-| **Live View** | Single-camera and grid view (mirrors Flutter app for browser users) |
-| **Playback** | Timeline scrubber for recorded video |
-| **Events** | AI detection event list, search, filter |
-| **Users** | Add, edit, delete users, assign roles |
-| **Permissions** | Role definitions, grant management, integrator permissions |
-| **Sign-in Methods** | Configure SSO providers (Local + OIDC + LDAP + SAML) with the 6 wizards |
-| **Federation** | Configure federation with peer Directories |
-| **Recording Schedules** | Define schedules (continuous, motion, event-driven) |
-| **Retention Policies** | Per-camera retention with cloud archive options |
-| **AI Settings** | Enable/disable AI features, configure detection thresholds |
-| **Integrations** | Configure first-party integrations (access control, alarms, ITSM, comms) |
-| **Notifications** | Per-user channel preferences, escalation rules |
-| **Audit Log** | Searchable audit trail |
-| **System Health** | Recorder status, storage usage, network health, sidecar health |
-| **Billing** | View subscription, usage, invoices, payment methods (only for direct-billing customers) |
-| **Remote Access** | Tier 1/2/3 configuration |
-| **Settings** | Master key, encryption mode, time zone, language |
+| Page                    | Purpose                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| **Dashboard**           | Overview of cameras, recent events, system health, alerts                               |
+| **Cameras**             | List, add (ONVIF discovery wizard), edit, move between Recorders, delete                |
+| **Recorders**           | List paired Recorders, add new (token generation), pair status                          |
+| **Live View**           | Single-camera and grid view (mirrors Flutter app for browser users)                     |
+| **Playback**            | Timeline scrubber for recorded video                                                    |
+| **Events**              | AI detection event list, search, filter                                                 |
+| **Users**               | Add, edit, delete users, assign roles                                                   |
+| **Permissions**         | Role definitions, grant management, integrator permissions                              |
+| **Sign-in Methods**     | Configure SSO providers (Local + OIDC + LDAP + SAML) with the 6 wizards                 |
+| **Federation**          | Configure federation with peer Directories                                              |
+| **Recording Schedules** | Define schedules (continuous, motion, event-driven)                                     |
+| **Retention Policies**  | Per-camera retention with cloud archive options                                         |
+| **AI Settings**         | Enable/disable AI features, configure detection thresholds                              |
+| **Integrations**        | Configure first-party integrations (access control, alarms, ITSM, comms)                |
+| **Notifications**       | Per-user channel preferences, escalation rules                                          |
+| **Audit Log**           | Searchable audit trail                                                                  |
+| **System Health**       | Recorder status, storage usage, network health, sidecar health                          |
+| **Billing**             | View subscription, usage, invoices, payment methods (only for direct-billing customers) |
+| **Remote Access**       | Tier 1/2/3 configuration                                                                |
+| **Settings**            | Master key, encryption mode, time zone, language                                        |
 
 ### 16.3 Integrator portal pages
 
-| Page | Purpose |
-|---|---|
-| **Fleet Dashboard** | All customers' health at a glance, alerts across all customers, KPIs |
-| **Customers** | List of all managed customers, drill-down, add new |
-| **Customer Onboarding** | Create new customer, configure their initial setup, send invitations |
-| **Brand Configuration** | White-label settings (logo, colors, fonts, custom domain, custom email domain) |
-| **Mobile App Builds** | Manage per-integrator mobile app builds, App Store / Play Store deployment, version control |
-| **Bulk Operations** | Push firmware updates to all Recorders, bulk-configure features across customers |
-| **Integrator Staff** | Manage integrator employees, assign sub-reseller scope, define internal roles |
-| **Sub-Resellers** | Hierarchical organization management (NSC → regional offices → city offices) |
-| **Customer Permissions** | Granular per-customer scope management (which integrator staff can access which customers) |
-| **Billing Aggregation** | View all customer billing across the integrator org |
-| **Marketing Resources** | Co-branded sales materials, case studies, ROI calculators |
-| **Support Tools** | Customer impersonation (audited), screen sharing, remote diagnostics, ticket integration |
-| **Channel Programs** | Tier benefits, certification status, training resources |
-| **API Keys** | Generate and manage API keys for programmatic access |
+| Page                     | Purpose                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| **Fleet Dashboard**      | All customers' health at a glance, alerts across all customers, KPIs                        |
+| **Customers**            | List of all managed customers, drill-down, add new                                          |
+| **Customer Onboarding**  | Create new customer, configure their initial setup, send invitations                        |
+| **Brand Configuration**  | White-label settings (logo, colors, fonts, custom domain, custom email domain)              |
+| **Mobile App Builds**    | Manage per-integrator mobile app builds, App Store / Play Store deployment, version control |
+| **Bulk Operations**      | Push firmware updates to all Recorders, bulk-configure features across customers            |
+| **Integrator Staff**     | Manage integrator employees, assign sub-reseller scope, define internal roles               |
+| **Sub-Resellers**        | Hierarchical organization management (NSC → regional offices → city offices)                |
+| **Customer Permissions** | Granular per-customer scope management (which integrator staff can access which customers)  |
+| **Billing Aggregation**  | View all customer billing across the integrator org                                         |
+| **Marketing Resources**  | Co-branded sales materials, case studies, ROI calculators                                   |
+| **Support Tools**        | Customer impersonation (audited), screen sharing, remote diagnostics, ticket integration    |
+| **Channel Programs**     | Tier benefits, certification status, training resources                                     |
+| **API Keys**             | Generate and manage API keys for programmatic access                                        |
 
 ### 16.4 Tech stack
 
-| Component | Technology |
-|---|---|
-| Framework | React 18 with TypeScript |
-| Build tool | Vite |
-| Routing | React Router |
-| State management | Zustand or Redux Toolkit (depending on team preference) |
-| Data fetching | TanStack Query (React Query) + Connect-Go client |
-| UI components | shadcn/ui or Mantine (custom-skinned for white-label) |
-| Charts | Recharts or Visx |
-| Tables | TanStack Table with virtualization for large data |
-| Forms | React Hook Form + Zod for validation |
-| Internationalization | react-i18next with 4 languages (EN/ES/FR/DE) at launch |
-| Testing | Vitest for unit, Playwright for E2E |
-| Accessibility | WCAG 2.1 AA compliance, axe-core in CI, manual screen reader testing |
+| Component            | Technology                                                           |
+| -------------------- | -------------------------------------------------------------------- |
+| Framework            | React 18 with TypeScript                                             |
+| Build tool           | Vite                                                                 |
+| Routing              | React Router                                                         |
+| State management     | Zustand or Redux Toolkit (depending on team preference)              |
+| Data fetching        | TanStack Query (React Query) + Connect-Go client                     |
+| UI components        | shadcn/ui or Mantine (custom-skinned for white-label)                |
+| Charts               | Recharts or Visx                                                     |
+| Tables               | TanStack Table with virtualization for large data                    |
+| Forms                | React Hook Form + Zod for validation                                 |
+| Internationalization | react-i18next with 4 languages (EN/ES/FR/DE) at launch               |
+| Testing              | Vitest for unit, Playwright for E2E                                  |
+| Accessibility        | WCAG 2.1 AA compliance, axe-core in CI, manual screen reader testing |
 
 ### 16.5 White-label rendering
 
 Both contexts dynamically apply white-label config at runtime:
+
 - Logo loaded from per-integrator brand config
 - Color scheme applied via CSS variables
 - Typography overrides via CSS
@@ -1548,19 +1566,20 @@ Genetec Security Center Workstation, Milestone XProtect Smart Client, and Avigil
 
 ### 17.2 Tech stack: Qt 6 + C++
 
-| Component | Technology |
-|---|---|
-| Framework | Qt 6 with C++ (Qt Quick / QML for UI, C++ for performance-critical paths) |
-| Video rendering | Qt Multimedia + custom DirectX 12 / Vulkan rendering for multi-stream scaling |
-| Hardware decode | NVIDIA NVENC, Intel QuickSync, AMD AMF, Apple VideoToolbox |
-| WebRTC stack | libwebrtc (C++) bound into Qt |
-| HLS / RTSP | Native libavformat (FFmpeg) for HLS and RTSP playback |
-| PTZ keyboard integration | Native USB HID + serial libraries (libusb, qtserialport) |
-| Maps | Qt Location with offline tile support |
-| Build system | CMake + vcpkg for dependency management |
-| Distribution | Qt Installer Framework for Windows, native packages for Linux |
+| Component                | Technology                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| Framework                | Qt 6 with C++ (Qt Quick / QML for UI, C++ for performance-critical paths)     |
+| Video rendering          | Qt Multimedia + custom DirectX 12 / Vulkan rendering for multi-stream scaling |
+| Hardware decode          | NVIDIA NVENC, Intel QuickSync, AMD AMF, Apple VideoToolbox                    |
+| WebRTC stack             | libwebrtc (C++) bound into Qt                                                 |
+| HLS / RTSP               | Native libavformat (FFmpeg) for HLS and RTSP playback                         |
+| PTZ keyboard integration | Native USB HID + serial libraries (libusb, qtserialport)                      |
+| Maps                     | Qt Location with offline tile support                                         |
+| Build system             | CMake + vcpkg for dependency management                                       |
+| Distribution             | Qt Installer Framework for Windows, native packages for Linux                 |
 
 **Why Qt 6 over alternatives**:
+
 - Mature multi-monitor support (every competitor uses Qt for a reason)
 - Mature multimedia stack with hardware decode bindings
 - Cross-platform (Windows + Linux primary, macOS optional)
@@ -1570,6 +1589,7 @@ Genetec Security Center Workstation, Milestone XProtect Smart Client, and Avigil
 ### 17.3 Features
 
 **Multi-monitor and layout management**:
+
 - Drive 4-32 monitors from one workstation (limit is hardware, not software)
 - Per-monitor custom layouts (4×4, 6×6, 9×16, picture-in-picture, focus modes)
 - Saved scenes / presets — instant switch between layout configurations
@@ -1577,12 +1597,14 @@ Genetec Security Center Workstation, Milestone XProtect Smart Client, and Avigil
 - Tour mode — cycle through cameras automatically on a schedule
 
 **Performance**:
+
 - 64+ concurrent live streams with hardware decode
 - Per-stream quality auto-adjustment based on monitor pixel coverage
 - Scrolling and zooming without dropped frames
 - Cold start to first frame in <2 seconds
 
 **Operator features**:
+
 - PTZ keyboard / joystick integration (Axis T8311, Axiom, Honeywell, Bosch)
 - Custom hotkeys for every operator action
 - Multi-user simultaneous viewing on the same wall with independent cursors
@@ -1595,6 +1617,7 @@ Genetec Security Center Workstation, Milestone XProtect Smart Client, and Avigil
 - Investigator workflow tools (timeline review, multi-camera correlation, export with chain of custody)
 
 **Operational features**:
+
 - Auto-recovery from network drops without losing layout state
 - Crash recovery with restore-on-launch
 - Logging integrated with the same observability platform as the rest of the system
@@ -1617,39 +1640,39 @@ Updates pushed via in-app updater (Sparkle on macOS, similar on Windows).
 
 ### 18.1 Tech stack
 
-| Component | Technology |
-|---|---|
-| Framework | Next.js 14+ (App Router) |
-| CMS | Sanity (headless) |
-| Hosting | Vercel |
-| Analytics | PostHog + Plausible |
-| A/B testing | PostHog feature flags |
-| CRM integration | HubSpot (lead capture and routing) |
-| Form handling | React Hook Form + HubSpot API |
-| SEO | Next.js Metadata API + schema.org markup + structured data |
-| i18n | next-intl with 4 languages (EN/ES/FR/DE) at launch |
-| Image optimization | Next.js Image + Cloudinary for advanced transforms |
-| Search | Algolia for site search |
+| Component          | Technology                                                 |
+| ------------------ | ---------------------------------------------------------- |
+| Framework          | Next.js 14+ (App Router)                                   |
+| CMS                | Sanity (headless)                                          |
+| Hosting            | Vercel                                                     |
+| Analytics          | PostHog + Plausible                                        |
+| A/B testing        | PostHog feature flags                                      |
+| CRM integration    | HubSpot (lead capture and routing)                         |
+| Form handling      | React Hook Form + HubSpot API                              |
+| SEO                | Next.js Metadata API + schema.org markup + structured data |
+| i18n               | next-intl with 4 languages (EN/ES/FR/DE) at launch         |
+| Image optimization | Next.js Image + Cloudinary for advanced transforms         |
+| Search             | Algolia for site search                                    |
 
 ### 18.2 Pages and content
 
-| Page / Section | Purpose |
-|---|---|
-| **Homepage** | Hero, value props, social proof, primary CTAs (Try Free, Schedule Demo, Become a Partner) |
-| **Product overview** | Feature deep-dive, screenshots, video demos |
-| **Per-product feature pages** | Cloud platform, AI, white-label, integrator portal, video wall, etc. (one page per major area) |
-| **Pricing** | Tier comparison, ROI calculator, FAQ |
-| **Use cases / verticals** | Retail, healthcare, education, government, multi-site enterprise |
-| **Customer case studies** | Gated detailed case studies (lead capture) |
-| **Comparison pages** | "vs Verkada" / "vs Milestone" / "vs Genetec" / "vs Avigilon" / "vs Eagle Eye" — SEO + sales tools |
-| **Become a Partner** | Integrator-targeted landing page, partner program details |
-| **Integrator Directory** | "Find a certified installer near you" — searchable by city/zip |
-| **Trust Center** | Security, compliance, sub-processors, status page link |
-| **Blog** | Thought leadership, product updates, industry trends |
-| **Documentation** | Links to the docs portal |
-| **Careers** | Open positions, company culture, application form |
-| **Contact** | Sales, support, press contacts |
-| **Legal** | Terms of Service, Privacy Policy, Cookie Policy, DPA, AUP, etc. |
+| Page / Section                | Purpose                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Homepage**                  | Hero, value props, social proof, primary CTAs (Try Free, Schedule Demo, Become a Partner)         |
+| **Product overview**          | Feature deep-dive, screenshots, video demos                                                       |
+| **Per-product feature pages** | Cloud platform, AI, white-label, integrator portal, video wall, etc. (one page per major area)    |
+| **Pricing**                   | Tier comparison, ROI calculator, FAQ                                                              |
+| **Use cases / verticals**     | Retail, healthcare, education, government, multi-site enterprise                                  |
+| **Customer case studies**     | Gated detailed case studies (lead capture)                                                        |
+| **Comparison pages**          | "vs Verkada" / "vs Milestone" / "vs Genetec" / "vs Avigilon" / "vs Eagle Eye" — SEO + sales tools |
+| **Become a Partner**          | Integrator-targeted landing page, partner program details                                         |
+| **Integrator Directory**      | "Find a certified installer near you" — searchable by city/zip                                    |
+| **Trust Center**              | Security, compliance, sub-processors, status page link                                            |
+| **Blog**                      | Thought leadership, product updates, industry trends                                              |
+| **Documentation**             | Links to the docs portal                                                                          |
+| **Careers**                   | Open positions, company culture, application form                                                 |
+| **Contact**                   | Sales, support, press contacts                                                                    |
+| **Legal**                     | Terms of Service, Privacy Policy, Cookie Policy, DPA, AUP, etc.                                   |
 
 ### 18.3 Lead capture and routing
 
@@ -1677,28 +1700,28 @@ Searchable directory of certified integrators: customer enters zip code, sees in
 
 ### 19.1 Tech stack
 
-| Component | Technology |
-|---|---|
-| Platform | Mintlify (or Docusaurus as backup) |
-| API reference | Auto-generated from OpenAPI spec via Mintlify's OpenAPI integration |
-| Search | Algolia DocSearch or Mintlify built-in |
-| AI search | Inkeep — trained on docs as knowledge base |
-| Code examples | Embedded interactive code blocks with multi-language tabs |
-| Video tutorials | Embedded via Mux or Vimeo |
-| i18n | Mintlify multi-language support, 4 languages at launch |
-| Versioning | Per-major-version doc trees |
+| Component       | Technology                                                          |
+| --------------- | ------------------------------------------------------------------- |
+| Platform        | Mintlify (or Docusaurus as backup)                                  |
+| API reference   | Auto-generated from OpenAPI spec via Mintlify's OpenAPI integration |
+| Search          | Algolia DocSearch or Mintlify built-in                              |
+| AI search       | Inkeep — trained on docs as knowledge base                          |
+| Code examples   | Embedded interactive code blocks with multi-language tabs           |
+| Video tutorials | Embedded via Mux or Vimeo                                           |
+| i18n            | Mintlify multi-language support, 4 languages at launch              |
+| Versioning      | Per-major-version doc trees                                         |
 
 ### 19.2 Audiences and sections
 
-| Audience | Section |
-|---|---|
-| **End user** | Getting started, daily use, mobile app, web client, watching cameras, playback, alerts |
-| **Customer admin** | System setup, user management, camera management, AI configuration, integrations, federation, billing |
-| **Integrator** | Becoming a partner, white-label setup, customer onboarding, fleet management, support tools, billing aggregation, certification program |
-| **Developer** | API reference, SDKs (Python/Go/TypeScript), webhooks, OAuth, integration guides, code samples |
-| **Operator (SOC)** | Video wall client, layouts, scenes, PTZ, alarm response, shift handover |
-| **Hardware** | Compatibility list, installer image, deployment guides per certified config |
-| **Compliance** | SOC 2, HIPAA, GDPR, EU AI Act, FedRAMP roadmap, sub-processors |
+| Audience           | Section                                                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **End user**       | Getting started, daily use, mobile app, web client, watching cameras, playback, alerts                                                  |
+| **Customer admin** | System setup, user management, camera management, AI configuration, integrations, federation, billing                                   |
+| **Integrator**     | Becoming a partner, white-label setup, customer onboarding, fleet management, support tools, billing aggregation, certification program |
+| **Developer**      | API reference, SDKs (Python/Go/TypeScript), webhooks, OAuth, integration guides, code samples                                           |
+| **Operator (SOC)** | Video wall client, layouts, scenes, PTZ, alarm response, shift handover                                                                 |
+| **Hardware**       | Compatibility list, installer image, deployment guides per certified config                                                             |
+| **Compliance**     | SOC 2, HIPAA, GDPR, EU AI Act, FedRAMP roadmap, sub-processors                                                                          |
 
 ### 19.3 Content types
 
@@ -1713,6 +1736,7 @@ Searchable directory of certified integrators: customer enters zip code, sees in
 ### 19.4 White-label per integrator
 
 Integrators can configure a white-labeled docs subset:
+
 - Custom domain (`docs.acmealarm.com`)
 - Integrator's logo and brand
 - Selected docs that apply to their specific offering
@@ -1729,6 +1753,7 @@ For air-gapped customers: the docs portal exports a complete offline bundle (HTM
 ### 19.7 AI-powered help
 
 Inkeep (or similar) trained on the docs as a knowledge base, exposed as:
+
 - Search box in the docs portal that returns AI-generated answers + source citations
 - Embedded chat in the React admin's help sidebar
 - Embedded in customer support tooling (Intercom) for AI-first triage
@@ -1741,31 +1766,32 @@ Deflects ~30-40% of common support questions.
 
 ### 20.1 Stack
 
-| Component | Technology |
-|---|---|
-| Ticketing platform | Intercom |
-| AI support assistant | Inkeep (trained on docs) |
-| Live chat | Intercom in-app messenger |
-| Knowledge base | Mintlify docs portal (linked from Intercom) |
-| Screen sharing | Intercom Screen Share or external (Zoom, Whereby) |
-| Customer impersonation | Custom-built, audited, per-tier-restricted |
-| Remote diagnostics | Custom-built collector that pulls logs/metrics/state from on-prem Recorders |
-| Incident management | PagerDuty or Incident.io |
-| CSM tooling | Vitally or Catalyst |
-| Customer success scoring | Mixpanel + custom scoring model |
+| Component                | Technology                                                                  |
+| ------------------------ | --------------------------------------------------------------------------- |
+| Ticketing platform       | Intercom                                                                    |
+| AI support assistant     | Inkeep (trained on docs)                                                    |
+| Live chat                | Intercom in-app messenger                                                   |
+| Knowledge base           | Mintlify docs portal (linked from Intercom)                                 |
+| Screen sharing           | Intercom Screen Share or external (Zoom, Whereby)                           |
+| Customer impersonation   | Custom-built, audited, per-tier-restricted                                  |
+| Remote diagnostics       | Custom-built collector that pulls logs/metrics/state from on-prem Recorders |
+| Incident management      | PagerDuty or Incident.io                                                    |
+| CSM tooling              | Vitally or Catalyst                                                         |
+| Customer success scoring | Mixpanel + custom scoring model                                             |
 
 ### 20.2 Support tiers
 
-| Tier | Channels | SLA | CSM |
-|---|---|---|---|
-| **Free** | Docs + community forum + self-service | None | None |
-| **Starter** | Email + AI assistant | 24h business response | None |
-| **Pro** | Email + chat + AI assistant + onboarding call | 8h business response | Shared CSM pool |
-| **Enterprise** | All channels + dedicated CSM + screen-share + remote diagnostics + 24/7 critical | 1h critical / 4h business | Dedicated CSM |
+| Tier           | Channels                                                                         | SLA                       | CSM             |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------- | --------------- |
+| **Free**       | Docs + community forum + self-service                                            | None                      | None            |
+| **Starter**    | Email + AI assistant                                                             | 24h business response     | None            |
+| **Pro**        | Email + chat + AI assistant + onboarding call                                    | 8h business response      | Shared CSM pool |
+| **Enterprise** | All channels + dedicated CSM + screen-share + remote diagnostics + 24/7 critical | 1h critical / 4h business | Dedicated CSM   |
 
 ### 20.3 Customer impersonation
 
 Critical for support without violating customer trust. Architecture:
+
 - Integrator staff can impersonate their managed customers (audited, scope-limited)
 - Platform support team can impersonate any tenant **only with explicit customer authorization** (customer admin grants a time-limited "support session" token)
 - Every action during impersonation is logged with `impersonating_user` + `impersonated_tenant` fields
@@ -1775,6 +1801,7 @@ Critical for support without violating customer trust. Architecture:
 ### 20.4 Remote diagnostics
 
 For on-prem Recorders, support engineers need to pull diagnostic data without screen-sharing. The diagnostic collector:
+
 - Pulls structured logs (last N hours)
 - Pulls metrics snapshots
 - Pulls camera state
@@ -1790,6 +1817,7 @@ Customer triggers via a one-click "Generate Support Bundle" button in the React 
 ### 20.5 Customer success scoring
 
 Real-time health score per customer based on:
+
 - Active feature usage (which features they touch)
 - Recording health (any cameras offline?)
 - User engagement (logins per week)
@@ -1821,6 +1849,7 @@ Customer-facing status page at `status.yourbrand.com` showing real-time health f
 ### 21.2 Per-integrator white-label status pages
 
 Each integrator gets a white-labeled status page subdomain (`status.acmealarm.com`) that shows:
+
 - Their integrator portal status
 - Status of services that affect their managed customers
 - Their custom branding
@@ -1830,6 +1859,7 @@ Customers see the integrator's status page, not yours.
 ### 21.3 Integration with monitoring
 
 Status events are automatically generated from:
+
 - Prometheus alerts (when error rates spike)
 - Synthetic monitoring (Pingdom or similar polling key endpoints)
 - Manual incident creation by on-call engineers
@@ -1839,6 +1869,7 @@ Each component shows: operational, degraded, partial outage, major outage. Histo
 ### 21.4 Subscriber notifications
 
 Customers and integrators can subscribe to status updates via:
+
 - Email
 - SMS (Twilio)
 - Webhook (for integration into their own monitoring)
@@ -1855,20 +1886,21 @@ Statuspage.io (Atlassian) or Better Stack. Don't build in-house.
 
 ### 22.1 Channels
 
-| Channel | Provider | Use case |
-|---|---|---|
-| Email | SendGrid | Daily summaries, alert digests, account notifications |
-| SMS | Twilio | Critical alerts, 2FA codes, escalations |
-| Voice calls | Twilio | Critical-tier alerts that require immediate human acknowledgment |
-| WhatsApp | Twilio (Business API) | International customers, geographic preferences |
-| Push | FCM (Android) / APNs (iOS) / Web Push | Real-time mobile alerts |
-| Slack / Teams | Native integrations | Team channel alerts |
-| PagerDuty / Opsgenie | Native integrations | SOC operator alerting |
-| Webhook | Outbound HTTP POST | Custom integration |
+| Channel              | Provider                              | Use case                                                         |
+| -------------------- | ------------------------------------- | ---------------------------------------------------------------- |
+| Email                | SendGrid                              | Daily summaries, alert digests, account notifications            |
+| SMS                  | Twilio                                | Critical alerts, 2FA codes, escalations                          |
+| Voice calls          | Twilio                                | Critical-tier alerts that require immediate human acknowledgment |
+| WhatsApp             | Twilio (Business API)                 | International customers, geographic preferences                  |
+| Push                 | FCM (Android) / APNs (iOS) / Web Push | Real-time mobile alerts                                          |
+| Slack / Teams        | Native integrations                   | Team channel alerts                                              |
+| PagerDuty / Opsgenie | Native integrations                   | SOC operator alerting                                            |
+| Webhook              | Outbound HTTP POST                    | Custom integration                                               |
 
 ### 22.2 Per-user channel preferences
 
 Each user configures, per camera + per event type:
+
 - Which channels to use
 - Quiet hours (time-of-day suppression)
 - Severity threshold
@@ -1880,6 +1912,7 @@ Customer admins define escalation rules: if user X doesn't acknowledge a critica
 ### 22.4 ML-based alert suppression
 
 Reduces alert fatigue by learning patterns:
+
 - Cluster related events into one notification ("3 motion events in the loading dock, last 5 minutes")
 - Suppress alerts during expected high-activity windows
 - Identify and suppress recurring false positives
@@ -1899,12 +1932,12 @@ In-product notification center with read/unread state, filtering, search, archiv
 
 ### 23.1 Plan structure
 
-| Tier | Per camera/month (direct customer wholesale) | Integrator wholesale | Includes |
-|---|---|---|---|
-| **Free** | $0 | $0 | Up to 4 cameras, 7 days retention, basic detection (motion + simple object), 1 user, watermarked exports, no SSO, community support |
-| **Starter** | $15 | $9 | Up to 32 cameras, 30 days retention, full object detection, unlimited users, SSO, removed watermark, email support |
-| **Professional** | $30 | $18 | Up to 256 cameras per site, 90 days retention, advanced AI (face/LPR/behavioral), federation, all integrations, priority support, SOC 2 reports |
-| **Enterprise** | $45+ (custom) | custom | Unlimited cameras, custom retention, all add-ons by default, dedicated success manager, custom SLAs, FedRAMP path, on-prem or private cloud |
+| Tier             | Per camera/month (direct customer wholesale) | Integrator wholesale | Includes                                                                                                                                        |
+| ---------------- | -------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Free**         | $0                                           | $0                   | Up to 4 cameras, 7 days retention, basic detection (motion + simple object), 1 user, watermarked exports, no SSO, community support             |
+| **Starter**      | $15                                          | $9                   | Up to 32 cameras, 30 days retention, full object detection, unlimited users, SSO, removed watermark, email support                              |
+| **Professional** | $30                                          | $18                  | Up to 256 cameras per site, 90 days retention, advanced AI (face/LPR/behavioral), federation, all integrations, priority support, SOC 2 reports |
+| **Enterprise**   | $45+ (custom)                                | custom               | Unlimited cameras, custom retention, all add-ons by default, dedicated success manager, custom SLAs, FedRAMP path, on-prem or private cloud     |
 
 ### 23.2 Add-ons (regardless of tier)
 
@@ -1924,6 +1957,7 @@ At customer onboarding, both billing modes are available:
 - **Integrator-rebilled**: platform invoices the integrator at wholesale, integrator marks up and invoices their customer separately (potentially through the same platform)
 
 Implementation:
+
 - Per-tenant `billing_mode` field (`direct` or `via_integrator`)
 - Per-integrator `wholesale_discount_percent` (your discount to them)
 - Per-integrator-customer-relationship `markup_percent` (their markup to the customer)
@@ -1936,6 +1970,7 @@ Avalara or Anrok handles multi-jurisdiction sales tax / VAT. Required for intern
 ### 23.5 Free tier abuse prevention
 
 Free tier is limited to 4 cameras + 1 user + 7 days retention. Monitor for:
+
 - Multiple accounts from same IP / device fingerprint
 - Suspicious signup patterns
 - Free-tier accounts exceeding limits via creative tricks
@@ -1943,12 +1978,14 @@ Free tier is limited to 4 cameras + 1 user + 7 days retention. Monitor for:
 ### 23.6 Usage tracking and reporting
 
 Per-tenant resource accounting:
+
 - Cloud bandwidth (bytes streamed through Gateway and cloud relay)
 - Cloud storage (GB stored in cloud archive, per tier)
 - AI inference (GPU-hours used cloud-side)
 - API requests (rate-limited and tracked)
 
 Used for:
+
 - Customer-facing usage reports (transparency)
 - Overage billing for customers exceeding bundled limits
 - Cost-of-goods analysis per customer (which customers are profitable)
@@ -1960,21 +1997,22 @@ Used for:
 
 ### 24.1 What's white-labeled
 
-| Dimension | Customer-visible? |
-|---|---|
-| Logo and visual identity | Always integrator's |
-| Color scheme and typography | Always integrator's |
-| Custom domain (`security.acmealarm.com`) | Integrator's |
-| Email sender domain (`alerts@acmealarm.com`) | Integrator's |
-| Mobile apps | Per-integrator builds under integrator's developer account |
-| Content / help text / error messages | Customizable per integrator |
-| Legal documents (ToS, Privacy) | Integrator's |
-| Status page subdomain | Integrator's |
-| Documentation portal | Per-integrator white-labeled subset |
-| Push notification sender name | Integrator's |
-| Customer support contact | Integrator's |
+| Dimension                                    | Customer-visible?                                          |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| Logo and visual identity                     | Always integrator's                                        |
+| Color scheme and typography                  | Always integrator's                                        |
+| Custom domain (`security.acmealarm.com`)     | Integrator's                                               |
+| Email sender domain (`alerts@acmealarm.com`) | Integrator's                                               |
+| Mobile apps                                  | Per-integrator builds under integrator's developer account |
+| Content / help text / error messages         | Customizable per integrator                                |
+| Legal documents (ToS, Privacy)               | Integrator's                                               |
+| Status page subdomain                        | Integrator's                                               |
+| Documentation portal                         | Per-integrator white-labeled subset                        |
+| Push notification sender name                | Integrator's                                               |
+| Customer support contact                     | Integrator's                                               |
 
 The customer is unaware of your brand in normal operation. Your brand only appears in:
+
 - Legal sub-processor disclosures (where required)
 - App Store developer field (showing the integrator as the developer)
 
@@ -1983,6 +2021,7 @@ The customer is unaware of your brand in normal operation. Your brand only appea
 The single most differentiated feature in the white-label program. Most VMS competitors do not offer this.
 
 **How it works**:
+
 1. Integrator uploads brand assets (logo, splash, app icon, color scheme) in the integrator portal
 2. Integrator provides Apple Developer Program credentials and Google Play Developer credentials (or grants you upload access)
 3. The cloud's mobile build pipeline (CI service) takes the Flutter codebase + per-integrator brand config + per-integrator developer account credentials and produces:
@@ -1992,6 +2031,7 @@ The single most differentiated feature in the white-label program. Most VMS comp
 5. Integrator-branded apps appear in the App Store as "Acme Security" with no mention of your brand
 
 **Build pipeline**:
+
 - GitHub Actions (or Buildkite) runs parallel builds per integrator
 - Each integrator has a separate Bundle ID, app name, splash screen, icon set, string overrides, color scheme
 - Builds are reproducible from a manifest checked into integrator's brand config
@@ -2024,6 +2064,7 @@ Bounce handling routes to a per-integrator deliverability dashboard.
 ### 24.5 Content overrides
 
 Every customer-visible string in the React admin and Flutter app is in a translation/override system. Per-integrator overrides allow customizing:
+
 - App welcome text
 - Help text
 - Error messages
@@ -2049,6 +2090,7 @@ Published list of specific tested hardware configurations:
 - **Edge AI**: Specific NVIDIA Jetson Orin configurations for AI-heavy edge inference
 
 Each certified config has:
+
 - Exact part numbers
 - Tested performance specs
 - Pre-built OS image
@@ -2059,6 +2101,7 @@ Each certified config has:
 ### 25.3 Pre-built installer images
 
 Bootable installer image:
+
 - Customer flashes a USB stick
 - Boots from USB on their hardware
 - Installer detects hardware (CPU, RAM, disks, NICs, GPU)
@@ -2070,6 +2113,7 @@ Bootable installer image:
 ### 25.4 Integrator hardware kits
 
 Recommended kits with published BOMs:
+
 - **Coffee shop kit**: ~$1,200 in hardware + your software → 8 cameras
 - **Retail location kit**: ~$3,500 → 32 cameras
 - **Multi-tenant building kit**: ~$8,500 → 128 cameras
@@ -2079,6 +2123,7 @@ Integrators source the hardware themselves and resell to customers with their ow
 ### 25.5 Hardware health monitoring on commodity hardware
 
 The on-prem binary reads from standard Linux sensors:
+
 - `smartmontools` for disk SMART data
 - `lm-sensors` for temps and fan speeds
 - IPMI tools where available
@@ -2180,6 +2225,7 @@ Group C — only when customer demand justifies:
 ### 27.5 EU AI Act specifics
 
 Face recognition is high-risk AI under the EU AI Act. Required:
+
 - Risk assessment + risk management documentation
 - Data governance documentation (training data, bias testing)
 - Technical documentation maintained throughout system lifecycle
@@ -2195,19 +2241,19 @@ Required by **August 2, 2026**. v1 launching in 2026 or 2027 must be compliant f
 
 ### 27.6 Annual compliance program cost
 
-| Item | Year 1 | Year 2 | Year 3+ |
-|---|---|---|---|
-| Head of Security & Compliance + 1 security engineer | $400-600k | $500-700k | $600k-1M |
-| Compliance platform | $20-50k | $30-70k | $50-100k |
-| SOC 2 Type I audit | $30-100k | — | — |
-| SOC 2 Type II audit | — | $50-150k | $50-150k/year |
-| ISO 27001 audit | — | $30-80k | $20-50k/year |
-| Pen testing | $80-200k | $80-200k/year | $100-300k/year |
-| Bug bounty program | — | $20-100k/year | $50-300k/year |
-| Legal review (DPAs, BAAs, terms) | $50-150k | $50-100k/year | $50-100k/year |
-| HIPAA + GDPR consulting | $40-100k | $20-50k/year | $20-50k/year |
-| Security training | $5-15k | $5-15k/year | $5-25k/year |
-| **Year total** | **~$625k-1.2M** | **~$785k-1.4M** | **~$945k-2M** |
+| Item                                                | Year 1          | Year 2          | Year 3+        |
+| --------------------------------------------------- | --------------- | --------------- | -------------- |
+| Head of Security & Compliance + 1 security engineer | $400-600k       | $500-700k       | $600k-1M       |
+| Compliance platform                                 | $20-50k         | $30-70k         | $50-100k       |
+| SOC 2 Type I audit                                  | $30-100k        | —               | —              |
+| SOC 2 Type II audit                                 | —               | $50-150k        | $50-150k/year  |
+| ISO 27001 audit                                     | —               | $30-80k         | $20-50k/year   |
+| Pen testing                                         | $80-200k        | $80-200k/year   | $100-300k/year |
+| Bug bounty program                                  | —               | $20-100k/year   | $50-300k/year  |
+| Legal review (DPAs, BAAs, terms)                    | $50-150k        | $50-100k/year   | $50-100k/year  |
+| HIPAA + GDPR consulting                             | $40-100k        | $20-50k/year    | $20-50k/year   |
+| Security training                                   | $5-15k          | $5-15k/year     | $5-25k/year    |
+| **Year total**                                      | **~$625k-1.2M** | **~$785k-1.4M** | **~$945k-2M**  |
 
 ---
 
@@ -2216,12 +2262,15 @@ Required by **August 2, 2026**. v1 launching in 2026 or 2027 must be compliant f
 ### 28.1 Three onboarding journeys
 
 **Direct customer journey**:
+
 - Marketing site → "Try Free" → self-serve signup → first-boot wizard → add first camera → see live frame → onboarding email drip
 
 **Integrator-led customer journey**:
+
 - Integrator portal → "+ Add Customer" → integrator goes to customer site → installs hardware → first-boot wizard auto-detects integrator-led setup → pulls customer config from cloud → ONVIF discovery → cameras configured → invite customer admin → customer receives polished email → downloads white-labeled mobile app → signs in → cameras visible
 
 **Integrator first-hour journey**:
+
 - Marketing site → "Become a Partner" → integrator signup → brand setup wizard → "would you like a sandbox to play with?" → sandbox tenant created with simulated cameras → integrator explores → adds first real customer
 
 ### 28.2 Sandbox / demo mode
@@ -2237,6 +2286,7 @@ Sandbox tenants are ephemeral (auto-delete after 30 days unless promoted to a re
 ### 28.3 First-boot wizard (Standard / B2 scope)
 
 Walks the customer through:
+
 - Set master key (or auto-generate)
 - Create admin account
 - Add one camera via ONVIF discovery
@@ -2258,6 +2308,7 @@ Walks the customer through:
 ### 28.5 Email drip campaign
 
 5-7 email sequence over 30 days, behavior-triggered via Customer.io or HubSpot:
+
 - Day 0: Welcome email
 - Day 1: Getting started tips
 - Day 3: "Have you set up alerts yet?"
@@ -2276,34 +2327,35 @@ Real-time health score per customer drives proactive outreach.
 
 ### 29.1 Layer 1: Integration platform
 
-| Component | What it does |
-|---|---|
-| Outbound webhooks | Customer-configured URLs receive event payloads (signed, retry-able, filterable) |
-| Inbound webhooks | Customer-defined endpoints trigger actions in the system |
-| Public REST + Connect-Go API | Full programmatic access, versioned, authenticated |
-| OpenAPI spec | Auto-generated from Connect-Go service definitions |
-| API key management | Per-tenant keys, scoping, rotation, audit |
-| Public SDKs | Python, Go, TypeScript (Java + C# in v1.x) |
-| Integration developer docs | At `developers.yourbrand.com` |
+| Component                    | What it does                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| Outbound webhooks            | Customer-configured URLs receive event payloads (signed, retry-able, filterable) |
+| Inbound webhooks             | Customer-defined endpoints trigger actions in the system                         |
+| Public REST + Connect-Go API | Full programmatic access, versioned, authenticated                               |
+| OpenAPI spec                 | Auto-generated from Connect-Go service definitions                               |
+| API key management           | Per-tenant keys, scoping, rotation, audit                                        |
+| Public SDKs                  | Python, Go, TypeScript (Java + C# in v1.x)                                       |
+| Integration developer docs   | At `developers.yourbrand.com`                                                    |
 
 ### 29.2 Layer 2: First-party integrations (12 in v1)
 
-| # | Integration | Category |
-|---|---|---|
-| 1 | Brivo | Cloud access control |
-| 2 | OpenPath / Avigilon Alta | Cloud access control |
-| 3 | ProdataKey (PDK) | Cloud access control |
-| 4 | Bosch B/G-Series | Alarm panels |
-| 5 | DMP XR-Series | Alarm panels |
-| 6 | PagerDuty | ITSM / alerting |
-| 7 | Opsgenie | ITSM / alerting |
-| 8 | Slack | Channel alerts |
-| 9 | Microsoft Teams | Channel alerts |
-| 10 | Zapier app | Universal automation (~5000+ downstream destinations) |
-| 11 | Make (Integromat) | European workflow automation |
-| 12 | n8n | Self-hosted workflow automation |
+| #   | Integration              | Category                                              |
+| --- | ------------------------ | ----------------------------------------------------- |
+| 1   | Brivo                    | Cloud access control                                  |
+| 2   | OpenPath / Avigilon Alta | Cloud access control                                  |
+| 3   | ProdataKey (PDK)         | Cloud access control                                  |
+| 4   | Bosch B/G-Series         | Alarm panels                                          |
+| 5   | DMP XR-Series            | Alarm panels                                          |
+| 6   | PagerDuty                | ITSM / alerting                                       |
+| 7   | Opsgenie                 | ITSM / alerting                                       |
+| 8   | Slack                    | Channel alerts                                        |
+| 9   | Microsoft Teams          | Channel alerts                                        |
+| 10  | Zapier app               | Universal automation (~5000+ downstream destinations) |
+| 11  | Make (Integromat)        | European workflow automation                          |
+| 12  | n8n                      | Self-hosted workflow automation                       |
 
 Each first-party integration includes:
+
 - Configuration UI in the React admin
 - Test/verify button
 - Bidirectional event flow where applicable
@@ -2314,6 +2366,7 @@ Each first-party integration includes:
 ### 29.3 Layer 3: Marketplace (deferred to v2)
 
 Architecture supports marketplace as a non-breaking addition:
+
 - Every first-party integration is built on the same public API third parties would use
 - OAuth flow supports third-party developer registration
 - Webhook system supports per-developer signing keys
@@ -2325,10 +2378,10 @@ Architecture supports marketplace as a non-breaking addition:
 
 ### 30.1 Hybrid PLG + Sales-led
 
-| Path | Customer profile |
-|---|---|
-| **Self-serve PLG** | SMB direct customers + small integrators (Free / Starter tier signup, no sales touch) |
-| **Sales-led** | Mid-market and enterprise customers + large integrators (SDR → AE → custom quote → contract) |
+| Path               | Customer profile                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| **Self-serve PLG** | SMB direct customers + small integrators (Free / Starter tier signup, no sales touch)        |
+| **Sales-led**      | Mid-market and enterprise customers + large integrators (SDR → AE → custom quote → contract) |
 
 ### 30.2 CRM and sales tools
 
@@ -2341,6 +2394,7 @@ Architecture supports marketplace as a non-breaking addition:
 ### 30.3 Sales targeting in v1
 
 v1 focuses on greenfield customers (no existing VMS). Sales team is trained to qualify:
+
 - New builds / new sites
 - VMS-replacement happening anyway (not migrations of complex existing deployments — those wait for v1.x)
 - Customers building first-time security systems
@@ -2356,6 +2410,7 @@ Customers with complex existing VMS deployments are tagged as v1.x leads and nur
 **Fail closed for security, fail open for recording.** Auth and permission failures fail closed (deny). Recording-related failures fail open (keep recording from cached state).
 
 Every error returned to a customer includes:
+
 - Stable error code (`auth.invalid_credentials`, `permission.denied`, `stream.token_expired`, etc.)
 - Human-readable message (translated)
 - Correlation ID for log lookup
@@ -2365,40 +2420,40 @@ Error codes are stable, public, documented, and never reused. New conditions get
 
 ### 31.2 Retry policies
 
-| Operation | Policy |
-|---|---|
+| Operation                                       | Policy                                                                             |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Connect-Go calls between Directory and Recorder | Exponential backoff, max 5 retries, circuit-break for 60s after persistent failure |
-| JWKS fetch | Exponential backoff, max 3 retries, fall back to cached keys |
-| Camera connection retries | Unbounded with capped interval (~5 min between attempts) |
-| Cert renewal | Daily until 24h before expiry, then hourly |
-| Catalog sync | Every 5 minutes (next interval is the retry) |
-| Cloud archive upload | Pause/resume, retry from last successful chunk |
-| Push notification delivery | Per FCM/APNs SLAs |
+| JWKS fetch                                      | Exponential backoff, max 3 retries, fall back to cached keys                       |
+| Camera connection retries                       | Unbounded with capped interval (~5 min between attempts)                           |
+| Cert renewal                                    | Daily until 24h before expiry, then hourly                                         |
+| Catalog sync                                    | Every 5 minutes (next interval is the retry)                                       |
+| Cloud archive upload                            | Pause/resume, retry from last successful chunk                                     |
+| Push notification delivery                      | Per FCM/APNs SLAs                                                                  |
 
 ### 31.3 Resilience map
 
-| Failure | Local Recorder | Cloud | Customer experience |
-|---|---|---|---|
-| Recorder crashes and restarts | Resumes recording from cache | n/a | ~30s gap, no data loss |
-| Recorder loses cloud connection | Continues recording, queues state pushes | Marks recorder degraded | LAN viewing works with cached tokens; admin actions queued |
-| Cloud control plane partial outage | Recordings continue | Some cloud features degraded | Status page reflects |
-| AI inference cloud failure | Edge AI continues | Cloud AI unavailable | Heavy AI features pause; basic features work |
-| Cloudflare R2 outage | Cloud archive uploads pause; queue locally | Live customers unaffected | Archive resumes on R2 recovery |
-| Zitadel sidecar crash | Existing tokens work for ~1 hour | n/a | Supervisor restarts; brief login interruption |
-| MediaMTX sidecar crash | Streams interrupted | n/a | Supervisor restarts within seconds; existing recording state recovered |
-| Federation peer offline | Local site unaffected | n/a | Cross-site search marks partial; cross-site playback errors clearly |
-| Tier 3 cloud relay outage | LAN-direct + Tier 2 still work | n/a | Off-LAN customers fall back to other tiers automatically |
+| Failure                            | Local Recorder                             | Cloud                        | Customer experience                                                    |
+| ---------------------------------- | ------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------- |
+| Recorder crashes and restarts      | Resumes recording from cache               | n/a                          | ~30s gap, no data loss                                                 |
+| Recorder loses cloud connection    | Continues recording, queues state pushes   | Marks recorder degraded      | LAN viewing works with cached tokens; admin actions queued             |
+| Cloud control plane partial outage | Recordings continue                        | Some cloud features degraded | Status page reflects                                                   |
+| AI inference cloud failure         | Edge AI continues                          | Cloud AI unavailable         | Heavy AI features pause; basic features work                           |
+| Cloudflare R2 outage               | Cloud archive uploads pause; queue locally | Live customers unaffected    | Archive resumes on R2 recovery                                         |
+| Zitadel sidecar crash              | Existing tokens work for ~1 hour           | n/a                          | Supervisor restarts; brief login interruption                          |
+| MediaMTX sidecar crash             | Streams interrupted                        | n/a                          | Supervisor restarts within seconds; existing recording state recovered |
+| Federation peer offline            | Local site unaffected                      | n/a                          | Cross-site search marks partial; cross-site playback errors clearly    |
+| Tier 3 cloud relay outage          | LAN-direct + Tier 2 still work             | n/a                          | Off-LAN customers fall back to other tiers automatically               |
 
 The invariant: **recording never stops** as long as the Recorder has power and disk.
 
 ### 31.4 Observability stack
 
-| Pillar | Tech |
-|---|---|
+| Pillar             | Tech                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Structured logging | `slog` with consistent fields (`request_id`, `user_id`, `tenant_id`, `component`, `subsystem`); JSON output; sensitive-field redaction allow-list |
-| Metrics | Prometheus per component, customer can scrape from on-prem; cloud metrics in central Prometheus + Grafana |
-| Tracing | OpenTelemetry, propagated via `traceparent` headers across Connect-Go calls; OTLP exporter, customer-configurable destinations |
-| Dashboards | Grafana for engineering; customer-facing dashboards in React admin (Health, Performance, Storage, Usage) |
+| Metrics            | Prometheus per component, customer can scrape from on-prem; cloud metrics in central Prometheus + Grafana                                         |
+| Tracing            | OpenTelemetry, propagated via `traceparent` headers across Connect-Go calls; OTLP exporter, customer-configurable destinations                    |
+| Dashboards         | Grafana for engineering; customer-facing dashboards in React admin (Health, Performance, Storage, Usage)                                          |
 
 Default sampling for tracing: 100% of error traces, 1% of successful traces.
 
@@ -2408,19 +2463,19 @@ Default sampling for tracing: 100% of error traces, 1% of successful traces.
 
 ### 32.1 Test pyramid
 
-| Layer | Frequency | What |
-|---|---|---|
-| **Unit tests** | Per PR | Per-package logic. 70%+ coverage target, 85%+ for security packages |
-| **Component tests** | Per PR | One component spinning up with mocked peers (Directory, Recorder, Gateway, Cloud control plane, etc.) |
-| **Integration tests** | Per PR merge to main | Multi-component Docker Compose with real Zitadel, MediaMTX, Connect-Go traffic |
-| **End-to-end tests** | Nightly | Full stack including React admin (Playwright), Flutter (`integration_test`), and the cloud control plane |
-| **IdP integration tests** | Weekly | Real Entra, Okta, Google test tenants |
-| **Federation chaos tests** | Nightly | 3-Directory federation with random kill/partition/slowdown injection |
-| **Migration tests** | Per migration-related PR | ~20 representative source-data scenarios |
-| **Security tests** | Per PR | Token forgery, permission bypass, replay attacks, SSRF prevention, Casbin rule injection |
-| **Load tests** | Weekly | Simulated 100 concurrent clients across 5 Recorders + soak test variant monthly |
-| **Multi-tenant isolation tests** | Per PR | Verify no cross-tenant data leakage, especially in cloud control plane |
-| **Pre-launch security review** | Once before launch | Third-party pen test + security audit by Trail of Bits or similar |
+| Layer                            | Frequency                | What                                                                                                     |
+| -------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| **Unit tests**                   | Per PR                   | Per-package logic. 70%+ coverage target, 85%+ for security packages                                      |
+| **Component tests**              | Per PR                   | One component spinning up with mocked peers (Directory, Recorder, Gateway, Cloud control plane, etc.)    |
+| **Integration tests**            | Per PR merge to main     | Multi-component Docker Compose with real Zitadel, MediaMTX, Connect-Go traffic                           |
+| **End-to-end tests**             | Nightly                  | Full stack including React admin (Playwright), Flutter (`integration_test`), and the cloud control plane |
+| **IdP integration tests**        | Weekly                   | Real Entra, Okta, Google test tenants                                                                    |
+| **Federation chaos tests**       | Nightly                  | 3-Directory federation with random kill/partition/slowdown injection                                     |
+| **Migration tests**              | Per migration-related PR | ~20 representative source-data scenarios                                                                 |
+| **Security tests**               | Per PR                   | Token forgery, permission bypass, replay attacks, SSRF prevention, Casbin rule injection                 |
+| **Load tests**                   | Weekly                   | Simulated 100 concurrent clients across 5 Recorders + soak test variant monthly                          |
+| **Multi-tenant isolation tests** | Per PR                   | Verify no cross-tenant data leakage, especially in cloud control plane                                   |
+| **Pre-launch security review**   | Once before launch       | Third-party pen test + security audit by Trail of Bits or similar                                        |
 
 ### 32.2 Cloud-specific testing
 
@@ -2435,36 +2490,36 @@ Default sampling for tracing: 100% of error traces, 1% of successful traces.
 
 ### 33.1 v1 engineering effort breakdown
 
-| Workstream | Engineer-weeks |
-|---|---|
-| On-prem Foundation (role split, networking, PKI, pairing) | ~25 |
-| Identity (Zitadel multi-tenant, four protocols, six wizards) | ~22 |
-| Camera Registry & Permissions (multi-tenant aware) | ~25 |
-| Streaming Data Plane (URL minting, MediaMTX, multi-Recorder timeline, audio talkback) | ~22 |
-| Federation (full scope with cloud-first adjustments) | ~27 |
-| Remote Access (all three tiers in v1) | ~35 |
-| Recording Storage (4 tiers + 3 encryption + R2 + tier transitions) | ~20 |
-| Multi-tenant Cloud Control Plane (multi-tenant API, per-tenant routing, region-ready) | ~70 |
-| Integrator Portal (fleet dashboard, customer onboarding, white-label, billing, support tools) | ~50 |
-| React Admin Web App (two contexts, all pages) | ~30 |
-| Compliance Program (SOC 2 prep, FIPS, HIPAA, GDPR, EU AI Act, Section 508, pen test, bug bounty) | ~35 |
-| AI/ML (11 features: object, face, LPR, behavioral, audio, CLIP search, cross-camera tracking, anomaly, summaries, forensic search, custom model upload + sandbox) | ~95 |
-| Hardware compatibility program | ~12 |
-| Single-NVR self-migration tool + REST compat shim | ~15 |
-| White-label Level 3 (incl. mobile build pipeline) | ~30 |
-| Pricing & Billing (Stripe Connect + tax compliance + tier management) | ~30 |
-| Integrations ecosystem (12 first-party + webhooks + API + SDKs + dev docs) | ~65 |
-| Flutter end-user app (single codebase → 6 targets, federated, all features) | ~50 |
-| Video Wall Client (Qt 6 / C++ native) | ~80 |
-| Marketing website (Next.js + Sanity + comprehensive scope) | ~30 |
-| Documentation portal (Mintlify + comprehensive scope) | ~40 |
-| Status page (Comprehensive — per-region, per-integrator white-label) | ~15 |
-| Customer support tooling (Comprehensive — AI assistant, screen-sharing, impersonation, remote diagnostics) | ~30 |
-| Sales motion infrastructure (HubSpot integration, lead routing, demo scheduling, proposal automation) | ~10 |
-| Notification infrastructure (Comprehensive — voice, WhatsApp, ML suppression, custom templates) | ~40 |
-| Onboarding experience (sandbox, wizard, drip, in-app guidance) | ~25 |
-| Cross-cutting (observability, structured logging, metrics, tracing, error codes, integration test harness, E2E test rig, federation chaos rig, load test rig) | ~50 |
-| **v1 total** | **~975 engineer-weeks** |
+| Workstream                                                                                                                                                        | Engineer-weeks          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| On-prem Foundation (role split, networking, PKI, pairing)                                                                                                         | ~25                     |
+| Identity (Zitadel multi-tenant, four protocols, six wizards)                                                                                                      | ~22                     |
+| Camera Registry & Permissions (multi-tenant aware)                                                                                                                | ~25                     |
+| Streaming Data Plane (URL minting, MediaMTX, multi-Recorder timeline, audio talkback)                                                                             | ~22                     |
+| Federation (full scope with cloud-first adjustments)                                                                                                              | ~27                     |
+| Remote Access (all three tiers in v1)                                                                                                                             | ~35                     |
+| Recording Storage (4 tiers + 3 encryption + R2 + tier transitions)                                                                                                | ~20                     |
+| Multi-tenant Cloud Control Plane (multi-tenant API, per-tenant routing, region-ready)                                                                             | ~70                     |
+| Integrator Portal (fleet dashboard, customer onboarding, white-label, billing, support tools)                                                                     | ~50                     |
+| React Admin Web App (two contexts, all pages)                                                                                                                     | ~30                     |
+| Compliance Program (SOC 2 prep, FIPS, HIPAA, GDPR, EU AI Act, Section 508, pen test, bug bounty)                                                                  | ~35                     |
+| AI/ML (11 features: object, face, LPR, behavioral, audio, CLIP search, cross-camera tracking, anomaly, summaries, forensic search, custom model upload + sandbox) | ~95                     |
+| Hardware compatibility program                                                                                                                                    | ~12                     |
+| Single-NVR self-migration tool + REST compat shim                                                                                                                 | ~15                     |
+| White-label Level 3 (incl. mobile build pipeline)                                                                                                                 | ~30                     |
+| Pricing & Billing (Stripe Connect + tax compliance + tier management)                                                                                             | ~30                     |
+| Integrations ecosystem (12 first-party + webhooks + API + SDKs + dev docs)                                                                                        | ~65                     |
+| Flutter end-user app (single codebase → 6 targets, federated, all features)                                                                                       | ~50                     |
+| Video Wall Client (Qt 6 / C++ native)                                                                                                                             | ~80                     |
+| Marketing website (Next.js + Sanity + comprehensive scope)                                                                                                        | ~30                     |
+| Documentation portal (Mintlify + comprehensive scope)                                                                                                             | ~40                     |
+| Status page (Comprehensive — per-region, per-integrator white-label)                                                                                              | ~15                     |
+| Customer support tooling (Comprehensive — AI assistant, screen-sharing, impersonation, remote diagnostics)                                                        | ~30                     |
+| Sales motion infrastructure (HubSpot integration, lead routing, demo scheduling, proposal automation)                                                             | ~10                     |
+| Notification infrastructure (Comprehensive — voice, WhatsApp, ML suppression, custom templates)                                                                   | ~40                     |
+| Onboarding experience (sandbox, wizard, drip, in-app guidance)                                                                                                    | ~25                     |
+| Cross-cutting (observability, structured logging, metrics, tracing, error codes, integration test harness, E2E test rig, federation chaos rig, load test rig)     | ~50                     |
+| **v1 total**                                                                                                                                                      | **~975 engineer-weeks** |
 
 ### 33.2 Team and capital
 
@@ -2478,34 +2533,34 @@ Default sampling for tracing: 100% of error traces, 1% of successful traces.
 
 Even with no compromises on scope, the work has natural phases that ship internally for validation:
 
-| Phase | Months | Content | Customer visibility |
-|---|---|---|---|
-| **A — Foundation** | 1-4 | On-prem role split + cloud control plane skeleton + identity (multi-tenant) + camera registry + streaming data plane | Internal dogfooding |
-| **B — Platform** | 3-7 (parallel with A) | AI/ML, recording storage with cloud archive, federation, remote access tiers | Internal dogfooding |
-| **C — Integrator + UX** | 6-10 | Integrator portal, white-label including mobile build pipeline, React admin polish, Flutter app, sandbox mode | Internal closed beta |
-| **D — Compliance + Polish** | 9-13 | Compliance program completion, security review, documentation, marketing site, video wall | **Private beta** with select integrators and customers |
-| **E — GA Launch** | 13-18 | Migration tooling for existing customers, sales enablement, support team scaling, public marketing launch | **Public v1 launch** |
-| **F — v1.x** | 18-24+ | Migration from competitors, reference appliance, marketplace MVP, FedRAMP if customer demand, additional language support | Continuous releases |
+| Phase                       | Months                | Content                                                                                                                   | Customer visibility                                    |
+| --------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **A — Foundation**          | 1-4                   | On-prem role split + cloud control plane skeleton + identity (multi-tenant) + camera registry + streaming data plane      | Internal dogfooding                                    |
+| **B — Platform**            | 3-7 (parallel with A) | AI/ML, recording storage with cloud archive, federation, remote access tiers                                              | Internal dogfooding                                    |
+| **C — Integrator + UX**     | 6-10                  | Integrator portal, white-label including mobile build pipeline, React admin polish, Flutter app, sandbox mode             | Internal closed beta                                   |
+| **D — Compliance + Polish** | 9-13                  | Compliance program completion, security review, documentation, marketing site, video wall                                 | **Private beta** with select integrators and customers |
+| **E — GA Launch**           | 13-18                 | Migration tooling for existing customers, sales enablement, support team scaling, public marketing launch                 | **Public v1 launch**                                   |
+| **F — v1.x**                | 18-24+                | Migration from competitors, reference appliance, marketplace MVP, FedRAMP if customer demand, additional language support | Continuous releases                                    |
 
 ---
 
 ## 34. Open Questions
 
-| # | Question | Default | Decision by |
-|---|---|---|---|
-| 1 | Founder Directory loss recovery in federation | Manual re-establishment in v1, quorum in v2 | Spec sign-off |
-| 2 | Cross-Directory audit log replication | Both ends log | Spec sign-off |
-| 3 | Time zone display in cross-Directory search | Operator's local time, tooltip with camera-local | Spec sign-off |
-| 4 | Catalog sync interval default in federation | 5 minutes, configurable down to 30s | Spec sign-off |
-| 5 | Retention policies per-camera or per-Recorder | Per-camera | Spec sign-off |
-| 6 | Active/passive Recorder failover | No in v1, defer to v2 | Spec sign-off |
-| 7 | Time-of-day permission restrictions | No in v1 | Spec sign-off |
-| 8 | Old binary retention after migration | Until customer runs explicit cleanup | Spec sign-off |
-| 9 | Heavily-customized install migration | Refuse with explicit acknowledgment | Spec sign-off |
-| 10 | Multi-region rollout timing for v1.x | Based on customer geography demand | Year-1 review |
-| 11 | First-party hardware appliance v2 commitment | Decide based on v1.x reference appliance demand | Year-1 review |
-| 12 | Marketplace launch timing | v2, after PMF validation | Year-1 review |
-| 13 | LDAP/AD password storage migration | Discuss with first enterprise customer migrating from AD-only | Customer-specific |
+| #   | Question                                      | Default                                                       | Decision by       |
+| --- | --------------------------------------------- | ------------------------------------------------------------- | ----------------- |
+| 1   | Founder Directory loss recovery in federation | Manual re-establishment in v1, quorum in v2                   | Spec sign-off     |
+| 2   | Cross-Directory audit log replication         | Both ends log                                                 | Spec sign-off     |
+| 3   | Time zone display in cross-Directory search   | Operator's local time, tooltip with camera-local              | Spec sign-off     |
+| 4   | Catalog sync interval default in federation   | 5 minutes, configurable down to 30s                           | Spec sign-off     |
+| 5   | Retention policies per-camera or per-Recorder | Per-camera                                                    | Spec sign-off     |
+| 6   | Active/passive Recorder failover              | No in v1, defer to v2                                         | Spec sign-off     |
+| 7   | Time-of-day permission restrictions           | No in v1                                                      | Spec sign-off     |
+| 8   | Old binary retention after migration          | Until customer runs explicit cleanup                          | Spec sign-off     |
+| 9   | Heavily-customized install migration          | Refuse with explicit acknowledgment                           | Spec sign-off     |
+| 10  | Multi-region rollout timing for v1.x          | Based on customer geography demand                            | Year-1 review     |
+| 11  | First-party hardware appliance v2 commitment  | Decide based on v1.x reference appliance demand               | Year-1 review     |
+| 12  | Marketplace launch timing                     | v2, after PMF validation                                      | Year-1 review     |
+| 13  | LDAP/AD password storage migration            | Discuss with first enterprise customer migrating from AD-only | Customer-specific |
 
 ---
 
@@ -2528,54 +2583,54 @@ Ranked by impact:
 
 ## 36. What's Deferred from v1
 
-| Feature | When |
-|---|---|
-| Migration from competitors (Verkada, Eagle Eye, Milestone, Genetec, Avigilon, Exacq, Hanwha, Hikvision) | v1.x |
-| Reference appliance (single SKU) | v1.x |
-| Full hardware program (4 SKUs, co-branded, drop-ship) | v2 |
-| Java + C# SDKs | v1.x |
-| Marketplace for third-party integrations | v2 |
-| Marketplace for custom AI models | v2 |
-| Multi-region active-active deployment (eu-west, ap-southeast) | v1.x based on customer geography |
-| Customer-deployable private cloud (Helm charts for customer's own AWS/GCP/Azure) | v2 |
-| FedRAMP Moderate certification | When first federal customer signs |
-| Multiple federations per Directory | v2 |
-| Quorum-based federation founder failover | v2 |
-| Active/passive Recorder failover | v2 |
-| Time-of-day permission restrictions | v2 |
-| Apple Watch / Siri / CarPlay / AR features | Cut as vanity |
-| Real-time talkback translation | Cut as vanity |
-| 12+ language support (sticking with EN/ES/FR/DE in v1) | v1.x based on customer geography |
-| Quote-to-cash automation | v1.x |
-| Customer-managed AI model marketplace | v2 |
-| Voice / WhatsApp notification (in scope but lower priority than core push/email/SMS) | Comprehensive notification infrastructure includes these from v1 |
-| AI-driven predictive analytics | v2 |
+| Feature                                                                                                 | When                                                             |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Migration from competitors (Verkada, Eagle Eye, Milestone, Genetec, Avigilon, Exacq, Hanwha, Hikvision) | v1.x                                                             |
+| Reference appliance (single SKU)                                                                        | v1.x                                                             |
+| Full hardware program (4 SKUs, co-branded, drop-ship)                                                   | v2                                                               |
+| Java + C# SDKs                                                                                          | v1.x                                                             |
+| Marketplace for third-party integrations                                                                | v2                                                               |
+| Marketplace for custom AI models                                                                        | v2                                                               |
+| Multi-region active-active deployment (eu-west, ap-southeast)                                           | v1.x based on customer geography                                 |
+| Customer-deployable private cloud (Helm charts for customer's own AWS/GCP/Azure)                        | v2                                                               |
+| FedRAMP Moderate certification                                                                          | When first federal customer signs                                |
+| Multiple federations per Directory                                                                      | v2                                                               |
+| Quorum-based federation founder failover                                                                | v2                                                               |
+| Active/passive Recorder failover                                                                        | v2                                                               |
+| Time-of-day permission restrictions                                                                     | v2                                                               |
+| Apple Watch / Siri / CarPlay / AR features                                                              | Cut as vanity                                                    |
+| Real-time talkback translation                                                                          | Cut as vanity                                                    |
+| 12+ language support (sticking with EN/ES/FR/DE in v1)                                                  | v1.x based on customer geography                                 |
+| Quote-to-cash automation                                                                                | v1.x                                                             |
+| Customer-managed AI model marketplace                                                                   | v2                                                               |
+| Voice / WhatsApp notification (in scope but lower priority than core push/email/SMS)                    | Comprehensive notification infrastructure includes these from v1 |
+| AI-driven predictive analytics                                                                          | v2                                                               |
 
 ---
 
 ## 37. Glossary
 
-| Term | Meaning |
-|---|---|
-| **Cloud control plane** | The multi-tenant SaaS that serves as the system of record for cloud-managed customers. Hosts identity, camera registry, integrator portal, AI inference, and recording archive. |
-| **On-prem Directory** | The Directory subsystem running in the on-prem binary at a customer site. Owns local identity (in air-gapped mode), local camera registry, and local control plane. |
-| **Recorder** | The Recorder subsystem in the on-prem binary that captures cameras, records to local disk, and serves video. |
-| **Gateway** | The Gateway subsystem (co-resident with Directory in v1) that proxies streams for off-LAN clients. |
-| **Tenant / Customer Tenant** | A customer organization in the multi-tenant cloud. Owns cameras, users, recordings. |
-| **Integrator** | A company (security installer, MSP, VAR) that resells/manages security systems for customer tenants. |
-| **Sub-Reseller** | A child organization of an Integrator (e.g., a regional office). |
-| **Cloud-managed customer** | A customer whose Directory is in the cloud control plane. The on-prem Recorders communicate with the cloud. |
-| **Air-gapped customer** | A customer whose Directory runs entirely on-prem with no cloud connection. |
-| **Hybrid customer** | A customer who uses both cloud and on-prem features, with on-prem Directory caching cloud state. |
-| **Federation** | A trust relationship between Directories that lets users at one site browse and view cameras at peer sites. |
-| **White-label Level 3** | Full brand replacement: per-integrator custom domain, email, mobile app builds, content overrides. |
-| **Stream token** | Short-lived (~5 min) JWT issued by the Directory for one specific stream session. Verified at the Recorder/Gateway. |
-| **Cluster CA** | Per-site PKI managed by embedded `step-ca`, used for Directory ↔ Recorder mTLS. |
-| **Federation cluster CA** | Separate PKI for Directory ↔ Directory mTLS in air-gapped federations. |
-| **CSE-CMK** | Client-side encryption with customer-managed keys. The strongest encryption mode for cloud archive. |
-| **Sandbox tenant** | An ephemeral tenant with simulated cameras for prospect/integrator exploration before committing real hardware. |
-| **PLG** | Product-Led Growth — self-serve signup and adoption without sales touch. |
+| Term                         | Meaning                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cloud control plane**      | The multi-tenant SaaS that serves as the system of record for cloud-managed customers. Hosts identity, camera registry, integrator portal, AI inference, and recording archive. |
+| **On-prem Directory**        | The Directory subsystem running in the on-prem binary at a customer site. Owns local identity (in air-gapped mode), local camera registry, and local control plane.             |
+| **Recorder**                 | The Recorder subsystem in the on-prem binary that captures cameras, records to local disk, and serves video.                                                                    |
+| **Gateway**                  | The Gateway subsystem (co-resident with Directory in v1) that proxies streams for off-LAN clients.                                                                              |
+| **Tenant / Customer Tenant** | A customer organization in the multi-tenant cloud. Owns cameras, users, recordings.                                                                                             |
+| **Integrator**               | A company (security installer, MSP, VAR) that resells/manages security systems for customer tenants.                                                                            |
+| **Sub-Reseller**             | A child organization of an Integrator (e.g., a regional office).                                                                                                                |
+| **Cloud-managed customer**   | A customer whose Directory is in the cloud control plane. The on-prem Recorders communicate with the cloud.                                                                     |
+| **Air-gapped customer**      | A customer whose Directory runs entirely on-prem with no cloud connection.                                                                                                      |
+| **Hybrid customer**          | A customer who uses both cloud and on-prem features, with on-prem Directory caching cloud state.                                                                                |
+| **Federation**               | A trust relationship between Directories that lets users at one site browse and view cameras at peer sites.                                                                     |
+| **White-label Level 3**      | Full brand replacement: per-integrator custom domain, email, mobile app builds, content overrides.                                                                              |
+| **Stream token**             | Short-lived (~5 min) JWT issued by the Directory for one specific stream session. Verified at the Recorder/Gateway.                                                             |
+| **Cluster CA**               | Per-site PKI managed by embedded `step-ca`, used for Directory ↔ Recorder mTLS.                                                                                                |
+| **Federation cluster CA**    | Separate PKI for Directory ↔ Directory mTLS in air-gapped federations.                                                                                                         |
+| **CSE-CMK**                  | Client-side encryption with customer-managed keys. The strongest encryption mode for cloud archive.                                                                             |
+| **Sandbox tenant**           | An ephemeral tenant with simulated cameras for prospect/integrator exploration before committing real hardware.                                                                 |
+| **PLG**                      | Product-Led Growth — self-serve signup and adoption without sales touch.                                                                                                        |
 
 ---
 
-*End of design document. This is a complete rewrite of the original spec. The next steps are to throw away the existing 100 Linear tickets and rebuild the project structure to match this design — likely 12-15 projects with 250-350 tickets total.*
+_End of design document. This is a complete rewrite of the original spec. The next steps are to throw away the existing 100 Linear tickets and rebuild the project structure to match this design — likely 12-15 projects with 250-350 tickets total._

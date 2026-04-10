@@ -65,6 +65,7 @@ cp docs/RELEASE_NOTES_TEMPLATE.md docs/releases/vX.Y.Z.md
 ```
 
 Edit the file:
+
 - Replace all `vX.Y.Z` placeholders with the actual version.
 - Fill in features, improvements, bug fixes, and breaking changes.
 - Write clear upgrade steps.
@@ -140,8 +141,8 @@ Follow [Semantic Versioning 2.0.0](https://semver.org/):
 
 ## File Locations
 
-| File | Purpose |
-|---|---|
-| `CHANGELOG.md` | Cumulative log of all changes by version |
-| `docs/RELEASE_NOTES_TEMPLATE.md` | Template for per-release notes |
-| `docs/releases/vX.Y.Z.md` | Filled-in release notes for each version |
+| File                             | Purpose                                  |
+| -------------------------------- | ---------------------------------------- |
+| `CHANGELOG.md`                   | Cumulative log of all changes by version |
+| `docs/RELEASE_NOTES_TEMPLATE.md` | Template for per-release notes           |
+| `docs/releases/vX.Y.Z.md`        | Filled-in release notes for each version |

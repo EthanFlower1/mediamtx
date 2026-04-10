@@ -13,12 +13,12 @@ mode: all-in-one
 
 ## Supported values
 
-| Value          | Subsystems booted                                       | Use case |
-| -------------- | ------------------------------------------------------- | -------- |
-| *unset / `""`* | Legacy single-NVR (pre-KAI-237 behavior, unchanged)     | Existing deployments upgrading in place. |
-| `directory`    | Directory subsystem only: admin UI, sidecar supervisor, cloud Directory client. No capture pipeline. | Central control plane running on a management box or VM. |
+| Value          | Subsystems booted                                                                                    | Use case                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| _unset / `""`_ | Legacy single-NVR (pre-KAI-237 behavior, unchanged)                                                  | Existing deployments upgrading in place.                            |
+| `directory`    | Directory subsystem only: admin UI, sidecar supervisor, cloud Directory client. No capture pipeline. | Central control plane running on a management box or VM.            |
 | `recorder`     | Recorder subsystem only: capture pipeline, embedded MediaMTX sidecar, Directory client. No admin UI. | Dedicated capture appliance, typically paired 1:N with a Directory. |
-| `all-in-one`   | Both of the above in a single process, with automatic pairing on first boot. | Small / home deployments, demos, evaluation. |
+| `all-in-one`   | Both of the above in a single process, with automatic pairing on first boot.                         | Small / home deployments, demos, evaluation.                        |
 
 Any other value is rejected at config-load time with a descriptive
 error.

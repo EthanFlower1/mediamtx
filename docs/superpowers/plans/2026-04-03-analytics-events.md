@@ -13,6 +13,7 @@
 ### Task 1: Add new event type constants and extend topic classification
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events.go:20-27` (constants) and `events.go:515-524` (classifyTopic)
 - Test: `internal/nvr/onvif/events_test.go` (new file)
 
@@ -141,6 +142,7 @@ git commit -m "feat(events): add Profile T analytics event type constants and to
 ### Task 2: Extend event parsing to extract metadata
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/events.go:29-33` (DetectedEvent struct) and `events.go:528-562` (parseEvents)
 - Test: `internal/nvr/onvif/events_test.go`
 
@@ -406,6 +408,7 @@ git commit -m "feat(events): extend event parsing for analytics events with meta
 ### Task 3: Database migration — add metadata column
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go:455` (add migration 31)
 - Modify: `internal/nvr/db/motion_events.go:8-19` (MotionEvent struct)
 - Test: `internal/nvr/db/db_test.go` (existing test validates migrations)
@@ -538,6 +541,7 @@ git commit -m "feat(db): add metadata column to motion_events for analytics even
 ### Task 4: Add QueryEvents with type filtering
 
 **Files:**
+
 - Modify: `internal/nvr/db/motion_events.go` (add QueryEvents method)
 - Modify: `internal/nvr/db/motion_events.go` (update QueryMotionEvents and QueryMotionEventsByClass to include metadata in SELECT)
 - Test: `internal/nvr/db/motion_events_test.go`
@@ -712,6 +716,7 @@ git commit -m "feat(db): add QueryEvents method with event type filtering"
 ### Task 5: Add intensity query with event type filtering
 
 **Files:**
+
 - Modify: `internal/nvr/db/motion_events_intensity.go`
 
 - [ ] **Step 1: Write test for GetMotionIntensityByType**
@@ -846,6 +851,7 @@ git commit -m "feat(db): add GetMotionIntensityByType for filtered intensity que
 ### Task 6: Add SSE publish methods for new event types
 
 **Files:**
+
 - Modify: `internal/nvr/api/events.go` (add publish methods)
 - Modify: `internal/nvr/scheduler/scheduler.go:27-37` (EventPublisher interface)
 
@@ -940,6 +946,7 @@ git commit -m "feat(events): add SSE publish methods for analytics event types"
 ### Task 7: Extend scheduler event dispatcher for new event types
 
 **Files:**
+
 - Modify: `internal/nvr/scheduler/scheduler.go` (both eventCallback functions)
 
 - [ ] **Step 1: Update the first eventCallback (recording-controlling subscription)**
@@ -1044,6 +1051,7 @@ git commit -m "feat(scheduler): dispatch analytics events through motion state m
 ### Task 8: Add unified events API endpoint
 
 **Files:**
+
 - Modify: `internal/nvr/api/recordings.go` (add Events handler + update Intensity)
 - Modify: `internal/nvr/api/router.go` (add route)
 - Test: `internal/nvr/api/recordings_test.go`

@@ -1,0 +1,22 @@
+name: config-guard
+
+on:
+  pull_request:
+    paths:
+      - 'mediamtx.yml'
+      - 'scripts/check-mediamtx-config.sh'
+      - '.github/workflows/config-guard.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'mediamtx.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce mediamtx.yml NVR guard
+        run: ./scripts/check-mediamtx-config.sh mediamtx.yml

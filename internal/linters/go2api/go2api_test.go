@@ -111,7 +111,8 @@ func goStructToApi(t *testing.T, rt reflect.Type) openAPIProperty {
 		rt == reflect.TypeOf(conf.Duration(0)) ||
 		rt == reflect.TypeOf(conf.IPNetwork{}) ||
 		rt == reflect.TypeOf(conf.Credential("")) ||
-		rt == reflect.TypeOf(conf.StringSize(0)):
+		rt == reflect.TypeOf(conf.StringSize(0)) ||
+		rt == reflect.TypeOf(conf.RuntimeMode("")):
 		return openAPIProperty{Type: "string"}
 
 	case rt == reflect.TypeOf(conf.RTSPTransports{}):

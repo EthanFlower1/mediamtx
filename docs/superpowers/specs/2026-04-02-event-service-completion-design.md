@@ -8,12 +8,12 @@ Complete the ONVIF event service by adding GetEventProperties (mandatory for Pro
 
 Extend `DetectedEventType` in `events.go` with:
 
-| Event Type | DB Value | ONVIF Topic Keywords |
-|-----------|----------|---------------------|
-| EventDigitalInput | "digital_input" | "digitalinput", "digital_input", "logicalstate" |
-| EventSignalLoss | "signal_loss" | "signalloss", "videoloss", "videosource/signalloss" |
-| EventHardwareFailure | "hardware_failure" | "failure", "hardwarefailure", "processorusage" |
-| EventRelay | "relay" | "relay", "relayoutput", "digitaloutput" |
+| Event Type           | DB Value           | ONVIF Topic Keywords                                |
+| -------------------- | ------------------ | --------------------------------------------------- |
+| EventDigitalInput    | "digital_input"    | "digitalinput", "digital_input", "logicalstate"     |
+| EventSignalLoss      | "signal_loss"      | "signalloss", "videoloss", "videosource/signalloss" |
+| EventHardwareFailure | "hardware_failure" | "failure", "hardwarefailure", "processorusage"      |
+| EventRelay           | "relay"            | "relay", "relayoutput", "digitaloutput"             |
 
 These are classified in `classifyTopic()` using lowercased topic string matching, consistent with existing motion/tampering classification.
 
@@ -56,14 +56,14 @@ These follow the existing pattern used by `PublishTampering()`.
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `internal/nvr/onvif/events.go` | New event type constants, extended classifyTopic(), GetEventProperties SOAP method |
-| `internal/nvr/onvif/client.go` | Call GetEventProperties during probe, return supported topics |
-| `internal/nvr/db/migrations.go` | New migration for supported_event_topics column |
-| `internal/nvr/db/cameras.go` | Update Camera struct and queries for supported_event_topics |
-| `internal/nvr/scheduler/scheduler.go` | Handle new event types in event callback |
-| `internal/nvr/api/events.go` | New SSE publish methods for each event type |
+| File                                  | Change                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `internal/nvr/onvif/events.go`        | New event type constants, extended classifyTopic(), GetEventProperties SOAP method |
+| `internal/nvr/onvif/client.go`        | Call GetEventProperties during probe, return supported topics                      |
+| `internal/nvr/db/migrations.go`       | New migration for supported_event_topics column                                    |
+| `internal/nvr/db/cameras.go`          | Update Camera struct and queries for supported_event_topics                        |
+| `internal/nvr/scheduler/scheduler.go` | Handle new event types in event callback                                           |
+| `internal/nvr/api/events.go`          | New SSE publish methods for each event type                                        |
 
 ## Out of Scope
 

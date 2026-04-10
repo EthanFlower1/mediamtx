@@ -205,6 +205,10 @@ components:
     GlobalConf:
       type: object
       properties:
+        # Runtime mode (KAI-237). Selects which Kaivue subsystems boot.
+        # Empty string preserves pre-KAI-237 single-NVR behavior.
+        mode:
+          type: string
         # General
         logLevel:
           $ref: '#/components/schemas/LogLevel'

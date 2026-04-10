@@ -40,21 +40,22 @@ Each wraps the Media2 function with the standard pattern: create client from xad
 
 All under the authenticated `/api/nvr` group, prefixed with `/cameras/:id/media2/`:
 
-| Method | Path | Handler | Description |
-|--------|------|---------|-------------|
-| POST | `/cameras/:id/media2/profiles` | CreateMedia2Profile | Create profile via Media2 |
-| DELETE | `/cameras/:id/media2/profiles/:token` | DeleteMedia2Profile | Delete profile via Media2 |
-| POST | `/cameras/:id/media2/profiles/:token/configurations` | AddMedia2Configuration | Add config to profile |
-| DELETE | `/cameras/:id/media2/profiles/:token/configurations` | RemoveMedia2Configuration | Remove config from profile |
-| GET | `/cameras/:id/media2/video-source-configs` | GetVideoSourceConfigs | List video source configs |
-| PUT | `/cameras/:id/media2/video-source-configs/:token` | SetVideoSourceConfig | Update video source config |
-| GET | `/cameras/:id/media2/video-source-configs/:token/options` | GetVideoSourceConfigOptions | Get video source config options |
-| GET | `/cameras/:id/media2/audio-source-configs` | GetAudioSourceConfigs | List audio source configs |
-| PUT | `/cameras/:id/media2/audio-source-configs/:token` | SetAudioSourceConfig | Update audio source config |
+| Method | Path                                                      | Handler                     | Description                     |
+| ------ | --------------------------------------------------------- | --------------------------- | ------------------------------- |
+| POST   | `/cameras/:id/media2/profiles`                            | CreateMedia2Profile         | Create profile via Media2       |
+| DELETE | `/cameras/:id/media2/profiles/:token`                     | DeleteMedia2Profile         | Delete profile via Media2       |
+| POST   | `/cameras/:id/media2/profiles/:token/configurations`      | AddMedia2Configuration      | Add config to profile           |
+| DELETE | `/cameras/:id/media2/profiles/:token/configurations`      | RemoveMedia2Configuration   | Remove config from profile      |
+| GET    | `/cameras/:id/media2/video-source-configs`                | GetVideoSourceConfigs       | List video source configs       |
+| PUT    | `/cameras/:id/media2/video-source-configs/:token`         | SetVideoSourceConfig        | Update video source config      |
+| GET    | `/cameras/:id/media2/video-source-configs/:token/options` | GetVideoSourceConfigOptions | Get video source config options |
+| GET    | `/cameras/:id/media2/audio-source-configs`                | GetAudioSourceConfigs       | List audio source configs       |
+| PUT    | `/cameras/:id/media2/audio-source-configs/:token`         | SetAudioSourceConfig        | Update audio source config      |
 
 ## Data Types
 
 ### VideoSourceConfig
+
 ```go
 type VideoSourceConfig struct {
     Token       string             `json:"token"`
@@ -72,6 +73,7 @@ type IntRectangle struct {
 ```
 
 ### VideoSourceConfigOptions
+
 ```go
 type VideoSourceConfigOptions struct {
     BoundsRange              *IntRectangleRange `json:"bounds_range,omitempty"`
@@ -87,6 +89,7 @@ type IntRectangleRange struct {
 ```
 
 ### AudioSourceConfig
+
 ```go
 type AudioSourceConfig struct {
     Token       string `json:"token"`

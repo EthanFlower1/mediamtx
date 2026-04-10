@@ -78,17 +78,17 @@ sudo systemctl start mediamtx-recorder
 
 ## What the join sequence does
 
-| Step | What happens |
-|------|-------------|
-| 1 | Decodes the token. Dials the Directory over TLS and **pins the certificate fingerprint** encoded in the token. If there is a fingerprint mismatch the command exits immediately — this is the primary protection against man-in-the-middle attacks. |
-| 2 | Probes the machine's CPU, RAM, disks, NICs, and GPU. POSTs the hardware info to the Directory's check-in endpoint. The Directory marks the token as redeemed and assigns a stable Recorder UUID. |
-| 3 | Registers the Recorder with the embedded Headscale tailnet coordinator using the pre-auth key from the token. The Recorder gets a mesh hostname (`recorder-<uuid>`) and joins the site's private network. |
-| 4 | Generates an Ed25519 device keypair. The private key is AES-256-GCM encrypted using a key derived from the Headscale pre-auth key and saved to `<state-dir>/device.key.enc`. |
-| 5 | Enrolls with the embedded step-ca using the JWK provisioner enrollment token from the pairing token. Receives a 24-hour mTLS leaf certificate. If `StepCAEnrollToken` is empty (air-gapped Directory), a self-signed stub is used and the operator must supply a cert out-of-band. |
-| 6 | Pins the step-ca root fingerprint from the token (Trust On First Use). Subsequent certificate renewals are validated against this root. |
-| 7 | Makes a test mTLS request to the Directory's health endpoint using the new leaf certificate to confirm end-to-end connectivity. |
-| 8 | Reserved for initial camera assignment snapshot (KAI-253). Currently a no-op. |
-| 9 | Writes a `pairing.paired` record to the local SQLite state cache at `<state-dir>/state.db`. |
+| Step | What happens                                                                                                                                                                                                                                                                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Decodes the token. Dials the Directory over TLS and **pins the certificate fingerprint** encoded in the token. If there is a fingerprint mismatch the command exits immediately — this is the primary protection against man-in-the-middle attacks.                                |
+| 2    | Probes the machine's CPU, RAM, disks, NICs, and GPU. POSTs the hardware info to the Directory's check-in endpoint. The Directory marks the token as redeemed and assigns a stable Recorder UUID.                                                                                   |
+| 3    | Registers the Recorder with the embedded Headscale tailnet coordinator using the pre-auth key from the token. The Recorder gets a mesh hostname (`recorder-<uuid>`) and joins the site's private network.                                                                          |
+| 4    | Generates an Ed25519 device keypair. The private key is AES-256-GCM encrypted using a key derived from the Headscale pre-auth key and saved to `<state-dir>/device.key.enc`.                                                                                                       |
+| 5    | Enrolls with the embedded step-ca using the JWK provisioner enrollment token from the pairing token. Receives a 24-hour mTLS leaf certificate. If `StepCAEnrollToken` is empty (air-gapped Directory), a self-signed stub is used and the operator must supply a cert out-of-band. |
+| 6    | Pins the step-ca root fingerprint from the token (Trust On First Use). Subsequent certificate renewals are validated against this root.                                                                                                                                            |
+| 7    | Makes a test mTLS request to the Directory's health endpoint using the new leaf certificate to confirm end-to-end connectivity.                                                                                                                                                    |
+| 8    | Reserved for initial camera assignment snapshot (KAI-253). Currently a no-op.                                                                                                                                                                                                      |
+| 9    | Writes a `pairing.paired` record to the local SQLite state cache at `<state-dir>/state.db`.                                                                                                                                                                                        |
 
 ## CLI flags
 
@@ -140,6 +140,7 @@ Recorder's clock). Request a new token.
 ### Step 3: "tsnet: ..."
 
 Network connectivity issue reaching the Headscale coordinator. Verify:
+
 - The Recorder can reach the Directory endpoint on the configured port.
 - No firewall is blocking UDP 41641 (WireGuard) or TCP 443 (Headscale control).
 
@@ -154,6 +155,7 @@ and re-pair to get a CA-signed cert.
 ### Step 7: "directory health check failed"
 
 The Recorder's new mTLS cert was not accepted by the Directory. Causes:
+
 - The Directory's step-ca provisioner did not sign the enrollment token (step 5
   fell back to a self-signed stub).
 - The Directory's mTLS policy requires a CA-signed client certificate.

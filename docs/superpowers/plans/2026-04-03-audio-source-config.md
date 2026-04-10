@@ -21,6 +21,7 @@
 ### Task 1: Create worktree
 
 **Files:**
+
 - None (git operation only)
 
 - [ ] **Step 1: Create the worktree and branch**
@@ -44,6 +45,7 @@ All remaining tasks execute inside `.worktrees/kai-113`.
 ### Task 2: Add audio source types and GetAudioSources
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/audio.go`
 
 - [ ] **Step 1: Add the new types after `AudioCapabilities`**
@@ -133,6 +135,7 @@ git commit -m "feat(audio): add audio source types and GetAudioSources"
 ### Task 3: Add GetAudioSourceConfigurations with Media2 fallback
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/audio.go`
 
 - [ ] **Step 1: Add the helper to convert library configs to local type**
@@ -213,6 +216,7 @@ git commit -m "feat(audio): add GetAudioSourceConfigurations with Media2 fallbac
 ### Task 4: Add remaining ONVIF audio source functions
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/audio.go`
 
 - [ ] **Step 1: Add GetAudioSourceConfiguration (single config by token)**
@@ -357,6 +361,7 @@ git commit -m "feat(audio): add Set, Options, Compatible, Add, Remove audio sour
 ### Task 5: Add API handlers for read-only audio source endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 
 All handlers go after the existing `AudioCapabilities` method (after line 1377 in cameras.go). They follow the exact same pattern as `AudioCapabilities`: parse ID, get camera from DB, check ONVIF endpoint, call onvif function, return JSON.
@@ -557,6 +562,7 @@ git commit -m "feat(audio): add read-only audio source API handlers"
 ### Task 6: Add API handlers for mutation audio source endpoints
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go`
 
 - [ ] **Step 1: Add UpdateAudioSourceConfig handler**
@@ -704,6 +710,7 @@ git commit -m "feat(audio): add mutation audio source API handlers"
 ### Task 7: Register routes
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go`
 
 - [ ] **Step 1: Add routes after the existing audio capabilities line**
@@ -758,6 +765,7 @@ git commit -m "feat(audio): register audio source configuration API routes"
 ### Task 8: Push branch and create PR
 
 **Files:**
+
 - None (git operations only)
 
 - [ ] **Step 1: Push the branch**

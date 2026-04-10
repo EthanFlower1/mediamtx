@@ -12,19 +12,20 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `internal/nvr/onvif/media2.go` | Modify | Add SOAP XML types and low-level Media2 functions (CreateProfile2, DeleteProfile2, AddConfiguration2, RemoveConfiguration2, GetVideoSourceConfigurations2, SetVideoSourceConfiguration2, GetVideoSourceConfigurationOptions2, GetAudioSourceConfigurations2, SetAudioSourceConfiguration2) |
-| `internal/nvr/onvif/media_config.go` | Modify | Add new data types (VideoSourceConfig, AudioSourceConfig, etc.) and public wrapper functions |
-| `internal/nvr/onvif/media2_test.go` | Create | XML parsing unit tests for new SOAP response types |
-| `internal/nvr/api/cameras.go` | Modify | Add 9 new handler methods on CameraHandler |
-| `internal/nvr/api/router.go` | Modify | Register 9 new routes under `/cameras/:id/media2/` |
+| File                                 | Action | Responsibility                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `internal/nvr/onvif/media2.go`       | Modify | Add SOAP XML types and low-level Media2 functions (CreateProfile2, DeleteProfile2, AddConfiguration2, RemoveConfiguration2, GetVideoSourceConfigurations2, SetVideoSourceConfiguration2, GetVideoSourceConfigurationOptions2, GetAudioSourceConfigurations2, SetAudioSourceConfiguration2) |
+| `internal/nvr/onvif/media_config.go` | Modify | Add new data types (VideoSourceConfig, AudioSourceConfig, etc.) and public wrapper functions                                                                                                                                                                                               |
+| `internal/nvr/onvif/media2_test.go`  | Create | XML parsing unit tests for new SOAP response types                                                                                                                                                                                                                                         |
+| `internal/nvr/api/cameras.go`        | Modify | Add 9 new handler methods on CameraHandler                                                                                                                                                                                                                                                 |
+| `internal/nvr/api/router.go`         | Modify | Register 9 new routes under `/cameras/:id/media2/`                                                                                                                                                                                                                                         |
 
 ---
 
 ### Task 1: Add Media2 Profile CRUD SOAP Types and Functions
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/media2.go:16-27` (extend media2Body struct)
 - Modify: `internal/nvr/onvif/media2.go` (append new types + functions)
 
@@ -204,6 +205,7 @@ git commit -m "feat(onvif): add Media2 profile CRUD SOAP operations"
 ### Task 2: Add Media2 Video Source Configuration SOAP Types and Functions
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/media2.go` (extend media2Body, add types + functions)
 - Modify: `internal/nvr/onvif/media_config.go` (add VideoSourceConfig and related types)
 
@@ -473,6 +475,7 @@ git commit -m "feat(onvif): add Media2 video source configuration operations"
 ### Task 3: Add Media2 Audio Source Configuration SOAP Types and Functions
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/media2.go` (extend media2Body, add types + functions)
 
 - [ ] **Step 1: Add SOAP response types for audio source configs in media2.go**
@@ -588,6 +591,7 @@ git commit -m "feat(onvif): add Media2 audio source configuration operations"
 ### Task 4: Add Public Wrapper Functions in media_config.go
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/media_config.go` (append wrapper functions)
 
 These wrappers follow the existing pattern: create a Client from xaddr/username/password, call the Media2 function, return the result. They are the public API that the HTTP handlers call.
@@ -716,6 +720,7 @@ git commit -m "feat(onvif): add public wrappers for Media2 operations"
 ### Task 5: Add API Handlers for Media2 Profile Operations
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (append 4 new handler methods after line 2189)
 
 All handlers follow the existing pattern: get camera from DB, check ONVIF endpoint, decrypt password, call onvif function, return JSON.
@@ -883,6 +888,7 @@ git commit -m "feat(api): add Media2 profile CRUD handlers"
 ### Task 6: Add API Handlers for Video/Audio Source Configurations
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (append 5 new handler methods)
 
 - [ ] **Step 1: Add GetVideoSourceConfigs handler**
@@ -1064,6 +1070,7 @@ git commit -m "feat(api): add video/audio source configuration handlers"
 ### Task 7: Register New API Routes
 
 **Files:**
+
 - Modify: `internal/nvr/api/router.go:220-221` (add routes after existing media configuration block)
 
 - [ ] **Step 1: Add all 9 Media2 routes**
@@ -1107,6 +1114,7 @@ git commit -m "feat(api): register Media2 profile and source config routes"
 ### Task 8: Add XML Parsing Unit Tests
 
 **Files:**
+
 - Create: `internal/nvr/onvif/media2_test.go`
 
 These tests verify that the SOAP XML response types parse correctly without needing a live ONVIF device.

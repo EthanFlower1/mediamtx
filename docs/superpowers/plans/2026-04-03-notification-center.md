@@ -12,18 +12,19 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `clients/flutter/lib/models/notification_event.dart` | Modify | Add icon getter, navigation route getter |
-| `clients/flutter/lib/widgets/alerts_panel.dart` | Modify | Type icons, tap-to-navigate, close panel on tap |
-| `clients/flutter/lib/providers/notifications_provider.dart` | Modify | Persist read IDs via shared_preferences |
-| `clients/flutter/lib/widgets/shell/navigation_shell.dart` | Modify | Add mobile app bar with notification bell |
+| File                                                        | Action | Responsibility                                  |
+| ----------------------------------------------------------- | ------ | ----------------------------------------------- |
+| `clients/flutter/lib/models/notification_event.dart`        | Modify | Add icon getter, navigation route getter        |
+| `clients/flutter/lib/widgets/alerts_panel.dart`             | Modify | Type icons, tap-to-navigate, close panel on tap |
+| `clients/flutter/lib/providers/notifications_provider.dart` | Modify | Persist read IDs via shared_preferences         |
+| `clients/flutter/lib/widgets/shell/navigation_shell.dart`   | Modify | Add mobile app bar with notification bell       |
 
 ---
 
 ### Task 1: Add icon and navigation helpers to NotificationEvent model
 
 **Files:**
+
 - Modify: `clients/flutter/lib/models/notification_event.dart`
 
 - [ ] **Step 1: Add a unique `id` field and type icon getter**
@@ -157,9 +158,10 @@ git commit -m "feat(notifications): add id, type icon, and navigation route to N
 ### Task 2: Update AlertsPanel with type icons and tap-to-navigate
 
 **Files:**
+
 - Modify: `clients/flutter/lib/widgets/alerts_panel.dart`
 
-- [ ] **Step 1: Add go_router import and update _NotificationItem**
+- [ ] **Step 1: Add go_router import and update \_NotificationItem**
 
 In `alerts_panel.dart`, add the `go_router` import at the top, then replace the `_NotificationItem` class to use type icons and navigate on tap. Also update the `_AlertsPanelContent` to pass context/ref for navigation and panel closing.
 
@@ -323,6 +325,7 @@ git commit -m "feat(notifications): add type icons and tap-to-navigate in alerts
 ### Task 3: Add shared_preferences persistence for read state
 
 **Files:**
+
 - Modify: `clients/flutter/lib/providers/notifications_provider.dart`
 
 - [ ] **Step 1: Add persistence to NotificationsNotifier**
@@ -504,6 +507,7 @@ git commit -m "feat(notifications): persist read state via shared_preferences"
 ### Task 4: Add notification bell to mobile layout
 
 **Files:**
+
 - Modify: `clients/flutter/lib/widgets/shell/navigation_shell.dart`
 
 - [ ] **Step 1: Add mobile app bar with notification bell**

@@ -8,9 +8,24 @@
 # reproducibility-check workflow.
 #
 # Acceptance criteria addressed (KAI-428):
-#   * GitHub Actions matrix: linux/amd64, linux/arm64, darwin/arm64, windows/amd64
+#   * GitHub Actions matrix: linux/amd64 (narrowed — see MATRIX NOTE below)
 #   * Reproducible build flags: -trimpath, -buildvcs=true, ldflags strip paths
 #   * Per-target artifact upload
+#
+# MATRIX NOTE (2026-04-08): The matrix is temporarily narrowed to linux/amd64
+# only. The full linux/arm64 + darwin/arm64 + windows/amd64 matrix depends on
+# `internal/nvr/ai` being buildable under both `CGO_ENABLED=0` (for cross
+# compile) AND with cross toolchains for each target. Today `internal/nvr/ai/
+# detector.go` and `embedder.go` unconditionally import
+# `github.com/yalue/onnxruntime_go`, which is a cgo-only package. With
+# `CGO_ENABLED=0` the build fails with:
+#   "github.com/yalue/onnxruntime_go: build constraints exclude all Go files"
+# and with `CGO_ENABLED=1` cross-compiling to darwin/windows/arm64 from an
+# ubuntu runner requires cross toolchains we do not install here.
+# Restoring the full matrix is tracked separately — lead-ai owns adding
+# `//go:build cgo` guards + no-op stubs to internal/nvr/ai so non-cgo builds
+# can succeed; lead-sre will then re-expand the matrix with cross toolchains
+# (or native macos/windows runners) behind that fix.
 #
 # This workflow only builds — it does not push, sign, or release.
 
@@ -44,19 +59,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Narrowed to linux/amd64 only — see MATRIX NOTE in header.
         include:
           - goos: linux
             goarch: amd64
             ext: ''
-          - goos: linux
-            goarch: arm64
-            ext: ''
-          - goos: darwin
-            goarch: arm64
-            ext: ''
-          - goos: windows
-            goarch: amd64
-            ext: '.exe'
 
     steps:
       - name: Checkout
@@ -91,10 +98,21 @@ jobs:
           # timestamps are deterministic across rebuilds of the same commit.
           SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
           echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
-          # Disable CGO so we get a fully static build (matches modernc sqlite).
-          echo "CGO_ENABLED=0" >> "${GITHUB_ENV}"
+          # CGO is required because internal/nvr/ai pulls in onnxruntime_go,
+          # which is a cgo-only package. Follow-up (lead-ai): add //go:build cgo
+          # guards + no-op stubs to internal/nvr/ai so CGO_ENABLED=0 builds work
+          # again; then this can flip back and the matrix can re-expand.
+          echo "CGO_ENABLED=1" >> "${GITHUB_ENV}"
           # Make module download deterministic.
           echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
+
+      - name: Generate embedded assets
+        # Required: internal/core embeds VERSION and internal/servers/hls
+        # embeds hls.min.js — both are produced by `go generate`. Skipping
+        # this step makes `go build` fail with "pattern ...: no matching files".
+        # Run with the host toolchain (no GOOS/GOARCH) so the generators
+        # themselves are built for the runner.
+        run: go generate ./...
 
       - name: Build
         env:

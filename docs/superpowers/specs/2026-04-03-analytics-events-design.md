@@ -8,12 +8,12 @@ Extend the existing ONVIF event system to handle all Profile T analytics events:
 
 New `DetectedEventType` constants in `events.go`:
 
-| Constant | ONVIF Topic Substrings | Description |
-|----------|----------------------|-------------|
-| `EventLineCrossing` | "linecrossing", "linecounter" | Virtual line crossed by object |
-| `EventIntrusion` | "fielddetection", "intrusiondetection", "fielddetector" | Object entered defined region |
-| `EventLoitering` | "loitering" | Object lingered in region beyond threshold |
-| `EventObjectCount` | "objectcount", "counting" | Count of objects in region |
+| Constant            | ONVIF Topic Substrings                                  | Description                                |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| `EventLineCrossing` | "linecrossing", "linecounter"                           | Virtual line crossed by object             |
+| `EventIntrusion`    | "fielddetection", "intrusiondetection", "fielddetector" | Object entered defined region              |
+| `EventLoitering`    | "loitering"                                             | Object lingered in region beyond threshold |
+| `EventObjectCount`  | "objectcount", "counting"                               | Count of objects in region                 |
 
 Topic matching follows the existing pattern: case-insensitive substring match on the ONVIF notification topic string via `classifyTopic()`.
 
@@ -39,6 +39,7 @@ ALTER TABLE motion_events ADD COLUMN metadata TEXT;
 ```
 
 The `metadata` column stores JSON for event-type-specific data:
+
 - Line crossing: `{"direction":"LeftToRight"}`
 - Object counting: `{"count":5}`
 - Others: `null` or `{}`
@@ -96,7 +97,7 @@ Event type strings for SSE: `"line_crossing"`, `"intrusion"`, `"loitering"`, `"o
     "started_at": "2026-04-03T10:15:00Z",
     "ended_at": "2026-04-03T10:15:05Z",
     "event_type": "line_crossing",
-    "metadata": {"direction": "LeftToRight"},
+    "metadata": { "direction": "LeftToRight" },
     "thumbnail_path": ""
   }
 ]
@@ -113,15 +114,15 @@ New endpoint uses existing JWT auth middleware (same as all other `/cameras/` ro
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| `internal/nvr/onvif/events.go` | New event type constants, extended `classifyTopic()`, metadata extraction in `parseNotificationMessages()` |
-| `internal/nvr/db/migrations.go` | New migration: `ALTER TABLE motion_events ADD COLUMN metadata TEXT` |
-| `internal/nvr/db/motion_events.go` | `Metadata` field on struct, `QueryEvents()` method, updated `InsertMotionEvent()` |
-| `internal/nvr/api/events.go` | New publish methods for each event type |
-| `internal/nvr/api/recordings.go` | New `Events()` handler, updated `Intensity()` for type filtering |
-| `internal/nvr/api/router.go` | New route: `GET /cameras/:id/events` |
-| `internal/nvr/scheduler/scheduler.go` | Extended event dispatcher for new types |
+| File                                  | Changes                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `internal/nvr/onvif/events.go`        | New event type constants, extended `classifyTopic()`, metadata extraction in `parseNotificationMessages()` |
+| `internal/nvr/db/migrations.go`       | New migration: `ALTER TABLE motion_events ADD COLUMN metadata TEXT`                                        |
+| `internal/nvr/db/motion_events.go`    | `Metadata` field on struct, `QueryEvents()` method, updated `InsertMotionEvent()`                          |
+| `internal/nvr/api/events.go`          | New publish methods for each event type                                                                    |
+| `internal/nvr/api/recordings.go`      | New `Events()` handler, updated `Intensity()` for type filtering                                           |
+| `internal/nvr/api/router.go`          | New route: `GET /cameras/:id/events`                                                                       |
+| `internal/nvr/scheduler/scheduler.go` | Extended event dispatcher for new types                                                                    |
 
 ## Testing
 

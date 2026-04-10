@@ -26,12 +26,12 @@ All three functions live in a new file `internal/nvr/onvif/multicast.go` and fol
 
 Four new columns on the camera record:
 
-| Column | Type | Default | Description |
-|--------|------|---------|-------------|
-| `MulticastEnabled` | bool | false | Whether this camera uses multicast transport |
-| `MulticastAddress` | string | "" | Multicast group address (e.g., 239.1.1.10) |
-| `MulticastPort` | int | 0 | RTP port for the multicast stream |
-| `MulticastTTL` | int | 5 | Time-to-live for multicast packets |
+| Column             | Type   | Default | Description                                  |
+| ------------------ | ------ | ------- | -------------------------------------------- |
+| `MulticastEnabled` | bool   | false   | Whether this camera uses multicast transport |
+| `MulticastAddress` | string | ""      | Multicast group address (e.g., 239.1.1.10)   |
+| `MulticastPort`    | int    | 0       | RTP port for the multicast stream            |
+| `MulticastTTL`     | int    | 5       | Time-to-live for multicast packets           |
 
 A DB migration adds these columns with the defaults above. Existing cameras are unaffected.
 
@@ -62,6 +62,7 @@ Returns current multicast configuration and whether the camera supports multicas
 The handler probes the camera live by calling `GetMulticastConfig()`. If the camera returns a valid configuration, `supported` is true.
 
 Response:
+
 ```json
 {
   "supported": true,
@@ -77,6 +78,7 @@ Response:
 Enable/disable multicast and configure address, port, and TTL.
 
 Request body:
+
 ```json
 {
   "enabled": true,
@@ -107,6 +109,7 @@ No new capability flag in the `Capabilities` struct or DB schema. Multicast supp
 ## Validation Strategy
 
 Basic validation only:
+
 - Camera reports multicast capability (ONVIF probe succeeds)
 - Multicast address is in valid range (224.0.0.0-239.255.255.255)
 - No active network probing (e.g., sending test packets to verify multicast routing)
@@ -116,12 +119,14 @@ If multicast fails at runtime due to network misconfiguration, the error surface
 ## Scope Boundaries
 
 **In scope:**
+
 - ONVIF multicast SOAP functions (get/set config, get stream URI)
 - Database schema changes for multicast fields
 - API endpoints to configure and query multicast per camera
 - Stream source switching logic (multicast URI replaces unicast URI)
 
 **Out of scope:**
+
 - Per-profile multicast (multicast is per-camera, using the active profile)
 - Automatic multicast address pool management
 - IGMP group tracking

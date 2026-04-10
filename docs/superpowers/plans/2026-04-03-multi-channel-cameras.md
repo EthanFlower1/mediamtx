@@ -13,6 +13,7 @@
 ### Task 1: Database Migration — `devices` Table and Camera Columns
 
 **Files:**
+
 - Modify: `internal/nvr/db/migrations.go:454` (add migration 31)
 
 - [ ] **Step 1: Write the failing test**
@@ -107,6 +108,7 @@ git commit -m "feat(db): add devices table and camera device_id/channel_index co
 ### Task 2: Device DB Model and CRUD Operations
 
 **Files:**
+
 - Create: `internal/nvr/db/devices.go`
 - Test: `internal/nvr/db/devices_test.go`
 
@@ -441,6 +443,7 @@ In `internal/nvr/db/cameras.go`:
 **ListCamerasByDevice** — already includes them (written above).
 
 The column additions follow this pattern — add to the end of each SELECT and Scan:
+
 ```
 SELECT ..., quota_bytes, quota_warning_percent, quota_critical_percent, device_id, channel_index
 ...
@@ -469,6 +472,7 @@ git commit -m "feat(db): add Device model with CRUD and Camera device_id/channel
 ### Task 3: ONVIF Discovery — Detect Multi-Channel Cameras
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/discovery.go`
 - Test: `internal/nvr/onvif/discovery_test.go` (create)
 
@@ -617,6 +621,7 @@ git commit -m "feat(onvif): add VideoSourceToken to MediaProfile and channel gro
 ### Task 4: Populate VideoSourceToken During Profile Discovery
 
 **Files:**
+
 - Modify: `internal/nvr/onvif/discovery.go` (`enrichDevice`, `profileToMediaProfile`)
 - Modify: `internal/nvr/onvif/device.go` (`profileToMediaProfile`, `ProbeDeviceFull`)
 - Modify: `internal/nvr/onvif/media2.go` (`GetProfiles2`)
@@ -755,6 +760,7 @@ git commit -m "feat(onvif): populate VideoSourceToken in profiles and detect mul
 ### Task 5: Device API Endpoints — List, Get, Delete
 
 **Files:**
+
 - Create: `internal/nvr/api/devices.go`
 - Modify: `internal/nvr/api/router.go`
 - Test: `internal/nvr/api/devices_test.go` (create)
@@ -1044,6 +1050,7 @@ git commit -m "feat(api): add device list, get, and cascading delete endpoints (
 ### Task 6: Multi-Channel Camera Creation API
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (Create handler)
 - Test: `internal/nvr/api/cameras_test.go`
 
@@ -1321,6 +1328,7 @@ git commit -m "feat(api): add multi-channel camera creation endpoint (KAI-26)"
 ### Task 7: Camera List with Device Grouping
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (List handler)
 - Test: `internal/nvr/api/cameras_test.go`
 
@@ -1489,6 +1497,7 @@ git commit -m "feat(api): add group_by=device support to camera list endpoint (K
 ### Task 8: Credential Resolution from Device
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (background probe, RefreshCapabilities)
 - Test: `internal/nvr/api/cameras_test.go`
 
@@ -1612,6 +1621,7 @@ git commit -m "feat(api): resolve ONVIF credentials from device for multi-channe
 ### Task 9: Discovery Results Include Channel Grouping
 
 **Files:**
+
 - Modify: `internal/nvr/api/cameras.go` (DiscoverResults handler)
 - Test: `internal/nvr/onvif/discovery_test.go`
 
@@ -1684,6 +1694,7 @@ git commit -m "test(onvif): add channel grouping serialization test (KAI-26)"
 ### Task 10: Final Integration — Build Verification and Cleanup
 
 **Files:**
+
 - All modified files
 
 - [ ] **Step 1: Run full test suite**

@@ -19,33 +19,33 @@ This guide covers installing and running MediaMTX NVR on Windows, Linux, and Doc
 
 ### All Platforms
 
-| Requirement | Details |
-|---|---|
-| **Network access** | The host must be reachable by your ONVIF cameras (same VLAN or routed subnet). |
-| **Ports available** | See the port table below. Ensure no other service is bound to these ports. |
-| **Disk space** | Minimum 500 MB for the binary and database. Recording storage depends on camera count, resolution, and retention policy. Plan at least 1 TB for production use. |
-| **Time sync** | NTP should be configured. ONVIF authentication and JWT tokens depend on accurate system time. |
+| Requirement         | Details                                                                                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Network access**  | The host must be reachable by your ONVIF cameras (same VLAN or routed subnet).                                                                                  |
+| **Ports available** | See the port table below. Ensure no other service is bound to these ports.                                                                                      |
+| **Disk space**      | Minimum 500 MB for the binary and database. Recording storage depends on camera count, resolution, and retention policy. Plan at least 1 TB for production use. |
+| **Time sync**       | NTP should be configured. ONVIF authentication and JWT tokens depend on accurate system time.                                                                   |
 
 ### Default Ports
 
-| Port | Protocol | Purpose |
-|---|---|---|
-| 9997 | TCP | API (REST) |
-| 9996 | TCP | Playback |
-| 8554 | TCP/UDP | RTSP |
-| 1935 | TCP | RTMP |
-| 8888 | TCP | HLS |
-| 8889 | TCP/UDP | WebRTC HTTP |
-| 8890 | UDP | SRT |
+| Port | Protocol | Purpose     |
+| ---- | -------- | ----------- |
+| 9997 | TCP      | API (REST)  |
+| 9996 | TCP      | Playback    |
+| 8554 | TCP/UDP  | RTSP        |
+| 1935 | TCP      | RTMP        |
+| 8888 | TCP      | HLS         |
+| 8889 | TCP/UDP  | WebRTC HTTP |
+| 8890 | UDP      | SRT         |
 
 ### Platform-Specific Prerequisites
 
-| Requirement | Windows | Ubuntu/Debian | RHEL/CentOS |
-|---|---|---|---|
-| **OS version** | Windows 10/11 or Server 2019+ | Ubuntu 20.04+ / Debian 11+ | RHEL 8+ / CentOS Stream 8+ |
-| **Architecture** | x86_64 (AMD64) | x86_64 or ARM64 | x86_64 or ARM64 |
-| **Go (build from source only)** | 1.25+ | 1.25+ | 1.25+ |
-| **FFmpeg (optional, for transcoding)** | Download from ffmpeg.org | `apt install ffmpeg` | `dnf install ffmpeg` (via RPM Fusion) |
+| Requirement                            | Windows                       | Ubuntu/Debian              | RHEL/CentOS                           |
+| -------------------------------------- | ----------------------------- | -------------------------- | ------------------------------------- |
+| **OS version**                         | Windows 10/11 or Server 2019+ | Ubuntu 20.04+ / Debian 11+ | RHEL 8+ / CentOS Stream 8+            |
+| **Architecture**                       | x86_64 (AMD64)                | x86_64 or ARM64            | x86_64 or ARM64                       |
+| **Go (build from source only)**        | 1.25+                         | 1.25+                      | 1.25+                                 |
+| **FFmpeg (optional, for transcoding)** | Download from ffmpeg.org      | `apt install ffmpeg`       | `dnf install ffmpeg` (via RPM Fusion) |
 
 ---
 
@@ -58,6 +58,7 @@ This guide covers installing and running MediaMTX NVR on Windows, Linux, and Doc
 2. **Extract the archive** to a directory of your choice, for example `C:\mediamtx\`.
 
 3. **Edit the configuration file.** Open `mediamtx.yml` in a text editor and configure NVR settings:
+
    ```yaml
    nvr: true
    api: true
@@ -66,6 +67,7 @@ This guide covers installing and running MediaMTX NVR on Windows, Linux, and Doc
    ```
 
 4. **Open firewall ports.** In an elevated PowerShell prompt:
+
    ```powershell
    New-NetFirewallRule -DisplayName "MediaMTX RTSP" -Direction Inbound -Protocol TCP -LocalPort 8554 -Action Allow
    New-NetFirewallRule -DisplayName "MediaMTX API" -Direction Inbound -Protocol TCP -LocalPort 9997 -Action Allow
@@ -84,6 +86,7 @@ This guide covers installing and running MediaMTX NVR on Windows, Linux, and Doc
 1. **Install Go 1.25+** from [go.dev/dl](https://go.dev/dl/).
 
 2. **Clone and build:**
+
    ```powershell
    git clone https://github.com/bluenviron/mediamtx.git
    cd mediamtx
@@ -113,6 +116,7 @@ nssm start MediaMTX
 #### Option A: Pre-Built Binary
 
 1. **Download and extract:**
+
    ```bash
    # Replace <version> and <arch> with appropriate values (e.g., v1.12.0, linux_amd64)
    wget https://github.com/bluenviron/mediamtx/releases/download/<version>/mediamtx_<version>_linux_amd64.tar.gz
@@ -121,16 +125,20 @@ nssm start MediaMTX
    ```
 
 2. **Create a dedicated user:**
+
    ```bash
    sudo useradd -r -s /usr/sbin/nologin mediamtx
    sudo chown -R mediamtx:mediamtx /opt/mediamtx
    ```
 
 3. **Edit configuration:**
+
    ```bash
    sudo nano /opt/mediamtx/mediamtx.yml
    ```
+
    Ensure NVR mode is enabled:
+
    ```yaml
    nvr: true
    api: true
@@ -138,6 +146,7 @@ nssm start MediaMTX
    ```
 
 4. **Create a systemd service** at `/etc/systemd/system/mediamtx.service`:
+
    ```ini
    [Unit]
    Description=MediaMTX NVR
@@ -158,6 +167,7 @@ nssm start MediaMTX
    ```
 
 5. **Enable and start:**
+
    ```bash
    sudo systemctl daemon-reload
    sudo systemctl enable mediamtx
@@ -176,6 +186,7 @@ nssm start MediaMTX
 #### Option B: Build from Source
 
 1. **Install dependencies:**
+
    ```bash
    sudo apt update
    sudo apt install -y git build-essential
@@ -187,6 +198,7 @@ nssm start MediaMTX
    ```
 
 2. **Clone and build:**
+
    ```bash
    git clone https://github.com/bluenviron/mediamtx.git
    cd mediamtx
@@ -202,6 +214,7 @@ nssm start MediaMTX
 #### Option A: Pre-Built Binary
 
 1. **Download and extract:**
+
    ```bash
    wget https://github.com/bluenviron/mediamtx/releases/download/<version>/mediamtx_<version>_linux_amd64.tar.gz
    sudo mkdir -p /opt/mediamtx
@@ -209,6 +222,7 @@ nssm start MediaMTX
    ```
 
 2. **Create a dedicated user:**
+
    ```bash
    sudo useradd -r -s /sbin/nologin mediamtx
    sudo chown -R mediamtx:mediamtx /opt/mediamtx
@@ -232,6 +246,7 @@ nssm start MediaMTX
 #### Option B: Build from Source
 
 1. **Install dependencies:**
+
    ```bash
    sudo dnf groupinstall -y "Development Tools"
    sudo dnf install -y git
@@ -243,6 +258,7 @@ nssm start MediaMTX
    ```
 
 2. **Clone and build:**
+
    ```bash
    git clone https://github.com/bluenviron/mediamtx.git
    cd mediamtx
@@ -323,11 +339,13 @@ docker compose logs -f mediamtx
 To use your own `mediamtx.yml`:
 
 1. Copy the default config out of the container:
+
    ```bash
    docker run --rm bluenviron/mediamtx:latest cat /mediamtx.yml > mediamtx.yml
    ```
 
 2. Edit `mediamtx.yml` to enable NVR mode:
+
    ```yaml
    nvr: true
    api: true
@@ -343,6 +361,7 @@ To use your own `mediamtx.yml`:
 After starting MediaMTX, verify the installation:
 
 1. **Check the process is running:**
+
    ```bash
    # Linux
    systemctl status mediamtx
@@ -352,12 +371,15 @@ After starting MediaMTX, verify the installation:
    ```
 
 2. **Check the API is responding:**
+
    ```bash
    curl http://localhost:9997/v3/paths/list
    ```
+
    You should receive a JSON response (possibly an empty list if no camera paths are configured yet).
 
 3. **Check logs for errors:**
+
    ```bash
    # Linux (systemd)
    journalctl -u mediamtx -f
@@ -390,8 +412,9 @@ Get-NetTCPConnection -LocalPort 8554 | Select-Object OwningProcess
 ```
 
 Then update `mediamtx.yml`:
+
 ```yaml
-rtspAddress: :8555   # Use an alternative port
+rtspAddress: :8555 # Use an alternative port
 ```
 
 ### Permission Denied on Linux
@@ -417,6 +440,7 @@ sudo setcap cap_net_bind_service=+ep /opt/mediamtx/mediamtx
 **Symptom:** Cameras on the network are not discovered.
 
 **Solution:**
+
 - Confirm the host and cameras are on the same subnet or VLAN.
 - Ensure UDP multicast (WS-Discovery, port 3702) is not blocked by the firewall.
 - Try adding cameras manually by IP address through the API instead of relying on discovery.
@@ -426,6 +450,7 @@ sudo setcap cap_net_bind_service=+ep /opt/mediamtx/mediamtx
 **Symptom:** `database is locked` errors in the logs.
 
 **Solution:**
+
 - Ensure only one instance of MediaMTX is running against the same database file.
 - Check that the database file is on a local filesystem, not a network share (NFS/CIFS). SQLite does not work reliably over network filesystems.
 
@@ -439,6 +464,7 @@ ps aux | grep mediamtx
 **Symptom:** WebRTC playback fails or shows no video.
 
 **Solution:**
+
 - When running behind NAT, configure a STUN/TURN server in `mediamtx.yml`.
 - In Docker without host networking, ensure UDP ports (8889) are published.
 - Check browser console for ICE connection errors.
@@ -448,6 +474,7 @@ ps aux | grep mediamtx
 **Symptom:** Memory consumption grows over time with many concurrent streams.
 
 **Solution:**
+
 - Increase `writeQueueSize` in `mediamtx.yml` if you see packet drops, but be aware it increases RAM usage.
 - Reduce camera stream resolution or frame rate at the camera level.
 - Monitor with:
@@ -461,6 +488,7 @@ ps aux | grep mediamtx
 **Symptom:** MediaMTX crashes on startup after updating to a new version.
 
 **Solution:**
+
 - Check for configuration file format changes in the release notes.
 - Back up and regenerate the config:
   ```bash

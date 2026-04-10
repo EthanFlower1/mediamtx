@@ -12,12 +12,12 @@ See also: `.claude/agents/tech-lead.md`, `docs/superpowers/specs/2026-04-07-v1-r
 
 ## Components
 
-| File | Role |
-|---|---|
-| `.proto-lock.json` | The mutex itself. Source of truth. Never edit by hand. |
-| `scripts/proto-lock.sh` | Helper that agents call to acquire/release/check the lock. |
-| `.github/workflows/proto-lock.yml` | Server-side enforcement on every proto PR. |
-| `docs/proto-lock.md` | This file. |
+| File                               | Role                                                       |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `.proto-lock.json`                 | The mutex itself. Source of truth. Never edit by hand.     |
+| `scripts/proto-lock.sh`            | Helper that agents call to acquire/release/check the lock. |
+| `.github/workflows/proto-lock.yml` | Server-side enforcement on every proto PR.                 |
+| `docs/proto-lock.md`               | This file.                                                 |
 
 ## Lock file schema
 
@@ -105,11 +105,11 @@ scripts/proto-lock.sh cleanup
 
 Environment variables:
 
-| Variable | Effect |
-|---|---|
+| Variable               | Effect                                               |
+| ---------------------- | ---------------------------------------------------- |
 | `PROTO_LOCK_TTL_HOURS` | How long the lock is held before expiry (default: 2) |
-| `PROTO_LOCK_NO_PR` | Update the lock file in place without opening a PR |
-| `PROTO_LOCK_DRY_RUN` | Print what would happen without touching anything |
+| `PROTO_LOCK_NO_PR`     | Update the lock file in place without opening a PR   |
+| `PROTO_LOCK_DRY_RUN`   | Print what would happen without touching anything    |
 
 ## Commit message trailers
 
@@ -135,13 +135,13 @@ Without merge queue, the lock still works but there's a small window where two a
 
 ## Failure modes and recovery
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `proto-lock: lock is HELD on main — refusing to acquire` | Another agent holds the lock | Wait, or run `cleanup` if expired |
-| `proto PR is missing a 'Proto-Lock-Holder:' trailer` | Forgot to acquire, or trailer on wrong commit | Acquire lock, add trailer to your commits, force-push |
-| `proto PR trailer does not match current lock holder on main` | Lock was reclaimed (probably by cleanup) while you were working | Re-acquire, rebase |
-| Acquire PR fails CI with "base commit shows lock held" | Another agent got there first | Wait for their PR to merge, then retry |
-| Lock expired mid-work | Took too long | Re-acquire and rebase; investigate why the work ran long |
+| Symptom                                                       | Cause                                                           | Fix                                                      |
+| ------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------- |
+| `proto-lock: lock is HELD on main — refusing to acquire`      | Another agent holds the lock                                    | Wait, or run `cleanup` if expired                        |
+| `proto PR is missing a 'Proto-Lock-Holder:' trailer`          | Forgot to acquire, or trailer on wrong commit                   | Acquire lock, add trailer to your commits, force-push    |
+| `proto PR trailer does not match current lock holder on main` | Lock was reclaimed (probably by cleanup) while you were working | Re-acquire, rebase                                       |
+| Acquire PR fails CI with "base commit shows lock held"        | Another agent got there first                                   | Wait for their PR to merge, then retry                   |
+| Lock expired mid-work                                         | Took too long                                                   | Re-acquire and rebase; investigate why the work ran long |
 
 ## Phase 2 enhancements (not implemented in MVP)
 

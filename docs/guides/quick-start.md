@@ -23,13 +23,13 @@ docker run -d \
 
 This exposes the following ports on the host:
 
-| Port  | Service        |
-|-------|----------------|
-| 9997  | API / Admin UI |
-| 9996  | Playback       |
-| 8554  | RTSP           |
-| 8889  | WebRTC         |
-| 8888  | HLS            |
+| Port | Service        |
+| ---- | -------------- |
+| 9997 | API / Admin UI |
+| 9996 | Playback       |
+| 8554 | RTSP           |
+| 8889 | WebRTC         |
+| 8888 | HLS            |
 
 > **Tip:** If you prefer a binary install, download the latest release from the
 > [releases page](https://github.com/bluenviern/mediamtx/releases), extract it,

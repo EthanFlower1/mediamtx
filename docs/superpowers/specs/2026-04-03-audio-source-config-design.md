@@ -30,16 +30,16 @@ type AudioSourceConfigOptions struct {
 
 All functions follow the existing pattern: `NewClient(xaddr, user, pass)` then delegate to `client.Dev.*` library methods, mapping results to local types.
 
-| Function | Library Method | Returns |
-|---|---|---|
-| `GetAudioSources(xaddr, user, pass)` | `Dev.GetAudioSources` | `[]*AudioSourceInfo` |
-| `GetAudioSourceConfigurations(xaddr, user, pass)` | Media2 first via `GetMedia2AudioSourceConfigurations`, fallback Media1 via `Dev.GetAudioSourceConfigurations` | `[]*AudioSourceConfig` |
-| `GetAudioSourceConfiguration(xaddr, user, pass, token)` | `Dev.GetAudioSourceConfiguration` | `*AudioSourceConfig` |
-| `SetAudioSourceConfiguration(xaddr, user, pass, cfg)` | `Dev.SetAudioSourceConfiguration` (Media1 only) | `error` |
-| `GetAudioSourceConfigOptions(xaddr, user, pass, token, profileToken)` | `Dev.GetAudioSourceConfigurationOptions` | `*AudioSourceConfigOptions` |
-| `GetCompatibleAudioSourceConfigs(xaddr, user, pass, profileToken)` | `Dev.GetCompatibleAudioSourceConfigurations` | `[]*AudioSourceConfig` |
-| `AddAudioSourceToProfile(xaddr, user, pass, profileToken, configToken)` | `Dev.AddAudioSourceConfiguration` (Media1) | `error` |
-| `RemoveAudioSourceFromProfile(xaddr, user, pass, profileToken)` | `Dev.RemoveAudioSourceConfiguration` (Media1) | `error` |
+| Function                                                                | Library Method                                                                                                | Returns                     |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `GetAudioSources(xaddr, user, pass)`                                    | `Dev.GetAudioSources`                                                                                         | `[]*AudioSourceInfo`        |
+| `GetAudioSourceConfigurations(xaddr, user, pass)`                       | Media2 first via `GetMedia2AudioSourceConfigurations`, fallback Media1 via `Dev.GetAudioSourceConfigurations` | `[]*AudioSourceConfig`      |
+| `GetAudioSourceConfiguration(xaddr, user, pass, token)`                 | `Dev.GetAudioSourceConfiguration`                                                                             | `*AudioSourceConfig`        |
+| `SetAudioSourceConfiguration(xaddr, user, pass, cfg)`                   | `Dev.SetAudioSourceConfiguration` (Media1 only)                                                               | `error`                     |
+| `GetAudioSourceConfigOptions(xaddr, user, pass, token, profileToken)`   | `Dev.GetAudioSourceConfigurationOptions`                                                                      | `*AudioSourceConfigOptions` |
+| `GetCompatibleAudioSourceConfigs(xaddr, user, pass, profileToken)`      | `Dev.GetCompatibleAudioSourceConfigurations`                                                                  | `[]*AudioSourceConfig`      |
+| `AddAudioSourceToProfile(xaddr, user, pass, profileToken, configToken)` | `Dev.AddAudioSourceConfiguration` (Media1)                                                                    | `error`                     |
+| `RemoveAudioSourceFromProfile(xaddr, user, pass, profileToken)`         | `Dev.RemoveAudioSourceConfiguration` (Media1)                                                                 | `error`                     |
 
 ### Media2 Strategy
 
@@ -51,16 +51,16 @@ All functions follow the existing pattern: `NewClient(xaddr, user, pass)` then d
 
 All endpoints are protected (JWT auth required) and registered under the existing `protected` group.
 
-| Method | Path | Handler | Description |
-|---|---|---|---|
-| GET | `/cameras/:id/audio/sources` | `CameraHandler.AudioSources` | List audio sources (microphones) |
-| GET | `/cameras/:id/audio/source-configs` | `CameraHandler.AudioSourceConfigs` | List all audio source configurations |
-| GET | `/cameras/:id/audio/source-configs/:token` | `CameraHandler.GetAudioSourceConfig` | Get specific audio source configuration |
-| PUT | `/cameras/:id/audio/source-configs/:token` | `CameraHandler.UpdateAudioSourceConfig` | Update audio source configuration |
-| GET | `/cameras/:id/audio/source-configs/:token/options` | `CameraHandler.AudioSourceConfigOptions` | Get available options for configuration |
-| GET | `/cameras/:id/audio/source-configs/compatible/:profileToken` | `CameraHandler.CompatibleAudioSourceConfigs` | List configs compatible with a profile |
-| POST | `/cameras/:id/audio/source-configs/add` | `CameraHandler.AddAudioSourceToProfile` | Add audio source config to profile |
-| POST | `/cameras/:id/audio/source-configs/remove` | `CameraHandler.RemoveAudioSourceFromProfile` | Remove audio source config from profile |
+| Method | Path                                                         | Handler                                      | Description                             |
+| ------ | ------------------------------------------------------------ | -------------------------------------------- | --------------------------------------- |
+| GET    | `/cameras/:id/audio/sources`                                 | `CameraHandler.AudioSources`                 | List audio sources (microphones)        |
+| GET    | `/cameras/:id/audio/source-configs`                          | `CameraHandler.AudioSourceConfigs`           | List all audio source configurations    |
+| GET    | `/cameras/:id/audio/source-configs/:token`                   | `CameraHandler.GetAudioSourceConfig`         | Get specific audio source configuration |
+| PUT    | `/cameras/:id/audio/source-configs/:token`                   | `CameraHandler.UpdateAudioSourceConfig`      | Update audio source configuration       |
+| GET    | `/cameras/:id/audio/source-configs/:token/options`           | `CameraHandler.AudioSourceConfigOptions`     | Get available options for configuration |
+| GET    | `/cameras/:id/audio/source-configs/compatible/:profileToken` | `CameraHandler.CompatibleAudioSourceConfigs` | List configs compatible with a profile  |
+| POST   | `/cameras/:id/audio/source-configs/add`                      | `CameraHandler.AddAudioSourceToProfile`      | Add audio source config to profile      |
+| POST   | `/cameras/:id/audio/source-configs/remove`                   | `CameraHandler.RemoveAudioSourceFromProfile` | Remove audio source config from profile |
 
 ### Handler Pattern
 
@@ -75,26 +75,30 @@ All handlers live on `CameraHandler` and follow the standard pattern:
 ### Request/Response Bodies
 
 **PUT `/audio/source-configs/:token`:**
+
 ```json
 {
-    "name": "AudioSourceConfig1",
-    "source_token": "AudioSource_1"
+  "name": "AudioSourceConfig1",
+  "source_token": "AudioSource_1"
 }
 ```
+
 Token comes from the URL path. `use_count` is read-only (managed by device).
 
 **POST `/audio/source-configs/add`:**
+
 ```json
 {
-    "profile_token": "Profile1",
-    "config_token": "AudioSourceConfig1"
+  "profile_token": "Profile1",
+  "config_token": "AudioSourceConfig1"
 }
 ```
 
 **POST `/audio/source-configs/remove`:**
+
 ```json
 {
-    "profile_token": "Profile1"
+  "profile_token": "Profile1"
 }
 ```
 

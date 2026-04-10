@@ -47,12 +47,12 @@ This guide covers network planning, firewall configuration, bandwidth sizing, mu
 
 ### Recommended Network Segmentation
 
-| Segment | VLAN | Purpose | Example CIDR |
-|---------|------|---------|--------------|
-| Management | 10 | Admin access, API, UI | 10.0.1.0/24 |
-| Camera | 20 | IP cameras (isolated) | 10.0.2.0/24 |
-| Client | 30 | Viewing stations, mobile | 10.0.3.0/24 |
-| Storage | 40 | NAS/SAN (if external) | 10.0.4.0/24 |
+| Segment    | VLAN | Purpose                  | Example CIDR |
+| ---------- | ---- | ------------------------ | ------------ |
+| Management | 10   | Admin access, API, UI    | 10.0.1.0/24  |
+| Camera     | 20   | IP cameras (isolated)    | 10.0.2.0/24  |
+| Client     | 30   | Viewing stations, mobile | 10.0.3.0/24  |
+| Storage    | 40   | NAS/SAN (if external)    | 10.0.4.0/24  |
 
 ### Key Design Principles
 
@@ -67,38 +67,39 @@ This guide covers network planning, firewall configuration, bandwidth sizing, mu
 
 ### MediaMTX NVR Listening Ports
 
-| Port | Protocol | Service | Direction | Notes |
-|------|----------|---------|-----------|-------|
-| 8554 | TCP | RTSP | Camera -> NVR, Client -> NVR | Primary streaming protocol |
-| 8322 | TCP | RTSPS | Client -> NVR | Encrypted RTSP (if enabled) |
-| 8000 | UDP | RTP | Camera <-> NVR | RTSP UDP transport |
-| 8001 | UDP | RTCP | Camera <-> NVR | RTSP control channel |
-| 8002 | UDP | Multicast RTP | Camera -> NVR | Multicast transport (if enabled) |
-| 8003 | UDP | Multicast RTCP | Camera -> NVR | Multicast control (if enabled) |
-| 1935 | TCP | RTMP | Client -> NVR | RTMP streaming |
-| 1936 | TCP | RTMPS | Client -> NVR | Encrypted RTMP (if enabled) |
-| 8888 | TCP | HLS | Client -> NVR | HTTP Live Streaming |
-| 8889 | TCP | WebRTC HTTP | Client -> NVR | WebRTC signaling |
-| 8189 | UDP | WebRTC ICE | Client <-> NVR | WebRTC media transport |
-| 8890 | UDP | SRT | Client -> NVR | SRT streaming |
-| 9996 | TCP | Playback API | Client -> NVR | Recording playback |
-| 9997 | TCP | Control API | Admin -> NVR | Management API and admin UI |
-| 9998 | TCP | Metrics | Monitoring -> NVR | Prometheus metrics (if enabled) |
-| 9999 | TCP | pprof | Admin -> NVR | Performance profiling (if enabled) |
+| Port | Protocol | Service        | Direction                    | Notes                              |
+| ---- | -------- | -------------- | ---------------------------- | ---------------------------------- |
+| 8554 | TCP      | RTSP           | Camera -> NVR, Client -> NVR | Primary streaming protocol         |
+| 8322 | TCP      | RTSPS          | Client -> NVR                | Encrypted RTSP (if enabled)        |
+| 8000 | UDP      | RTP            | Camera <-> NVR               | RTSP UDP transport                 |
+| 8001 | UDP      | RTCP           | Camera <-> NVR               | RTSP control channel               |
+| 8002 | UDP      | Multicast RTP  | Camera -> NVR                | Multicast transport (if enabled)   |
+| 8003 | UDP      | Multicast RTCP | Camera -> NVR                | Multicast control (if enabled)     |
+| 1935 | TCP      | RTMP           | Client -> NVR                | RTMP streaming                     |
+| 1936 | TCP      | RTMPS          | Client -> NVR                | Encrypted RTMP (if enabled)        |
+| 8888 | TCP      | HLS            | Client -> NVR                | HTTP Live Streaming                |
+| 8889 | TCP      | WebRTC HTTP    | Client -> NVR                | WebRTC signaling                   |
+| 8189 | UDP      | WebRTC ICE     | Client <-> NVR               | WebRTC media transport             |
+| 8890 | UDP      | SRT            | Client -> NVR                | SRT streaming                      |
+| 9996 | TCP      | Playback API   | Client -> NVR                | Recording playback                 |
+| 9997 | TCP      | Control API    | Admin -> NVR                 | Management API and admin UI        |
+| 9998 | TCP      | Metrics        | Monitoring -> NVR            | Prometheus metrics (if enabled)    |
+| 9999 | TCP      | pprof          | Admin -> NVR                 | Performance profiling (if enabled) |
 
 ### Outbound from NVR Server
 
-| Port | Protocol | Destination | Purpose |
-|------|----------|-------------|---------|
-| 554 | TCP | Cameras | RTSP pull from cameras |
-| 80 / 443 | TCP | Cameras | ONVIF device management |
-| 3702 | UDP multicast | Camera VLAN | WS-Discovery (ONVIF camera discovery) |
+| Port     | Protocol      | Destination | Purpose                               |
+| -------- | ------------- | ----------- | ------------------------------------- |
+| 554      | TCP           | Cameras     | RTSP pull from cameras                |
+| 80 / 443 | TCP           | Cameras     | ONVIF device management               |
+| 3702     | UDP multicast | Camera VLAN | WS-Discovery (ONVIF camera discovery) |
 
 ### Minimal Production Firewall Rules
 
 For a typical deployment where cameras are on a separate VLAN and clients access via the management network:
 
 **Camera VLAN -> NVR:**
+
 ```
 ALLOW TCP dst-port 8554    # RTSP ingest
 ALLOW UDP dst-port 8000    # RTP
@@ -106,6 +107,7 @@ ALLOW UDP dst-port 8001    # RTCP
 ```
 
 **NVR -> Camera VLAN:**
+
 ```
 ALLOW TCP dst-port 554     # RTSP pull from cameras
 ALLOW TCP dst-port 80,443  # ONVIF HTTP/HTTPS
@@ -113,6 +115,7 @@ ALLOW UDP dst-port 3702    # WS-Discovery multicast
 ```
 
 **Client VLAN -> NVR:**
+
 ```
 ALLOW TCP dst-port 8554    # RTSP live view
 ALLOW TCP dst-port 8888    # HLS streaming
@@ -123,6 +126,7 @@ ALLOW TCP dst-port 9997    # Admin UI / API
 ```
 
 **NVR -> Internet (optional):**
+
 ```
 ALLOW TCP dst-port 443     # STUN/TURN for remote WebRTC (if configured)
 ALLOW UDP dst-port 19302   # Google STUN (if configured)
@@ -137,14 +141,14 @@ ALLOW UDP dst-port 19302   # Google STUN (if configured)
 ### Per-Camera Bandwidth Estimates
 
 | Resolution | FPS | Codec | Bitrate (typical) | Bitrate (high motion) |
-|------------|-----|-------|--------------------|-----------------------|
-| 1080p | 15 | H.264 | 2-4 Mbps | 4-6 Mbps |
-| 1080p | 30 | H.264 | 4-6 Mbps | 6-10 Mbps |
-| 4MP (2K) | 15 | H.264 | 4-6 Mbps | 6-10 Mbps |
-| 4MP (2K) | 30 | H.264 | 6-10 Mbps | 10-16 Mbps |
-| 4K (8MP) | 15 | H.264 | 8-12 Mbps | 12-20 Mbps |
-| 4K (8MP) | 30 | H.265 | 6-10 Mbps | 10-16 Mbps |
-| 4K (8MP) | 30 | H.264 | 12-20 Mbps | 20-30 Mbps |
+| ---------- | --- | ----- | ----------------- | --------------------- |
+| 1080p      | 15  | H.264 | 2-4 Mbps          | 4-6 Mbps              |
+| 1080p      | 30  | H.264 | 4-6 Mbps          | 6-10 Mbps             |
+| 4MP (2K)   | 15  | H.264 | 4-6 Mbps          | 6-10 Mbps             |
+| 4MP (2K)   | 30  | H.264 | 6-10 Mbps         | 10-16 Mbps            |
+| 4K (8MP)   | 15  | H.264 | 8-12 Mbps         | 12-20 Mbps            |
+| 4K (8MP)   | 30  | H.265 | 6-10 Mbps         | 10-16 Mbps            |
+| 4K (8MP)   | 30  | H.264 | 12-20 Mbps        | 20-30 Mbps            |
 
 ### Sizing Formula
 
@@ -157,36 +161,36 @@ Total storage per day  = (total ingest bandwidth) x 86400 / 8
 
 ### Example: 32-Camera Site
 
-| Parameter | Value |
-|-----------|-------|
-| Cameras | 32 x 1080p @ 15fps H.264 |
-| Avg bitrate per camera | 3 Mbps |
-| Total ingest | 96 Mbps |
-| Concurrent viewers | 4 streams |
-| Total egress | 12 Mbps |
-| Peak switch throughput | ~110 Mbps |
-| Storage per day | 32 x 3 x 10.5 = 1,008 GB/day |
-| 30-day retention | ~30 TB |
+| Parameter              | Value                        |
+| ---------------------- | ---------------------------- |
+| Cameras                | 32 x 1080p @ 15fps H.264     |
+| Avg bitrate per camera | 3 Mbps                       |
+| Total ingest           | 96 Mbps                      |
+| Concurrent viewers     | 4 streams                    |
+| Total egress           | 12 Mbps                      |
+| Peak switch throughput | ~110 Mbps                    |
+| Storage per day        | 32 x 3 x 10.5 = 1,008 GB/day |
+| 30-day retention       | ~30 TB                       |
 
 ### Network Infrastructure Recommendations
 
-| Camera count | Minimum switch uplink | NVR NIC | Recommended |
-|--------------|----------------------|---------|-------------|
-| 1-8 | 1 Gbps | 1 Gbps | Unmanaged switch OK |
-| 9-32 | 1 Gbps | 1 Gbps | Managed switch, camera VLAN |
-| 33-64 | 10 Gbps | 10 Gbps or 2x1 Gbps bonded | Managed switch, QoS |
-| 65-128 | 10 Gbps | 10 Gbps | Core + edge switches |
+| Camera count | Minimum switch uplink | NVR NIC                    | Recommended                 |
+| ------------ | --------------------- | -------------------------- | --------------------------- |
+| 1-8          | 1 Gbps                | 1 Gbps                     | Unmanaged switch OK         |
+| 9-32         | 1 Gbps                | 1 Gbps                     | Managed switch, camera VLAN |
+| 33-64        | 10 Gbps               | 10 Gbps or 2x1 Gbps bonded | Managed switch, QoS         |
+| 65-128       | 10 Gbps               | 10 Gbps                    | Core + edge switches        |
 
 ### Storage Sizing Quick Reference
 
 | Cameras | Avg Mbps each | Daily (GB) | 7-day (TB) | 30-day (TB) | 90-day (TB) |
-|---------|---------------|------------|------------|-------------|-------------|
-| 8 | 3 | 252 | 1.7 | 7.4 | 22.1 |
-| 16 | 3 | 504 | 3.4 | 14.7 | 44.2 |
-| 32 | 3 | 1,008 | 6.9 | 29.5 | 88.5 |
-| 64 | 3 | 2,016 | 13.8 | 59.0 | 176.9 |
-| 16 | 8 | 1,344 | 9.2 | 39.3 | 117.9 |
-| 32 | 8 | 2,688 | 18.4 | 78.6 | 235.9 |
+| ------- | ------------- | ---------- | ---------- | ----------- | ----------- |
+| 8       | 3             | 252        | 1.7        | 7.4         | 22.1        |
+| 16      | 3             | 504        | 3.4        | 14.7        | 44.2        |
+| 32      | 3             | 1,008      | 6.9        | 29.5        | 88.5        |
+| 64      | 3             | 2,016      | 13.8       | 59.0        | 176.9       |
+| 16      | 8             | 1,344      | 9.2        | 39.3        | 117.9       |
+| 32      | 8             | 2,688      | 18.4       | 78.6        | 235.9       |
 
 ---
 
@@ -243,19 +247,20 @@ Edge NVR instances at each site replicate clips or metadata to a central hub for
 Each site runs a local NVR. A cloud management plane handles configuration, user management, and health monitoring. Video stays local.
 
 **WAN requirements:**
+
 - HTTPS (443) outbound from each NVR to cloud management API
 - WebRTC (TURN relay) for remote live view when needed
 - Typical: 1-5 Mbps per remote viewer through TURN
 
 ### WAN Link Sizing
 
-| Use case | Per-site WAN minimum | Notes |
-|----------|---------------------|-------|
-| Admin/API only | 1 Mbps | Config push, health checks |
-| 1 remote live stream | 3-6 Mbps | Depends on resolution |
-| 4 remote live streams | 12-24 Mbps | Consider sub-stream if available |
-| Clip replication (event-based) | 5-20 Mbps | Varies with event density |
-| Full recording replication | Not recommended | Use local retention instead |
+| Use case                       | Per-site WAN minimum | Notes                            |
+| ------------------------------ | -------------------- | -------------------------------- |
+| Admin/API only                 | 1 Mbps               | Config push, health checks       |
+| 1 remote live stream           | 3-6 Mbps             | Depends on resolution            |
+| 4 remote live streams          | 12-24 Mbps           | Consider sub-stream if available |
+| Clip replication (event-based) | 5-20 Mbps            | Varies with event density        |
+| Full recording replication     | Not recommended      | Use local retention instead      |
 
 ---
 
@@ -266,36 +271,36 @@ Use this checklist before deploying at a new site. Complete each section and ret
 ### 1. Physical Infrastructure
 
 - [ ] Server room / closet location identified
-- [ ] Rack space available (____U required)
-- [ ] Power capacity verified (____W available, ____W required)
-- [ ] UPS available, rated for ____ minutes runtime
+- [ ] Rack space available (\_\_\_\_U required)
+- [ ] Power capacity verified (\_**\_W available, \_\_**W required)
+- [ ] UPS available, rated for \_\_\_\_ minutes runtime
 - [ ] Ambient temperature within spec (18-27C / 64-80F)
 - [ ] Physical security of server location (locked room, access log)
 
 ### 2. Network Infrastructure
 
-- [ ] Network switch model and port count: ____________________
-- [ ] PoE budget sufficient for cameras: ____ W available, ____ W required
-- [ ] PoE standard confirmed (802.3af / 802.3at / 802.3bt): ____________
-- [ ] Uplink speed to core switch: ____ Gbps
+- [ ] Network switch model and port count: **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] PoE budget sufficient for cameras: \_**\_ W available, \_\_** W required
+- [ ] PoE standard confirmed (802.3af / 802.3at / 802.3bt): \***\*\_\_\_\_\*\***
+- [ ] Uplink speed to core switch: \_\_\_\_ Gbps
 - [ ] VLAN support available on switch: Yes / No
-- [ ] Camera VLAN ID: ____ CIDR: ____________________
-- [ ] Management VLAN ID: ____ CIDR: ____________________
-- [ ] Client VLAN ID: ____ CIDR: ____________________
+- [ ] Camera VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
+- [ ] Management VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
+- [ ] Client VLAN ID: \_**\_ CIDR: **\*\*\***\*\_\_\*\***\*\*\*\*\*\*
 - [ ] DHCP server available for camera VLAN: Yes / No
 - [ ] DNS available on management network: Yes / No
-- [ ] NTP server address: ____________________
+- [ ] NTP server address: **\*\*\*\***\_\_\_\_**\*\*\*\***
 
 ### 3. Camera Inventory
 
-| # | Location | Make/Model | Resolution | ONVIF Profile | PoE Class | Existing IP |
-|---|----------|------------|------------|---------------|-----------|-------------|
-| 1 | | | | | | |
-| 2 | | | | | | |
-| 3 | | | | | | |
-| 4 | | | | | | |
+| #   | Location | Make/Model | Resolution | ONVIF Profile | PoE Class | Existing IP |
+| --- | -------- | ---------- | ---------- | ------------- | --------- | ----------- |
+| 1   |          |            |            |               |           |             |
+| 2   |          |            |            |               |           |             |
+| 3   |          |            |            |               |           |             |
+| 4   |          |            |            |               |           |             |
 
-- [ ] Total camera count: ____
+- [ ] Total camera count: \_\_\_\_
 - [ ] All cameras confirmed ONVIF Profile S compliant
 - [ ] Camera firmware versions documented
 - [ ] Default credentials changed on all cameras
@@ -303,22 +308,22 @@ Use this checklist before deploying at a new site. Complete each section and ret
 
 ### 4. Server Specification
 
-- [ ] CPU: ____________________ (minimum: 4 cores for 16 cameras, 8 cores for 32+)
-- [ ] RAM: ____ GB (minimum: 8 GB for 16 cameras, 16 GB for 32+)
-- [ ] OS storage: ____ GB SSD
-- [ ] Recording storage: ____ TB (see bandwidth planning for sizing)
+- [ ] CPU: **\*\*\*\***\_\_\_\_**\*\*\*\*** (minimum: 4 cores for 16 cameras, 8 cores for 32+)
+- [ ] RAM: \_\_\_\_ GB (minimum: 8 GB for 16 cameras, 16 GB for 32+)
+- [ ] OS storage: \_\_\_\_ GB SSD
+- [ ] Recording storage: \_\_\_\_ TB (see bandwidth planning for sizing)
 - [ ] Storage type: Local disk / NAS / SAN
-- [ ] If NAS/SAN: protocol (NFS / iSCSI / SMB), confirmed throughput: ____ MB/s
-- [ ] NIC count and speed: ____________________
-- [ ] OS: ____________________ (Linux recommended)
+- [ ] If NAS/SAN: protocol (NFS / iSCSI / SMB), confirmed throughput: \_\_\_\_ MB/s
+- [ ] NIC count and speed: **\*\*\*\***\_\_\_\_**\*\*\*\***
+- [ ] OS: **\*\*\*\***\_\_\_\_**\*\*\*\*** (Linux recommended)
 
 ### 5. Bandwidth Verification
 
-- [ ] Calculated total ingest bandwidth: ____ Mbps
-- [ ] Calculated total storage per day: ____ GB
+- [ ] Calculated total ingest bandwidth: \_\_\_\_ Mbps
+- [ ] Calculated total storage per day: \_\_\_\_ GB
 - [ ] Confirmed switch can handle aggregate throughput
-- [ ] iperf3 test between NVR and camera VLAN: ____ Mbps measured
-- [ ] iperf3 test between NVR and client VLAN: ____ Mbps measured
+- [ ] iperf3 test between NVR and camera VLAN: \_\_\_\_ Mbps measured
+- [ ] iperf3 test between NVR and client VLAN: \_\_\_\_ Mbps measured
 
 ### 6. Firewall and Security
 
@@ -333,19 +338,19 @@ Use this checklist before deploying at a new site. Complete each section and ret
 
 ### 7. WAN / Remote Access (if applicable)
 
-- [ ] WAN link speed: ____ Mbps upload / ____ Mbps download
-- [ ] VPN or ZTNA solution: ____________________
+- [ ] WAN link speed: \_**\_ Mbps upload / \_\_** Mbps download
+- [ ] VPN or ZTNA solution: **\*\*\*\***\_\_\_\_**\*\*\*\***
 - [ ] STUN/TURN server configured for remote WebRTC access
-- [ ] Remote viewer count estimated: ____
+- [ ] Remote viewer count estimated: \_\_\_\_
 - [ ] WAN bandwidth sufficient per multi-site sizing table above
 
 ### 8. Storage Retention Policy
 
-- [ ] Retention period: ____ days
-- [ ] Calculated total storage required: ____ TB
-- [ ] Storage headroom (20% recommended): ____ TB
+- [ ] Retention period: \_\_\_\_ days
+- [ ] Calculated total storage required: \_\_\_\_ TB
+- [ ] Storage headroom (20% recommended): \_\_\_\_ TB
 - [ ] Disk health monitoring configured (SMART / RAID alerts)
-- [ ] Backup strategy for NVR database (SQLite): ____________________
+- [ ] Backup strategy for NVR database (SQLite): **\*\*\*\***\_\_\_\_**\*\*\*\***
 
 ### 9. Go-Live Verification
 

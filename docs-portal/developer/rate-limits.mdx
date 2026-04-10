@@ -1,0 +1,181 @@
+---
+title: Rate limits
+description: Per-API-key request caps, response headers, and retry guidance — with copy-pasteable backoff code.
+---
+
+Kaivue enforces rate limits **per API key** (not per tenant, not per IP). This lets you partition workloads cleanly: give your background exporter its own key, your real-time dashboard another, and they won't starve each other.
+
+## Plan tiers
+
+| Plan | Sustained (req/min) | Burst | Concurrent streams |
+|---|---|---|---|
+| **Free** | 60 | 20 | 2 |
+| **Starter** | 600 | 200 | 10 |
+| **Professional** | 3,000 | 1,000 | 50 |
+| **Enterprise** | Custom | Custom | Custom |
+
+"Burst" is the token-bucket refill ceiling — you can briefly exceed the sustained rate, up to the burst size, before Kaivue starts rejecting. Under steady-state traffic, only the sustained number matters.
+
+"Concurrent streams" applies to long-lived HTTP connections (SSE, Connect-Go server streams) and counts against a separate pool.
+
+<Note>
+  Limits apply uniformly across regions. A Pro-tier key can do 3,000 req/min against `us-east` **or** 3,000 req/min split across regions — not 3,000 against each.
+</Note>
+
+## Response headers
+
+Every response — success or failure — includes rate-limit telemetry:
+
+```
+X-Kaivue-RateLimit-Limit: 600
+X-Kaivue-RateLimit-Remaining: 597
+X-Kaivue-RateLimit-Reset: 1712590800
+```
+
+| Header | Meaning |
+|---|---|
+| `X-Kaivue-RateLimit-Limit` | Your sustained cap (requests/minute). |
+| `X-Kaivue-RateLimit-Remaining` | Requests left in the current window. |
+| `X-Kaivue-RateLimit-Reset` | Unix timestamp (seconds, UTC) when the window refills. |
+
+When you're over the limit, Kaivue returns `429 Too Many Requests` with `code: rate_limited` and adds:
+
+```
+Retry-After: 12
+```
+
+`Retry-After` is in **seconds**. Wait at least that long before retrying.
+
+## Full 429 response
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 12
+X-Kaivue-RateLimit-Limit: 600
+X-Kaivue-RateLimit-Remaining: 0
+X-Kaivue-RateLimit-Reset: 1712590812
+
+{
+  "code": "rate_limited",
+  "message": "API key exceeded 600 req/min on key kv_live_...4c5d",
+  "request_id": "req_01HZ8W..."
+}
+```
+
+<Warning>
+  Don't confuse `rate_limited` with `resource_exhausted`. Both return HTTP 429, but `resource_exhausted` means you hit a **quota** (e.g., storage, camera count, feature entitlement). Retrying won't help — you need to upgrade your plan or free resources. See [Errors](/developer/errors#code-taxonomy).
+</Warning>
+
+## Retry strategy
+
+The correct retry loop for `rate_limited`:
+
+1. Read `Retry-After` (or compute from `X-Kaivue-RateLimit-Reset - now`).
+2. Sleep that long, plus a small jitter (50–500ms) to avoid thundering herd.
+3. Retry once. If it fails again, back off exponentially (2×, 4×, 8×, up to 60s).
+4. After 5 consecutive 429s, surface the error — something is wrong with your traffic shape, not just a spike.
+
+### Python
+
+```python
+import time, random
+from kaivue import KaivueClient
+from kaivue.errors import RateLimited
+
+client = KaivueClient(api_key="kv_live_...")
+
+def list_all_cameras_with_retry():
+    delay = 1.0
+    for attempt in range(5):
+        try:
+            return list(client.cameras.list())
+        except RateLimited as e:
+            wait = e.retry_after_seconds + random.uniform(0.05, 0.5)
+            time.sleep(wait)
+            delay = min(delay * 2, 60)
+    raise RuntimeError("rate limited 5 times — check traffic shape")
+```
+
+### TypeScript
+
+```ts
+import { KaivueClient, KaivueError } from "@kaivue/sdk";
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let delayMs = 1000;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof KaivueError && err.code === "rate_limited") {
+        const jitter = Math.floor(Math.random() * 450) + 50;
+        await new Promise(r => setTimeout(r, err.retryAfterMs + jitter));
+        delayMs = Math.min(delayMs * 2, 60_000);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("rate limited 5 times");
+}
+```
+
+### Go
+
+```go
+func ListWithRetry(ctx context.Context, client *kaivue.Client) ([]*kaivue.Camera, error) {
+    backoff := time.Second
+    for attempt := 0; attempt < 5; attempt++ {
+        var cams []*kaivue.Camera
+        iter := client.Cameras.List(ctx, &kaivue.CamerasListRequest{})
+        for iter.Next() { cams = append(cams, iter.Value()) }
+        if err := iter.Err(); err != nil {
+            var kerr *kaivue.Error
+            if errors.As(err, &kerr) && kerr.Code == "rate_limited" {
+                jitter := time.Duration(rand.Intn(450)+50) * time.Millisecond
+                time.Sleep(kerr.RetryAfter + jitter)
+                backoff = min(backoff*2, 60*time.Second)
+                continue
+            }
+            return nil, err
+        }
+        return cams, nil
+    }
+    return nil, errors.New("rate limited 5 times")
+}
+```
+
+## Built-in SDK throttling
+
+Every official SDK already reads `X-Kaivue-RateLimit-*` headers and applies client-side throttling **before** you hit the server — so `rate_limited` errors are rare in practice unless your traffic is genuinely over-tier.
+
+You can tune or disable it:
+
+```python
+client = KaivueClient(api_key="kv_live_...", rate_limit_aware=False)
+```
+
+```ts
+const client = new KaivueClient({ apiKey, rateLimitAware: false });
+```
+
+Disable only if you're implementing your own cross-process throttling (e.g., a Redis-backed token bucket shared across workers).
+
+## Monitoring headroom
+
+Emit a gauge metric from `X-Kaivue-RateLimit-Remaining / X-Kaivue-RateLimit-Limit`. If that ratio drops below 20% for sustained periods, you're about to hit the limit — either upgrade the plan, split to a second API key, or add request coalescing.
+
+## Avoiding rate limits entirely
+
+- **Prefer webhooks over polling.** A busy fleet + a 10-second poll loop = thousands of wasted calls. See [Webhooks](/developer/webhooks).
+- **Use the SSE events stream** for real-time dashboards. One long-lived connection replaces thousands of polls.
+- **Batch list calls.** Use `page_size=200` instead of the default 50.
+- **Cache aggressively.** Camera metadata rarely changes; cache for 5–15 minutes.
+- **Partition by key.** Background jobs get a separate `kv_live_...` key from interactive traffic.
+
+## What's next
+
+- [Errors](/developer/errors) — the full error taxonomy, including the `rate_limited` vs `resource_exhausted` distinction.
+- [Webhooks](/developer/webhooks) — the push-based alternative to polling.
+- [Pagination](/developer/pagination) — larger pages mean fewer requests.

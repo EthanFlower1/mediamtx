@@ -87,11 +87,16 @@
     {
       "group": "Developer",
       "pages": [
+        "developer/quickstart",
         "developer/api",
         "developer/sdks",
         "developer/webhooks",
         "developer/oauth",
-        "developer/integrations"
+        "developer/integrations",
+        "developer/recipes",
+        "developer/errors",
+        "developer/pagination",
+        "developer/rate-limits"
       ]
     },
     {

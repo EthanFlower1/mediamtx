@@ -1,0 +1,56 @@
+name: Installer image build
+on:
+  pull_request:
+    paths:
+      - "internal/installer/**"
+      - "scripts/build-installer.sh"
+      - "scripts/hw-validate.sh"
+      - ".github/workflows/installer-build.yml"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  installer-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run installer package tests
+        run: go test -v -race -count=1 ./internal/installer/...
+
+  installer-build:
+    needs: installer-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build installer tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          ./scripts/build-installer.sh \
+            --arch ${{ matrix.arch }} \
+            --version "$VERSION" \
+            --mode tarball
+
+      - name: Upload installer artifact
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaivue-installer-${{ matrix.arch }}
+          path: dist/installer/kaivue-installer-*.tar.gz
+          retention-days: 90

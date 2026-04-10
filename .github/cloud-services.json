@@ -1,0 +1,29 @@
+{
+  "_comment": "KAI-232 — Cloud services matrix. TODO: confirm final list with lead-cloud. Each entry must have a corresponding internal/cloud/<name>/... package and a deploy/cloud/<name>/Dockerfile template.",
+  "services": [
+    {
+      "name": "directory-api",
+      "package": "./internal/cloud/directoryingest/...",
+      "dockerfile": "deploy/cloud/directory-api/Dockerfile",
+      "ecr_repo": "kaivue/directory-api"
+    },
+    {
+      "name": "billing-api",
+      "package": "./internal/cloud/billing/...",
+      "dockerfile": "deploy/cloud/billing-api/Dockerfile",
+      "ecr_repo": "kaivue/billing-api"
+    },
+    {
+      "name": "notifications-worker",
+      "package": "./internal/cloud/notifications/...",
+      "dockerfile": "deploy/cloud/notifications-worker/Dockerfile",
+      "ecr_repo": "kaivue/notifications-worker"
+    },
+    {
+      "name": "region-router",
+      "package": "./internal/cloud/regionrouter/...",
+      "dockerfile": "deploy/cloud/region-router/Dockerfile",
+      "ecr_repo": "kaivue/region-router"
+    }
+  ]
+}

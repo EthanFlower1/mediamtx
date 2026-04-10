@@ -1,0 +1,120 @@
+# KAI-232 — Cloud control plane promotion workflow
+#
+# Manual promotion from dev → staging → prod. This workflow does NOT build
+# or push images; it only opens a PR against the GitOps env repo
+# (kaivue/infra-envs) that bumps the image tag in
+# envs/<env>/<service>/values.yaml. ArgoCD then reconciles the change.
+#
+# Dev environment is auto-synced by ArgoCD (see deploy/argocd/applications/*)
+# so it never uses this workflow.
+#
+# TODO(lead-cloud):
+#   * Provision the kaivue/infra-envs repo with the envs/<env>/<service>/values.yaml
+#     layout referenced here.
+#   * Create a GH App / fine-grained PAT with `contents:write` +
+#     `pull-requests:write` on that repo and add it as the INFRA_ENVS_TOKEN
+#     secret.
+#   * Create `prod` GitHub environment with required reviewers so the
+#     `environment: prod` gate below actually blocks.
+
+name: cloud-services-promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service name (must match .github/cloud-services.json)'
+        required: true
+      target_env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+      image_tag:
+        description: 'Image tag to promote (e.g. v1.2.3 or 12-char sha)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote ${{ github.event.inputs.service }} → ${{ github.event.inputs.target_env }}
+    runs-on: ubuntu-22.04
+    # TODO(lead-cloud): uncomment once the `prod` GH environment exists with
+    # required reviewers. Until then the gate is a no-op comment so the
+    # workflow remains dispatch-runnable for staging.
+    # environment: ${{ github.event.inputs.target_env }}
+    steps:
+      - name: Validate service name
+        run: |
+          set -euo pipefail
+          SVC='${{ github.event.inputs.service }}'
+          # Sanity check against .github/cloud-services.json from this repo.
+          # We fetch it via raw content instead of checking out to keep the
+          # job lightweight.
+          curl -fsSL \
+            "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/.github/cloud-services.json" \
+            -o services.json
+          if ! jq -e --arg s "${SVC}" '.services[] | select(.name==$s)' services.json > /dev/null; then
+            echo "::error::Unknown service '${SVC}' — not in .github/cloud-services.json"
+            exit 1
+          fi
+
+      - name: Checkout env repo
+        uses: actions/checkout@v6
+        with:
+          repository: kaivue/infra-envs
+          token: ${{ secrets.INFRA_ENVS_TOKEN }}
+          path: infra-envs
+        # TODO(lead-cloud): INFRA_ENVS_TOKEN secret + kaivue/infra-envs repo
+        # must exist for this step to succeed.
+        continue-on-error: true
+
+      - name: Bump image tag in values.yaml
+        working-directory: infra-envs
+        run: |
+          set -euo pipefail
+          SVC='${{ github.event.inputs.service }}'
+          ENV='${{ github.event.inputs.target_env }}'
+          TAG='${{ github.event.inputs.image_tag }}'
+          FILE="envs/${ENV}/${SVC}/values.yaml"
+          if [[ ! -f "${FILE}" ]]; then
+            echo "::error::${FILE} not found in env repo"
+            exit 1
+          fi
+          # Use yq if available, else sed. The env repo is expected to
+          # have a top-level `image.tag` key by convention.
+          if command -v yq >/dev/null 2>&1; then
+            yq -i ".image.tag = \"${TAG}\"" "${FILE}"
+          else
+            sed -i -E "s|^(\s*tag:\s*).*|\1\"${TAG}\"|" "${FILE}"
+          fi
+          git config user.name  'kaivue-ci[bot]'
+          git config user.email 'kaivue-ci@users.noreply.github.com'
+          BRANCH="promote/${SVC}-${ENV}-${TAG}"
+          git checkout -b "${BRANCH}"
+          git add "${FILE}"
+          git commit -m "promote(${SVC}): ${ENV} → ${TAG}"
+          git push origin "${BRANCH}"
+        continue-on-error: true
+
+      - name: Open promotion PR
+        working-directory: infra-envs
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_ENVS_TOKEN }}
+        run: |
+          set -euo pipefail
+          SVC='${{ github.event.inputs.service }}'
+          ENV='${{ github.event.inputs.target_env }}'
+          TAG='${{ github.event.inputs.image_tag }}'
+          BODY=$(printf 'Automated promotion triggered by %s via cloud-services-promote.yml.\n\nService: %s\nEnv: %s\nTag: %s\n\nMerge to trigger ArgoCD reconcile.\n' '${{ github.actor }}' "${SVC}" "${ENV}" "${TAG}")
+          gh pr create \
+            --repo kaivue/infra-envs \
+            --base main \
+            --head "promote/${SVC}-${ENV}-${TAG}" \
+            --title "promote(${SVC}): ${ENV} → ${TAG}" \
+            --body "${BODY}"
+        continue-on-error: true

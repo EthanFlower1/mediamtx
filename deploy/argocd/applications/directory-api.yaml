@@ -1,0 +1,81 @@
+# KAI-232 — ArgoCD Application: directory-api
+#
+# One Application per (service, env) would explode to 12 files for 4 services
+# x 3 envs. To keep the draft readable we use one file per service that
+# contains three documents (dev / staging / prod). ApplicationSet is the
+# longer-term cleanup but is out of scope for the draft PR.
+#
+# Env repo layout expected:
+#   kaivue/infra-envs
+#     envs/dev/directory-api/      # Helm values + kustomization
+#     envs/staging/directory-api/
+#     envs/prod/directory-api/
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: directory-api-dev
+  namespace: argocd
+  labels:
+    kaivue.io/service: directory-api
+    kaivue.io/env: dev
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/dev/directory-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: directory-api-staging
+  namespace: argocd
+  labels:
+    kaivue.io/service: directory-api
+    kaivue.io/env: staging
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/staging/directory-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-staging
+  # Manual promotion: no `automated:` block.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: directory-api-prod
+  namespace: argocd
+  labels:
+    kaivue.io/service: directory-api
+    kaivue.io/env: prod
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/prod/directory-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-prod
+  # Manual promotion: no `automated:` block.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

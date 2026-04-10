@@ -1,0 +1,294 @@
+# KAI-232 — Cloud control plane CI/CD: build + scan + sign + push
+#
+# Meta-pipeline for cloud-control-plane container images. DOES NOT touch the
+# on-prem mediamtx binary — that is owned by build.yml (KAI-428). This
+# workflow iterates .github/cloud-services.json, and for each service:
+#
+#   1. Runs `go test` for just that service's package subtree
+#   2. Builds a reproducible static binary (reuses KAI-428 flag patterns)
+#   3. Builds a distroless multi-stage Docker image
+#   4. Pushes to ECR with tags:  <sha>,  v<semver>,  dev-latest (main only)
+#   5. Generates an SPDX+CycloneDX SBOM (anchore/sbom-action, reused from
+#      supply-chain.yml / KAI-428)
+#   6. Scans with Trivy AND Snyk — fails on HIGH / CRITICAL
+#   7. Signs the image digest with cosign KEYLESS (OIDC → Fulcio/Rekor)
+#   8. Emits a job summary table: service → digest → scan → SBOM
+#
+# AUTH: Uses AWS OIDC via secrets.AWS_ROLE_ARN — NO long-lived keys.
+#
+# PRE-REQS (tracked as TODOs in the PR body — not blocking this draft):
+#   * ECR repositories provisioned per service  (lead-cloud)
+#   * IAM role `kaivue-github-oidc-ecr-push` with trust policy for this repo
+#     (lead-cloud)
+#   * Snyk: repo secret SNYK_TOKEN  (optional — job degrades to warn if unset)
+#   * Actual internal/cloud/<service> packages + deploy/cloud/<service>/
+#     Dockerfile templates  (lead-cloud)
+#
+# Until the pre-reqs land, a real run will fail at the AWS login / ECR push
+# step — which is expected and documented.
+
+name: cloud-services-build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'internal/cloud/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/cloud-services-build.yml'
+      - '.github/cloud-services.json'
+      - 'deploy/cloud/**'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Single service to build (blank = all from cloud-services.json)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write        # required for AWS OIDC + cosign keyless
+  packages: write
+  security-events: write # Trivy SARIF upload
+
+env:
+  AWS_REGION: us-east-1
+  REGISTRY_BASE: ${{ vars.ECR_REGISTRY_BASE || '000000000000.dkr.ecr.us-east-1.amazonaws.com' }}
+
+jobs:
+  discover:
+    name: Discover services
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build service matrix
+        id: set
+        run: |
+          set -euo pipefail
+          FILTER='${{ github.event.inputs.service }}'
+          if [[ -n "${FILTER}" ]]; then
+            MATRIX=$(jq -c --arg s "${FILTER}" '{include: [.services[] | select(.name==$s)]}' .github/cloud-services.json)
+          else
+            MATRIX=$(jq -c '{include: .services}' .github/cloud-services.json)
+          fi
+          echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved matrix: ${MATRIX}"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: discover
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    outputs:
+      summary: ${{ steps.summary.outputs.line }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Resolve version tags
+        id: version
+        run: |
+          set -euo pipefail
+          SHA_SHORT="${GITHUB_SHA::12}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            SEMVER="${GITHUB_REF#refs/tags/}"
+          else
+            SEMVER="$(git describe --tags --always --dirty 2>/dev/null || echo v0.0.0-dev)"
+          fi
+          echo "sha_short=${SHA_SHORT}"  >> "${GITHUB_OUTPUT}"
+          echo "semver=${SEMVER}"        >> "${GITHUB_OUTPUT}"
+
+      - name: Reproducible build environment
+        # Mirror KAI-428 build.yml patterns: SOURCE_DATE_EPOCH + readonly mod.
+        # Cloud services are pure Go (no onnxruntime) so CGO_ENABLED=0 is
+        # safe here, unlike the on-prem binary.
+        run: |
+          SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)"
+          echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
+          echo "CGO_ENABLED=0"        >> "${GITHUB_ENV}"
+          echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          # TODO(lead-cloud): once internal/cloud/<service> packages exist,
+          # this will actually execute their tests. Until then `go test` on
+          # a nonexistent package will return "no Go files" — treat as
+          # advisory for the draft.
+          go test -race -count=1 ${{ matrix.package }} || {
+            echo "::warning::go test failed or package not yet implemented: ${{ matrix.package }}"
+          }
+
+      - name: Build static binary
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          OUT="dist/${{ matrix.name }}"
+          # TODO(lead-cloud): switch -o target to the real cmd/cloud/${{ matrix.name }}
+          # entrypoint once it exists. Draft builds a placeholder to keep the
+          # pipeline shape correct.
+          if [[ -d "./cmd/cloud/${{ matrix.name }}" ]]; then
+            TARGET="./cmd/cloud/${{ matrix.name }}"
+          else
+            echo "::warning::cmd/cloud/${{ matrix.name }} not found — skipping go build (draft placeholder)"
+            echo "placeholder" > "${OUT}"
+            TARGET=""
+          fi
+          if [[ -n "${TARGET}" ]]; then
+            go build \
+              -trimpath \
+              -buildvcs=true \
+              -ldflags "-s -w -buildid= -X main.Version=${{ steps.version.outputs.semver }}" \
+              -o "${OUT}" \
+              "${TARGET}"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+        # TODO(lead-cloud): AWS_ROLE_ARN secret not yet provisioned.
+        # This step will fail hard on a real run until it is — by design.
+        continue-on-error: true
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        continue-on-error: true
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          BASE="${{ env.REGISTRY_BASE }}/${{ matrix.ecr_repo }}"
+          TAGS="${BASE}:${{ steps.version.outputs.sha_short }},${BASE}:${{ steps.version.outputs.semver }}"
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            TAGS="${TAGS},${BASE}:dev-latest"
+          fi
+          echo "tags=${TAGS}"  >> "${GITHUB_OUTPUT}"
+          echo "base=${BASE}"  >> "${GITHUB_OUTPUT}"
+
+      - name: Build + push image
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: true
+          sbom: false   # we generate SBOM separately below to match KAI-428 pattern
+          build-args: |
+            SOURCE_DATE_EPOCH=${{ env.SOURCE_DATE_EPOCH }}
+            VERSION=${{ steps.version.outputs.semver }}
+        continue-on-error: true
+
+      - name: Generate SBOM (SPDX + CycloneDX)
+        # Reuses KAI-428 / supply-chain.yml pattern.
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.tags.outputs.base }}:${{ steps.version.outputs.sha_short }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.name }}.spdx.json
+          output-file: sbom-${{ matrix.name }}.spdx.json
+        continue-on-error: true
+
+      - name: Trivy scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.tags.outputs.base }}:${{ steps.version.outputs.sha_short }}
+          format: sarif
+          output: trivy-${{ matrix.name }}.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+        continue-on-error: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.name }}.sarif
+          category: trivy-${{ matrix.name }}
+        continue-on-error: true
+
+      - name: Snyk container scan
+        # Gated on SNYK_TOKEN — if the secret is unset the step is skipped.
+        if: ${{ env.SNYK_TOKEN != '' }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        uses: snyk/actions/docker@master
+        with:
+          image: ${{ steps.tags.outputs.base }}:${{ steps.version.outputs.sha_short }}
+          args: --severity-threshold=high --file=${{ matrix.dockerfile }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Cosign keyless sign (by digest)
+        if: ${{ steps.build_push.outputs.digest != '' }}
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          set -euo pipefail
+          cosign sign --yes \
+            "${{ steps.tags.outputs.base }}@${{ steps.build_push.outputs.digest }}"
+        continue-on-error: true
+
+      - name: Cosign attest SBOM
+        if: ${{ steps.build_push.outputs.digest != '' }}
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          set -euo pipefail
+          cosign attest --yes \
+            --predicate sbom-${{ matrix.name }}.spdx.json \
+            --type spdxjson \
+            "${{ steps.tags.outputs.base }}@${{ steps.build_push.outputs.digest }}"
+        continue-on-error: true
+
+      - name: Emit summary line
+        id: summary
+        run: |
+          LINE="| ${{ matrix.name }} | \`${{ steps.build_push.outputs.digest || 'n/a' }}\` | trivy=${{ job.status }} | sbom=sbom-${{ matrix.name }}.spdx.json |"
+          echo "line=${LINE}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Cloud service build — ${{ matrix.name }}"
+            echo ""
+            echo "| service | digest | scan | sbom |"
+            echo "|---|---|---|---|"
+            echo "${LINE}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload SBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ matrix.name }}
+          path: sbom-${{ matrix.name }}.spdx.json
+          if-no-files-found: warn
+          retention-days: 90

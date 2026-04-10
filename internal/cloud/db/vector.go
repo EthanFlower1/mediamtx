@@ -95,11 +95,19 @@ func (d *DB) createHNSWIndex(ctx context.Context, table, tenantID, column, opsCl
 	partName := fmt.Sprintf("%s_t_%s", table, tenantID)
 	idxName := fmt.Sprintf("idx_%s_hnsw", partName)
 
+	// Wrap in an explicit transaction so SET LOCAL takes effect. Without this,
+	// autocommit mode resets SET LOCAL immediately (lead-cloud advisory on PR #227).
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx for HNSW build: %w", err)
+	}
+
 	// Bump work_mem for HNSW build to avoid spill to disk. The RDS parameter
 	// group default is 32MB (set by lead-cloud in PR #187), but HNSW index
 	// construction benefits from 256MB. SET LOCAL scopes the override to
 	// the current transaction only.
-	if _, err := d.ExecContext(ctx, "SET LOCAL work_mem = '256MB'"); err != nil {
+	if _, err := tx.ExecContext(ctx, "SET LOCAL work_mem = '256MB'"); err != nil {
+		_ = tx.Rollback()
 		return fmt.Errorf("set work_mem for HNSW build: %w", err)
 	}
 
@@ -107,6 +115,10 @@ func (d *DB) createHNSWIndex(ctx context.Context, table, tenantID, column, opsCl
 		"CREATE INDEX IF NOT EXISTS %s ON %s USING hnsw (%s %s) WITH (m = %d, ef_construction = %d)",
 		idxName, partName, column, opsClass, m, efConstruction,
 	)
-	_, err := d.ExecContext(ctx, ddl)
-	return err
+	if _, err := tx.ExecContext(ctx, ddl); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("create HNSW index %s: %w", idxName, err)
+	}
+
+	return tx.Commit()
 }

@@ -69,3 +69,56 @@ set_tests_properties(tst_map_view PROPERTIES
     TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ---------------------------------------------------------------------------
+# tst_p99_latency_probe — unit tests for P99LatencyProbe (KAI-333)
+# ---------------------------------------------------------------------------
+qt_add_executable(tst_p99_latency_probe
+    render/tst_p99_latency_probe.cpp
+    "${CMAKE_SOURCE_DIR}/src/render/metrics/P99LatencyProbe.cpp"
+)
+
+target_include_directories(tst_p99_latency_probe PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+
+target_link_libraries(tst_p99_latency_probe PRIVATE
+    Qt6::Test
+    Qt6::Core
+)
+
+add_test(NAME tst_p99_latency_probe COMMAND tst_p99_latency_probe)
+set_tests_properties(tst_p99_latency_probe PROPERTIES
+    LABELS "render;metrics"
+    TIMEOUT 60
+)
+
+# ---------------------------------------------------------------------------
+# tst_stress_64_streams — headless 64-stream stress harness (KAI-333)
+# Asserts P99 decode-to-present < 33 ms scaffold budget using NullDecoder.
+# ---------------------------------------------------------------------------
+qt_add_executable(tst_stress_64_streams
+    render/tst_stress_64_streams.cpp
+
+    "${CMAKE_SOURCE_DIR}/src/render/TileGrid.cpp"
+    "${CMAKE_SOURCE_DIR}/src/render/QualityController.cpp"
+    "${CMAKE_SOURCE_DIR}/src/render/FrameClock.cpp"
+    "${CMAKE_SOURCE_DIR}/src/render/NullDecoderBackend.cpp"
+    "${CMAKE_SOURCE_DIR}/src/render/metrics/P99LatencyProbe.cpp"
+)
+
+target_include_directories(tst_stress_64_streams PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+
+target_link_libraries(tst_stress_64_streams PRIVATE
+    Qt6::Test
+    Qt6::Gui
+    Qt6::Core
+)
+
+add_test(NAME tst_stress_64_streams COMMAND tst_stress_64_streams)
+set_tests_properties(tst_stress_64_streams PROPERTIES
+    LABELS "render;stress"
+    TIMEOUT 180
+)

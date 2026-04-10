@@ -1,3 +1,203 @@
-# Webhooks
+---
+title: Webhooks
+description: Outbound and inbound webhooks — signature verification, delivery semantics, and replay.
+---
 
-Coming soon.
+Webhooks are the push-based counterpart to polling the API. Kaivue offers two flavors:
+
+- **Outbound webhooks** — Kaivue POSTs event payloads to your HTTPS endpoint when something happens (camera online, motion detected, face match, recording milestone, billing update).
+- **Inbound webhooks** — Your system POSTs signed events to Kaivue to trigger an action (create a bookmark, raise an alarm, run a named Kaivue Action).
+
+Both use the same HMAC-SHA256 signature format. Once you've written a verifier for one, the other is essentially free.
+
+## Outbound webhooks
+
+### Creating a subscription
+
+```bash
+curl -X POST https://api.us-east.kaivue.com/v1/webhooks/subscriptions \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-service.example/hooks/kaivue",
+    "event_types": ["camera.online", "camera.offline", "motion.detected"],
+    "description": "Production ingest"
+  }'
+```
+
+Response includes a `signing_secret` — **this is shown exactly once**. Store it in your secret manager; Kaivue cannot recover it later.
+
+### Delivery semantics
+
+- **At-least-once.** Consumers must dedupe on the `Idempotency-Key` header.
+- **Retries with exponential backoff** (1s → 4h cap) for 24 hours before a delivery is moved to the DLQ.
+- **No ordering guarantee.** Events may arrive out of order; use `event_id` or `occurred_at` to reassemble order if needed.
+
+### Signature verification
+
+Every delivery includes this header (one per active signing secret — during rotation you may see two):
+
+```
+Kaivue-Signature: t=1712590800,v1=5a1f...,kid=sk_abc
+```
+
+To verify:
+
+1. Read the raw request body (don't re-parse it).
+2. Parse `t`, `v1`, `kid` from the header.
+3. Reject if `|now - t| > 300` seconds.
+4. Compute `HMAC-SHA256(t + "." + raw_body, signing_secret)`.
+5. Compare to `v1` in constant time.
+
+Example — Node.js:
+
+```js
+import crypto from "node:crypto";
+
+function verify(rawBody, headerValue, secret) {
+  const parts = Object.fromEntries(
+    headerValue.split(",").map(kv => kv.split("="))
+  );
+  const t = parseInt(parts.t, 10);
+  if (Math.abs(Date.now() / 1000 - t) > 300) return false;
+
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${t}.${rawBody}`)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(expected, "hex"),
+    Buffer.from(parts.v1, "hex")
+  );
+}
+```
+
+Example — Go:
+
+```go
+func Verify(rawBody []byte, header string, secret []byte) bool {
+  parts := parseSig(header) // map[string]string
+  t, _ := strconv.ParseInt(parts["t"], 10, 64)
+  if abs(time.Now().Unix()-t) > 300 {
+    return false
+  }
+  mac := hmac.New(sha256.New, secret)
+  fmt.Fprintf(mac, "%d.%s", t, rawBody)
+  expected := mac.Sum(nil)
+  got, _ := hex.DecodeString(parts["v1"])
+  return hmac.Equal(expected, got)
+}
+```
+
+Example — Python:
+
+```python
+import hmac, hashlib, time
+
+def verify(raw_body: bytes, header: str, secret: bytes) -> bool:
+    parts = dict(kv.split("=", 1) for kv in header.split(","))
+    t = int(parts["t"])
+    if abs(time.time() - t) > 300:
+        return False
+    expected = hmac.new(
+        secret, f"{t}.".encode() + raw_body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, parts["v1"])
+```
+
+### Idempotency
+
+Every delivery includes `Idempotency-Key: whk_evt_<uuid>`. Same event → same key on every retry. Your handler should:
+
+```
+1. read Idempotency-Key
+2. if already processed in last 48h → return 200 (do nothing)
+3. else → process + record the key
+4. return 200
+```
+
+### Rotating the signing secret without downtime
+
+```bash
+curl -X POST https://api.us-east.kaivue.com/v1/webhooks/subscriptions/{id}/signing-secrets:rotate \
+  -H "Authorization: Bearer kv_live_..."
+```
+
+This creates a new **secondary** secret. During the overlap window (default 24 hours), deliveries include **two** `Kaivue-Signature` headers — one signed with the old secret, one with the new. Your verifier should accept if **either** validates. After you've deployed the new secret to your consumer, call `retire-signing-secret` to promote it to primary and retire the old one.
+
+### Circuit breaker
+
+Kaivue auto-pauses a subscription after 20 consecutive failures or an 80% failure rate over the last 100 attempts. You'll get a notification and can resume via API or UI.
+
+## Inbound webhooks
+
+### Endpoint
+
+```
+POST https://api.us-east.kaivue.com/v1/webhooks/inbound/{subscription_id}
+```
+
+### Headers (required)
+
+```
+Kaivue-Signature: t=<unix>,v1=<hex>,kid=<key_id>
+Idempotency-Key: <your-event-uuid>
+Content-Type: application/json
+```
+
+### Body
+
+```json
+{
+  "action": "camera.bookmark.create",
+  "params": {
+    "camera_id": "cam_01HZ...",
+    "timestamp": "2026-04-08T15:30:00Z",
+    "note": "intrusion detected by upstream system"
+  }
+}
+```
+
+### Security posture
+
+- Replay window is **60 seconds** (stricter than outbound).
+- Missing/invalid signature, missing `Idempotency-Key`, unknown subscription, and replay all return the same `401`.
+- Subscriptions are auto-paused after repeated failures to protect against credential compromise.
+- Source IP allowlists are available per subscription.
+
+### Response
+
+Most actions are dispatched asynchronously:
+
+```
+HTTP/1.1 202 Accepted
+{
+  "action_run_id": "arn_01HZ...",
+  "status": "queued",
+  "poll_url": "/v1/actions/runs/arn_01HZ..."
+}
+```
+
+A small allowlist of always-cheap actions (bookmark create, event annotate, custom notification send) respond synchronously with the final result.
+
+## Viewing delivery logs
+
+Every delivery is recorded with:
+
+- Request headers + payload hash
+- Response status + body snippet
+- Retry attempts
+- Final outcome (succeeded / failed / dlq / duplicate)
+
+```
+GET /v1/webhooks/subscriptions/{id}/deliveries?status=failed&limit=50
+```
+
+Deliveries in the DLQ can be replayed manually for 90 days.
+
+## What's next
+
+- [API authentication](/developer/api-keys)
+- [Kaivue Actions](/developer/actions)
+- [API reference: Webhooks](/api-reference/webhooks)

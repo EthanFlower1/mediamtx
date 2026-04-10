@@ -42,7 +42,9 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// 0014 is KAI-254 ai_events (postgres-only partition stripped) +
 	// camera_state + segment_index_stub (SQLite-compatible).
 	// 0015 is KAI-362 billing column tightening (postgres-only ALTERs; SQLite no-op).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	// 0016 is KAI-364 per-tenant usage_events + usage_aggregates metering tables
+	// (postgres partman block stripped in SQLite; fallback tables created).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

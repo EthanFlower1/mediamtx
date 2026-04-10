@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "internal/shared/proto/**"
+      - "clients/flutter/lib/src/gen/proto/**"
 
 permissions:
   contents: read
@@ -21,7 +22,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install protoc plugins
+      - name: Install Go protoc plugins
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
           go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
@@ -30,13 +31,33 @@ jobs:
         working-directory: internal/shared/proto
         run: buf lint
 
-      - name: buf generate
+      - name: buf generate (Go)
         working-directory: internal/shared/proto
         run: buf generate
 
-      - name: Check generated code is up-to-date
+      - name: Install Dart protoc plugin
+        if: hashFiles('internal/shared/proto/buf.gen.dart.yaml') != ''
+        uses: dart-lang/setup-dart@v1
+
+      - name: buf generate (Dart)
+        if: hashFiles('internal/shared/proto/buf.gen.dart.yaml') != ''
+        working-directory: internal/shared/proto
+        run: |
+          dart pub global activate protoc_plugin
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          buf generate --template buf.gen.dart.yaml .
+
+      - name: Check generated Go code is up-to-date
         run: |
           if ! git diff --exit-code internal/shared/proto/gen/; then
-            echo "::error::Generated proto stubs are out of date. Run 'cd internal/shared/proto && buf generate' and commit the results."
+            echo "::error::Generated Go proto stubs are out of date. Run 'cd internal/shared/proto && buf generate' and commit the results."
+            exit 1
+          fi
+
+      - name: Check generated Dart code is up-to-date
+        if: hashFiles('internal/shared/proto/buf.gen.dart.yaml') != ''
+        run: |
+          if ! git diff --exit-code clients/flutter/lib/src/gen/proto/; then
+            echo "::error::Generated Dart proto stubs are out of date. Run 'cd internal/shared/proto && buf generate --template buf.gen.dart.yaml .' and commit the results."
             exit 1
           fi

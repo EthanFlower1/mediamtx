@@ -1,3 +1,5 @@
+//go:build cgo
+
 package ai
 
 import (
@@ -371,23 +373,5 @@ func l2Normalize(v []float32) {
 	}
 }
 
-// CosineSimilarity computes the cosine similarity between two vectors.
-// Both vectors must have the same length. Returns 0 if lengths differ.
-func CosineSimilarity(a, b []float32) float64 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
-	}
-
-	var dot, normA, normB float64
-	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-
-	denom := math.Sqrt(normA) * math.Sqrt(normB)
-	if denom == 0 {
-		return 0
-	}
-	return dot / denom
-}
+// CosineSimilarity has moved to helpers.go so it is available in both cgo
+// and no-cgo builds — it is pure Go math and has no ONNX Runtime dependency.

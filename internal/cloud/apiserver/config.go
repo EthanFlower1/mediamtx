@@ -141,6 +141,10 @@ type Config struct {
 	// BehavioralStore is the KAI-429 behavioral analytics config store.
 	// When non-nil, the four behavioral CRUD routes are mounted.
 	BehavioralStore BehavioralStore
+
+	// NotificationPrefsStore is the KAI-371 per-user notification preferences
+	// store. When non-nil, the notification preferences CRUD routes are mounted.
+	NotificationPrefsStore NotificationPrefsStore
 }
 
 // BuildInfoConfig carries the build metadata for kaivue_build_info (KAI-422).

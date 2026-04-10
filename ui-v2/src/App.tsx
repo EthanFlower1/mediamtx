@@ -60,6 +60,10 @@ const CustomersPage = lazy(() => import('./routes/command/CustomersPage'));
 // KAI-310: BrandConfigPage lazy-loaded; brand settings form, preview panel,
 // and email template cards only ship when /command/brand is visited.
 const BrandConfigPage = lazy(() => import('./routes/command/BrandConfigPage'));
+// KAI-311: MobileBuildsPage lazy-loaded — build table, trigger dialog, detail
+// drawer, credentials, and distribution config only ship when /command/builds
+// is visited.
+const MobileBuildsPage = lazy(() => import('./routes/command/MobileBuildsPage'));
 const CustomerDrillDown = lazy(() =>
   import('./components/customers/CustomerDrillDown').then((m) => ({
     default: m.CustomerDrillDown,
@@ -84,6 +88,7 @@ export function App(): JSX.Element {
         <Route path="/command/customers" element={<CustomersPage />} />
         <Route path="/command/customers/:customerId" element={<CustomerDrillDown />} />
         <Route path="/command/brand" element={<BrandConfigPage />} />
+        <Route path="/command/builds" element={<MobileBuildsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

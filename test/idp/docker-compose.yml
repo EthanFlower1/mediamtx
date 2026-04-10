@@ -1,0 +1,101 @@
+# KAI-137: Mock identity provider stack for integration tests.
+#
+# Provides OIDC, SAML and LDAP mock services so that Go integration tests
+# can exercise the Zitadel adapter's provider configuration path against
+# real protocol endpoints without a live Zitadel tenant.
+#
+# Usage:
+#   docker compose -f test/idp/docker-compose.yml up -d
+#   go test -tags integration ./internal/shared/auth/zitadel/idptest/...
+#   docker compose -f test/idp/docker-compose.yml down -v
+
+services:
+  # ---------- Mock OIDC Provider ----------
+  # Lightweight OIDC server with .well-known/openid-configuration,
+  # /token, /authorize, /userinfo and JWKS endpoints.
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    container_name: kai-mock-oidc
+    ports:
+      - "9090:9090"
+    environment:
+      SERVER_PORT: "9090"
+      # JSON_CONFIG supplies a deterministic issuer and a pre-registered
+      # client so tests can call the token endpoint directly.
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": false,
+          "httpServer": "NettyWrapper",
+          "tokenCallbacks": [
+            {
+              "issuerId": "kaivue-test",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "grant_type",
+                  "match": "client_credentials",
+                  "claims": {
+                    "sub": "test-service-account",
+                    "aud": ["kaivue-test-client"],
+                    "groups": ["admin", "viewer"]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/kaivue-test/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - idp-net
+
+  # ---------- Mock SAML IdP ----------
+  # test-saml-idp exposes SSO + metadata endpoints.
+  mock-saml:
+    image: kristophjunge/test-saml-idp:1.15
+    container_name: kai-mock-saml
+    ports:
+      - "8443:8443"
+      - "8080:8080"
+    environment:
+      SIMPLESAMLPHP_SP_ENTITY_ID: "kaivue-test-sp"
+      SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE: "http://localhost:8888/saml/acs"
+      SIMPLESAMLPHP_SP_SINGLE_LOGOUT_SERVICE: "http://localhost:8888/saml/slo"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/simplesaml/saml2/idp/metadata.php"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - idp-net
+
+  # ---------- OpenLDAP ----------
+  # Pre-seeded directory with test users and groups under
+  # dc=test,dc=kaivue,dc=io.
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: kai-openldap
+    ports:
+      - "389:389"
+      - "636:636"
+    environment:
+      LDAP_ORGANISATION: "Kaivue Test"
+      LDAP_DOMAIN: "test.kaivue.io"
+      LDAP_ADMIN_PASSWORD: "admin-secret"
+      LDAP_SEED_INTERNAL_LDIF_PATH: "/seed"
+    volumes:
+      - ./seed/ldap-seed.ldif:/seed/01-seed.ldif:ro
+    healthcheck:
+      test: ["CMD", "ldapsearch", "-x", "-H", "ldap://localhost", "-b", "dc=test,dc=kaivue,dc=io", "-D", "cn=admin,dc=test,dc=kaivue,dc=io", "-w", "admin-secret", "(objectClass=organization)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - idp-net
+
+networks:
+  idp-net:
+    driver: bridge

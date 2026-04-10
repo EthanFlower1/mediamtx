@@ -1,0 +1,654 @@
+// public_api.proto — KAI-399 Public REST + Connect-Go API contract.
+//
+// This file defines the public-facing API services for the KaiVue VMS platform.
+// All services are versioned under /v1/ and exposed as both gRPC/Connect-Go
+// and REST (via grpc-gateway annotations once buf generates them).
+//
+// CRUD resources:
+//   - Cameras           (delegated from internal CamerasService)
+//   - Users             (tenant-scoped user management)
+//   - Recordings        (read-only segment index queries)
+//   - Events            (AI event queries + acknowledgment)
+//   - Schedules         (recording schedule management)
+//   - Retention         (retention policy management)
+//   - Integrations      (third-party integration CRUD)
+//
+// Authentication: API key (X-API-Key header) or OAuth bearer token.
+// Rate limiting: per-tenant, tiered (free/starter/pro/enterprise).
+// Versioning: all paths prefixed /v1/; breaking changes get /v2/.
+
+syntax = "proto3";
+
+package kaivue.v1.public;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+
+option go_package = "github.com/bluenviron/mediamtx/internal/shared/proto/gen/go/kaivue/v1/public;publicv1";
+
+// ---------------------------------------------------------------------------
+// Common types
+// ---------------------------------------------------------------------------
+
+// PaginationRequest carries cursor-based pagination parameters.
+message PaginationRequest {
+  int32 page_size = 1;   // max items per page; capped server-side
+  string cursor = 2;     // opaque cursor from a previous response
+}
+
+// PaginationResponse carries the cursor for the next page.
+message PaginationResponse {
+  string next_cursor = 1;
+  int32 total_count = 2;  // approximate total; 0 if unknown
+}
+
+// SortOrder controls result ordering.
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_ASC = 1;
+  SORT_ORDER_DESC = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Cameras
+// ---------------------------------------------------------------------------
+
+// CameraStatus is the public-facing camera state.
+enum CameraStatus {
+  CAMERA_STATUS_UNSPECIFIED = 0;
+  CAMERA_STATUS_ONLINE = 1;
+  CAMERA_STATUS_OFFLINE = 2;
+  CAMERA_STATUS_DISABLED = 3;
+  CAMERA_STATUS_ERROR = 4;
+}
+
+// PublicCamera is the public representation of a camera.
+// Sensitive fields (credential_ref, internal IDs) are stripped.
+message PublicCamera {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string manufacturer = 4;
+  string model = 5;
+  string firmware_version = 6;
+  string mac_address = 7;
+  string ip_address = 8;
+  CameraStatus status = 9;
+  repeated string labels = 10;
+  string recording_mode = 11;
+  string recorder_id = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Timestamp last_seen_at = 15;
+}
+
+message CreateCameraRequest {
+  string name = 1;
+  string description = 2;
+  string ip_address = 3;
+  string recorder_id = 4;
+  string recording_mode = 5;
+  repeated string labels = 6;
+  // Credentials are write-only; never returned in responses.
+  string username = 7;
+  string password = 8;
+}
+
+message CreateCameraResponse {
+  PublicCamera camera = 1;
+}
+
+message GetCameraRequest {
+  string id = 1;
+}
+
+message GetCameraResponse {
+  PublicCamera camera = 1;
+}
+
+message UpdateCameraRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string recording_mode = 4;
+  repeated string labels = 5;
+  // Optional credential rotation — write-only.
+  string username = 6;
+  string password = 7;
+  google.protobuf.FieldMask update_mask = 8;
+}
+
+message UpdateCameraResponse {
+  PublicCamera camera = 1;
+}
+
+message DeleteCameraRequest {
+  string id = 1;
+  bool purge_recordings = 2;
+}
+
+message DeleteCameraResponse {}
+
+message ListCamerasRequest {
+  PaginationRequest pagination = 1;
+  string search = 2;
+  string recorder_id = 3;
+  CameraStatus status_filter = 4;
+  repeated string label_filter = 5;
+  string sort_by = 6;
+  SortOrder sort_order = 7;
+}
+
+message ListCamerasResponse {
+  repeated PublicCamera cameras = 1;
+  PaginationResponse pagination = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+message PublicUser {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string display_name = 4;
+  repeated string roles = 5;
+  repeated string groups = 6;
+  bool disabled = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  google.protobuf.Timestamp last_login_at = 10;
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string display_name = 3;
+  string password = 4;  // write-only
+  repeated string roles = 5;
+  repeated string groups = 6;
+}
+
+message CreateUserResponse {
+  PublicUser user = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  PublicUser user = 1;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  string password = 4;  // write-only; empty means no change
+  repeated string roles = 5;
+  repeated string groups = 6;
+  bool disabled = 7;
+  google.protobuf.FieldMask update_mask = 8;
+}
+
+message UpdateUserResponse {
+  PublicUser user = 1;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {}
+
+message ListUsersRequest {
+  PaginationRequest pagination = 1;
+  string search = 2;
+  string role_filter = 3;
+  string sort_by = 4;
+  SortOrder sort_order = 5;
+}
+
+message ListUsersResponse {
+  repeated PublicUser users = 1;
+  PaginationResponse pagination = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Recordings
+// ---------------------------------------------------------------------------
+
+message Recording {
+  string id = 1;
+  string camera_id = 2;
+  string camera_name = 3;
+  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp end_time = 5;
+  int64 bytes = 6;
+  string codec = 7;
+  bool has_audio = 8;
+  bool is_event_clip = 9;
+  string storage_tier = 10;
+  string recorder_id = 11;
+}
+
+message GetRecordingRequest {
+  string id = 1;
+}
+
+message GetRecordingResponse {
+  Recording recording = 1;
+}
+
+message ListRecordingsRequest {
+  PaginationRequest pagination = 1;
+  string camera_id = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  bool event_clips_only = 5;
+  string sort_by = 6;
+  SortOrder sort_order = 7;
+}
+
+message ListRecordingsResponse {
+  repeated Recording recordings = 1;
+  PaginationResponse pagination = 2;
+}
+
+message DeleteRecordingRequest {
+  string id = 1;
+}
+
+message DeleteRecordingResponse {}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+// EventSeverity classifies event importance.
+enum EventSeverity {
+  EVENT_SEVERITY_UNSPECIFIED = 0;
+  EVENT_SEVERITY_INFO = 1;
+  EVENT_SEVERITY_WARNING = 2;
+  EVENT_SEVERITY_CRITICAL = 3;
+}
+
+message Event {
+  string id = 1;
+  string camera_id = 2;
+  string camera_name = 3;
+  string kind = 4;         // e.g. "motion", "person", "vehicle"
+  string kind_label = 5;   // sub-label for custom events
+  EventSeverity severity = 6;
+  float confidence = 7;
+  google.protobuf.Timestamp occurred_at = 8;
+  string thumbnail_url = 9;
+  string recording_id = 10;  // linked recording segment
+  map<string, string> attributes = 11;
+  bool acknowledged = 12;
+  string acknowledged_by = 13;
+  google.protobuf.Timestamp acknowledged_at = 14;
+}
+
+message GetEventRequest {
+  string id = 1;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
+
+message ListEventsRequest {
+  PaginationRequest pagination = 1;
+  string camera_id = 2;
+  string kind = 3;
+  EventSeverity min_severity = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp end_time = 6;
+  bool unacknowledged_only = 7;
+  string sort_by = 8;
+  SortOrder sort_order = 9;
+}
+
+message ListEventsResponse {
+  repeated Event events = 1;
+  PaginationResponse pagination = 2;
+}
+
+message AcknowledgeEventRequest {
+  string id = 1;
+  string note = 2;
+}
+
+message AcknowledgeEventResponse {
+  Event event = 1;
+}
+
+message DeleteEventRequest {
+  string id = 1;
+}
+
+message DeleteEventResponse {}
+
+// ---------------------------------------------------------------------------
+// Schedules
+// ---------------------------------------------------------------------------
+
+message ScheduleEntry {
+  int32 day_of_week = 1;    // ISO 8601: Monday=1..Sunday=7
+  int32 start_minute = 2;   // minutes from 00:00
+  int32 end_minute = 3;     // minutes from 00:00
+  string recording_mode = 4;
+}
+
+message Schedule {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string timezone = 4;      // IANA timezone
+  repeated ScheduleEntry entries = 5;
+  repeated string camera_ids = 6;  // cameras this schedule applies to
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateScheduleRequest {
+  string name = 1;
+  string description = 2;
+  string timezone = 3;
+  repeated ScheduleEntry entries = 4;
+  repeated string camera_ids = 5;
+}
+
+message CreateScheduleResponse {
+  Schedule schedule = 1;
+}
+
+message GetScheduleRequest {
+  string id = 1;
+}
+
+message GetScheduleResponse {
+  Schedule schedule = 1;
+}
+
+message UpdateScheduleRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string timezone = 4;
+  repeated ScheduleEntry entries = 5;
+  repeated string camera_ids = 6;
+  google.protobuf.FieldMask update_mask = 7;
+}
+
+message UpdateScheduleResponse {
+  Schedule schedule = 1;
+}
+
+message DeleteScheduleRequest {
+  string id = 1;
+}
+
+message DeleteScheduleResponse {}
+
+message ListSchedulesRequest {
+  PaginationRequest pagination = 1;
+  string search = 2;
+}
+
+message ListSchedulesResponse {
+  repeated Schedule schedules = 1;
+  PaginationResponse pagination = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Retention policies
+// ---------------------------------------------------------------------------
+
+message RetentionPolicy {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 retention_days = 4;
+  int64 max_bytes = 5;         // 0 = unlimited
+  int32 event_retention_days = 6;
+  repeated string camera_ids = 7;  // cameras this policy applies to
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message CreateRetentionPolicyRequest {
+  string name = 1;
+  string description = 2;
+  int32 retention_days = 3;
+  int64 max_bytes = 4;
+  int32 event_retention_days = 5;
+  repeated string camera_ids = 6;
+}
+
+message CreateRetentionPolicyResponse {
+  RetentionPolicy policy = 1;
+}
+
+message GetRetentionPolicyRequest {
+  string id = 1;
+}
+
+message GetRetentionPolicyResponse {
+  RetentionPolicy policy = 1;
+}
+
+message UpdateRetentionPolicyRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 retention_days = 4;
+  int64 max_bytes = 5;
+  int32 event_retention_days = 6;
+  repeated string camera_ids = 7;
+  google.protobuf.FieldMask update_mask = 8;
+}
+
+message UpdateRetentionPolicyResponse {
+  RetentionPolicy policy = 1;
+}
+
+message DeleteRetentionPolicyRequest {
+  string id = 1;
+}
+
+message DeleteRetentionPolicyResponse {}
+
+message ListRetentionPoliciesRequest {
+  PaginationRequest pagination = 1;
+  string search = 2;
+}
+
+message ListRetentionPoliciesResponse {
+  repeated RetentionPolicy policies = 1;
+  PaginationResponse pagination = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Integrations
+// ---------------------------------------------------------------------------
+
+// IntegrationKind classifies the integration type.
+enum IntegrationKind {
+  INTEGRATION_KIND_UNSPECIFIED = 0;
+  INTEGRATION_KIND_WEBHOOK = 1;
+  INTEGRATION_KIND_SIEM = 2;
+  INTEGRATION_KIND_ACCESS_CONTROL = 3;
+  INTEGRATION_KIND_CLOUD_STORAGE = 4;
+  INTEGRATION_KIND_ANALYTICS = 5;
+  INTEGRATION_KIND_ALARM_PANEL = 6;
+  INTEGRATION_KIND_VMS = 7;
+  INTEGRATION_KIND_CUSTOM = 8;
+}
+
+// IntegrationStatus is the health state of an integration.
+enum IntegrationStatus {
+  INTEGRATION_STATUS_UNSPECIFIED = 0;
+  INTEGRATION_STATUS_ACTIVE = 1;
+  INTEGRATION_STATUS_DISABLED = 2;
+  INTEGRATION_STATUS_ERROR = 3;
+}
+
+message Integration {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  IntegrationKind kind = 4;
+  IntegrationStatus status = 5;
+  // Opaque JSON config blob; structure depends on kind.
+  string config_json = 6;
+  // Endpoint URL for webhook/SIEM integrations.
+  string endpoint_url = 7;
+  // Event filter: which event kinds trigger this integration.
+  repeated string event_filters = 8;
+  // Camera filter: which cameras feed this integration (empty = all).
+  repeated string camera_ids = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp last_triggered_at = 12;
+  // Error detail when status is ERROR.
+  string last_error = 13;
+}
+
+message CreateIntegrationRequest {
+  string name = 1;
+  string description = 2;
+  IntegrationKind kind = 3;
+  string config_json = 4;
+  string endpoint_url = 5;
+  repeated string event_filters = 6;
+  repeated string camera_ids = 7;
+  // Write-only secrets (webhook signing key, API tokens, etc.)
+  map<string, string> secrets = 8;
+}
+
+message CreateIntegrationResponse {
+  Integration integration = 1;
+}
+
+message GetIntegrationRequest {
+  string id = 1;
+}
+
+message GetIntegrationResponse {
+  Integration integration = 1;
+}
+
+message UpdateIntegrationRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string config_json = 4;
+  string endpoint_url = 5;
+  repeated string event_filters = 6;
+  repeated string camera_ids = 7;
+  map<string, string> secrets = 8;  // write-only
+  bool disabled = 9;
+  google.protobuf.FieldMask update_mask = 10;
+}
+
+message UpdateIntegrationResponse {
+  Integration integration = 1;
+}
+
+message DeleteIntegrationRequest {
+  string id = 1;
+}
+
+message DeleteIntegrationResponse {}
+
+message ListIntegrationsRequest {
+  PaginationRequest pagination = 1;
+  IntegrationKind kind_filter = 2;
+  IntegrationStatus status_filter = 3;
+  string search = 4;
+}
+
+message ListIntegrationsResponse {
+  repeated Integration integrations = 1;
+  PaginationResponse pagination = 2;
+}
+
+message TestIntegrationRequest {
+  string id = 1;
+}
+
+message TestIntegrationResponse {
+  bool success = 1;
+  int64 latency_ms = 2;
+  string message = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Service definitions
+// ---------------------------------------------------------------------------
+
+// PublicCamerasService provides public API CRUD for cameras.
+service PublicCamerasService {
+  rpc CreateCamera(CreateCameraRequest) returns (CreateCameraResponse);
+  rpc GetCamera(GetCameraRequest) returns (GetCameraResponse);
+  rpc UpdateCamera(UpdateCameraRequest) returns (UpdateCameraResponse);
+  rpc DeleteCamera(DeleteCameraRequest) returns (DeleteCameraResponse);
+  rpc ListCameras(ListCamerasRequest) returns (ListCamerasResponse);
+}
+
+// PublicUsersService provides public API CRUD for users.
+service PublicUsersService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+// PublicRecordingsService provides public API read/delete for recordings.
+service PublicRecordingsService {
+  rpc GetRecording(GetRecordingRequest) returns (GetRecordingResponse);
+  rpc ListRecordings(ListRecordingsRequest) returns (ListRecordingsResponse);
+  rpc DeleteRecording(DeleteRecordingRequest) returns (DeleteRecordingResponse);
+}
+
+// PublicEventsService provides public API CRUD for events.
+service PublicEventsService {
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc AcknowledgeEvent(AcknowledgeEventRequest) returns (AcknowledgeEventResponse);
+  rpc DeleteEvent(DeleteEventRequest) returns (DeleteEventResponse);
+}
+
+// PublicSchedulesService provides public API CRUD for recording schedules.
+service PublicSchedulesService {
+  rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+  rpc GetSchedule(GetScheduleRequest) returns (GetScheduleResponse);
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse);
+  rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse);
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+}
+
+// PublicRetentionService provides public API CRUD for retention policies.
+service PublicRetentionService {
+  rpc CreateRetentionPolicy(CreateRetentionPolicyRequest) returns (CreateRetentionPolicyResponse);
+  rpc GetRetentionPolicy(GetRetentionPolicyRequest) returns (GetRetentionPolicyResponse);
+  rpc UpdateRetentionPolicy(UpdateRetentionPolicyRequest) returns (UpdateRetentionPolicyResponse);
+  rpc DeleteRetentionPolicy(DeleteRetentionPolicyRequest) returns (DeleteRetentionPolicyResponse);
+  rpc ListRetentionPolicies(ListRetentionPoliciesRequest) returns (ListRetentionPoliciesResponse);
+}
+
+// PublicIntegrationsService provides public API CRUD for integrations.
+service PublicIntegrationsService {
+  rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
+  rpc GetIntegration(GetIntegrationRequest) returns (GetIntegrationResponse);
+  rpc UpdateIntegration(UpdateIntegrationRequest) returns (UpdateIntegrationResponse);
+  rpc DeleteIntegration(DeleteIntegrationRequest) returns (DeleteIntegrationResponse);
+  rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
+  rpc TestIntegration(TestIntegrationRequest) returns (TestIntegrationResponse);
+}

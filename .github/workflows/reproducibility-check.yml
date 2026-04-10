@@ -54,6 +54,12 @@ jobs:
           echo "GOFLAGS=-mod=readonly" >> "${GITHUB_ENV}"
           VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
           echo "VERSION=${VERSION}" >> "${GITHUB_ENV}"
+          # KAI-428: Strip build-directory paths and timestamps from C object
+          # files so CGO_ENABLED=1 builds remain byte-reproducible. -trimpath
+          # and -buildid= only cover Go objects; these flags cover gcc/clang.
+          PREFIX_MAP="-ffile-prefix-map=${GITHUB_WORKSPACE}=. -fdebug-prefix-map=${GITHUB_WORKSPACE}=."
+          echo "CGO_CFLAGS=${PREFIX_MAP}" >> "${GITHUB_ENV}"
+          echo "CGO_CXXFLAGS=${PREFIX_MAP}" >> "${GITHUB_ENV}"
 
       - name: Generate embedded assets
         # internal/core/VERSION and internal/servers/hls/hls.min.js are

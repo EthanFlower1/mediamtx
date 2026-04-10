@@ -45,19 +45,59 @@ func (d *DB) InsertAuditEntry(entry *AuditEntry) error {
 	return nil
 }
 
+// AuditQueryParams holds all optional filters for querying the audit log.
+type AuditQueryParams struct {
+	Limit        int
+	Offset       int
+	UserID       string
+	Action       string
+	ResourceType string
+	Search       string    // free-text search across username, resource_type, resource_id, details, ip_address
+	From         time.Time // zero value means no lower bound
+	To           time.Time // zero value means no upper bound
+}
+
 // QueryAuditLog returns audit log entries with pagination and optional filters.
 // It returns the entries and the total count of matching entries.
 func (d *DB) QueryAuditLog(limit, offset int, userID, action string) ([]*AuditEntry, int, error) {
+	return d.QueryAuditLogAdvanced(AuditQueryParams{
+		Limit:  limit,
+		Offset: offset,
+		UserID: userID,
+		Action: action,
+	})
+}
+
+// QueryAuditLogAdvanced returns audit log entries using the full set of filters.
+func (d *DB) QueryAuditLogAdvanced(p AuditQueryParams) ([]*AuditEntry, int, error) {
 	var conditions []string
 	var args []interface{}
 
-	if userID != "" {
+	if p.UserID != "" {
 		conditions = append(conditions, "user_id = ?")
-		args = append(args, userID)
+		args = append(args, p.UserID)
 	}
-	if action != "" {
+	if p.Action != "" {
 		conditions = append(conditions, "action = ?")
-		args = append(args, action)
+		args = append(args, p.Action)
+	}
+	if p.ResourceType != "" {
+		conditions = append(conditions, "resource_type = ?")
+		args = append(args, p.ResourceType)
+	}
+	if !p.From.IsZero() {
+		conditions = append(conditions, "created_at >= ?")
+		args = append(args, p.From.UTC().Format(timeFormat))
+	}
+	if !p.To.IsZero() {
+		conditions = append(conditions, "created_at <= ?")
+		args = append(args, p.To.UTC().Format(timeFormat))
+	}
+	if p.Search != "" {
+		q := "%" + p.Search + "%"
+		conditions = append(conditions,
+			"(username LIKE ? OR resource_type LIKE ? OR resource_id LIKE ? OR details LIKE ? OR ip_address LIKE ?)")
+		args = append(args, q, q, q, q, q)
 	}
 
 	where := ""
@@ -79,7 +119,7 @@ func (d *DB) QueryAuditLog(limit, offset int, userID, action string) ([]*AuditEn
 		ORDER BY created_at DESC
 		LIMIT ? OFFSET ?`, where)
 
-	queryArgs := append(args, limit, offset)
+	queryArgs := append(args, p.Limit, p.Offset)
 	rows, err := d.Query(query, queryArgs...)
 	if err != nil {
 		return nil, 0, err

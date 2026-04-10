@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,7 @@ type AuditHandler struct {
 
 // List returns paginated audit log entries. Admin only.
 //
-//	GET /api/nvr/audit?limit=50&offset=0&user_id=...&action=...
+//	GET /api/nvr/audit?limit=50&offset=0&user_id=...&action=...&resource_type=...&q=...&from=YYYY-MM-DD&to=YYYY-MM-DD
 func (h *AuditHandler) List(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
@@ -103,10 +104,28 @@ func (h *AuditHandler) List(c *gin.Context) {
 		}
 	}
 
-	userID := c.Query("user_id")
-	action := c.Query("action")
+	params := db.AuditQueryParams{
+		Limit:        limit,
+		Offset:       offset,
+		UserID:       c.Query("user_id"),
+		Action:       c.Query("action"),
+		ResourceType: c.Query("resource_type"),
+		Search:       c.Query("q"),
+	}
 
-	entries, total, err := h.DB.QueryAuditLog(limit, offset, userID, action)
+	if v := c.Query("from"); v != "" {
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			params.From = t
+		}
+	}
+	if v := c.Query("to"); v != "" {
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			// Include the entire "to" day.
+			params.To = t.Add(24*time.Hour - time.Millisecond)
+		}
+	}
+
+	entries, total, err := h.DB.QueryAuditLogAdvanced(params)
 	if err != nil {
 		apiError(c, http.StatusInternalServerError, "failed to query audit log", err)
 		return
@@ -122,10 +141,10 @@ func (h *AuditHandler) List(c *gin.Context) {
 	})
 }
 
-// Export streams audit log entries as CSV or JSON within a date range.
+// Export streams audit log entries as CSV, JSON, or PDF within a date range.
 // Admin only.
 //
-//	GET /api/nvr/audit/export?format=csv&from=2026-01-01&to=2026-04-01&user_id=...&action=...
+//	GET /api/nvr/audit/export?format=csv&from=2026-01-01&to=2026-04-01&user_id=...&action=...&resource_type=...&q=...
 func (h *AuditHandler) Export(c *gin.Context) {
 	if !requireAdmin(c) {
 		return
@@ -161,6 +180,8 @@ func (h *AuditHandler) Export(c *gin.Context) {
 
 	userID := c.Query("user_id")
 	action := c.Query("action")
+	resourceType := c.Query("resource_type")
+	search := c.Query("q")
 
 	entries, err := h.DB.QueryAuditLogByDateRange(from, to, userID, action)
 	if err != nil {
@@ -169,6 +190,28 @@ func (h *AuditHandler) Export(c *gin.Context) {
 	}
 	if entries == nil {
 		entries = []*db.AuditEntry{}
+	}
+
+	// Apply additional filters that QueryAuditLogByDateRange doesn't support.
+	if resourceType != "" || search != "" {
+		filtered := make([]*db.AuditEntry, 0, len(entries))
+		for _, e := range entries {
+			if resourceType != "" && e.ResourceType != resourceType {
+				continue
+			}
+			if search != "" {
+				q := strings.ToLower(search)
+				if !strings.Contains(strings.ToLower(e.Username), q) &&
+					!strings.Contains(strings.ToLower(e.ResourceType), q) &&
+					!strings.Contains(strings.ToLower(e.ResourceID), q) &&
+					!strings.Contains(strings.ToLower(e.Details), q) &&
+					!strings.Contains(strings.ToLower(e.IPAddress), q) {
+					continue
+				}
+			}
+			filtered = append(filtered, e)
+		}
+		entries = filtered
 	}
 
 	filename := fmt.Sprintf("audit-log-%s-to-%s", fromStr, toStr)

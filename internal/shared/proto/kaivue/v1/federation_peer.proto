@@ -94,7 +94,7 @@ message ListGroupsResponse {
 
 // --- ListCameras ------------------------------------------------------------
 
-message ListCamerasFederatedRequest {
+message FederationPeerServiceListCamerasRequest {
   TenantRef tenant = 1;
   string recorder_id = 2;  // optional filter
   string search = 3;
@@ -102,7 +102,7 @@ message ListCamerasFederatedRequest {
   string cursor = 5;
 }
 
-message ListCamerasFederatedResponse {
+message FederationPeerServiceListCamerasResponse {
   // Full Camera records, scrubbed of credential_ref by the peer before send.
   repeated Camera cameras = 1;
   string next_cursor = 2;
@@ -126,6 +126,10 @@ message RecordingHit {
   repeated string matching_event_ids = 9;
 }
 
+message SearchRecordingsResponse {
+  RecordingHit hit = 1;
+}
+
 message SearchRecordingsRequest {
   TenantRef tenant = 1;
   // Optional camera filter.
@@ -140,7 +144,7 @@ message SearchRecordingsRequest {
 }
 
 // FederationPeer is the Directory ↔ Directory service.
-service FederationPeer {
+service FederationPeerService {
   // Ping is a liveness probe. Unary.
   rpc Ping(PingRequest) returns (PingResponse);
 
@@ -154,12 +158,12 @@ service FederationPeer {
   rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
 
   // ListCameras returns cameras visible through the integrator relationship.
-  rpc ListCameras(ListCamerasFederatedRequest) returns (ListCamerasFederatedResponse);
+  rpc ListCameras(FederationPeerServiceListCamerasRequest) returns (FederationPeerServiceListCamerasResponse);
 
   // SearchRecordings is server-streaming: results arrive as they're found
   // across the peer's recorders. The stream terminates when all recorders
   // have reported or the deadline is reached.
-  rpc SearchRecordings(SearchRecordingsRequest) returns (stream RecordingHit);
+  rpc SearchRecordings(SearchRecordingsRequest) returns (stream SearchRecordingsResponse);
 
   // MintStreamURL asks the peer Directory to sign a StreamClaims token for
   // one of its cameras. The returned URL points at the peer's recorder

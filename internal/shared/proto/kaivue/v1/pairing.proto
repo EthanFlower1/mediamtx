@@ -141,7 +141,7 @@ message CompletePairingResponse {
 }
 
 // Pairing is the one-shot bootstrap service. Unary only; no streaming.
-service Pairing {
+service PairingService {
   // CompletePairing finalizes a pairing token after mTLS enrolment.
   rpc CompletePairing(CompletePairingRequest) returns (CompletePairingResponse);
 }

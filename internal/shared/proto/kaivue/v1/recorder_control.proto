@@ -92,12 +92,17 @@ message Heartbeat {
   google.protobuf.Timestamp server_time = 1;
 }
 
-// RecorderControl is the Directory → Recorder push service. Only
+// StreamAssignmentsResponse wraps an AssignmentEvent in the server stream.
+message StreamAssignmentsResponse {
+  AssignmentEvent event = 1;
+}
+
+// RecorderControlService is the Directory → Recorder push service. Only
 // StreamAssignments exists today; future RPCs (e.g. immediate
 // reboot / firmware commands) will be added via additional server-streams
 // or unary calls as needed.
-service RecorderControl {
+service RecorderControlService {
   // StreamAssignments opens a long-lived server-stream of AssignmentEvents.
   // The stream stays open for the lifetime of the recorder connection.
-  rpc StreamAssignments(StreamAssignmentsRequest) returns (stream AssignmentEvent);
+  rpc StreamAssignments(StreamAssignmentsRequest) returns (stream StreamAssignmentsResponse);
 }

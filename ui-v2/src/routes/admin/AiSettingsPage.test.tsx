@@ -15,7 +15,7 @@
 //   - Tenant isolation — changing session tenant triggers refetch
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -231,12 +231,13 @@ describe('AiSettingsPage', () => {
     await user.click(screen.getByTestId('purge-next-2'));
     await waitFor(() => screen.getByTestId('purge-step-3'));
 
-    const confirm = screen.getByTestId('purge-confirm') as HTMLButtonElement;
-    expect(confirm.disabled).toBe(true);
+    // Step 3: typed confirmation — "Next" is disabled until sentinel matches
+    const next3 = screen.getByTestId('purge-next-3') as HTMLButtonElement;
+    expect(next3.disabled).toBe(true);
 
     await user.type(screen.getByTestId('purge-type-input'), 'wrong-string');
     expect(
-      (screen.getByTestId('purge-confirm') as HTMLButtonElement).disabled,
+      (screen.getByTestId('purge-next-3') as HTMLButtonElement).disabled,
     ).toBe(true);
 
     await user.clear(screen.getByTestId('purge-type-input'));
@@ -244,6 +245,31 @@ describe('AiSettingsPage', () => {
       screen.getByTestId('purge-type-input'),
       'PURGE-TENANT-Test Tenant 327',
     );
+    expect(
+      (screen.getByTestId('purge-next-3') as HTMLButtonElement).disabled,
+    ).toBe(false);
+
+    // Step 3 → Step 4: two-person approval
+    await user.click(screen.getByTestId('purge-next-3'));
+    await waitFor(() => screen.getByTestId('purge-step-4'));
+
+    // Confirm button disabled until a different admin approves
+    const confirm = screen.getByTestId('purge-confirm') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+
+    // Same-principal error: typing the current user's own ID
+    fireEvent.change(screen.getByTestId('purge-approver-input'), {
+      target: { value: 'user-test' },
+    });
+    expect(screen.getByTestId('purge-same-principal-error')).toBeTruthy();
+    expect(
+      (screen.getByTestId('purge-confirm') as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    // Different admin approves
+    fireEvent.change(screen.getByTestId('purge-approver-input'), {
+      target: { value: 'admin-approver-2' },
+    });
     expect(
       (screen.getByTestId('purge-confirm') as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -254,6 +280,8 @@ describe('AiSettingsPage', () => {
         expect.objectContaining({
           scope: 'tenant',
           confirmation: 'PURGE-TENANT-Test Tenant 327',
+          proposerId: 'user-test',
+          approverId: 'admin-approver-2',
         }),
       ),
     );

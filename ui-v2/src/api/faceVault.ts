@@ -53,10 +53,14 @@ export interface FaceEnrollment {
   expiresAt: string;
   source: EnrollmentSource;
   /**
-   * Stubbed data URL placeholder. Real thumbnails never round-trip through
-   * this scaffold — KAI-282 will replace this with a signed URL.
-   * TODO(lead-security): confirm thumbnail display policy
-   * (full / blurred / embedding-only).
+   * Stubbed data URL placeholder. Real thumbnails come via signed URL
+   * from KAI-282.
+   *
+   * Display policy (confirmed by lead-security 2026-04-08): BLURRED by
+   * default. Click-to-reveal requires `face_vault:view_source` permission
+   * (distinct from `face_vault:manage`) and logs a `consent.record_viewed`
+   * audit event. Full-image display is a GDPR Art 5(1)(c) data
+   * minimisation risk (admin screenshots, shoulder surfing).
    */
   thumbnailUrl: string;
   auditTrailId: string;
@@ -99,10 +103,22 @@ export interface PurgeArgs {
   /**
    * Typed confirmation string; the server must re-validate the exact
    * string matches the expected `PURGE-TENANT-{tenantName}` sentinel.
-   * TODO(lead-security): confirm two-person approval rule vs single-admin
-   * strong-confirm per lead-security decision.
+   *
+   * Two-person rule (confirmed by lead-security 2026-04-08): a SECOND
+   * admin with `face_vault:purge_approve` permission must approve.
+   * The proposer cannot be the approver (same-principal check enforced
+   * server-side). Both admin IDs go into the `vault.purged` audit event.
+   * Aligns with lead-ai four-eyes pattern §7.1 and SOC 2 CC6.1.
    */
   confirmation: string;
+  /** ID of the admin proposing the purge (current user). */
+  proposerId: string;
+  /**
+   * ID of the second admin approving the purge. Required — server
+   * rejects if proposerId === approverId. The UI must collect this
+   * via a second-admin approval flow before submitting.
+   */
+  approverId: string | null;
 }
 
 export interface DeleteFaceArgs {
@@ -118,12 +134,16 @@ export interface FaceAuditEvent {
   type:
     | 'enrollment.created'
     | 'enrollment.deleted'
+    | 'enrollment.rejected' // four-eyes reviewer rejected a proposed enrollment
     | 'consent.granted'
     | 'consent.revoked'
     | 'consent.expired'
+    | 'consent.record_viewed' // admin viewed consent detail (four-eyes watchlist flow §7.1)
     | 'enrollment.matched'
-    | 'vault.purged';
-  // TODO(lead-security): confirmed event-type list pending.
+    | 'vault.purged'
+    | 'vault.retention_expired' // auto-deletion by retention policy (distinct from manual purge)
+    | 'face.model_version_transitioned'; // embedding re-enrolled under new model version (§5.1 KAI-282)
+  // Confirmed by lead-security 2026-04-08.
   at: string;
   actor: string;
   notes: string;

@@ -9,12 +9,16 @@
 // EU AI Act Art 27 acknowledgement. Status is always encoded via
 // icon + text + border, never colour alone.
 //
-// TODO(lead-security): this page is marked for lead-security review
-// before ready-for-review. Outstanding items:
-//   1. Final consent disclosure copy (GDPR Art 9(2)(a) + EU AI Act Art 52)
-//   2. Audit event type list
-//   3. Thumbnail display policy (full / blurred / embedding-only)
-//   4. Two-person purge approval rule vs single-admin strong-confirm
+// lead-security review (2026-04-08) resolved:
+//   1. Consent disclosure copy — approved template applied (legal counsel sign-off before GA)
+//   2. Audit event types — confirmed + 4 additions (consent.record_viewed,
+//      enrollment.rejected, vault.retention_expired, face.model_version_transitioned)
+//   3. Thumbnail policy — blurred default, click-to-reveal w/ face_vault:view_source
+//      permission + consent.record_viewed audit event
+//   4. Purge — two-person rule (proposer + approver, same-principal check server-side,
+//      both IDs in vault.purged audit event). SOC 2 CC6.1 aligned.
+//
+// Remaining TODO(lead-security): legal counsel must sign off consent copy before GA.
 
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -114,6 +118,7 @@ export function AiSettingsPage(): JSX.Element {
   const { t } = useTranslation();
   const tenantId = useSessionStore((s) => s.tenantId);
   const tenantName = useSessionStore((s) => s.tenantName);
+  const userId = useSessionStore((s) => s.userId);
   const queryClient = useQueryClient();
 
   // Modal state for feature toggles
@@ -216,6 +221,8 @@ export function AiSettingsPage(): JSX.Element {
     mutationFn: (args: {
       scope: PurgeScope;
       confirmation: string;
+      proposerId: string;
+      approverId: string;
       fromDate?: string;
       toDate?: string;
       cameraId?: string;
@@ -224,6 +231,8 @@ export function AiSettingsPage(): JSX.Element {
         tenantId,
         scope: args.scope,
         confirmation: args.confirmation,
+        proposerId: args.proposerId,
+        approverId: args.approverId,
         fromDate: args.fromDate,
         toDate: args.toDate,
         cameraId: args.cameraId,
@@ -643,6 +652,7 @@ export function AiSettingsPage(): JSX.Element {
       {purgeOpen && (
         <EmergencyPurgeDialog
           tenantName={tenantName}
+          currentUserId={userId}
           onCancel={() => setPurgeOpen(false)}
           onConfirm={(args) => {
             purgeMutation.mutate(args);
@@ -941,19 +951,24 @@ function AddEnrollmentDialog({
         </select>
       </label>
       {requiresConsent && (
-        <label>
-          <input
-            type="checkbox"
-            checked={consentGranted}
-            onChange={(e) => setConsentGranted(e.target.checked)}
-            data-testid="add-enrollment-consent"
-          />
-          <span>{t('faceVault.addEnrollment.consent')}</span>
-          {/* TODO(lead-security): replace placeholder with approved legal copy */}
-          <small data-testid="add-enrollment-consent-placeholder">
-            {t('faceVault.addEnrollment.consentPlaceholder')}
-          </small>
-        </label>
+        <div data-testid="add-enrollment-consent-section">
+          <p
+            data-testid="add-enrollment-consent-disclosure"
+            style={{ fontSize: '0.85rem', border: '1px solid #e5e7eb', padding: '0.75rem', borderRadius: '4px', background: '#fafafa' }}
+          >
+            {t('faceVault.addEnrollment.consentDisclosure')}
+          </p>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginTop: '0.5rem' }}>
+            <input
+              type="checkbox"
+              checked={consentGranted}
+              onChange={(e) => setConsentGranted(e.target.checked)}
+              data-testid="add-enrollment-consent"
+              style={{ marginTop: '0.25rem' }}
+            />
+            <span>{t('faceVault.addEnrollment.consentCheckbox')}</span>
+          </label>
+        </div>
       )}
       <fieldset>
         <legend>{t('faceVault.addEnrollment.image')}</legend>
@@ -1079,10 +1094,13 @@ function RevokeConsentDialog({
 
 interface EmergencyPurgeDialogProps {
   tenantName: string;
+  currentUserId: string;
   onCancel: () => void;
   onConfirm: (args: {
     scope: PurgeScope;
     confirmation: string;
+    proposerId: string;
+    approverId: string;
     fromDate?: string;
     toDate?: string;
     cameraId?: string;
@@ -1091,21 +1109,24 @@ interface EmergencyPurgeDialogProps {
 
 function EmergencyPurgeDialog({
   tenantName,
+  currentUserId,
   onCancel,
   onConfirm,
 }: EmergencyPurgeDialogProps): JSX.Element {
   const { t } = useTranslation();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [scope, setScope] = useState<PurgeScope>('tenant');
   const [cameraId, setCameraId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [typed, setTyped] = useState('');
+  const [approverId, setApproverId] = useState('');
   const sentinel = `PURGE-TENANT-${tenantName}`;
-  const ready = typed === sentinel;
-
-  // TODO(lead-security): confirm two-person approval rule vs single-admin
-  // strong-confirm per lead-security decision.
+  const typedReady = typed === sentinel;
+  // Two-person rule (confirmed lead-security 2026-04-08): proposer !== approver,
+  // both IDs logged in vault.purged audit event. SOC 2 CC6.1 aligned.
+  const approverValid = approverId.length > 0 && approverId !== currentUserId;
+  const ready = typedReady && approverValid;
 
   return (
     <div
@@ -1115,7 +1136,7 @@ function EmergencyPurgeDialog({
       data-testid="purge-dialog"
     >
       <h2 id="purge-title">{t('faceVault.purge.title')}</h2>
-      <p>{t('faceVault.purge.step', { current: step, total: 3 })}</p>
+      <p>{t('faceVault.purge.step', { current: step, total: 4 })}</p>
       {step === 1 && (
         <div data-testid="purge-step-1">
           <p>
@@ -1241,12 +1262,56 @@ function EmergencyPurgeDialog({
           </button>
           <button
             type="button"
+            disabled={!typedReady}
+            aria-disabled={!typedReady}
+            onClick={() => setStep(4)}
+            data-testid="purge-next-3"
+          >
+            {t('faceVault.purge.next')}
+          </button>
+        </div>
+      )}
+      {step === 4 && (
+        <div data-testid="purge-step-4">
+          <h3>{t('faceVault.purge.twoPersonTitle')}</h3>
+          <p>{t('faceVault.purge.twoPersonBody')}</p>
+          <label>
+            <span>{t('faceVault.purge.approverLabel')}</span>
+            <input
+              type="text"
+              value={approverId}
+              onChange={(e) => setApproverId(e.target.value)}
+              placeholder={t('faceVault.purge.approverPlaceholder')}
+              data-testid="purge-approver-input"
+            />
+          </label>
+          {approverId === currentUserId && approverId.length > 0 && (
+            <p
+              role="alert"
+              style={{ color: 'var(--color-error, #dc2626)', fontSize: '0.85rem' }}
+              data-testid="purge-same-principal-error"
+            >
+              <span aria-hidden="true">{'\u26A0'}</span>{' '}
+              {t('faceVault.purge.approverSamePrincipal')}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setStep(3)}
+            data-testid="purge-back-4"
+          >
+            {t('faceVault.purge.back')}
+          </button>
+          <button
+            type="button"
             disabled={!ready}
             aria-disabled={!ready}
             onClick={() =>
               onConfirm({
                 scope,
                 confirmation: sentinel,
+                proposerId: currentUserId,
+                approverId,
                 fromDate: scope === 'dateRange' ? fromDate : undefined,
                 toDate: scope === 'dateRange' ? toDate : undefined,
                 cameraId: scope === 'camera' ? cameraId : undefined,

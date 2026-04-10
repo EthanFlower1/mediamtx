@@ -31,6 +31,7 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
   }) async {
     final state = generateOpaqueState();
     final verifier = generatePkceVerifier();
+    final nonce = generateNonce();
     final request = AuthorizationRequest(
       provider.clientId,
       redirectUri,
@@ -38,8 +39,10 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
       scopes: provider.scopes,
       // `flutter_appauth` derives the PKCE challenge from the verifier
       // automatically when the verifier is supplied via `state` metadata.
-      // We pass our own `state` so the server can round-trip it.
-      additionalParameters: {'state': state},
+      // We pass our own `state` and `nonce` so the server can round-trip them.
+      // The nonce is embedded in the ID token by the IdP; login_service.dart
+      // validates it after the code exchange.
+      additionalParameters: {'state': state, 'nonce': nonce},
     );
     try {
       final response = await _appAuth.authorize(request);
@@ -52,12 +55,14 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
         return SsoAuthorizationResult.cancelled(
           state: state,
           codeVerifier: verifier,
+          nonce: nonce,
         );
       }
       return SsoAuthorizationResult(
         authorizationCode: response.authorizationCode,
         state: response.authorizationAdditionalParameters?['state'] ?? state,
         codeVerifier: response.codeVerifier ?? verifier,
+        nonce: nonce,
       );
     } on FlutterAppAuthUserCancelledException {
       // User explicitly cancelled (closed the browser tab / hit system back).
@@ -66,6 +71,27 @@ class FlutterAppAuthAuthorizer implements SsoAuthorizer {
       return SsoAuthorizationResult.cancelled(
         state: state,
         codeVerifier: verifier,
+        nonce: nonce,
+      );
+    } on FlutterAppAuthPlatformException catch (e) {
+      // Any other flutter_appauth error — network failure during discovery,
+      // internal plugin error, etc. Map to ssoPlugin so the UI can show a
+      // retryable error banner.
+      return SsoAuthorizationResult.error(
+        kind: LoginErrorKind.ssoPlugin,
+        message: e.message ?? 'flutter_appauth error',
+        state: state,
+        codeVerifier: verifier,
+        nonce: nonce,
+      );
+    } catch (e) {
+      // Genuinely unexpected — default catch-all.
+      return SsoAuthorizationResult.error(
+        kind: LoginErrorKind.unknown,
+        message: e.toString(),
+        state: state,
+        codeVerifier: verifier,
+        nonce: nonce,
       );
     }
   }

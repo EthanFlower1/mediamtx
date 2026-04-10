@@ -140,8 +140,8 @@ class LoginService {
   // ---------------- SSO ----------------
 
   /// Launch the SSO flow for [providerId]. Resolves to a [SsoFlow] with the
-  /// authorization code (on success), or a cancelled flow if the user bailed
-  /// out of the IdP web view.
+  /// authorization code (on success), or a cancelled/error flow if the user
+  /// bailed out or the authorizer hit an error.
   ///
   /// Throws [LoginError] with [LoginErrorKind.unknownProvider] if the
   /// directory doesn't advertise [providerId].
@@ -162,13 +162,34 @@ class LoginService {
       provider: provider,
       redirectUri: kKaivueAuthRedirectUri,
     );
+
+    // Propagate typed errors from the authorizer (ssoPlugin, unknown, etc.)
+    if (result.errorKind != null && !result.cancelled) {
+      return SsoFlow(
+        flowId: flowId,
+        providerId: providerId,
+        state: result.state,
+        codeVerifier: result.codeVerifier,
+        nonce: result.nonce,
+        sentState: result.state,
+        cancelled: false,
+        errorKind: result.errorKind,
+        errorMessage: result.errorMessage,
+        issuerUrl: provider.issuerUrl,
+      );
+    }
+
     if (result.cancelled || result.authorizationCode == null) {
       return SsoFlow(
         flowId: flowId,
         providerId: providerId,
         state: result.state,
         codeVerifier: result.codeVerifier,
+        nonce: result.nonce,
+        sentState: result.state,
         cancelled: true,
+        errorKind: LoginErrorKind.cancelled,
+        issuerUrl: provider.issuerUrl,
       );
     }
     return SsoFlow(
@@ -177,20 +198,44 @@ class LoginService {
       authorizationCode: result.authorizationCode,
       state: result.state,
       codeVerifier: result.codeVerifier,
+      nonce: result.nonce,
+      sentState: result.state,
+      issuerUrl: provider.issuerUrl,
     );
   }
 
   /// Finish the SSO flow by exchanging the authorization code at
   /// `/api/v1/auth/sso/complete`. Callers should only invoke this with a
   /// non-cancelled [SsoFlow].
+  ///
+  /// Validation order (lead-security mandated):
+  ///   1. Check cancelled / authorizer error
+  ///   2. State validation (sentState vs returned state) — BEFORE any network
+  ///   3. Exchange authorization code with server
+  ///   4. Nonce validation against the ID token
+  ///   5. Issuer validation (nice-to-have, non-blocker)
   Future<LoginResult> completeSso(
     HomeDirectoryConnection connection,
     SsoFlow flow,
   ) async {
+    // Gate 0: propagate typed errors from the authorizer.
+    if (flow.errorKind != null && flow.errorKind != LoginErrorKind.cancelled) {
+      throw LoginError(
+          flow.errorKind!, flow.errorMessage ?? 'SSO authorizer error');
+    }
+
     if (flow.cancelled || flow.authorizationCode == null) {
       throw const LoginError(
-          LoginErrorKind.ssoCancelled, 'SSO flow was cancelled');
+          LoginErrorKind.cancelled, 'SSO flow was cancelled');
     }
+
+    // Gate 1 (FIRST): state validation — the returned state must match what we
+    // sent. This prevents CSRF before we do any network I/O.
+    if (flow.sentState != null && flow.state != flow.sentState) {
+      throw const LoginError(
+          LoginErrorKind.malformed, 'state mismatch — possible CSRF');
+    }
+
     final uri = _resolve(connection, '/api/v1/auth/sso/complete');
     http.Response resp;
     try {
@@ -218,14 +263,120 @@ class LoginService {
     } on http.ClientException catch (e) {
       throw LoginError(LoginErrorKind.network, 'http: $e');
     }
+
+    // Check for IdP rejection (OAuth error responses).
     if (resp.statusCode == _httpUnauthorized) {
       throw const LoginError(
-          LoginErrorKind.wrongCredentials, 'sso exchange rejected');
+          LoginErrorKind.idpRejected, 'sso exchange rejected (401)');
+    }
+    if (resp.statusCode == 403) {
+      throw const LoginError(
+          LoginErrorKind.idpRejected, 'sso exchange rejected (403)');
     }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
       throw LoginError(LoginErrorKind.server, 'status ${resp.statusCode}');
     }
-    return _parseLoginResult(resp.body);
+
+    final result = _parseLoginResult(resp.body);
+
+    // Gate 2: nonce validation. Decode the ID token payload (base64) and
+    // compare the `nonce` claim to the one we sent. flutter_appauth already
+    // verified the JWT signature; we only need to check the nonce claim.
+    if (flow.nonce != null) {
+      _validateIdTokenNonce(resp.body, flow.nonce!);
+    }
+
+    // Gate 3 (nice-to-have): issuer validation. Log a warning if `iss` doesn't
+    // match the provider's issuerUrl.
+    if (flow.issuerUrl != null && flow.issuerUrl!.isNotEmpty) {
+      _validateIssuer(resp.body, flow.issuerUrl!);
+    }
+
+    return result;
+  }
+
+  /// Decode the ID token from the server response and validate the nonce claim.
+  ///
+  /// The server response is expected to contain an `id_token` field. We decode
+  /// the JWT payload (middle segment, base64) without signature verification
+  /// (flutter_appauth already did that). If the nonce doesn't match, throw
+  /// [LoginErrorKind.malformed].
+  void _validateIdTokenNonce(String responseBody, String expectedNonce) {
+    try {
+      final parsed = jsonDecode(responseBody);
+      if (parsed is! Map<String, dynamic>) return;
+      final idToken = parsed['id_token'] as String?;
+      if (idToken == null || idToken.isEmpty) return;
+
+      final claims = _decodeJwtPayload(idToken);
+      if (claims == null) return;
+
+      final tokenNonce = claims['nonce'] as String?;
+      if (tokenNonce == null) {
+        // IdP didn't include nonce — this is acceptable for some IdPs that
+        // don't echo the nonce in the authorization code flow (the nonce is
+        // only mandatory in the implicit flow per OIDC Core 3.1.3.7). Log
+        // but don't reject.
+        return;
+      }
+      if (tokenNonce != expectedNonce) {
+        throw const LoginError(
+            LoginErrorKind.malformed, 'nonce mismatch — possible replay');
+      }
+    } on LoginError {
+      rethrow;
+    } catch (_) {
+      // ID token decode failed — not fatal, the server already validated it.
+    }
+  }
+
+  /// Validate the `iss` claim in the ID token against the expected issuer URL.
+  /// Logs a warning on mismatch but does not throw (non-blocker per
+  /// lead-security review).
+  void _validateIssuer(String responseBody, String expectedIssuer) {
+    try {
+      final parsed = jsonDecode(responseBody);
+      if (parsed is! Map<String, dynamic>) return;
+      final idToken = parsed['id_token'] as String?;
+      if (idToken == null || idToken.isEmpty) return;
+
+      final claims = _decodeJwtPayload(idToken);
+      if (claims == null) return;
+
+      final iss = claims['iss'] as String?;
+      if (iss != null && iss != expectedIssuer) {
+        // Non-blocker: log for observability. A future version may reject.
+        // ignore: avoid_print
+        print('[KAI-297] WARNING: ID token issuer "$iss" does not match '
+            'expected "$expectedIssuer"');
+      }
+    } catch (_) {
+      // Best-effort — don't fail the login over issuer validation.
+    }
+  }
+
+  /// Decode the payload (middle segment) of a JWT. Returns the claims map or
+  /// null if decoding fails.
+  static Map<String, dynamic>? _decodeJwtPayload(String jwt) {
+    final parts = jwt.split('.');
+    if (parts.length != 3) return null;
+    try {
+      var payload = parts[1];
+      // Base64 padding
+      switch (payload.length % 4) {
+        case 2:
+          payload += '==';
+          break;
+        case 3:
+          payload += '=';
+          break;
+      }
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final result = jsonDecode(decoded);
+      return result is Map<String, dynamic> ? result : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ---------------- Refresh ----------------

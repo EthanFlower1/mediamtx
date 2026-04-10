@@ -170,11 +170,12 @@ void main() {
   });
 
   group('LoginService SSO', () {
-    test('begin + complete happy path', () async {
+    test('begin + complete happy path (nonce round-trip)', () async {
       final fake = FakeSsoAuthorizer()
         ..scriptedCode = 'auth-code-42'
         ..scriptedState = 'state-42'
-        ..scriptedVerifier = 'verifier-42';
+        ..scriptedVerifier = 'verifier-42'
+        ..scriptedNonce = 'nonce-42';
       final mock = MockClient((req) async {
         if (req.url.path == '/api/v1/auth/methods') {
           return http.Response(
@@ -199,6 +200,8 @@ void main() {
       final flow = await svc.beginSso(_conn(), 'google');
       expect(flow.cancelled, isFalse);
       expect(flow.authorizationCode, 'auth-code-42');
+      expect(flow.nonce, 'nonce-42');
+      expect(flow.sentState, 'state-42');
       expect(fake.calls.single.id, 'google');
       final result = await svc.completeSso(_conn(), flow);
       expect(result.accessToken, 'access-xyz');
@@ -224,7 +227,7 @@ void main() {
       await expectLater(
         svc.completeSso(_conn(), flow),
         throwsA(isA<LoginError>()
-            .having((e) => e.kind, 'kind', LoginErrorKind.ssoCancelled)),
+            .having((e) => e.kind, 'kind', LoginErrorKind.cancelled)),
       );
     });
 
@@ -239,6 +242,264 @@ void main() {
         svc.beginSso(_conn(), 'okta-not-advertised'),
         throwsA(isA<LoginError>()
             .having((e) => e.kind, 'kind', LoginErrorKind.unknownProvider)),
+      );
+    });
+  });
+
+  group('LoginService SSO security (KAI-297)', () {
+    /// Helper: build a fake JWT with the given payload claims.
+    String fakeJwt(Map<String, dynamic> claims) {
+      final header = base64Url.encode(utf8.encode(jsonEncode({'alg': 'RS256'})));
+      final payload = base64Url.encode(utf8.encode(jsonEncode(claims)));
+      final sig = base64Url.encode(utf8.encode('fake-sig'));
+      return '$header.$payload.$sig';
+    }
+
+    /// Helper: server response with an embedded id_token.
+    Map<String, dynamic> loginResultWithIdToken(String idToken) => {
+          ..._validLoginResultPayload(),
+          'id_token': idToken,
+        };
+
+    test('nonce mismatch in ID token → LoginErrorKind.malformed', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-n'
+        ..scriptedState = 'state-n'
+        ..scriptedVerifier = 'verifier-n'
+        ..scriptedNonce = 'correct-nonce';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        // Return a valid login result with a WRONG nonce in the id_token.
+        final idToken = fakeJwt({
+          'sub': 'u-1',
+          'nonce': 'WRONG-nonce',
+          'iss': 'https://accounts.google.com',
+        });
+        return http.Response(
+          jsonEncode(loginResultWithIdToken(idToken)),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      await expectLater(
+        svc.completeSso(_conn(), flow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.malformed)
+            .having((e) => e.debugMessage, 'msg', contains('nonce'))),
+      );
+    });
+
+    test('nonce match in ID token → success', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-ok'
+        ..scriptedState = 'state-ok'
+        ..scriptedVerifier = 'verifier-ok'
+        ..scriptedNonce = 'my-nonce';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        final idToken = fakeJwt({
+          'sub': 'u-1',
+          'nonce': 'my-nonce',
+          'iss': 'https://accounts.google.com',
+        });
+        return http.Response(
+          jsonEncode(loginResultWithIdToken(idToken)),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      final result = await svc.completeSso(_conn(), flow);
+      expect(result.accessToken, 'access-xyz');
+    });
+
+    test('state mismatch → LoginErrorKind.malformed (checked before network)',
+        () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-s'
+        ..scriptedState = 'state-returned'
+        ..scriptedVerifier = 'verifier-s'
+        ..scriptedNonce = 'nonce-s';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        fail('completeSso should not have made a network call');
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+
+      // Tamper the returned state so it doesn't match sentState.
+      final tamperedFlow = SsoFlow(
+        flowId: flow.flowId,
+        providerId: flow.providerId,
+        authorizationCode: flow.authorizationCode,
+        state: 'TAMPERED-state',
+        codeVerifier: flow.codeVerifier,
+        nonce: flow.nonce,
+        sentState: flow.sentState,
+        issuerUrl: flow.issuerUrl,
+      );
+      await expectLater(
+        svc.completeSso(_conn(), tamperedFlow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.malformed)
+            .having((e) => e.debugMessage, 'msg', contains('state'))),
+      );
+    });
+
+    test('state checked BEFORE nonce (validation order)', () async {
+      // Both state and nonce are wrong, but state error should fire first
+      // (no network call made).
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-order'
+        ..scriptedState = 'state-order'
+        ..scriptedVerifier = 'verifier-order'
+        ..scriptedNonce = 'nonce-order';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        fail('should not reach network — state mismatch fires first');
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      final tamperedFlow = SsoFlow(
+        flowId: flow.flowId,
+        providerId: flow.providerId,
+        authorizationCode: flow.authorizationCode,
+        state: 'BAD-state',
+        codeVerifier: flow.codeVerifier,
+        nonce: flow.nonce,
+        sentState: flow.sentState,
+        issuerUrl: flow.issuerUrl,
+      );
+      await expectLater(
+        svc.completeSso(_conn(), tamperedFlow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.malformed)
+            .having((e) => e.debugMessage, 'msg', contains('state'))),
+      );
+    });
+
+    test('ssoPlugin error propagated from authorizer', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedErrorKind = LoginErrorKind.ssoPlugin
+        ..scriptedErrorMessage = 'discovery failed';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        fail('should not reach network');
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      expect(flow.errorKind, LoginErrorKind.ssoPlugin);
+      await expectLater(
+        svc.completeSso(_conn(), flow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.ssoPlugin)),
+      );
+    });
+
+    test('unknown error propagated from authorizer', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedErrorKind = LoginErrorKind.unknown
+        ..scriptedErrorMessage = 'something weird';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        fail('should not reach network');
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      expect(flow.errorKind, LoginErrorKind.unknown);
+      await expectLater(
+        svc.completeSso(_conn(), flow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.unknown)),
+      );
+    });
+
+    test('idpRejected on 401 from sso/complete', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-rej'
+        ..scriptedState = 'state-rej'
+        ..scriptedVerifier = 'verifier-rej'
+        ..scriptedNonce = 'nonce-rej';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('rejected', 401);
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      await expectLater(
+        svc.completeSso(_conn(), flow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.idpRejected)),
+      );
+    });
+
+    test('idpRejected on 403 from sso/complete', () async {
+      final fake = FakeSsoAuthorizer()
+        ..scriptedCode = 'auth-code-403'
+        ..scriptedState = 'state-403'
+        ..scriptedVerifier = 'verifier-403'
+        ..scriptedNonce = 'nonce-403';
+      final mock = MockClient((req) async {
+        if (req.url.path == '/api/v1/auth/methods') {
+          return http.Response(
+            jsonEncode(_validAuthMethodsPayload()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('forbidden', 403);
+      });
+      final svc = LoginService(httpClient: mock, authorizer: fake);
+      final flow = await svc.beginSso(_conn(), 'google');
+      await expectLater(
+        svc.completeSso(_conn(), flow),
+        throwsA(isA<LoginError>()
+            .having((e) => e.kind, 'kind', LoginErrorKind.idpRejected)),
       );
     });
   });

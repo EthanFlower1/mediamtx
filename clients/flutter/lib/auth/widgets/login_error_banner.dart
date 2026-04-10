@@ -41,8 +41,14 @@ class LoginErrorBanner extends ConsumerWidget {
         return s.errorServer;
       case LoginErrorKind.malformed:
         return s.errorMalformed;
-      case LoginErrorKind.ssoCancelled:
+      case LoginErrorKind.cancelled:
         return s.ssoCancelled;
+      case LoginErrorKind.idpRejected:
+        return s.errorServer; // IdP rejection surfaces as server error to user
+      case LoginErrorKind.ssoPlugin:
+        return s.errorNetwork; // Plugin errors are typically network-related
+      case LoginErrorKind.unknown:
+        return s.errorMalformed; // Catch-all surfaces as generic error
     }
   }
 

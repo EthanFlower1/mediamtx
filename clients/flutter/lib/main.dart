@@ -14,11 +14,20 @@ import 'state/secure_token_store.dart';
 /// (Keychain on iOS, Keystore on Android, libsecret/DPAPI on desktop). Web
 /// keeps the in-memory fake until an encrypted IndexedDB adapter lands.
 List<Override> productionOverrides() {
+  // KAI-298 security review: device-bound Keychain (no iCloud sync), encrypted SharedPreferences on Android — see PR #149 lead-security review.
+  const secureStorage = FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+    ),
+  );
   return <Override>[
     secureTokenStoreProvider.overrideWithValue(
       kIsWeb
           ? InMemorySecureTokenStore()
-          : FlutterSecureStorageTokenStore(const FlutterSecureStorage()),
+          : FlutterSecureStorageTokenStore(secureStorage),
     ),
   ];
 }

@@ -295,6 +295,43 @@ void main() {
     f.refresher.dispose();
   });
 
+  // ---- 6b. handleUnauthorized → refresh 503 → transient, NO invalidation ----
+  //
+  // KAI-298 security review (PR #149): a 5xx from the refresh endpoint must
+  // NOT wipe the user's session. The caller can retry later.
+
+  test(
+      'handleUnauthorized does not invalidate session when refresh returns 5xx',
+      () async {
+    final f = await _Fixture.create(
+        httpClient: MockClient((_) async => http.Response('', 503)));
+    await f.store.writeTokens(_connId, _expiredTokenSet());
+
+    final events = <AuthLifecycleEvent>[];
+    f.lifecycle.events.listen(events.add);
+
+    await f.lifecycle.onAppStart(
+      knownConnections: [_conn()],
+      activeConnectionId: null,
+    );
+
+    final result =
+        await f.lifecycle.handleUnauthorized(connectionId: _connId);
+
+    // Transient — caller receives false but tokens remain.
+    expect(result, isFalse);
+    expect(await f.store.hasTokens(_connId), isTrue,
+        reason: 'transient 5xx must not delete tokens');
+    expect(
+      events.whereType<SessionInvalidatedEvent>(),
+      isEmpty,
+      reason: 'transient 5xx must not emit SessionInvalidatedEvent',
+    );
+
+    await f.lifecycle.dispose();
+    f.refresher.dispose();
+  });
+
   // ---- 7. handleUnauthorized → refresh 401 → returns false + event ----
 
   test('handleUnauthorized returns false and emits event when refresh returns 401',

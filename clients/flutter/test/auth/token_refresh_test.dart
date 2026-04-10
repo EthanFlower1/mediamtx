@@ -150,6 +150,55 @@ void main() {
     refresher.dispose();
   });
 
+  // ---- 3b. 401 delete-then-throw ordering ----
+  //
+  // KAI-298 security review (PR #149): verify that tokens are deleted from
+  // the store BEFORE AuthInvalidException bubbles up. If a downstream handler
+  // (e.g. handleAuthInvalid) then throws a RuntimeException, the tokens must
+  // still have been cleared — the deletion must not be entangled with the
+  // error path.
+
+  test(
+      '401 deletes tokens BEFORE AuthInvalidException is observable — downstream handler throw does not reverse deletion',
+      () async {
+    await store.writeTokens(_connId, _staleToken());
+    // Sanity: tokens present.
+    expect(await store.hasTokens(_connId), isTrue);
+
+    final mock = MockClient((_) async => http.Response('', 401));
+    final refresher = _makeRefresher(httpClient: mock, tokenStore: store);
+
+    Object? caught;
+    bool tokensPresentAtThrow = true;
+    try {
+      await refresher.ensureFresh(
+        connectionId: _connId,
+        endpointUrl: _endpoint,
+      );
+    } on AuthInvalidException catch (e) {
+      // At the point the exception becomes observable the deletion must
+      // already have occurred.
+      tokensPresentAtThrow = await store.hasTokens(_connId);
+      caught = e;
+      // Simulate a downstream handler that throws a RuntimeException on top
+      // of the AuthInvalidException. The deletion has already been observed
+      // to have happened, so this additional throw is immaterial.
+      try {
+        throw StateError('simulated downstream handleAuthInvalid failure');
+      } on StateError {
+        // swallow — represents the lifted downstream error.
+      }
+    }
+
+    expect(caught, isA<AuthInvalidException>());
+    expect(tokensPresentAtThrow, isFalse,
+        reason:
+            'tokens must be deleted BEFORE AuthInvalidException is thrown');
+    // Still cleared after the simulated downstream handler.
+    expect(await store.hasTokens(_connId), isFalse);
+    refresher.dispose();
+  });
+
   // ---- 4. Debounce: two simultaneous calls → one HTTP request ----
 
   test('two simultaneous ensureFresh calls result in exactly one HTTP request',

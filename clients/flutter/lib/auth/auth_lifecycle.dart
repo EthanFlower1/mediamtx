@@ -278,18 +278,36 @@ class AuthLifecycle {
       await handleAuthInvalid(e);
       return false;
     } on LoginError catch (e) {
-      if (e.kind == LoginErrorKind.network) {
-        // Transient failure — don't invalidate the session. Caller can retry
-        // later.
+      // KAI-298 security review (PR #149): transient failures must NOT wipe
+      // the user's session. Only definitively-invalidating kinds
+      // (wrongCredentials, refreshExpired, unknownProvider) invalidate here.
+      // 5xx / network / malformed / ssoCancelled are transient: caller may
+      // retry on the next authenticated request.
+      if (_isTransientRefreshFailure(e.kind)) {
         return false;
       }
-      // Any non-network error (server, malformed) treats the session as broken.
       await _tokenStore.deleteTokens(connectionId);
       _events.add(SessionInvalidatedEvent(
         connectionId: connectionId,
         reason: '401 → refresh failed: ${e.debugMessage}',
       ));
       return false;
+    }
+  }
+
+  /// Treat 5xx, network, malformed, and SSO-cancelled as transient. The
+  /// refresh token is still valid; the caller may retry on the next request.
+  static bool _isTransientRefreshFailure(LoginErrorKind kind) {
+    switch (kind) {
+      case LoginErrorKind.network:
+      case LoginErrorKind.server: // 5xx / non-2xx non-401 bucket
+      case LoginErrorKind.malformed:
+      case LoginErrorKind.ssoCancelled:
+        return true;
+      case LoginErrorKind.wrongCredentials:
+      case LoginErrorKind.unknownProvider:
+      case LoginErrorKind.refreshExpired:
+        return false;
     }
   }
 

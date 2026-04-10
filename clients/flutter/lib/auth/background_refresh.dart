@@ -36,7 +36,8 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show debugPrint, defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 import 'token_refresh.dart';
 import 'token_store.dart';
@@ -73,11 +74,32 @@ abstract class PlatformBackgroundBinder {
 class NoOpPlatformBinder implements PlatformBackgroundBinder {
   const NoOpPlatformBinder();
 
-  @override
-  Future<void> register({required List<String> connectionIds}) async {}
+  /// One-time WARN guard. Fires at most once per process when the NoOp binder
+  /// is used on a platform that actually supports OS background refresh —
+  /// typically a sign that native registration (WorkManager or BGTaskScheduler)
+  /// wasn't wired in `main.dart`. See lead-security review on PR #149.
+  static bool _warned = false;
+
+  void _maybeWarn() {
+    if (_warned) return;
+    if (!platformSupportsOsBackgroundRefresh) return;
+    _warned = true;
+    debugPrint(
+      '[KAI-298] Background refresh binder is NoOp on a platform that '
+      'supports OS background refresh — native registration missing. '
+      'See PR #149 lead-security review.',
+    );
+  }
 
   @override
-  Future<void> cancel() async {}
+  Future<void> register({required List<String> connectionIds}) async {
+    _maybeWarn();
+  }
+
+  @override
+  Future<void> cancel() async {
+    _maybeWarn();
+  }
 }
 
 // ---------------------------------------------------------------------------

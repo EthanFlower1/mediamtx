@@ -186,7 +186,9 @@ class TokenStore {
     // Write the structured blob first so a crash between writes leaves the
     // blob as the authority (it's the one `readTokens` uses).
     await _store.write(TokenStoreKeys.blob(connectionId), blob);
-    // Back-compat keys for AppSessionNotifier.
+    // TODO(KAI-298-followup): Remove dual-write of bare access/refresh keys in v1.1.
+    // Retained for one release cycle as back-compat for AuthService readers.
+    // See lead-security review on PR #149.
     await _store.write(
       TokenStoreKeys.accessToken(connectionId),
       tokenSet.accessToken,

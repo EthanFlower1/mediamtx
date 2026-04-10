@@ -26,7 +26,9 @@ func TestDispatchDetectionSuccess(t *testing.T) {
 	database := setupTestDB(t)
 
 	var received DetectionEvent
+	done := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(done)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		require.NotEmpty(t, r.Header.Get("X-Webhook-ID"))
 		err := json.NewDecoder(r.Body).Decode(&received)
@@ -65,8 +67,18 @@ func TestDispatchDetectionSuccess(t *testing.T) {
 
 	d.OnDetection("cam1", "Front Door", det)
 
-	// Wait for delivery.
-	time.Sleep(500 * time.Millisecond)
+	// Wait for the webhook handler to finish writing `received`. Using a
+	// done channel rather than time.Sleep establishes a happens-before
+	// edge so the test goroutine's reads below are race-free.
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for webhook delivery")
+	}
+	// Give the dispatcher a brief moment to record the delivery row after
+	// the HTTP handler returns 200. This sleep only gates the DB read
+	// below; `received` is already fully visible via the done channel.
+	time.Sleep(100 * time.Millisecond)
 
 	assert.Equal(t, "detection", received.EventType)
 	assert.Equal(t, "cam1", received.CameraID)

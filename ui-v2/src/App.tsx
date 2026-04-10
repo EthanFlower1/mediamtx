@@ -44,6 +44,12 @@ const LiveViewPage = lazy(() =>
 const PlaybackPage = lazy(() =>
   import('./routes/admin/PlaybackPage').then((m) => ({ default: m.PlaybackPage })),
 );
+// KAI-327: AiSettingsPage lazy-loaded — AI feature toggles + face vault
+// management modals (including emergency purge multi-step dialog) only
+// ship when /admin/ai-settings is visited.
+const AiSettingsPage = lazy(() =>
+  import('./routes/admin/AiSettingsPage').then((m) => ({ default: m.AiSettingsPage })),
+);
 const FleetDashboard = lazy(() => import('./routes/command/FleetDashboard'));
 const CustomersPage = lazy(() => import('./routes/command/CustomersPage'));
 const CustomerDrillDown = lazy(() =>
@@ -63,6 +69,7 @@ export function App(): JSX.Element {
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/live" element={<LiveViewPage />} />
         <Route path="/admin/playback/:eventId" element={<PlaybackPage />} />
+        <Route path="/admin/ai-settings" element={<AiSettingsPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CustomersPage />} />

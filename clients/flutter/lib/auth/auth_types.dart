@@ -208,9 +208,24 @@ class SsoFlow {
   /// PKCE verifier kept around so the server can validate the code exchange.
   final String? codeVerifier;
 
+  /// Cryptographic nonce sent in the authorization request. Validated against
+  /// the `nonce` claim in the ID token by [LoginService].
+  final String? nonce;
+
+  /// The `state` value originally sent in the authorization request. Used for
+  /// state-first validation before any other processing.
+  final String? sentState;
+
   /// True iff the user explicitly cancelled before granting consent. Distinct
   /// from a network/provider error.
   final bool cancelled;
+
+  /// Non-null when the SSO authorizer surfaced a typed error.
+  final LoginErrorKind? errorKind;
+  final String? errorMessage;
+
+  /// Issuer URL of the provider, for ID token issuer validation.
+  final String? issuerUrl;
 
   const SsoFlow({
     required this.flowId,
@@ -218,7 +233,12 @@ class SsoFlow {
     this.authorizationCode,
     this.state,
     this.codeVerifier,
+    this.nonce,
+    this.sentState,
     this.cancelled = false,
+    this.errorKind,
+    this.errorMessage,
+    this.issuerUrl,
   });
 
   SsoFlow cancel() => SsoFlow(
@@ -229,8 +249,35 @@ class SsoFlow {
 }
 
 /// Typed login error surface. Exactly one kind is produced per failed call.
+///
+/// The five SSO-specific variants (`cancelled`, `idpRejected`, `ssoPlugin`,
+/// `malformed`, `unknown`) were approved by lead-security in the KAI-297
+/// review. The remaining variants cover non-SSO paths (local login, refresh,
+/// server errors).
 enum LoginErrorKind {
-  /// Server rejected the credentials.
+  // ---- SSO 5-variant enum (lead-security approved) ----
+
+  /// User explicitly cancelled the SSO flow (closed the browser / hit back).
+  cancelled,
+
+  /// OAuth error response from the IdP (error/error_description in response,
+  /// e.g. `invalid_grant`, `access_denied`).
+  idpRejected,
+
+  /// Any `FlutterAppAuthException` that isn't user-initiated — network error
+  /// during discovery, internal plugin error, etc.
+  ssoPlugin,
+
+  /// Our parsing / validation failed: state mismatch, nonce mismatch, bad
+  /// claims, missing required fields.
+  malformed,
+
+  /// Genuinely unexpected error — the default catch-all.
+  unknown,
+
+  // ---- Non-SSO variants (unchanged from prior code) ----
+
+  /// Server rejected the credentials (401 on local login).
   wrongCredentials,
 
   /// Network I/O failed — timeout, DNS, TLS, etc.
@@ -239,17 +286,11 @@ enum LoginErrorKind {
   /// The caller asked for an SSO provider the directory doesn't advertise.
   unknownProvider,
 
-  /// User cancelled the SSO flow in the system web view.
-  ssoCancelled,
-
   /// Refresh token is expired or revoked. UI should bounce to login.
   refreshExpired,
 
   /// Non-2xx response that's neither 401 nor 404 — treat as transient.
   server,
-
-  /// Response parsed but didn't match the expected shape.
-  malformed,
 }
 
 class LoginError implements Exception {

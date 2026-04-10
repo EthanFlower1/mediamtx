@@ -72,6 +72,9 @@ const MobileBuildsPage = lazy(() => import('./routes/command/MobileBuildsPage'))
 // KAI-313: StaffPage lazy-loaded so the staff table, invite/edit/remove
 // dialogs, and roles summary only ship when /command/staff is visited.
 const StaffPage = lazy(() => import('./routes/command/StaffPage'));
+// KAI-315: PermissionsPage lazy-loaded — the permissions matrix, bulk actions,
+// diff preview dialog, and audit sidebar only ship when /command/permissions is visited.
+const PermissionsPage = lazy(() => import('./routes/command/PermissionsPage'));
 const CustomerDrillDown = lazy(() =>
   import('./components/customers/CustomerDrillDown').then((m) => ({
     default: m.CustomerDrillDown,
@@ -99,6 +102,7 @@ export function App(): JSX.Element {
         <Route path="/command/brand" element={<BrandConfigPage />} />
         <Route path="/command/builds" element={<MobileBuildsPage />} />
         <Route path="/command/staff" element={<StaffPage />} />
+        <Route path="/command/permissions" element={<PermissionsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

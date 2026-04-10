@@ -82,6 +82,30 @@ func (s *fakeAPIKeyStore) TouchLastUsed(_ context.Context, keyID string) error {
 	return nil
 }
 
+func (s *fakeAPIKeyStore) Create(_ context.Context, _ CreateAPIKeyRequest) (*CreateAPIKeyResult, error) {
+	return nil, ErrAPIKeyNotFound
+}
+
+func (s *fakeAPIKeyStore) Get(_ context.Context, _ string) (*APIKey, error) {
+	return nil, ErrAPIKeyNotFound
+}
+
+func (s *fakeAPIKeyStore) List(_ context.Context, _ ListAPIKeysFilter) ([]*APIKey, error) {
+	return nil, nil
+}
+
+func (s *fakeAPIKeyStore) Rotate(_ context.Context, _ RotateAPIKeyRequest) (*RotateAPIKeyResult, error) {
+	return nil, ErrAPIKeyNotFound
+}
+
+func (s *fakeAPIKeyStore) Revoke(_ context.Context, _ string, _ string) error {
+	return ErrAPIKeyNotFound
+}
+
+func (s *fakeAPIKeyStore) ListExpiring(_ context.Context, _ string, _ time.Duration) ([]*APIKey, error) {
+	return nil, nil
+}
+
 func (s *fakeAPIKeyStore) AddKey(rawKey string, key *APIKey) {
 	s.keys[rawKey] = key
 }

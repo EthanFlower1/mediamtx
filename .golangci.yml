@@ -82,6 +82,25 @@ linters:
             desc: >-
               KAI-236: internal/shared is a leaf with respect to role
               packages and must not import internal/recorder.
+        # ----------------------------------------------------------------
+        # Seam #3: Zitadel IdentityProvider firewall.
+        #
+        # The Zitadel adapter lives exclusively in
+        # internal/shared/auth/zitadel/. No other package may import
+        # Zitadel SDK types directly. All identity consumption goes
+        # through internal/shared/auth.IdentityProvider.
+        # ----------------------------------------------------------------
+        zitadel-firewall:
+          list-mode: lax
+          files:
+          - "**/*.go"
+          - "!**/internal/shared/auth/zitadel/**/*.go"
+          deny:
+          - pkg: github.com/zitadel/zitadel-go
+            desc: >-
+              Seam #3: Zitadel SDK imports are only permitted inside
+              internal/shared/auth/zitadel/. Consume identity through
+              the auth.IdentityProvider interface instead.
 
     errcheck:
       exclude-functions:

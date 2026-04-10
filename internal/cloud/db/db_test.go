@@ -44,7 +44,9 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// 0015 is KAI-362 billing column tightening (postgres-only ALTERs; SQLite no-op).
 	// 0016 is KAI-364 per-tenant usage_events + usage_aggregates metering tables
 	// (postgres partman block stripped in SQLite; fallback tables created).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	// 0017 is KAI-357 integrator_email_domains + dkim_keys (per-tenant sender
+	// domain + DKIM keypair metadata; private key bytes live in KAI-251 cryptostore).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

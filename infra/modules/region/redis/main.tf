@@ -151,6 +151,10 @@ resource "aws_elasticache_replication_group" "main" {
   kms_key_id                 = var.kms_key_arn
   auth_token                 = random_password.auth_token.result
   auth_token_update_strategy = "ROTATE"
+  # Rotation cadence: 90 days per SOC 2 CC6.1 automated credential
+  # rotation policy (lead-security approved 2026-04-08). Rotation
+  # lambda + Secrets Manager schedule ships as GA-blocker follow-up
+  # paired with KAI-232 CI/CD.
 
   # Maintenance + backups.
   maintenance_window         = var.maintenance_window

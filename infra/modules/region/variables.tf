@@ -51,6 +51,32 @@ variable "availability_zones" {
   type        = list(string)
 }
 
+# --- EKS node group sizing (KAI-215) ---
+
+variable "system_node_instance_types" {
+  description = "Instance types for the EKS system node group"
+  type        = list(string)
+  default     = ["m6i.large", "m6a.large"]
+}
+
+variable "workload_node_instance_types" {
+  description = "Instance types for the EKS workload node group"
+  type        = list(string)
+  default     = ["m6i.xlarge", "m6a.xlarge"]
+}
+
+# --- IAM role ARNs from global module (KAI-214/215) ---
+
+variable "eks_admin_role_arn" {
+  description = "IAM role ARN for EKS admin access (from global IAM module)"
+  type        = string
+}
+
+variable "ci_role_arn" {
+  description = "IAM role ARN for CI/CD access (from global IAM module)"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags applied to all resources in this region module"
   type        = map(string)

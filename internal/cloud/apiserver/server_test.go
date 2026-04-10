@@ -240,8 +240,11 @@ func TestRegionUnknownRejected(t *testing.T) {
 		t.Fatalf("POST: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("status = %d; want 400 for unknown region", resp.StatusCode)
+	// KAI-230: unknown region now returns 421 Misdirected Request (RFC 7540
+	// semantics) rather than 400. The region middleware validates the resolved
+	// host-region pair against the allowlist and rejects unknown regions with 421.
+	if resp.StatusCode != http.StatusMisdirectedRequest {
+		t.Errorf("status = %d; want 421 for unknown region", resp.StatusCode)
 	}
 }
 

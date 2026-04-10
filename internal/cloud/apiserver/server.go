@@ -10,6 +10,7 @@ import (
 	"time"
 
 	auditmw "github.com/bluenviron/mediamtx/internal/cloud/audit/middleware"
+	"github.com/bluenviron/mediamtx/internal/cloud/regionrouter"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 
@@ -48,7 +49,9 @@ func New(cfg Config) (*Server, error) {
 	// they must respond during an outage that has already taken down
 	// the DB or the IdP. Region routing still applies (a probe on the
 	// wrong region should tell the orchestrator to point elsewhere).
-	s.mux.Handle("/healthz", regionMiddleware(cfg.Region, cfg.RegionRoutes)(livenessHandler()))
+	// /healthz uses the KAI-230 region-aware health handler so that probes
+	// can validate the ?region= claim and be redirected to peer regions.
+	s.mux.Handle("/healthz", regionrouter.HealthHandler(cfg.Region))
 	// /readyz delegates through a holder so tests can swap probes
 	// after New() without re-registering the mux pattern (http.ServeMux
 	// forbids duplicate registration).

@@ -1,0 +1,29 @@
+version: v2
+# Dart code generation for Kaivue v1 proto contracts — Flutter client.
+#
+# Usage:  buf generate --template buf.gen.dart.yaml .
+# From:   internal/shared/proto/
+#
+# This template is SEPARATE from buf.gen.yaml (Go stubs) so the two
+# can be run independently. lead-flutter owns this file; lead-sre owns
+# buf.gen.yaml.
+#
+# Prerequisites:
+#   dart pub global activate protoc_plugin
+#   # OR: brew install protoc-gen-dart
+#
+# The protoc-gen-dart plugin generates:
+#   *.pb.dart     — message classes
+#   *.pbenum.dart — enum helpers
+#   *.pbjson.dart — JSON metadata
+#   *.pbserver.dart (if service defs present)
+managed:
+  enabled: true
+plugins:
+  # Dart protobuf message + enum types
+  - local: protoc-gen-dart
+    out: ../../../../clients/flutter/lib/src/gen/proto
+    opt:
+      - grpc
+inputs:
+  - directory: .

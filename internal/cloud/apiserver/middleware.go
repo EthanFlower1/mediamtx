@@ -15,7 +15,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/cloud/audit"
 	auditmw "github.com/bluenviron/mediamtx/internal/cloud/audit/middleware"
-	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/shared/logging"
 )

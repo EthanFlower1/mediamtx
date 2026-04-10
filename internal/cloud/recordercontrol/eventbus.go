@@ -37,13 +37,19 @@ const (
 // buf generate is wired up (KAI-310). For now this mirrors the Camera
 // message in cameras.proto without the protobuf dependency.
 type CameraPayload struct {
-	ID           string
-	TenantID     string // Must match the Recorder's tenant — checked on publish.
-	RecorderID   string
-	Name         string
+	ID            string
+	TenantID      string // Must match the Recorder's tenant — checked on publish.
+	RecorderID    string
+	Name          string
 	CredentialRef string // opaque ref, NEVER a plaintext secret
-	ConfigJSON   string // serialized CameraConfig; Recorder applies atomically
+	ConfigJSON    string // serialized CameraConfig; Recorder applies atomically
 	ConfigVersion int64
+	// BehavioralConfigJSON is the JSON-serialized RecorderCameraConfig produced
+	// by cloud/behavioral.BuildRecorderPayload (KAI-429). Empty string means no
+	// behavioral detectors are configured for this camera; the recorder treats
+	// an empty value as "all detectors disabled". Format mirrors the recorder-side
+	// CameraConfig JSON tags in internal/recorder/features/behavioral/types.go.
+	BehavioralConfigJSON string
 }
 
 // RemovalPayload carries the minimal data needed for a CameraRemoved event.

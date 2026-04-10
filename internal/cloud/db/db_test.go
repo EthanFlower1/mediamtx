@@ -48,7 +48,10 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// domain + DKIM keypair metadata; private key bytes live in KAI-251 cryptostore).
 	// 0018 is KAI-429 behavioral_config (SQLite-compatible; JSONB → TEXT,
 	// TIMESTAMPTZ → DATETIME, BOOLEAN → INTEGER via translateToSQLite).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}
+	// 0019 is KAI-292 pgvector (postgres-only partition/extension stripped;
+	// SQLite stubs for consent_records, model_versions, face_embeddings,
+	// clip_embeddings).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

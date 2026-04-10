@@ -51,7 +51,10 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// 0019 is KAI-292 pgvector (postgres-only partition/extension stripped;
 	// SQLite stubs for consent_records, model_versions, face_embeddings,
 	// clip_embeddings).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+	// 0020 is KAI-366 notification_channels + notification_preferences +
+	// notification_log (SQLite-compatible; JSONB → TEXT, TIMESTAMPTZ → DATETIME,
+	// BOOLEAN → INTEGER via translateToSQLite).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

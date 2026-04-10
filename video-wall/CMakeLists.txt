@@ -89,6 +89,11 @@ qt_add_executable(KaivueVideoWall
     src/map/FilesystemTileProvider.cpp
     src/map/HeatmapOverlay.cpp
     src/map/MapView.cpp
+
+    # Collaboration — multi-user viewing with independent cursors (KAI-339)
+    src/collab/CollaborationManager.cpp
+    src/collab/ConflictResolver.cpp
+    src/collab/CursorOverlay.cpp
 )
 
 target_include_directories(KaivueVideoWall PRIVATE

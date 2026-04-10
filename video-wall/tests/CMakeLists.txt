@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 # Requires Qt 6.6+ with Qt6::Test and Qt6::GuiPrivate
 # ---------------------------------------------------------------------------
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Test Gui)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Test Gui Quick)
 
 # tst_render_core — uses QOffscreenSurface + NullDecoderBackend (no GPU)
 qt_add_executable(tst_render_core
@@ -67,5 +67,37 @@ add_test(NAME tst_map_view COMMAND tst_map_view)
 set_tests_properties(tst_map_view PROPERTIES
     LABELS "map"
     TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+
+# ---------------------------------------------------------------------------
+# tst_collab — KAI-339 multi-user viewing with independent cursors
+# Headless, CI-safe, LoopbackTransport only (no network).
+# ---------------------------------------------------------------------------
+qt_add_executable(tst_collab
+    collab/tst_collab.cpp
+
+    # Collab sources compiled into the test binary (same pattern as
+    # tst_render_core — avoids a separate static library at this stage).
+    "${CMAKE_SOURCE_DIR}/src/collab/CollaborationManager.cpp"
+    "${CMAKE_SOURCE_DIR}/src/collab/ConflictResolver.cpp"
+    "${CMAKE_SOURCE_DIR}/src/collab/CursorOverlay.cpp"
+)
+
+target_include_directories(tst_collab PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+
+target_link_libraries(tst_collab PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
+)
+
+add_test(NAME tst_collab COMMAND tst_collab)
+set_tests_properties(tst_collab PROPERTIES
+    LABELS "collab"
+    TIMEOUT 60
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )

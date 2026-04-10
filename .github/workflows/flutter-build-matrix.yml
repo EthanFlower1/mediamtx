@@ -1,0 +1,140 @@
+# KAI-306 — Flutter six-target build matrix + feature parity CI
+#
+# Builds the single Flutter codebase in clients/flutter/ against every
+# supported target (iOS, Android, macOS, Windows, Linux, Web) and runs the
+# unit-level feature-parity suite (clients/flutter/test/parity/) on each
+# runner. Debug builds only — release signing / publishing is tracked as
+# separate follow-up work and is intentionally out of scope here.
+#
+# Staged during the repo merge freeze: this workflow ADDS a new file and
+# does not touch any existing workflow. Red runs are expected on first
+# push until lead-sre restores the Go toolchain + embed assets on main.
+
+name: flutter-build-matrix
+
+on:
+  pull_request:
+    paths:
+      - 'clients/flutter/**'
+      - '.github/workflows/flutter-build-matrix.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-build-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.target }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: android
+          - os: macos-latest
+            target: ios
+          - os: macos-latest
+            target: macos
+          - os: windows-latest
+            target: windows
+          - os: ubuntu-latest
+            target: linux
+          - os: ubuntu-latest
+            target: web
+
+    defaults:
+      run:
+        working-directory: clients/flutter
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Java (Android only)
+        if: matrix.target == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Linux desktop deps
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2.16.0
+        with:
+          flutter-version: '3.41.5'
+          channel: stable
+          cache: true
+
+      - name: Cache pub + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            clients/flutter/.dart_tool
+            clients/flutter/build
+          key: flutter-${{ matrix.target }}-${{ runner.os }}-${{ hashFiles('clients/flutter/pubspec.lock') }}
+          restore-keys: |
+            flutter-${{ matrix.target }}-${{ runner.os }}-
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        run: flutter test
+
+      - name: Enable desktop/web target
+        run: |
+          flutter config --enable-linux-desktop --enable-macos-desktop --enable-windows-desktop --enable-web
+        shell: bash
+
+      - name: Build android (debug apk)
+        if: matrix.target == 'android'
+        run: flutter build apk --debug
+
+      - name: Build ios (debug, no codesign)
+        if: matrix.target == 'ios'
+        run: flutter build ios --debug --no-codesign
+
+      - name: Build macos (debug)
+        if: matrix.target == 'macos'
+        run: flutter build macos --debug
+
+      - name: Build windows (debug)
+        if: matrix.target == 'windows'
+        run: flutter build windows --debug
+
+      - name: Build linux (debug)
+        if: matrix.target == 'linux'
+        run: flutter build linux --debug
+
+      - name: Build web
+        if: matrix.target == 'web'
+        run: flutter build web
+
+      - name: Upload build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-${{ matrix.target }}-debug
+          path: |
+            clients/flutter/build/app/outputs/flutter-apk/*.apk
+            clients/flutter/build/ios/iphoneos/*.app
+            clients/flutter/build/macos/Build/Products/Debug/*.app
+            clients/flutter/build/windows/x64/runner/Debug/**
+            clients/flutter/build/linux/x64/debug/bundle/**
+            clients/flutter/build/web/**
+          if-no-files-found: ignore
+          retention-days: 7

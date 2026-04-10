@@ -33,8 +33,9 @@ module "iam" {
 module "organizations" {
   source = "./organizations"
 
-  environment = var.environment
-  tags        = local.common_tags
+  environment      = var.environment
+  approved_regions = var.active_regions
+  tags             = local.common_tags
 }
 
 module "stripe" {
@@ -42,4 +43,14 @@ module "stripe" {
 
   environment = var.environment
   tags        = local.common_tags
+}
+
+module "baseline" {
+  source = "./baseline"
+
+  environment    = var.environment
+  aws_account_id = var.aws_account_id
+  tags           = local.common_tags
+
+  depends_on = [module.organizations]
 }

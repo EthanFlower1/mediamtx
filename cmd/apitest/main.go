@@ -226,11 +226,11 @@ func doRequestNoAuthWithCookies(method, path string, body interface{}, cookies [
 // loginAndStoreToken performs a login, stores the access token and refresh cookies.
 // Returns true on success.
 func loginAndStoreToken() bool {
-	resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+	resp, body, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 		"username": username,
 		"password": password,
 	})
-	if err != nil || resp == nil || resp.StatusCode != 200 {
+	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
 		return false
 	}
 	m := parseJSON(body)
@@ -380,14 +380,14 @@ func runAuthTests() {
 	// 1a. Login with valid credentials.
 	{
 		start := time.Now()
-		resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, body, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": username,
 			"password": password,
 		})
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Login valid credentials", false, err.Error(), dur)
-		} else if resp.StatusCode != 200 {
+		} else if resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Login valid credentials", false, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		} else {
 			m := parseJSON(body)
@@ -407,7 +407,7 @@ func runAuthTests() {
 	// 1b. Login with wrong password.
 	{
 		start := time.Now()
-		resp, _, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, _, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": username,
 			"password": "wrong-password-xyz",
 		})
@@ -417,12 +417,12 @@ func runAuthTests() {
 	// 1c. Login with empty body.
 	{
 		start := time.Now()
-		resp, _, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{})
+		resp, _, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{})
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Login empty body -> 400/401", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400 || resp.StatusCode == 401
+			ok := resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusUnauthorized
 			recordResult(cat, "Login empty body -> 400/401", ok, fmt.Sprintf("got %d", resp.StatusCode), dur)
 		}
 	}
@@ -430,7 +430,7 @@ func runAuthTests() {
 	// 1d. Login with non-existent user.
 	{
 		start := time.Now()
-		resp, _, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, _, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": "no-such-user-xyz",
 			"password": "whatever",
 		})
@@ -443,11 +443,11 @@ func runAuthTests() {
 		if len(refreshCookies) == 0 {
 			recordResult(cat, "Refresh token", false, "no refresh cookie from login", time.Since(start))
 		} else {
-			resp, body, err := doRequestNoAuthWithCookies("POST", "/api/nvr/auth/refresh", nil, refreshCookies)
+			resp, body, err := doRequestNoAuthWithCookies(http.MethodPost, "/api/nvr/auth/refresh", nil, refreshCookies)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Refresh token", false, err.Error(), dur)
-			} else if resp.StatusCode != 200 {
+			} else if resp.StatusCode != http.StatusOK {
 				recordResult(cat, "Refresh token", false, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			} else {
 				m := parseJSON(body)
@@ -468,14 +468,14 @@ func runAuthTests() {
 	// 1f. Access protected endpoint without token.
 	{
 		start := time.Now()
-		resp, _, err := doRequestNoAuth("GET", "/api/nvr/cameras", nil)
+		resp, _, err := doRequestNoAuth(http.MethodGet, "/api/nvr/cameras", nil)
 		expectStatus(cat, "No token -> 401", resp, err, 401, start)
 	}
 
 	// 1g. Access protected endpoint with invalid token.
 	{
 		start := time.Now()
-		req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+		req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/cameras", nil)
 		req.Header.Set("Authorization", "Bearer totally.invalid.token")
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
@@ -496,12 +496,12 @@ func runBruteForceTest() {
 	// Create a dedicated user for brute-force testing.
 	bfUser := fmt.Sprintf("bf_test_%d", time.Now().UnixMilli())
 	bfPass := "BruteForceTestPass123"
-	resp, body, _ := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+	resp, body, _ := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 		"username": bfUser,
 		"password": bfPass,
 		"role":     "viewer",
 	})
-	if resp == nil || resp.StatusCode != 201 {
+	if resp == nil || resp.StatusCode != http.StatusCreated {
 		recordResult(cat, "Brute-force lockout (expect 429/423/403)", false, "could not create test user", 0)
 		return
 	}
@@ -511,7 +511,7 @@ func runBruteForceTest() {
 	start := time.Now()
 	var lastStatus int
 	for i := 0; i < 8; i++ {
-		resp, _, _ := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, _, _ := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": bfUser,
 			"password": "wrong-brute-force",
 		})
@@ -525,8 +525,8 @@ func runBruteForceTest() {
 	recordResult(cat, "Brute-force lockout (expect 429/423/403)", ok, detail, dur)
 
 	// Clean up: unlock and delete the test user (admin token still works).
-	doRequest("POST", "/api/nvr/users/"+bfUserID+"/unlock", nil)
-	doRequest("DELETE", "/api/nvr/users/"+bfUserID, nil)
+	doRequest(http.MethodPost, "/api/nvr/users/"+bfUserID+"/unlock", nil)
+	doRequest(http.MethodDelete, "/api/nvr/users/"+bfUserID, nil)
 }
 
 // ---------------------------------------------------------------------------
@@ -540,9 +540,9 @@ func runCameraTests() {
 	// List cameras and discover capabilities.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/cameras", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/cameras", nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "List cameras", false, fmt.Sprintf("err=%v status=%d", err, safeStatus(resp)), dur)
 			return
 		}
@@ -580,9 +580,9 @@ func runCameraTests() {
 
 		{
 			start := time.Now()
-			resp, body, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID, nil)
+			resp, body, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID, nil)
 			dur := time.Since(start)
-			if err != nil || resp.StatusCode != 200 {
+			if err != nil || resp.StatusCode != http.StatusOK {
 				recordResult(cat, "Get single camera", false, fmt.Sprintf("status=%d", safeStatus(resp)), dur)
 			} else {
 				m := parseJSON(body)
@@ -594,21 +594,21 @@ func runCameraTests() {
 		// Get non-existent camera.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/nonexistent-camera-id-xyz", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/nonexistent-camera-id-xyz", nil)
 			expectStatus(cat, "Get camera 404", resp, err, 404, start)
 		}
 
 		// Device info (camera may be unreachable).
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/device-info", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/device-info", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Device info", false, err.Error(), dur)
-			} else if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+			} else if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 				skipResult(cat, "Device info", fmt.Sprintf("camera unreachable (status %d)", resp.StatusCode))
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Device info", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -616,14 +616,14 @@ func runCameraTests() {
 		// Services (capabilities, camera may be unreachable).
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/services", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/services", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Camera services", false, err.Error(), dur)
-			} else if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+			} else if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 				skipResult(cat, "Camera services", fmt.Sprintf("camera unreachable (status %d)", resp.StatusCode))
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Camera services", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -631,12 +631,12 @@ func runCameraTests() {
 		// Streams.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/streams", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/streams", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Camera streams", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Camera streams", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -644,12 +644,12 @@ func runCameraTests() {
 		// Connection history.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/connection/history", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/connection/history", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Connection history", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Connection history", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -657,12 +657,12 @@ func runCameraTests() {
 		// Connection state.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/connection", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/connection", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Connection state", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Connection state", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -685,14 +685,14 @@ func runCameraTests() {
 			// PTZ status.
 			{
 				start := time.Now()
-				resp, _, err := doRequest("GET", "/api/nvr/cameras/"+c.ID+"/ptz/status", nil)
+				resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+c.ID+"/ptz/status", nil)
 				dur := time.Since(start)
 				if err != nil {
 					recordResult(cat, fmt.Sprintf("PTZ status [%s]", c.Name), false, err.Error(), dur)
-				} else if resp.StatusCode == 400 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+				} else if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 					skipResult(cat, fmt.Sprintf("PTZ status [%s]", c.Name), fmt.Sprintf("camera not PTZ-ready (status %d)", resp.StatusCode))
 				} else {
-					ok := resp.StatusCode == 200
+					ok := resp.StatusCode == http.StatusOK
 					recordResult(cat, fmt.Sprintf("PTZ status [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 				}
 			}
@@ -700,14 +700,14 @@ func runCameraTests() {
 			// PTZ presets.
 			{
 				start := time.Now()
-				resp, _, err := doRequest("GET", "/api/nvr/cameras/"+c.ID+"/ptz/presets", nil)
+				resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+c.ID+"/ptz/presets", nil)
 				dur := time.Since(start)
 				if err != nil {
 					recordResult(cat, fmt.Sprintf("PTZ presets [%s]", c.Name), false, err.Error(), dur)
-				} else if resp.StatusCode == 400 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+				} else if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 					skipResult(cat, fmt.Sprintf("PTZ presets [%s]", c.Name), fmt.Sprintf("camera not PTZ-ready (status %d)", resp.StatusCode))
 				} else {
-					ok := resp.StatusCode == 200
+					ok := resp.StatusCode == http.StatusOK
 					recordResult(cat, fmt.Sprintf("PTZ presets [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 				}
 			}
@@ -715,14 +715,14 @@ func runCameraTests() {
 			// PTZ capabilities.
 			{
 				start := time.Now()
-				resp, _, err := doRequest("GET", "/api/nvr/cameras/"+c.ID+"/ptz/capabilities", nil)
+				resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+c.ID+"/ptz/capabilities", nil)
 				dur := time.Since(start)
 				if err != nil {
 					recordResult(cat, fmt.Sprintf("PTZ capabilities [%s]", c.Name), false, err.Error(), dur)
-				} else if resp.StatusCode == 400 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+				} else if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 					skipResult(cat, fmt.Sprintf("PTZ capabilities [%s]", c.Name), fmt.Sprintf("camera not PTZ-ready (status %d)", resp.StatusCode))
 				} else {
-					ok := resp.StatusCode == 200
+					ok := resp.StatusCode == http.StatusOK
 					recordResult(cat, fmt.Sprintf("PTZ capabilities [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 				}
 			}
@@ -730,7 +730,7 @@ func runCameraTests() {
 			// PTZ continuous move (tiny amount, then stop).
 			{
 				start := time.Now()
-				resp, _, err := doRequest("POST", "/api/nvr/cameras/"+c.ID+"/ptz", map[string]interface{}{
+				resp, _, err := doRequest(http.MethodPost, "/api/nvr/cameras/"+c.ID+"/ptz", map[string]interface{}{
 					"action": "continuous",
 					"pan":    0.1,
 					"tilt":   0.0,
@@ -739,10 +739,10 @@ func runCameraTests() {
 				dur := time.Since(start)
 				if err != nil {
 					recordResult(cat, fmt.Sprintf("PTZ continuous move [%s]", c.Name), false, err.Error(), dur)
-				} else if resp.StatusCode == 400 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+				} else if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 					skipResult(cat, fmt.Sprintf("PTZ continuous move [%s]", c.Name), fmt.Sprintf("camera not PTZ-ready (status %d)", resp.StatusCode))
 				} else {
-					ok := resp.StatusCode == 200 || resp.StatusCode == 204
+					ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 					recordResult(cat, fmt.Sprintf("PTZ continuous move [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 				}
 			}
@@ -750,16 +750,16 @@ func runCameraTests() {
 			// PTZ stop.
 			{
 				start := time.Now()
-				resp, _, err := doRequest("POST", "/api/nvr/cameras/"+c.ID+"/ptz", map[string]interface{}{
+				resp, _, err := doRequest(http.MethodPost, "/api/nvr/cameras/"+c.ID+"/ptz", map[string]interface{}{
 					"action": "stop",
 				})
 				dur := time.Since(start)
 				if err != nil {
 					recordResult(cat, fmt.Sprintf("PTZ stop [%s]", c.Name), false, err.Error(), dur)
-				} else if resp.StatusCode == 400 || resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+				} else if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 					skipResult(cat, fmt.Sprintf("PTZ stop [%s]", c.Name), fmt.Sprintf("camera not PTZ-ready (status %d)", resp.StatusCode))
 				} else {
-					ok := resp.StatusCode == 200 || resp.StatusCode == 204
+					ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 					recordResult(cat, fmt.Sprintf("PTZ stop [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 				}
 			}
@@ -772,7 +772,7 @@ func runCameraTests() {
 			}
 			now := time.Now()
 			start := time.Now()
-			resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/cameras/%s/detection-events?start=%s&end=%s",
+			resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/cameras/%s/detection-events?start=%s&end=%s",
 				c.ID,
 				now.Add(-24*time.Hour).Format(time.RFC3339),
 				now.Format(time.RFC3339),
@@ -780,10 +780,10 @@ func runCameraTests() {
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, fmt.Sprintf("Detection events [%s]", c.Name), false, err.Error(), dur)
-			} else if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+			} else if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 				skipResult(cat, fmt.Sprintf("Detection events [%s]", c.Name), fmt.Sprintf("camera unreachable (status %d)", resp.StatusCode))
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, fmt.Sprintf("Detection events [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -791,12 +791,12 @@ func runCameraTests() {
 		// Confidence thresholds for first camera.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/confidence-thresholds", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/confidence-thresholds", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "Confidence thresholds", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "Confidence thresholds", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -804,12 +804,12 @@ func runCameraTests() {
 		// All connection states.
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", "/api/nvr/connections", nil)
+			resp, _, err := doRequest(http.MethodGet, "/api/nvr/connections", nil)
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, "All connection states", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, "All connection states", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -834,7 +834,7 @@ func runRecordingTests() {
 	{
 		now := time.Now()
 		start := time.Now()
-		resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%s&end=%s",
+		resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%s&end=%s",
 			cam.ID,
 			now.Add(-24*time.Hour).Format(time.RFC3339),
 			now.Format(time.RFC3339),
@@ -843,7 +843,7 @@ func runRecordingTests() {
 		if err != nil {
 			recordResult(cat, "Query recordings (today)", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Query recordings (today)", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -851,12 +851,12 @@ func runRecordingTests() {
 	// Query recordings with invalid start time.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/recordings?camera_id="+cam.ID+"&start=not-a-date&end="+time.Now().Format(time.RFC3339), nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/recordings?camera_id="+cam.ID+"&start=not-a-date&end="+time.Now().Format(time.RFC3339), nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Query recordings invalid time -> 400", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400
+			ok := resp.StatusCode == http.StatusBadRequest
 			recordResult(cat, "Query recordings invalid time -> 400", ok, fmt.Sprintf("got %d", resp.StatusCode), dur)
 		}
 	}
@@ -865,7 +865,7 @@ func runRecordingTests() {
 	{
 		today := time.Now().Format("2006-01-02")
 		start := time.Now()
-		resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/timeline?camera_id=%s&date=%s",
+		resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/timeline?camera_id=%s&date=%s",
 			cam.ID,
 			today,
 		), nil)
@@ -873,7 +873,7 @@ func runRecordingTests() {
 		if err != nil {
 			recordResult(cat, "Timeline", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Timeline", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -886,7 +886,7 @@ func runRecordingTests() {
 		for _, c := range cameras {
 			ids = append(ids, c.ID)
 		}
-		resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/timeline/multi?cameras=%s&date=%s",
+		resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/timeline/multi?cameras=%s&date=%s",
 			strings.Join(ids, ","),
 			today,
 		), nil)
@@ -894,7 +894,7 @@ func runRecordingTests() {
 		if err != nil {
 			recordResult(cat, "Multi-camera timeline", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Multi-camera timeline", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -902,12 +902,12 @@ func runRecordingTests() {
 	// Recording stats.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/recordings/stats", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/recordings/stats", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Recording stats", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Recording stats", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -915,12 +915,12 @@ func runRecordingTests() {
 	// Recording health.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/recordings/health", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/recordings/health", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Recording health", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Recording health", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -928,12 +928,12 @@ func runRecordingTests() {
 	// Recording integrity.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/recordings/integrity", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/recordings/integrity", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Recording integrity summary", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Recording integrity summary", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -941,12 +941,12 @@ func runRecordingTests() {
 	// Gaps.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/recordings/stats/"+cam.ID+"/gaps", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/recordings/stats/"+cam.ID+"/gaps", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Recording gaps", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Recording gaps", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -955,12 +955,12 @@ func runRecordingTests() {
 	{
 		today := time.Now().Format("2006-01-02")
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/motion-events?date="+today, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/motion-events?date="+today, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Motion events", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Motion events", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -969,12 +969,12 @@ func runRecordingTests() {
 	{
 		today := time.Now().Format("2006-01-02")
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/events?date="+today, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/events?date="+today, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Camera events", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Camera events", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -999,14 +999,14 @@ func runBookmarkTests() {
 	// Create bookmark.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/bookmarks", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/bookmarks", map[string]interface{}{
 			"camera_id": cam.ID,
 			"timestamp": time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
 			"label":     "API Test Bookmark",
 			"notes":     "Created by integration test",
 		})
 		dur := time.Since(start)
-		if err != nil || (resp.StatusCode != 201 && resp.StatusCode != 200) {
+		if err != nil || (resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK) {
 			recordResult(cat, "Create bookmark", false, fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
 		} else {
 			m := parseJSON(body)
@@ -1020,12 +1020,12 @@ func runBookmarkTests() {
 	// Create bookmark with missing fields.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("POST", "/api/nvr/bookmarks", map[string]interface{}{})
+		resp, _, err := doRequest(http.MethodPost, "/api/nvr/bookmarks", map[string]interface{}{})
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Create bookmark missing fields -> 400", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400
+			ok := resp.StatusCode == http.StatusBadRequest
 			recordResult(cat, "Create bookmark missing fields -> 400", ok, fmt.Sprintf("got %d", resp.StatusCode), dur)
 		}
 	}
@@ -1034,9 +1034,9 @@ func runBookmarkTests() {
 	{
 		today := time.Now().Format("2006-01-02")
 		start := time.Now()
-		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/bookmarks?camera_id=%s&date=%s", cam.ID, today), nil)
+		resp, body, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/bookmarks?camera_id=%s&date=%s", cam.ID, today), nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "List bookmarks", false, fmt.Sprintf("status=%d", safeStatus(resp)), dur)
 		} else {
 			arr := parseJSONArray(body)
@@ -1047,9 +1047,9 @@ func runBookmarkTests() {
 	// Get single bookmark.
 	if bookmarkID != "" {
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/bookmarks/"+bookmarkID, nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/bookmarks/"+bookmarkID, nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Get bookmark by ID", false, fmt.Sprintf("status=%d", safeStatus(resp)), dur)
 		} else {
 			m := parseJSON(body)
@@ -1061,14 +1061,14 @@ func runBookmarkTests() {
 	// Get non-existent bookmark (numeric ID that won't exist).
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/bookmarks/999999", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/bookmarks/999999", nil)
 		expectStatus(cat, "Get bookmark 404", resp, err, 404, start)
 	}
 
 	// Update bookmark.
 	if bookmarkID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/bookmarks/"+bookmarkID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/bookmarks/"+bookmarkID, map[string]interface{}{
 			"label": "Updated API Test Bookmark",
 			"notes": "Updated by integration test",
 		})
@@ -1076,7 +1076,7 @@ func runBookmarkTests() {
 		if err != nil {
 			recordResult(cat, "Update bookmark", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update bookmark", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1084,12 +1084,12 @@ func runBookmarkTests() {
 	// Search bookmarks.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/bookmarks/search?q=API+Test", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/bookmarks/search?q=API+Test", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Search bookmarks", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Search bookmarks", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1097,12 +1097,12 @@ func runBookmarkTests() {
 	// My bookmarks.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/bookmarks/mine", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/bookmarks/mine", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "My bookmarks", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "My bookmarks", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1110,12 +1110,12 @@ func runBookmarkTests() {
 	// Delete bookmark.
 	if bookmarkID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/bookmarks/"+bookmarkID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/bookmarks/"+bookmarkID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete bookmark", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete bookmark", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1123,7 +1123,7 @@ func runBookmarkTests() {
 	// Delete non-existent bookmark (numeric ID that won't exist).
 	{
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/bookmarks/999999", nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/bookmarks/999999", nil)
 		expectStatus(cat, "Delete bookmark 404", resp, err, 404, start)
 	}
 }
@@ -1148,7 +1148,7 @@ func runExportTests() {
 	{
 		now := time.Now()
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/exports", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/exports", map[string]interface{}{
 			"camera_id": cam.ID,
 			"start":     now.Add(-2 * time.Hour).Format(time.RFC3339),
 			"end":       now.Add(-1 * time.Hour).Format(time.RFC3339),
@@ -1157,7 +1157,7 @@ func runExportTests() {
 		if err != nil {
 			recordResult(cat, "Create export", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 202 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				exportID = getString(m, "id")
@@ -1172,7 +1172,7 @@ func runExportTests() {
 	{
 		now := time.Now()
 		start := time.Now()
-		resp, _, err := doRequest("POST", "/api/nvr/exports", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPost, "/api/nvr/exports", map[string]interface{}{
 			"camera_id": cam.ID,
 			"start":     now.Format(time.RFC3339),
 			"end":       now.Add(-5 * time.Hour).Format(time.RFC3339),
@@ -1181,7 +1181,7 @@ func runExportTests() {
 		if err != nil {
 			recordResult(cat, "Create export invalid range", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400 || resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			recordResult(cat, "Create export invalid range", ok, fmt.Sprintf("got %d (no time-order validation yet)", resp.StatusCode), dur)
 		}
 	}
@@ -1189,12 +1189,12 @@ func runExportTests() {
 	// List export jobs.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/exports", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/exports", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List exports", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List exports", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1202,12 +1202,12 @@ func runExportTests() {
 	// Get export job status.
 	if exportID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/exports/"+exportID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/exports/"+exportID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get export status", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get export status", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1215,12 +1215,12 @@ func runExportTests() {
 	// Delete export job.
 	if exportID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/exports/"+exportID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/exports/"+exportID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete export", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete export", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1245,12 +1245,12 @@ func runDetectionZoneTests() {
 	// List zones.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/cameras/"+cam.ID+"/detection-zones", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/cameras/"+cam.ID+"/detection-zones", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List zones", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List zones", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1258,7 +1258,7 @@ func runDetectionZoneTests() {
 	// Create zone with valid polygon.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
 			"name": "Test Zone",
 			"points": []map[string]float64{
 				{"x": 0.1, "y": 0.1},
@@ -1273,7 +1273,7 @@ func runDetectionZoneTests() {
 		if err != nil {
 			recordResult(cat, "Create zone", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				zoneID = getString(m, "id")
@@ -1285,7 +1285,7 @@ func runDetectionZoneTests() {
 	// Create zone with < 3 points.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("POST", "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPost, "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
 			"name": "Bad Zone",
 			"points": []map[string]float64{
 				{"x": 0.1, "y": 0.1},
@@ -1297,7 +1297,7 @@ func runDetectionZoneTests() {
 		if err != nil {
 			recordResult(cat, "Create zone < 3 points -> 400", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400
+			ok := resp.StatusCode == http.StatusBadRequest
 			recordResult(cat, "Create zone < 3 points -> 400", ok, fmt.Sprintf("got %d", resp.StatusCode), dur)
 		}
 	}
@@ -1305,7 +1305,7 @@ func runDetectionZoneTests() {
 	// Create zone with self-intersecting polygon.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("POST", "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPost, "/api/nvr/cameras/"+cam.ID+"/detection-zones", map[string]interface{}{
 			"name": "Intersect Zone",
 			"points": []map[string]float64{
 				{"x": 0.0, "y": 0.0},
@@ -1319,7 +1319,7 @@ func runDetectionZoneTests() {
 		if err != nil {
 			recordResult(cat, "Create zone self-intersecting -> 400", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400
+			ok := resp.StatusCode == http.StatusBadRequest
 			recordResult(cat, "Create zone self-intersecting -> 400", ok, fmt.Sprintf("got %d", resp.StatusCode), dur)
 		}
 	}
@@ -1327,7 +1327,7 @@ func runDetectionZoneTests() {
 	// Update zone.
 	if zoneID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/detection-zones/"+zoneID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/detection-zones/"+zoneID, map[string]interface{}{
 			"name": "Updated Test Zone",
 			"points": []map[string]float64{
 				{"x": 0.2, "y": 0.2},
@@ -1340,7 +1340,7 @@ func runDetectionZoneTests() {
 		if err != nil {
 			recordResult(cat, "Update zone", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update zone", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1348,12 +1348,12 @@ func runDetectionZoneTests() {
 	// Delete zone (cleanup).
 	if zoneID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/detection-zones/"+zoneID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/detection-zones/"+zoneID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete zone", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete zone", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1372,12 +1372,12 @@ func runUserTests() {
 	// List users.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/users", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/users", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List users", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List users", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1385,7 +1385,7 @@ func runUserTests() {
 	// Create user.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 			"username": "apitest_user_" + fmt.Sprintf("%d", time.Now().UnixMilli()),
 			"password": "SecureP@ss123!",
 			"role":     "viewer",
@@ -1394,7 +1394,7 @@ func runUserTests() {
 		if err != nil {
 			recordResult(cat, "Create user", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				testUserID = getString(m, "id")
@@ -1409,14 +1409,14 @@ func runUserTests() {
 	if testUserID != "" {
 		start := time.Now()
 		// Try to get the username we just created.
-		resp2, body2, _ := doRequest("GET", "/api/nvr/users/"+testUserID, nil)
+		resp2, body2, _ := doRequest(http.MethodGet, "/api/nvr/users/"+testUserID, nil)
 		existingUsername := ""
-		if resp2 != nil && resp2.StatusCode == 200 {
+		if resp2 != nil && resp2.StatusCode == http.StatusOK {
 			m := parseJSON(body2)
 			existingUsername = getString(m, "username")
 		}
 		if existingUsername != "" {
-			resp, _, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+			resp, _, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 				"username": existingUsername,
 				"password": "AnotherP@ss123!",
 				"role":     "viewer",
@@ -1425,7 +1425,7 @@ func runUserTests() {
 			if err != nil {
 				recordResult(cat, "Duplicate username -> error", false, err.Error(), dur)
 			} else {
-				ok := resp.StatusCode == 409 || resp.StatusCode == 400 || resp.StatusCode == 500
+				ok := resp.StatusCode == http.StatusConflict || resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError
 				recordResult(cat, "Duplicate username -> error", ok, fmt.Sprintf("got %d (409 preferred)", resp.StatusCode), dur)
 			}
 		}
@@ -1438,7 +1438,7 @@ func runUserTests() {
 		shortPwUser := "shortpw_user_" + fmt.Sprintf("%d", time.Now().UnixMilli())
 		var shortPwUserID string
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 			"username": shortPwUser,
 			"password": "ab",
 			"role":     "viewer",
@@ -1447,8 +1447,8 @@ func runUserTests() {
 		if err != nil {
 			recordResult(cat, "Short password -> 400 or 201", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 400 || resp.StatusCode == 201
-			if resp.StatusCode == 201 {
+			ok := resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusCreated
+			if resp.StatusCode == http.StatusCreated {
 				m := parseJSON(body)
 				shortPwUserID = getString(m, "id")
 			}
@@ -1456,19 +1456,19 @@ func runUserTests() {
 		}
 		// Clean up the user if it was created.
 		if shortPwUserID != "" {
-			doRequest("DELETE", "/api/nvr/users/"+shortPwUserID, nil)
+			doRequest(http.MethodDelete, "/api/nvr/users/"+shortPwUserID, nil)
 		}
 	}
 
 	// Get user.
 	if testUserID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/users/"+testUserID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/users/"+testUserID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get user", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get user", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1476,14 +1476,14 @@ func runUserTests() {
 	// Update user role.
 	if testUserID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/users/"+testUserID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/users/"+testUserID, map[string]interface{}{
 			"role": "operator",
 		})
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Update user role", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update user role", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1491,12 +1491,12 @@ func runUserTests() {
 	// Delete user.
 	if testUserID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/users/"+testUserID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/users/"+testUserID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete user", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete user", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1504,7 +1504,7 @@ func runUserTests() {
 	// Delete non-existent user.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/users/nonexistent-user-id-xyz", nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/users/nonexistent-user-id-xyz", nil)
 		expectStatus(cat, "Delete user 404", resp, err, 404, start)
 	}
 }
@@ -1522,12 +1522,12 @@ func runRoleTests() {
 	// List roles.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/roles", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/roles", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List roles", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			arr := parseJSONArray(body)
 			recordResult(cat, "List roles", ok, fmt.Sprintf("%d role(s)", len(arr)), dur)
 
@@ -1538,12 +1538,12 @@ func runRoleTests() {
 						systemRoleID := getString(rm, "id")
 						// Try to delete a system role.
 						start2 := time.Now()
-						resp2, _, err2 := doRequest("DELETE", "/api/nvr/roles/"+systemRoleID, nil)
+						resp2, _, err2 := doRequest(http.MethodDelete, "/api/nvr/roles/"+systemRoleID, nil)
 						dur2 := time.Since(start2)
 						if err2 != nil {
 							recordResult(cat, "Delete system role -> error", false, err2.Error(), dur2)
 						} else {
-							ok2 := resp2.StatusCode == 400 || resp2.StatusCode == 403 || resp2.StatusCode == 409
+							ok2 := resp2.StatusCode == http.StatusBadRequest || resp2.StatusCode == http.StatusForbidden || resp2.StatusCode == http.StatusConflict
 							recordResult(cat, "Delete system role -> error", ok2, fmt.Sprintf("got %d", resp2.StatusCode), dur2)
 						}
 						break
@@ -1556,7 +1556,7 @@ func runRoleTests() {
 	// Create custom role.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/roles", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/roles", map[string]interface{}{
 			"name":        "apitest_role",
 			"description": "Integration test role",
 			"permissions":  []string{"view_live", "view_playback"},
@@ -1565,7 +1565,7 @@ func runRoleTests() {
 		if err != nil {
 			recordResult(cat, "Create custom role", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				customRoleID = getString(m, "id")
@@ -1577,12 +1577,12 @@ func runRoleTests() {
 	// Get single role.
 	if customRoleID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/roles/"+customRoleID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/roles/"+customRoleID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get role", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get role", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1590,7 +1590,7 @@ func runRoleTests() {
 	// Update custom role.
 	if customRoleID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/roles/"+customRoleID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/roles/"+customRoleID, map[string]interface{}{
 			"description": "Updated integration test role",
 			"permissions":  []string{"view_live", "view_playback", "export"},
 		})
@@ -1598,7 +1598,7 @@ func runRoleTests() {
 		if err != nil {
 			recordResult(cat, "Update custom role", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update custom role", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1606,12 +1606,12 @@ func runRoleTests() {
 	// Delete custom role (cleanup).
 	if customRoleID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/roles/"+customRoleID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/roles/"+customRoleID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete custom role", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete custom role", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1628,12 +1628,12 @@ func runSessionTests() {
 	// List sessions.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/sessions", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/sessions", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List sessions", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			arr := parseJSONArray(body)
 			recordResult(cat, "List sessions", ok, fmt.Sprintf("%d session(s)", len(arr)), dur)
 		}
@@ -1642,12 +1642,12 @@ func runSessionTests() {
 	// Get session timeout config.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/sessions/timeout", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/sessions/timeout", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get session timeout", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get session timeout", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1666,7 +1666,7 @@ func runWebhookTests() {
 	// Create webhook.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/webhooks", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/webhooks", map[string]interface{}{
 			"name":           "Test Webhook",
 			"url":            "https://httpbin.org/post",
 			"event_types":    "motion,detection",
@@ -1678,7 +1678,7 @@ func runWebhookTests() {
 		if err != nil {
 			recordResult(cat, "Create webhook", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				webhookID = getString(m, "id")
@@ -1690,12 +1690,12 @@ func runWebhookTests() {
 	// List webhooks.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/webhooks", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/webhooks", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List webhooks", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List webhooks", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1703,12 +1703,12 @@ func runWebhookTests() {
 	// Get webhook.
 	if webhookID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/webhooks/"+webhookID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/webhooks/"+webhookID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get webhook", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get webhook", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1716,7 +1716,7 @@ func runWebhookTests() {
 	// Update webhook.
 	if webhookID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/webhooks/"+webhookID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/webhooks/"+webhookID, map[string]interface{}{
 			"name":    "Updated Webhook",
 			"url":     "https://httpbin.org/post",
 			"enabled": false,
@@ -1725,7 +1725,7 @@ func runWebhookTests() {
 		if err != nil {
 			recordResult(cat, "Update webhook", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update webhook", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1733,12 +1733,12 @@ func runWebhookTests() {
 	// Get webhook deliveries.
 	if webhookID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/webhooks/"+webhookID+"/deliveries", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/webhooks/"+webhookID+"/deliveries", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Webhook deliveries", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Webhook deliveries", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1746,12 +1746,12 @@ func runWebhookTests() {
 	// Delete webhook (cleanup).
 	if webhookID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/webhooks/"+webhookID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/webhooks/"+webhookID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete webhook", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete webhook", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1770,12 +1770,12 @@ func runAlertTests() {
 	// Get SMTP config.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/system/smtp/config", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/system/smtp/config", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get SMTP config", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get SMTP config", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1783,7 +1783,7 @@ func runAlertTests() {
 	// Create alert rule.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/alert-rules", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/alert-rules", map[string]interface{}{
 			"name":             "Test Alert Rule",
 			"rule_type":        "disk_usage",
 			"threshold_value":  80,
@@ -1795,7 +1795,7 @@ func runAlertTests() {
 		if err != nil {
 			recordResult(cat, "Create alert rule", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				ruleID = getString(m, "id")
@@ -1807,12 +1807,12 @@ func runAlertTests() {
 	// List alert rules.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/alert-rules", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/alert-rules", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List alert rules", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List alert rules", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1820,12 +1820,12 @@ func runAlertTests() {
 	// List alerts.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/alerts", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/alerts", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List alerts", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List alerts", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1833,12 +1833,12 @@ func runAlertTests() {
 	// Delete alert rule (cleanup).
 	if ruleID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/alert-rules/"+ruleID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/alert-rules/"+ruleID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete alert rule", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete alert rule", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1858,16 +1858,16 @@ func runSystemTests() {
 		method string
 		path   string
 	}{
-		{"System health", "GET", "/api/nvr/system/health"},
-		{"System info", "GET", "/api/nvr/system/info"},
-		{"System storage", "GET", "/api/nvr/system/storage"},
-		{"DB health", "GET", "/api/nvr/system/db/health"},
-		{"Hardware info", "GET", "/api/nvr/system/hardware"},
-		{"Security config", "GET", "/api/nvr/system/security/config"},
-		{"Config summary", "GET", "/api/nvr/system/config"},
-		{"System metrics", "GET", "/api/nvr/system/metrics"},
-		{"Disk I/O", "GET", "/api/nvr/system/disk-io"},
-		{"Sizing estimate", "GET", "/api/nvr/system/sizing"},
+		{"System health", http.MethodGet, "/api/nvr/system/health"},
+		{"System info", http.MethodGet, "/api/nvr/system/info"},
+		{"System storage", http.MethodGet, "/api/nvr/system/storage"},
+		{"DB health", http.MethodGet, "/api/nvr/system/db/health"},
+		{"Hardware info", http.MethodGet, "/api/nvr/system/hardware"},
+		{"Security config", http.MethodGet, "/api/nvr/system/security/config"},
+		{"Config summary", http.MethodGet, "/api/nvr/system/config"},
+		{"System metrics", http.MethodGet, "/api/nvr/system/metrics"},
+		{"Disk I/O", http.MethodGet, "/api/nvr/system/disk-io"},
+		{"Sizing estimate", http.MethodGet, "/api/nvr/system/sizing"},
 	}
 
 	for _, ep := range endpoints {
@@ -1883,7 +1883,7 @@ func runSystemTests() {
 		if err != nil {
 			recordResult(cat, ep.name, false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, ep.name, ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1892,7 +1892,7 @@ func runSystemTests() {
 	// Use longer timeout and accept 503 (cameras unreachable).
 	{
 		start := time.Now()
-		req, _ := http.NewRequest("GET", baseURL+"/health", nil)
+		req, _ := http.NewRequest(http.MethodGet, baseURL+"/health", nil)
 		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
 		if err == nil {
@@ -1908,7 +1908,7 @@ func runSystemTests() {
 				recordResult(cat, "Health check (public)", false, err.Error(), dur)
 			}
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 503
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusServiceUnavailable
 			recordResult(cat, "Health check (public)", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1916,14 +1916,14 @@ func runSystemTests() {
 	// Requirements check — SysChecker may not be configured, accept 500.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/system/requirements-check", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/system/requirements-check", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Requirements check", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 500
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusInternalServerError
 			detail := fmt.Sprintf("status %d", resp.StatusCode)
-			if resp.StatusCode == 500 {
+			if resp.StatusCode == http.StatusInternalServerError {
 				detail += " (SysChecker may not be configured)"
 			}
 			recordResult(cat, "Requirements check", ok, detail, dur)
@@ -1933,14 +1933,14 @@ func runSystemTests() {
 	// Logging config — LogManager may be nil, returns 404 when unavailable.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/system/logging/config", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/system/logging/config", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Logging config", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 404
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 			detail := fmt.Sprintf("status %d", resp.StatusCode)
-			if resp.StatusCode == 404 {
+			if resp.StatusCode == http.StatusNotFound {
 				detail += " (LogManager not available)"
 			}
 			recordResult(cat, "Logging config", ok, detail, dur)
@@ -1959,12 +1959,12 @@ func runAuditTests() {
 	// List audit entries.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/audit?limit=20", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/audit?limit=20", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List audit entries", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			arr := parseJSONArray(body)
 			recordResult(cat, "List audit entries", ok, fmt.Sprintf("%d entries", len(arr)), dur)
 		}
@@ -1973,12 +1973,12 @@ func runAuditTests() {
 	// Filter audit by action.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/audit?action=login&limit=5", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/audit?action=login&limit=5", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Filter audit by action", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Filter audit by action", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -1988,12 +1988,12 @@ func runAuditTests() {
 		today := time.Now().Format("2006-01-02")
 		weekAgo := time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02")
 		start := time.Now()
-		resp, _, err := doRequestAccept("GET", fmt.Sprintf("/api/nvr/audit/export?format=json&from=%s&to=%s", weekAgo, today), nil, "application/json")
+		resp, _, err := doRequestAccept(http.MethodGet, fmt.Sprintf("/api/nvr/audit/export?format=json&from=%s&to=%s", weekAgo, today), nil, "application/json")
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Export audit JSON", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Export audit JSON", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2003,12 +2003,12 @@ func runAuditTests() {
 		today := time.Now().Format("2006-01-02")
 		weekAgo := time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02")
 		start := time.Now()
-		resp, _, err := doRequestAccept("GET", fmt.Sprintf("/api/nvr/audit/export?format=csv&from=%s&to=%s", weekAgo, today), nil, "text/csv")
+		resp, _, err := doRequestAccept(http.MethodGet, fmt.Sprintf("/api/nvr/audit/export?format=csv&from=%s&to=%s", weekAgo, today), nil, "text/csv")
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Export audit CSV", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Export audit CSV", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2016,12 +2016,12 @@ func runAuditTests() {
 	// Get retention config.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/audit/retention", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/audit/retention", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Audit retention config", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Audit retention config", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2038,12 +2038,12 @@ func runBrandingTests() {
 	// Get branding (public).
 	{
 		start := time.Now()
-		resp, body, err := doRequestNoAuth("GET", "/api/nvr/system/branding", nil)
+		resp, body, err := doRequestNoAuth(http.MethodGet, "/api/nvr/system/branding", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get branding (public)", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			m := parseJSON(body)
 			detail := ""
 			if pn := getString(m, "product_name"); pn != "" {
@@ -2056,7 +2056,7 @@ func runBrandingTests() {
 	// Update branding.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/system/branding", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/system/branding", map[string]interface{}{
 			"product_name": "NVR Test",
 			"accent_color": "#3B82F6",
 		})
@@ -2064,7 +2064,7 @@ func runBrandingTests() {
 		if err != nil {
 			recordResult(cat, "Update branding", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update branding", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2072,7 +2072,7 @@ func runBrandingTests() {
 	// Reset branding back.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/system/branding", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/system/branding", map[string]interface{}{
 			"product_name": "MediaMTX NVR",
 			"accent_color": "#2563EB",
 		})
@@ -2080,7 +2080,7 @@ func runBrandingTests() {
 		if err != nil {
 			recordResult(cat, "Reset branding", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Reset branding", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2097,12 +2097,12 @@ func runBackupTests() {
 	// List backups.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/system/backups", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/system/backups", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List backups", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List backups", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2110,14 +2110,14 @@ func runBackupTests() {
 	// Create backup (requires password with min 8 characters).
 	{
 		start := time.Now()
-		resp, _, err := doRequest("POST", "/api/nvr/system/backups", map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPost, "/api/nvr/system/backups", map[string]interface{}{
 			"password": "testbackup123",
 		})
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Create backup", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 201 || resp.StatusCode == 202
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusAccepted
 			recordResult(cat, "Create backup", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2125,12 +2125,12 @@ func runBackupTests() {
 	// Get backup schedule.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/system/backups/schedule", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/system/backups/schedule", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get backup schedule", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get backup schedule", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2167,7 +2167,7 @@ func runEdgeSearchTests() {
 		// Edge search recordings (camera may be unreachable).
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/edge-search/recordings?camera_id=%s&start=%s&end=%s",
+			resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/edge-search/recordings?camera_id=%s&start=%s&end=%s",
 				c.ID,
 				now.Add(-24*time.Hour).Format(time.RFC3339),
 				now.Format(time.RFC3339),
@@ -2175,10 +2175,10 @@ func runEdgeSearchTests() {
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, fmt.Sprintf("Edge recordings [%s]", c.Name), false, err.Error(), dur)
-			} else if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+			} else if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 				skipResult(cat, fmt.Sprintf("Edge recordings [%s]", c.Name), fmt.Sprintf("camera unreachable (status %d)", resp.StatusCode))
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, fmt.Sprintf("Edge recordings [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -2186,7 +2186,7 @@ func runEdgeSearchTests() {
 		// Edge search events (camera may be unreachable).
 		{
 			start := time.Now()
-			resp, _, err := doRequest("GET", fmt.Sprintf("/api/nvr/edge-search/events?camera_id=%s&start=%s&end=%s",
+			resp, _, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/edge-search/events?camera_id=%s&start=%s&end=%s",
 				c.ID,
 				now.Add(-24*time.Hour).Format(time.RFC3339),
 				now.Format(time.RFC3339),
@@ -2194,10 +2194,10 @@ func runEdgeSearchTests() {
 			dur := time.Since(start)
 			if err != nil {
 				recordResult(cat, fmt.Sprintf("Edge events [%s]", c.Name), false, err.Error(), dur)
-			} else if resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 {
+			} else if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
 				skipResult(cat, fmt.Sprintf("Edge events [%s]", c.Name), fmt.Sprintf("camera unreachable (status %d)", resp.StatusCode))
 			} else {
-				ok := resp.StatusCode == 200
+				ok := resp.StatusCode == http.StatusOK
 				recordResult(cat, fmt.Sprintf("Edge events [%s]", c.Name), ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 			}
 		}
@@ -2219,12 +2219,12 @@ func runGroupTests() {
 	// List groups.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/camera-groups", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/camera-groups", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List groups", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List groups", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2232,7 +2232,7 @@ func runGroupTests() {
 	// Create group.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/camera-groups", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/camera-groups", map[string]interface{}{
 			"name":        "API Test Group",
 			"description": "Created by integration test",
 		})
@@ -2240,7 +2240,7 @@ func runGroupTests() {
 		if err != nil {
 			recordResult(cat, "Create group", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				groupID = getString(m, "id")
@@ -2252,12 +2252,12 @@ func runGroupTests() {
 	// Get group.
 	if groupID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/camera-groups/"+groupID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/camera-groups/"+groupID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get group", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get group", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2265,7 +2265,7 @@ func runGroupTests() {
 	// Update group.
 	if groupID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/camera-groups/"+groupID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/camera-groups/"+groupID, map[string]interface{}{
 			"name":        "Updated Test Group",
 			"description": "Updated by integration test",
 		})
@@ -2273,7 +2273,7 @@ func runGroupTests() {
 		if err != nil {
 			recordResult(cat, "Update group", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update group", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2281,12 +2281,12 @@ func runGroupTests() {
 	// Delete group (cleanup).
 	if groupID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/camera-groups/"+groupID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/camera-groups/"+groupID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete group", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete group", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2310,12 +2310,12 @@ func runTourTests() {
 	// List tours.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/tours", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/tours", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List tours", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List tours", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2323,7 +2323,7 @@ func runTourTests() {
 	// Create tour.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/tours", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/tours", map[string]interface{}{
 			"name":          "API Test Tour",
 			"camera_ids":    []string{cameras[0].ID},
 			"dwell_seconds": 10,
@@ -2332,7 +2332,7 @@ func runTourTests() {
 		if err != nil {
 			recordResult(cat, "Create tour", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				tourID = getString(m, "id")
@@ -2344,12 +2344,12 @@ func runTourTests() {
 	// Get tour.
 	if tourID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/tours/"+tourID, nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/tours/"+tourID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Get tour", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Get tour", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2357,12 +2357,12 @@ func runTourTests() {
 	// Delete tour (cleanup).
 	if tourID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/tours/"+tourID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/tours/"+tourID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete tour", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete tour", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2379,12 +2379,12 @@ func runQuotaTests() {
 	// List quotas.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/quotas", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/quotas", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List quotas", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List quotas", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2392,12 +2392,12 @@ func runQuotaTests() {
 	// Quota status.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/quotas/status", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/quotas/status", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Quota status", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Quota status", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2414,13 +2414,13 @@ func runSearchTests() {
 	// Semantic search.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/search?q=person+walking&limit=5", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/search?q=person+walking&limit=5", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Semantic search", false, err.Error(), dur)
 		} else {
 			// May return 200 even if embedder is nil (empty results) or 501.
-			ok := resp.StatusCode == 200 || resp.StatusCode == 501 || resp.StatusCode == 503
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotImplemented || resp.StatusCode == http.StatusServiceUnavailable
 			recordResult(cat, "Semantic search", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2439,12 +2439,12 @@ func runScheduleTemplateTests() {
 	// List templates.
 	{
 		start := time.Now()
-		resp, _, err := doRequest("GET", "/api/nvr/schedule-templates", nil)
+		resp, _, err := doRequest(http.MethodGet, "/api/nvr/schedule-templates", nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "List templates", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "List templates", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2452,7 +2452,7 @@ func runScheduleTemplateTests() {
 	// Create template.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("POST", "/api/nvr/schedule-templates", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/schedule-templates", map[string]interface{}{
 			"name":       "API Test Template",
 			"mode":       "always",
 			"days":       []int{1, 2, 3, 4, 5},
@@ -2463,7 +2463,7 @@ func runScheduleTemplateTests() {
 		if err != nil {
 			recordResult(cat, "Create template", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 201 || resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK
 			if ok {
 				m := parseJSON(body)
 				templateID = getString(m, "id")
@@ -2475,7 +2475,7 @@ func runScheduleTemplateTests() {
 	// Update template (mode is required on update too).
 	if templateID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("PUT", "/api/nvr/schedule-templates/"+templateID, map[string]interface{}{
+		resp, _, err := doRequest(http.MethodPut, "/api/nvr/schedule-templates/"+templateID, map[string]interface{}{
 			"name":       "Updated Test Template",
 			"mode":       "events",
 			"days":       []int{1, 2, 3, 4, 5},
@@ -2486,7 +2486,7 @@ func runScheduleTemplateTests() {
 		if err != nil {
 			recordResult(cat, "Update template", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			recordResult(cat, "Update template", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2494,12 +2494,12 @@ func runScheduleTemplateTests() {
 	// Delete template (cleanup).
 	if templateID != "" {
 		start := time.Now()
-		resp, _, err := doRequest("DELETE", "/api/nvr/schedule-templates/"+templateID, nil)
+		resp, _, err := doRequest(http.MethodDelete, "/api/nvr/schedule-templates/"+templateID, nil)
 		dur := time.Since(start)
 		if err != nil {
 			recordResult(cat, "Delete template", false, err.Error(), dur)
 		} else {
-			ok := resp.StatusCode == 200 || resp.StatusCode == 204
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent
 			recordResult(cat, "Delete template", ok, fmt.Sprintf("status %d", resp.StatusCode), dur)
 		}
 	}
@@ -2523,9 +2523,9 @@ func runRecordingPipelineTests() {
 	var activeCamName string
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/recordings/stats", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/recordings/stats", nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Find active recording camera", false,
 				fmt.Sprintf("stats request failed: status=%d err=%v", safeStatus(resp), err), dur)
 		} else {
@@ -2565,10 +2565,10 @@ func runRecordingPipelineTests() {
 		now := time.Now()
 		today := now.Format("2006-01-02")
 		start := time.Now()
-		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
+		resp, body, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
 			activeCamID, today, now.Format(time.RFC3339)), nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Recordings exist today", false,
 				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
 		} else {
@@ -2587,10 +2587,10 @@ func runRecordingPipelineTests() {
 		now := time.Now()
 		today := now.Format("2006-01-02")
 		start := time.Now()
-		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
+		resp, body, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/recordings?camera_id=%s&start=%sT00:00:00Z&end=%s",
 			activeCamID, today, now.Format(time.RFC3339)), nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Recording segment file exists", false,
 				fmt.Sprintf("listing failed: status=%d", safeStatus(resp)), dur)
 		} else {
@@ -2606,12 +2606,12 @@ func runRecordingPipelineTests() {
 				}
 				if recID != "" {
 					start2 := time.Now()
-					resp2, body2, err2 := doRequest("GET", "/api/nvr/recordings/"+recID+"/segment", nil)
+					resp2, body2, err2 := doRequest(http.MethodGet, "/api/nvr/recordings/"+recID+"/segment", nil)
 					dur2 := time.Since(start2)
 					if err2 != nil {
 						recordResult(cat, "Recording segment file exists", false, err2.Error(), dur2)
 					} else {
-						ok := resp2.StatusCode == 200 && len(body2) > 0
+						ok := resp2.StatusCode == http.StatusOK && len(body2) > 0
 						detail := fmt.Sprintf("status=%d content-length=%d", resp2.StatusCode, len(body2))
 						recordResult(cat, "Recording segment file exists", ok, detail, dur2)
 					}
@@ -2634,7 +2634,7 @@ func runRecordingPipelineTests() {
 			skipResult(cat, "Playback server reachable", fmt.Sprintf("cannot connect: %v", err))
 		} else {
 			resp.Body.Close()
-			ok := resp.StatusCode == 200 || resp.StatusCode == 404 || resp.StatusCode == 301
+			ok := resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMovedPermanently
 			recordResult(cat, "Playback server reachable", ok,
 				fmt.Sprintf("status=%d (server is up)", resp.StatusCode), dur)
 		}
@@ -2644,10 +2644,10 @@ func runRecordingPipelineTests() {
 	{
 		today := time.Now().Format("2006-01-02")
 		start := time.Now()
-		resp, body, err := doRequest("GET", fmt.Sprintf("/api/nvr/timeline?camera_id=%s&date=%s",
+		resp, body, err := doRequest(http.MethodGet, fmt.Sprintf("/api/nvr/timeline?camera_id=%s&date=%s",
 			activeCamID, today), nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Timeline shows segments", false,
 				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
 		} else {
@@ -2674,16 +2674,16 @@ func runRecordingPipelineTests() {
 	// Verify recording health shows active status.
 	{
 		start := time.Now()
-		resp, body, err := doRequest("GET", "/api/nvr/recordings/health", nil)
+		resp, body, err := doRequest(http.MethodGet, "/api/nvr/recordings/health", nil)
 		dur := time.Since(start)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Recording health active", false,
 				fmt.Sprintf("status=%d err=%v", safeStatus(resp), err), dur)
 		} else {
 			m := parseJSON(body)
 			// Health response may contain "status" or per-camera health.
 			status := getString(m, "status")
-			ok := resp.StatusCode == 200
+			ok := resp.StatusCode == http.StatusOK
 			detail := fmt.Sprintf("status=%q", status)
 			if status == "" {
 				detail = fmt.Sprintf("health response keys: %d", len(m))
@@ -2714,7 +2714,7 @@ func runConcurrencyTests() {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				resp, _, err := doRequest("POST", "/api/nvr/bookmarks", map[string]interface{}{
+				resp, _, err := doRequest(http.MethodPost, "/api/nvr/bookmarks", map[string]interface{}{
 					"camera_id": cam.ID,
 					"timestamp": time.Now().Add(-time.Duration(idx) * time.Minute).Format(time.RFC3339),
 					"label":     fmt.Sprintf("Concurrent Bookmark %d", idx),
@@ -2750,7 +2750,7 @@ func runConcurrencyTests() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				resp, body, err := doRequest("GET", "/api/nvr/cameras", nil)
+				resp, body, err := doRequest(http.MethodGet, "/api/nvr/cameras", nil)
 				mu.Lock()
 				defer mu.Unlock()
 				if err != nil {
@@ -2798,7 +2798,7 @@ func runConcurrencyTests() {
 			go func(idx int) {
 				defer wg.Done()
 				uname := fmt.Sprintf("conctest_%d_%d", time.Now().UnixNano(), idx)
-				resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+				resp, body, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 					"username": uname,
 					"password": "ConcurrentP@ss123!",
 					"role":     "viewer",
@@ -2815,11 +2815,11 @@ func runConcurrencyTests() {
 				}
 				mu.Unlock()
 
-				if resp.StatusCode == 200 || resp.StatusCode == 201 {
+				if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 					m := parseJSON(body)
 					userID := getString(m, "id")
 					if userID != "" {
-						delResp, _, delErr := doRequest("DELETE", "/api/nvr/users/"+userID, nil)
+						delResp, _, delErr := doRequest(http.MethodDelete, "/api/nvr/users/"+userID, nil)
 						mu.Lock()
 						if delErr == nil && delResp != nil && delResp.StatusCode >= 500 {
 							errors500++
@@ -2848,16 +2848,16 @@ func runConcurrencyTests() {
 			path   string
 			body   interface{}
 		}{
-			{"GET", "/api/nvr/cameras", nil},
-			{"GET", "/api/nvr/users", nil},
-			{"GET", "/api/nvr/roles", nil},
-			{"GET", "/api/nvr/sessions", nil},
-			{"GET", "/api/nvr/recordings/stats", nil},
-			{"GET", "/api/nvr/recordings/health", nil},
-			{"GET", "/api/nvr/schedule-templates", nil},
-			{"GET", "/api/nvr/system/info", nil},
-			{"GET", "/api/nvr/audit-log", nil},
-			{"GET", "/api/nvr/alerts", nil},
+			{http.MethodGet, "/api/nvr/cameras", nil},
+			{http.MethodGet, "/api/nvr/users", nil},
+			{http.MethodGet, "/api/nvr/roles", nil},
+			{http.MethodGet, "/api/nvr/sessions", nil},
+			{http.MethodGet, "/api/nvr/recordings/stats", nil},
+			{http.MethodGet, "/api/nvr/recordings/health", nil},
+			{http.MethodGet, "/api/nvr/schedule-templates", nil},
+			{http.MethodGet, "/api/nvr/system/info", nil},
+			{http.MethodGet, "/api/nvr/audit-log", nil},
+			{http.MethodGet, "/api/nvr/alerts", nil},
 		}
 
 		for i := 0; i < 10; i++ {
@@ -2895,11 +2895,11 @@ func runAuthLifecycleTests() {
 	// Test 1: Get a token, wait briefly, verify it still works within expiry window.
 	{
 		start := time.Now()
-		resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, body, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": username,
 			"password": password,
 		})
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Token valid within expiry", false,
 				fmt.Sprintf("login failed: status=%d err=%v", safeStatus(resp), err), time.Since(start))
 		} else {
@@ -2912,7 +2912,7 @@ func runAuthLifecycleTests() {
 			// Wait briefly (1s) then verify the token still works.
 			time.Sleep(1 * time.Second)
 
-			req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+			req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/cameras", nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 			client := &http.Client{Timeout: 10 * time.Second}
 			resp2, err2 := client.Do(req)
@@ -2921,7 +2921,7 @@ func runAuthLifecycleTests() {
 				recordResult(cat, "Token valid within expiry", false, err2.Error(), dur)
 			} else {
 				resp2.Body.Close()
-				ok := resp2.StatusCode == 200
+				ok := resp2.StatusCode == http.StatusOK
 				recordResult(cat, "Token valid within expiry", ok,
 					fmt.Sprintf("status=%d after 1s wait", resp2.StatusCode), dur)
 			}
@@ -2934,12 +2934,12 @@ func runAuthLifecycleTests() {
 		// Create a temporary user.
 		start := time.Now()
 		tmpUser := fmt.Sprintf("authlife_%d", time.Now().UnixNano())
-		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 			"username": tmpUser,
 			"password": "AuthLife@123!",
 			"role":     "viewer",
 		})
-		if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 201) {
+		if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated) {
 			recordResult(cat, "Token after role change", false,
 				fmt.Sprintf("user creation failed: status=%d", safeStatus(resp)), time.Since(start))
 		} else {
@@ -2947,11 +2947,11 @@ func runAuthLifecycleTests() {
 			tmpUserID := getString(m, "id")
 
 			// Login as the temporary user.
-			resp2, body2, err2 := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+			resp2, body2, err2 := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 				"username": tmpUser,
 				"password": "AuthLife@123!",
 			})
-			if err2 != nil || resp2.StatusCode != 200 {
+			if err2 != nil || resp2.StatusCode != http.StatusOK {
 				recordResult(cat, "Token after role change", false,
 					fmt.Sprintf("login failed: status=%d", safeStatus(resp2)), time.Since(start))
 			} else {
@@ -2962,12 +2962,12 @@ func runAuthLifecycleTests() {
 				}
 
 				// Change the user's role from viewer to operator.
-				doRequest("PUT", "/api/nvr/users/"+tmpUserID, map[string]interface{}{
+				doRequest(http.MethodPut, "/api/nvr/users/"+tmpUserID, map[string]interface{}{
 					"role": "operator",
 				})
 
 				// Use the old token to make a request.
-				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/cameras", nil)
 				req.Header.Set("Authorization", "Bearer "+tmpToken)
 				client := &http.Client{Timeout: 10 * time.Second}
 				resp3, err3 := client.Do(req)
@@ -2980,7 +2980,7 @@ func runAuthLifecycleTests() {
 					// and the role claim is baked in at issuance time.
 					// The token will keep the old role until it expires.
 					detail := fmt.Sprintf("status=%d (old token still works — JWT is stateless, role baked in at issuance)", resp3.StatusCode)
-					if resp3.StatusCode == 403 {
+					if resp3.StatusCode == http.StatusForbidden {
 						detail = fmt.Sprintf("status=%d (server re-validates role — token permissions are NOT stale)", resp3.StatusCode)
 					}
 					recordResult(cat, "Token after role change", true, detail, dur)
@@ -2989,7 +2989,7 @@ func runAuthLifecycleTests() {
 
 			// Cleanup.
 			if tmpUserID != "" {
-				doRequest("DELETE", "/api/nvr/users/"+tmpUserID, nil)
+				doRequest(http.MethodDelete, "/api/nvr/users/"+tmpUserID, nil)
 			}
 		}
 	}
@@ -2998,11 +2998,11 @@ func runAuthLifecycleTests() {
 	// verify refresh no longer works.
 	{
 		start := time.Now()
-		resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+		resp, body, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 			"username": username,
 			"password": password,
 		})
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			recordResult(cat, "Revoke refresh token", false,
 				fmt.Sprintf("login failed: status=%d", safeStatus(resp)), time.Since(start))
 		} else {
@@ -3015,11 +3015,11 @@ func runAuthLifecycleTests() {
 				loginToken = getString(m, "access_token")
 			}
 
-			req, _ := http.NewRequest("GET", baseURL+"/api/nvr/sessions", nil)
+			req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/sessions", nil)
 			req.Header.Set("Authorization", "Bearer "+loginToken)
 			client := &http.Client{Timeout: 10 * time.Second}
 			sessResp, err2 := client.Do(req)
-			if err2 != nil || sessResp.StatusCode != 200 {
+			if err2 != nil || sessResp.StatusCode != http.StatusOK {
 				recordResult(cat, "Revoke refresh token", false,
 					fmt.Sprintf("list sessions failed: status=%d", safeStatus(sessResp)), time.Since(start))
 			} else {
@@ -3039,7 +3039,7 @@ func runAuthLifecycleTests() {
 
 					if sessID != "" {
 						// Delete the session.
-						delReq, _ := http.NewRequest("DELETE", baseURL+"/api/nvr/sessions/"+sessID, nil)
+						delReq, _ := http.NewRequest(http.MethodDelete, baseURL+"/api/nvr/sessions/"+sessID, nil)
 						delReq.Header.Set("Authorization", "Bearer "+loginToken)
 						delResp, delErr := client.Do(delReq)
 						if delErr != nil {
@@ -3048,13 +3048,13 @@ func runAuthLifecycleTests() {
 							delResp.Body.Close()
 
 							// Try to refresh using the old cookies.
-							refreshResp, _, refreshErr := doRequestNoAuthWithCookies("POST", "/api/nvr/auth/refresh", nil, loginCookies)
+							refreshResp, _, refreshErr := doRequestNoAuthWithCookies(http.MethodPost, "/api/nvr/auth/refresh", nil, loginCookies)
 							dur := time.Since(start)
 							if refreshErr != nil {
 								recordResult(cat, "Revoke refresh token", false, refreshErr.Error(), dur)
 							} else {
 								// After revoking, refresh should fail (401).
-								ok := refreshResp.StatusCode == 401 || refreshResp.StatusCode == 403
+								ok := refreshResp.StatusCode == http.StatusUnauthorized || refreshResp.StatusCode == http.StatusForbidden
 								detail := fmt.Sprintf("delete_status=%d refresh_status=%d", delResp.StatusCode, refreshResp.StatusCode)
 								if !ok {
 									detail += " (refresh still works after revocation — session may not be invalidated)"
@@ -3075,12 +3075,12 @@ func runAuthLifecycleTests() {
 	{
 		start := time.Now()
 		tmpUser := fmt.Sprintf("rbactest_%d", time.Now().UnixNano())
-		resp, body, err := doRequest("POST", "/api/nvr/users", map[string]interface{}{
+		resp, body, err := doRequest(http.MethodPost, "/api/nvr/users", map[string]interface{}{
 			"username": tmpUser,
 			"password": "RBAC@Test123!",
 			"role":     "viewer",
 		})
-		if err != nil || (resp.StatusCode != 200 && resp.StatusCode != 201) {
+		if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated) {
 			recordResult(cat, "RBAC camera access", false,
 				fmt.Sprintf("user creation failed: status=%d", safeStatus(resp)), time.Since(start))
 		} else {
@@ -3088,11 +3088,11 @@ func runAuthLifecycleTests() {
 			tmpUserID := getString(m, "id")
 
 			// Login as the new viewer user.
-			resp2, body2, err2 := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+			resp2, body2, err2 := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 				"username": tmpUser,
 				"password": "RBAC@Test123!",
 			})
-			if err2 != nil || resp2.StatusCode != 200 {
+			if err2 != nil || resp2.StatusCode != http.StatusOK {
 				recordResult(cat, "RBAC camera access", false,
 					fmt.Sprintf("login failed: status=%d", safeStatus(resp2)), time.Since(start))
 			} else {
@@ -3103,7 +3103,7 @@ func runAuthLifecycleTests() {
 				}
 
 				// Try to list cameras with the viewer token.
-				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/cameras", nil)
 				req.Header.Set("Authorization", "Bearer "+viewerToken)
 				client := &http.Client{Timeout: 10 * time.Second}
 				resp3, err3 := client.Do(req)
@@ -3130,7 +3130,7 @@ func runAuthLifecycleTests() {
 
 			// Cleanup.
 			if tmpUserID != "" {
-				doRequest("DELETE", "/api/nvr/users/"+tmpUserID, nil)
+				doRequest(http.MethodDelete, "/api/nvr/users/"+tmpUserID, nil)
 			}
 		}
 	}
@@ -3147,13 +3147,13 @@ func runAuthLifecycleTests() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				resp, body, err := doRequestNoAuth("POST", "/api/nvr/auth/login", map[string]string{
+				resp, body, err := doRequestNoAuth(http.MethodPost, "/api/nvr/auth/login", map[string]string{
 					"username": username,
 					"password": password,
 				})
 				mu.Lock()
 				defer mu.Unlock()
-				if err != nil || resp.StatusCode != 200 {
+				if err != nil || resp.StatusCode != http.StatusOK {
 					loginErrors++
 					return
 				}
@@ -3176,11 +3176,11 @@ func runAuthLifecycleTests() {
 			// Verify both tokens work.
 			bothWork := true
 			for i, token := range tokens {
-				req, _ := http.NewRequest("GET", baseURL+"/api/nvr/cameras", nil)
+				req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/nvr/cameras", nil)
 				req.Header.Set("Authorization", "Bearer "+token)
 				client := &http.Client{Timeout: 10 * time.Second}
 				resp, err := client.Do(req)
-				if err != nil || resp.StatusCode != 200 {
+				if err != nil || resp.StatusCode != http.StatusOK {
 					bothWork = false
 					break
 				}

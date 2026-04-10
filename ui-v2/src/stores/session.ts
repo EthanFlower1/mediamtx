@@ -11,6 +11,8 @@ export interface SessionState {
   tenantName: string;
   userId: string;
   userDisplayName: string;
+  /** Tenant entitlements keyed by feature slug. Real data lands with KAI-363. */
+  entitlements: Record<string, boolean>;
   setTenant: (tenantId: string, tenantName: string) => void;
 }
 
@@ -20,5 +22,6 @@ export const useSessionStore = create<SessionState>((set) => ({
   tenantName: 'Sample Customer',
   userId: 'user-admin-001',
   userDisplayName: 'Admin User',
+  entitlements: { 'ai.semantic_search': true },
   setTenant: (tenantId, tenantName) => set({ tenantId, tenantName }),
 }));

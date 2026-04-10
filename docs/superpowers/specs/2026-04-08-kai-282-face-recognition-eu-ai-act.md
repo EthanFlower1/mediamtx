@@ -38,20 +38,27 @@ These are non-negotiable code-level invariants, enforced at compile time or at t
 
 If any of B1–B7 cannot be satisfied by the chosen architecture, **the architecture is wrong**, not the invariant.
 
-## 3. Base model selection (DEFERRED — gates lead-security's 5 questions)
+## 3. Base model selection (DEFERRED — point of decision for lead-security)
 
-I am **not** picking a base model in this memo. Lead-security has asked for training data provenance, demographic composition, accuracy per demographic group, model architecture/version strategy, and drift monitoring pipeline. All five answers depend on which base model we pick. The decision matrix below is what will be presented to lead-security for joint sign-off:
+I am **not** picking a base model in this memo. Lead-security framed this correctly: an Art. 10(2)(f) data-governance doc is **requirements first, instance data second**. Specific base-model provenance, demographic composition, accuracy per group, architecture/version, and drift numbers become a *versioned artifact* keyed to each deployed model — they get filled in after model selection, not before.
 
-| Option | Provenance story | Demographic balance available | License | Fairness audit available | Risk |
-|--------|------------------|------------------------------|---------|--------------------------|------|
-| **InsightFace `buffalo_l` (ArcFace R100, Glint360K-trained)** | Glint360K is scraped; provenance is **weak**. Unlikely to survive Art. 10(3) "relevant, sufficiently representative" scrutiny without supplementing. | Partial NIST FRVT results exist but not per-subgroup from vendor | Academic only for Glint360K; commercial use is murky | NIST FRVT 1:N | Provenance + licence |
-| **FaceNet (Inception-ResNet-v1, VGGFace2)** | VGGFace2 is public but scraped; has a takedown history. | Limited | MIT code, dataset license restricted | Independent academic audits exist | Provenance + dataset retirement |
-| **Train/fine-tune on a licensed dataset** (e.g., a commercial face dataset with subject releases) | **Strong** — subject consent documented | Can be measured at training time | Commercial, cost $$ | We run the audit ourselves (Art. 15(1)) | Cost, time, lead-ai bandwidth |
-| **Buy a pre-audited model from a vendor with CE marking support** | Strong if vendor provides Annex IV docs | Vendor-declared | Commercial | Vendor-provided | Vendor lock-in, cost |
+The matrix below is the decision surface lead-security needs to weigh in on. License audit and inherited fairness claims are explicit columns because (per lead-security): research-only weights are a **legal** blocker on top of the compliance question, and citing inherited fairness numbers from upstream model cards is infinitely better for the auditor than promising to measure later.
 
-**Recommendation pending:** option 3 or 4 is the only path that survives Art. 10 without heroics. Option 1 and 2 are faster but the notified body will reject them and we burn the schedule restarting.
+| Candidate | Architecture | Backbone training set | Provenance | Licence (weights) | Inherited fairness claims | Verdict |
+|-----------|-------------|----------------------|------------|-------------------|--------------------------|---------|
+| **InsightFace `buffalo_l` (ArcFace R100)** | ArcFace, ResNet-100 | Glint360K (scraped) | Weak | Glint360K is research-only; commercial weight licence is **murky → likely blocker** | NIST FRVT 1:N partial; per-subgroup TPR not vendor-published | **Likely fail Art. 10(3) AND legal** |
+| **FaceNet (Inception-ResNet-v1)** | Triplet loss / FaceNet | VGGFace2 (scraped, takedown history) | Weak | MIT code, dataset licence restricted; weights are derivative of restricted dataset | Independent academic audits exist (e.g. RFW) but not in model card | **Likely fail Art. 10(3) + dataset retirement risk** |
+| **AdaFace (R100)** | Adaptive margin loss, ResNet-100 | MS1MV2 / WebFace4M variants | Weak (MS1MV2 has known retraction issues; WebFace4M scraped) | Apache-2.0 code; weight licence depends on training set used (some redistributions are research-only) | Model card reports IJB-B/IJB-C TAR@FAR; **per-subgroup numbers exist on RFW benchmark** | **Possible if WebFace4M variant is licence-clean — legal audit needed** |
+| **MagFace (R100)** | Magnitude-aware margin, ResNet-100 | MS1MV2 | Weak (same MS1MV2 problem) | Apache-2.0 code; same weight-licence ambiguity | Reports IJB-B/IJB-C; **per-quality-bucket TAR/FAR published** but not per-demographic | **Possible only on a re-trained backbone with clean dataset** |
+| **TransFace (ViT-S/B/L)** | Vision Transformer face recognition | Glint360K / WebFace42M | Weak (Glint360K) or unclear (WebFace42M) | Apache-2.0 code; weight licence inherits dataset issues | Reports IJB-B/IJB-C TAR@FAR; minimal per-demographic disclosure | **Same provenance problem as InsightFace** |
+| **Path A: train / fine-tune on a licensed dataset** (chosen architecture: ArcFace, AdaFace, MagFace, or vendor recommendation) | TBD | Licensed commercial set with documented subject releases | **Strong** | Commercial, contract terms control distribution | We measure ourselves at training time (Art. 15(1)) | **Defensible, expensive, slow** |
+| **Path B: buy a pre-audited model from a vendor with CE-marking support** | Vendor-declared | Vendor-declared (contract requires Annex IV evidence delivery) | **Strong if vendor delivers Annex IV** | Commercial, vendor lock-in | Vendor-provided fairness audit | **Fastest defensible, vendor lock-in, $$** |
 
-Lead-security — this table is the point of decision. Please weigh in before I spend any time on a specific model.
+**Lead-ai recommendation:** Path A or Path B. Options 1-5 (off-the-shelf academic weights with scraped-dataset provenance) are schedule suicide because the notified body will reject them and we restart. **AdaFace** is the most attractive of the off-the-shelf options *if and only if* a licence-clean backbone variant exists — lead-security legal audit needed before that becomes a viable third path.
+
+**Lead-security — §13.1 is the gating question:** Path A, Path B, or licence-clean AdaFace?
+
+**Inherited fairness claims convention** (applies regardless of which model is chosen): wherever this package cites a fairness number, it MUST be flagged either `[inherited from upstream model card vX.Y, dataset Z]` or `[measured by Kaivue on test set vN at date D]`. Mixing inherited and measured numbers without that flag is an audit finding waiting to happen. This convention also lives in `data-governance.md` (lead-security's file, post-merge).
 
 ## 4. System architecture (component map)
 
@@ -149,6 +156,24 @@ face_vault_config
 
 **Storage note:** `face_embeddings.embedding_ciphertext` is written by KAI-251's cryptostore wrapper. The pgvector index is built on a **separate column** containing the *tenant-local* projection (not plaintext, not raw ciphertext — a form that allows approximate cosine search without decrypting at query time). The exact scheme is a cryptostore design question for lead-security; options include encrypted search schemes (CGKN, SSE) or a tenant-scoped key-derived permutation. **Do not build until lead-security has picked a scheme.**
 
+### 5.1 Model version transitions (Annex IV requirement)
+
+Annex IV §2(a) requires us to document how we handle "the methods and steps performed for the development of the AI system" *across versions*. Face embeddings are **not portable across model versions** — a vector produced by AdaFace-R100 v1.0 has no meaningful cosine similarity to a vector produced by AdaFace-R100 v1.1 even with the same input image. So a model upgrade is also a re-enrolment event.
+
+**Transition protocol:**
+
+1. **New model version registration.** Lead-ai promotes a new model version through the KAI-279 model registry. The registry assigns a stable `model_version` string (e.g. `kaivue-face-v2.0.0-adaface-r100-licensedset-2026-09-15`). Promotion requires: passing the fairness gate (KAI-294 `fairness-testing-protocol.md`), passing the presentation-attack gate (§8), and a signed model-card commit.
+2. **Per-tenant opt-in to upgrade.** Customer admin sees a version-transition banner in the face vault UI (KAI-327): `A new face recognition model is available. Re-enrolment will run in the background. [Schedule] [Defer] [More info]`. Tenants can defer up to 90 days before old model versions are end-of-lifed for that tenant.
+3. **Coexistence window.** During the transition window (default 30 days, configurable per tenant up to 90), both `model_version` values are active in the tenant's vault. Each `face_embeddings` row is keyed by `(enrolment_id, model_version)`, allowing both versions to coexist. Match queries run against the **new** model version's embeddings only; old-version embeddings serve as a fall-back **only** for enrolments that have not yet been re-encoded.
+4. **Re-enrolment strategies (tenant-selectable):**
+   - **Eager (default for ≤1000 enrolments):** background worker re-encodes every enrolment from the stored source crop within 24h of upgrade acceptance.
+   - **Opportunistic (default for >1000 enrolments):** re-encode each enrolment the next time that subject is seen by a camera, OR within the 30-day window, whichever comes first. Source crops not seen by 30-day deadline get the eager treatment as fallback.
+5. **Match labelling during coexistence.** Every match event in `face_match_events` is labelled with `model_version` so the auditor and the operator can both tell which model produced the match. Mixed-model match results are NEVER aggregated into a single confidence score.
+6. **Final purge.** At end of transition window, all `face_embeddings` rows with the old `model_version` are deleted, an audit log entry is written with old/new version + count + tenant_id, and the old model artifact is retained in the model registry (KAI-279) for the 10-year evidence-retention obligation (Art. 18) but is no longer loadable for inference on this tenant.
+7. **Source-crop retention.** Re-enrolment requires the original face crop to still exist. Per Art. 5(1)(c) GDPR data minimisation, source crops are retained ONLY when the tenant has explicitly opted into "preserve enrolment images for re-encoding on model upgrade". Tenants who opt out lose access to opportunistic re-enrolment and must re-capture subjects manually for every model upgrade.
+
+**Why this matters for Annex IV:** the technical documentation must explain how the system maintains accuracy across model upgrades AND how subject data is treated during transition. Without an explicit version-transition protocol, "we just deploy a new model" is an audit finding because (a) embeddings are silently invalidated, (b) match precision can degrade without operator awareness, and (c) source-crop retention may violate data minimisation if not explicitly opted into.
+
 ## 6. Code-path refusals (Art. 5)
 
 These must be enforced at the handler layer and return HTTP 403 with a machine-readable reason, not a feature flag that can be flipped:
@@ -169,6 +194,58 @@ Mapped to existing Kaivue surfaces per KAI-294 `human-oversight.md`:
 - **Automation-bias mitigation:** Match UI shows similarity score, threshold, model version, and a **visible** "not a match" action placed equal-weight with "confirm match". No default selection.
 - **Kill switch:** Per-camera and per-tenant, with effect ≤60s (B6).
 - **Stop condition:** If confirmed-match rate in a 1-hour window goes to 100% (anomalous — normal is ≪100%), system auto-disables match publication for that tenant and pages on-call. Listed in KAI-294 `post-market-monitoring.md`.
+
+### 7.1 Four-eyes watchlist UI stub (web + Flutter)
+
+This section is a **stub spec** for lead-web and lead-flutter to implement. It does not mandate pixels; it mandates invariants that the code-review process (and the Art. 14 audit trail) will check against. Shipped in KAI-327 (admin) and the Flutter client.
+
+**Who can do what:**
+
+- `face_reviewer` role (defined in KAI-225 Casbin policy) is the only role authorised to enrol or flag a watchlist subject.
+- **Enrolment is a two-person operation.** Reviewer A proposes a watchlist entry (identity label, consent_record_id, source crop, optional justification note). The entry enters state `proposed`. It is invisible to matching until Reviewer B — a *different* `face_reviewer` principal — independently confirms it, at which point state becomes `active`. If Reviewer A and Reviewer B resolve to the same principal, the UI refuses to submit and the backend (KAI-225) rejects.
+- Same-principal confirmation attempts are logged to KAI-233 audit log as a distinct event type (`watchlist.four_eyes_violation_attempt`) and count toward the tenant's post-market monitoring anomaly counters in KAI-294 `post-market-monitoring.md`.
+- Deactivation follows the same two-person rule. A watchlist entry cannot be deleted by a single reviewer.
+
+**What Reviewer B sees (the confirmation screen):**
+
+- The source crop Reviewer A uploaded, at the **original resolution** (no automatic upscaling, no enhancement filters — see B6 and Art. 14 automation-bias mitigation).
+- The identity label and the justification note.
+- The `consent_record_id` with a **required** click-through to the consent record detail view. Reviewer B cannot confirm without opening that view at least once (UI enforces, backend double-checks via a `consent_viewed_at` timestamp on the confirmation API payload).
+- The model version the entry will be embedded under (per §5.1 — watchlist entries bind to a model version).
+- Two equal-weight buttons: **"Confirm watchlist entry"** and **"Reject — not a valid watchlist subject"**. No default focus. No pre-selection. Identical size, colour, and position per Art. 14 automation-bias rules already stated in §7.
+- A visible **"I am not the reviewer who proposed this entry"** affirmation checkbox. Unchecked by default. Submit button disabled until checked. This is belt-and-braces in front of the backend same-principal check.
+
+**What the match review screen (the normal day-to-day screen) looks like:**
+
+This is the existing §7 match-review surface, not new UI, but the following watchlist-specific invariants apply:
+
+- When a match fires against a watchlist entry, the match card must show the **state** of that watchlist entry (`active`, `suspended`, `pending_reconfirmation`). A match against a non-`active` entry must NOT be published downstream even if the reviewer confirms the match — the reviewer can only mark it for follow-up.
+- Watchlist subject metadata shown to the reviewer is limited to the identity label and the consent record link. Notes from the proposing reviewer are **hidden** during match review (they may bias the match decision). Notes are visible only on the watchlist management screen.
+- The similarity score, threshold, and model version remain visible (from §7). If the match is against a watchlist entry enrolled under an older model version than the currently-running model, the UI displays a banner: "Entry enrolled under model vX; current model is vY. Re-enrol before the Z deadline." (Ties to §5.1 transition protocol.)
+
+**Anomaly hooks (feeds KAI-294 `post-market-monitoring.md`):**
+
+- Per-reviewer confirm rate: if a single `face_reviewer` confirms >95% of their presented watchlist proposals or match reviews over any rolling 100-event window, the system raises a `reviewer.rubber_stamping_suspected` monitoring event and pages on-call. This is the anti-automation-bias analogue of the 100%-per-tenant stop condition in §7.
+- Zero-rejection reviewer: if a reviewer has never rejected a match or a proposal in their lifetime on the system and has >50 events, same event type, lower severity.
+- Time-to-confirm: confirmations that happen in <2 seconds are flagged (insufficient time to view the consent record and the source crop). This is a *signal*, not a block — reviewer may legitimately confirm fast on a very obvious case — but it feeds the rubber-stamping detector.
+
+**Audit trail (KAI-233):**
+
+Every one of the following is an audit-log event, with tenant_id, reviewer principal, watchlist entry id, model version, similarity score where applicable, and reason code:
+
+- `watchlist.proposed`, `watchlist.confirmed`, `watchlist.rejected`, `watchlist.suspended`, `watchlist.reactivated`, `watchlist.purged`
+- `watchlist.four_eyes_violation_attempt` (same principal tried to confirm their own proposal)
+- `watchlist.consent_record_viewed` (required before confirmation)
+- `match.reviewed_confirm`, `match.reviewed_reject`, `match.marked_followup`
+
+These feed the Art. 12 automatic logging obligation and satisfy the Art. 14(4)(e) "intervene or interrupt" audit requirement.
+
+**Ownership:**
+
+- lead-web implements the admin web surface (KAI-327 scope).
+- lead-flutter implements the mobile/tablet surface (needed because security managers confirm on phones in the field — known customer pattern).
+- lead-security reviews both implementations against this stub spec before merge.
+- lead-ai (me) owns the backend API + state machine + KAI-233 event emission.
 
 ## 8. Accuracy, robustness, cybersecurity (Art. 15)
 

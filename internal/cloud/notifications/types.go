@@ -6,10 +6,12 @@ import "time"
 type ChannelType string
 
 const (
-	ChannelEmail   ChannelType = "email"
-	ChannelPush    ChannelType = "push"
-	ChannelSMS     ChannelType = "sms"
-	ChannelWebhook ChannelType = "webhook"
+	ChannelEmail    ChannelType = "email"
+	ChannelPush     ChannelType = "push"
+	ChannelSMS      ChannelType = "sms"
+	ChannelVoice    ChannelType = "voice"
+	ChannelWhatsApp ChannelType = "whatsapp"
+	ChannelWebhook  ChannelType = "webhook"
 )
 
 // Channel represents a configured notification delivery channel for a tenant.

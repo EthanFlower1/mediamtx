@@ -1,4 +1,55 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        =====================================================================
+        KAI-303 — FCM payload hard contract (cto + lead-security gate)
+        =====================================================================
+
+        HIPAA + GDPR payload lockdown. FCM payloads from the dispatch
+        backend (lead-cloud) MUST be DATA-ONLY: NO `notification` block
+        is permitted. The payload carries ONLY these data keys:
+
+            event_id   (opaque string)
+            tenant_id  (opaque string)
+            priority   (int 0..3)
+
+        Why no `notification` block? When an FCM message contains a
+        `notification` block, FCM auto-renders the title/body on the
+        lock screen WITHOUT going through the app's Dart code. That
+        would leak PII (camera name, face label, license plate, etc.)
+        to OS notification history and Google push-infrastructure logs
+        — a HIPAA + GDPR violation.
+
+        Trade-off (HIPAA-correct): because there is no `notification`
+        block, FCM will NOT auto-display the notification when the app
+        is killed. The FCM background isolate in
+        clients/flutter/lib/notifications/notification_service.dart
+        MUST:
+
+          1. decode the opaque payload via PushMessage.fromRemote,
+          2. fetch EventDetails from Directory via the EventDetailsLoader
+             (authenticated, tenant-guarded),
+          3. render the visible notification client-side using
+             NotificationStrings.titleForKind(details.kind) + the
+             camera label from the fetched details.
+
+        POST_NOTIFICATIONS is runtime-requested on Android 13+ (API 33).
+        On earlier APIs this permission is auto-granted and the runtime
+        prompt is a no-op.
+
+        STILL MISSING (tracked for lead-sre in the KAI-306 build
+        pipeline):
+          * google-services.json in android/app/
+          * The `com.google.gms.google-services` plugin application in
+            android/app/build.gradle + classpath in android/build.gradle
+          * Firebase project wired to the FCM Server Key in the
+            dispatcher — and the server MUST be configured to send
+            data-only messages, no `notification` block.
+        Do NOT add fake credentials here. The above land in a follow-up
+        credential PR.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE"/>
     <application
         android:label="nvr_client"
         android:name="${applicationName}"
@@ -36,6 +87,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!--
+            KAI-303 — FCM default notification channel + icon metadata.
+            Declared here so native code can resolve a stable channel id
+            before google-services.json lands. The Firebase messaging
+            service itself is auto-registered by the firebase_messaging
+            plugin manifest merger once the plugin is added.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kaivue_default" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

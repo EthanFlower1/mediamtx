@@ -60,6 +60,55 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!--
+		===========================================================
+		KAI-303 — APNs payload hard contract (cto + lead-security gate)
+		===========================================================
+
+		HIPAA + GDPR payload lockdown. Push notification payloads are
+		observable by Apple push infrastructure logs, iOS notification
+		history, and lock-screen previews. Therefore the APNs payload
+		sent by the dispatch backend (lead-cloud) MUST:
+
+		  * include `mutable-content: 1`
+		  * include `content-available: 1`   (silent wake for data fetch)
+		  * NOT include an `alert` dict       (no auto-render of PII)
+		  * carry ONLY these custom keys in the top-level data block:
+		        event_id   (opaque string)
+		        tenant_id  (opaque string)
+		        priority   (int 0..3)
+
+		The client fetches full event details (camera name, thumbnail,
+		kind, timestamp) AFTER the user taps, via an authenticated
+		`GET /api/v1/events/<event_id>` call routed through the
+		EventDetailsLoader. See
+		clients/flutter/lib/notifications/event_details_loader.dart.
+
+		`remote-notification` background mode below lets APNs wake the
+		app for silent content-available pushes so the client can
+		refresh state.
+
+		TODO(KAI-303-followup): optional iOS Notification Service
+		Extension for privacy-preserving content mutation. Default OFF
+		— no NSE target is built in this PR. Dispatch backend =
+		lead-cloud.
+
+		STILL MISSING (tracked for lead-sre in the KAI-306 build
+		pipeline):
+		  * APNs authentication key (.p8) + Key ID + Team ID, registered
+		    in the Apple Developer portal and supplied to Firebase /
+		    the dispatcher.
+		  * The matching Push Notifications capability in
+		    Runner.xcodeproj entitlements (aps-environment = production).
+		  * GoogleService-Info.plist (if FCM is used on iOS).
+
+		Do NOT add fake credentials here. The above land in a follow-up
+		credential PR.
+	-->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

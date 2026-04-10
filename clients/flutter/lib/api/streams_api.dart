@@ -142,6 +142,14 @@ enum StreamKind { live, playback }
 /// Preferred transport hint sent to the server.
 enum StreamProtocol { webrtc, llhls, auto }
 
+/// Which stream variant the client wants.
+///
+/// Proto ask (KAI-300 → lead-cloud): StreamRequest proto needs
+/// `enum StreamVariant { STREAM_VARIANT_UNSPECIFIED = 0;
+///   STREAM_VARIANT_MAIN = 1; STREAM_VARIANT_SUB = 2; }`.
+/// Camera proto needs `bool has_sub_stream` capability flag.
+enum StreamVariant { auto, main, sub }
+
 /// Client-side stub for the KAI-255 stream-URL-minting service.
 ///
 /// At integration time swap the stub body in [requestStream] for a real
@@ -158,6 +166,7 @@ abstract class StreamsApi {
     required String accessToken,
     StreamKind kind = StreamKind.live,
     StreamProtocol protocol = StreamProtocol.auto,
+    StreamVariant variant = StreamVariant.auto,
   });
 }
 
@@ -172,6 +181,7 @@ class HttpStreamsApi implements StreamsApi {
     required String accessToken,
     StreamKind kind = StreamKind.live,
     StreamProtocol protocol = StreamProtocol.auto,
+    StreamVariant variant = StreamVariant.auto,
   }) async {
     // TODO(KAI-255): Replace stub with real HTTP call:
     //   final resp = await http.post(

@@ -17,6 +17,9 @@ import '../../../state/app_session.dart';
 // Enums
 // ---------------------------------------------------------------------------
 
+// Re-export StreamVariant so callers don't need a separate import.
+export '../../../api/streams_api.dart' show StreamVariant;
+
 enum LiveViewPhase {
   /// No camera selected yet.
   idle,
@@ -68,6 +71,13 @@ class LiveViewState {
   /// Friendly error message when [phase] == [LiveViewPhase.error].
   final String? errorMessage;
 
+  /// Whether the camera advertises a sub-stream. When false the stream
+  /// variant toggle is hidden in the controls overlay.
+  final bool hasSubStream;
+
+  /// Currently requested stream variant.
+  final StreamVariant streamVariant;
+
   /// Whether the camera supports PTZ.
   final bool ptzCapable;
 
@@ -92,6 +102,8 @@ class LiveViewState {
     this.webRtcUrl,
     this.fallbackUrl,
     this.errorMessage,
+    this.hasSubStream = false,
+    this.streamVariant = StreamVariant.auto,
     this.ptzCapable = false,
     this.talkbackActive = false,
     this.audioMuted = true,
@@ -110,6 +122,8 @@ class LiveViewState {
     String? webRtcUrl,
     String? fallbackUrl,
     String? errorMessage,
+    bool? hasSubStream,
+    StreamVariant? streamVariant,
     bool? ptzCapable,
     bool? talkbackActive,
     bool? audioMuted,
@@ -129,6 +143,8 @@ class LiveViewState {
       fallbackUrl:
           clearFallbackUrl ? null : (fallbackUrl ?? this.fallbackUrl),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      hasSubStream: hasSubStream ?? this.hasSubStream,
+      streamVariant: streamVariant ?? this.streamVariant,
       ptzCapable: ptzCapable ?? this.ptzCapable,
       talkbackActive: talkbackActive ?? this.talkbackActive,
       audioMuted: audioMuted ?? this.audioMuted,
@@ -155,16 +171,25 @@ class LiveViewNotifier extends StateNotifier<LiveViewState> {
   // ── Public actions ────────────────────────────────────────────────────────
 
   /// Start a live view session for [cameraId].
+  ///
+  /// [hasSubStream] indicates whether the camera advertises a secondary
+  /// (lower-resolution) stream. When true the controls overlay shows a
+  /// main/sub toggle button. The initial variant is [StreamVariant.auto]
+  /// (server decides).
   Future<void> start({
     required String cameraId,
     required String cameraName,
     bool ptzCapable = false,
+    bool hasSubStream = false,
+    StreamVariant streamVariant = StreamVariant.auto,
   }) async {
     state = LiveViewState(
       phase: LiveViewPhase.requesting,
       cameraId: cameraId,
       cameraName: cameraName,
       ptzCapable: ptzCapable,
+      hasSubStream: hasSubStream,
+      streamVariant: streamVariant,
     );
 
     try {
@@ -181,6 +206,7 @@ class LiveViewNotifier extends StateNotifier<LiveViewState> {
         cameraId: cameraId,
         baseUrl: conn.endpointUrl,
         accessToken: token,
+        variant: state.streamVariant,
       );
 
       if (request.endpoints.isEmpty) {
@@ -268,16 +294,46 @@ class LiveViewNotifier extends StateNotifier<LiveViewState> {
     }
   }
 
-  /// Retry from scratch.
+  /// Retry from scratch, preserving the current stream variant preference.
   Future<void> retry() async {
     final cameraId = state.cameraId;
     final cameraName = state.cameraName;
     final ptz = state.ptzCapable;
+    final hasSub = state.hasSubStream;
+    final variant = state.streamVariant;
     if (cameraId == null || cameraName == null) return;
     await start(
       cameraId: cameraId,
       cameraName: cameraName,
       ptzCapable: ptz,
+      hasSubStream: hasSub,
+      streamVariant: variant,
+    );
+  }
+
+  /// Toggle between main and sub stream. Debounce: if already requesting,
+  /// this is a no-op. The toggle triggers a full re-request because the
+  /// minting service (KAI-149) returns different endpoint URLs per variant.
+  ///
+  /// Hidden from UI when [state.hasSubStream] is false.
+  Future<void> toggleStreamVariant() async {
+    if (!state.hasSubStream) return;
+    if (state.phase == LiveViewPhase.requesting) return;
+
+    final next = state.streamVariant == StreamVariant.sub
+        ? StreamVariant.main
+        : StreamVariant.sub;
+
+    final cameraId = state.cameraId;
+    final cameraName = state.cameraName;
+    if (cameraId == null || cameraName == null) return;
+
+    await start(
+      cameraId: cameraId,
+      cameraName: cameraName,
+      ptzCapable: state.ptzCapable,
+      hasSubStream: state.hasSubStream,
+      streamVariant: next,
     );
   }
 

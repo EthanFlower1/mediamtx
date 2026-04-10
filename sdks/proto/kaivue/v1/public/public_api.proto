@@ -1,0 +1,559 @@
+// public_api.proto — KaiVue v1 Public API surface.
+//
+// This proto defines the public-facing API for third-party integrations.
+// It exposes 7 services with 33 methods covering cameras, users, recordings,
+// events, schedules, retention policies, and integrations.
+//
+// Generated from the internal proto surface (KAI-399) with security-sensitive
+// fields stripped and credential material excluded.
+
+syntax = "proto3";
+
+package kaivue.v1.public;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/kaivue/sdk-go/kaivue";
+
+// ============================================================================
+// Common types
+// ============================================================================
+
+message PaginationRequest {
+  int32 page_size = 1;
+  string cursor = 2;
+}
+
+message PaginationResponse {
+  string next_cursor = 1;
+  int32 total_count = 2;
+}
+
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_ASC = 1;
+  SORT_ORDER_DESC = 2;
+}
+
+message APIError {
+  int32 code = 1;
+  string message = 2;
+  string request_id = 3;
+  repeated FieldError field_errors = 4;
+}
+
+message FieldError {
+  string field = 1;
+  string message = 2;
+}
+
+// ============================================================================
+// Camera types
+// ============================================================================
+
+enum CameraState {
+  CAMERA_STATE_UNSPECIFIED = 0;
+  CAMERA_STATE_PROVISIONING = 1;
+  CAMERA_STATE_ONLINE = 2;
+  CAMERA_STATE_OFFLINE = 3;
+  CAMERA_STATE_DISABLED = 4;
+  CAMERA_STATE_ERROR = 5;
+}
+
+enum RecordingMode {
+  RECORDING_MODE_UNSPECIFIED = 0;
+  RECORDING_MODE_CONTINUOUS = 1;
+  RECORDING_MODE_MOTION = 2;
+  RECORDING_MODE_SCHEDULE = 3;
+  RECORDING_MODE_EVENT = 4;
+  RECORDING_MODE_OFF = 5;
+}
+
+message StreamProfile {
+  string name = 1;
+  string codec = 2;
+  int32 width = 3;
+  int32 height = 4;
+  int32 bitrate_kbps = 5;
+  int32 framerate = 6;
+}
+
+message Camera {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string manufacturer = 4;
+  string model = 5;
+  string firmware_version = 6;
+  string mac_address = 7;
+  string ip_address = 8;
+  CameraState state = 9;
+  RecordingMode recording_mode = 10;
+  repeated StreamProfile profiles = 11;
+  repeated string labels = 12;
+  string recorder_id = 13;
+  google.protobuf.Timestamp state_reported_at = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+  bool audio_enabled = 17;
+  int32 motion_sensitivity = 18;
+}
+
+message CreateCameraRequest {
+  string name = 1;
+  string description = 2;
+  string ip_address = 3;
+  string recorder_id = 4;
+  RecordingMode recording_mode = 5;
+  repeated string labels = 6;
+  // Credentials — write-only, never returned in responses
+  string username = 7;
+  string password = 8;
+}
+
+message CreateCameraResponse { Camera camera = 1; }
+
+message GetCameraRequest { string id = 1; }
+message GetCameraResponse { Camera camera = 1; }
+
+message UpdateCameraRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  RecordingMode recording_mode = 4;
+  repeated string labels = 5;
+  bool audio_enabled = 6;
+  int32 motion_sensitivity = 7;
+  repeated string update_mask = 8;
+}
+
+message UpdateCameraResponse { Camera camera = 1; }
+
+message DeleteCameraRequest {
+  string id = 1;
+  bool purge_recordings = 2;
+}
+message DeleteCameraResponse {}
+
+message ListCamerasRequest {
+  string search = 1;
+  string recorder_id = 2;
+  CameraState state_filter = 3;
+  int32 page_size = 4;
+  string cursor = 5;
+}
+
+message ListCamerasResponse {
+  repeated Camera cameras = 1;
+  string next_cursor = 2;
+  int32 total_count = 3;
+}
+
+// ============================================================================
+// User types
+// ============================================================================
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string display_name = 4;
+  repeated string groups = 5;
+  bool disabled = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp last_login_at = 9;
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string display_name = 3;
+  string password = 4;
+  repeated string groups = 5;
+}
+message CreateUserResponse { User user = 1; }
+
+message GetUserRequest { string id = 1; }
+message GetUserResponse { User user = 1; }
+
+message UpdateUserRequest {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  repeated string groups = 4;
+  bool disabled = 5;
+  repeated string update_mask = 6;
+}
+message UpdateUserResponse { User user = 1; }
+
+message DeleteUserRequest { string id = 1; }
+message DeleteUserResponse {}
+
+message ListUsersRequest {
+  string search = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  string next_cursor = 2;
+  int32 total_count = 3;
+}
+
+// ============================================================================
+// Recording types
+// ============================================================================
+
+message Recording {
+  string id = 1;
+  string camera_id = 2;
+  string recorder_id = 3;
+  google.protobuf.Timestamp start_time = 4;
+  google.protobuf.Timestamp end_time = 5;
+  int64 size_bytes = 6;
+  string codec = 7;
+  bool has_audio = 8;
+  bool is_event_clip = 9;
+  string storage_tier = 10;
+}
+
+message GetRecordingRequest { string id = 1; }
+message GetRecordingResponse { Recording recording = 1; }
+
+message ListRecordingsRequest {
+  string camera_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  bool event_clips_only = 4;
+  int32 page_size = 5;
+  string cursor = 6;
+}
+
+message ListRecordingsResponse {
+  repeated Recording recordings = 1;
+  string next_cursor = 2;
+  int32 total_count = 3;
+}
+
+message DeleteRecordingRequest { string id = 1; }
+message DeleteRecordingResponse {}
+
+message ExportRecordingRequest {
+  string camera_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  string format = 4;  // "mp4", "mkv"
+}
+
+message ExportRecordingResponse {
+  string download_url = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// ============================================================================
+// Event types
+// ============================================================================
+
+enum EventKind {
+  EVENT_KIND_UNSPECIFIED = 0;
+  EVENT_KIND_MOTION = 1;
+  EVENT_KIND_PERSON = 2;
+  EVENT_KIND_VEHICLE = 3;
+  EVENT_KIND_FACE = 4;
+  EVENT_KIND_LICENSE_PLATE = 5;
+  EVENT_KIND_AUDIO_ALARM = 6;
+  EVENT_KIND_LINE_CROSSING = 7;
+  EVENT_KIND_LOITERING = 8;
+  EVENT_KIND_TAMPER = 9;
+  EVENT_KIND_CUSTOM = 100;
+}
+
+message BoundingBox {
+  float x = 1;
+  float y = 2;
+  float width = 3;
+  float height = 4;
+}
+
+message Event {
+  string id = 1;
+  string camera_id = 2;
+  EventKind kind = 3;
+  string kind_label = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  float confidence = 6;
+  BoundingBox bbox = 7;
+  string track_id = 8;
+  string thumbnail_url = 9;
+  map<string, string> attributes = 10;
+}
+
+message GetEventRequest { string id = 1; }
+message GetEventResponse { Event event = 1; }
+
+message ListEventsRequest {
+  string camera_id = 1;
+  repeated EventKind kinds = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+  float min_confidence = 5;
+  string query = 6;
+  int32 page_size = 7;
+  string cursor = 8;
+}
+
+message ListEventsResponse {
+  repeated Event events = 1;
+  string next_cursor = 2;
+  int32 total_count = 3;
+}
+
+message AcknowledgeEventRequest {
+  string id = 1;
+  string note = 2;
+}
+message AcknowledgeEventResponse { Event event = 1; }
+
+// ============================================================================
+// Schedule types
+// ============================================================================
+
+message ScheduleEntry {
+  int32 day_of_week = 1;  // ISO 8601: Monday=1..Sunday=7
+  int32 start_minute = 2;
+  int32 end_minute = 3;
+  RecordingMode mode = 4;
+}
+
+message Schedule {
+  string id = 1;
+  string camera_id = 2;
+  string name = 3;
+  string timezone = 4;
+  repeated ScheduleEntry entries = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message CreateScheduleRequest {
+  string camera_id = 1;
+  string name = 2;
+  string timezone = 3;
+  repeated ScheduleEntry entries = 4;
+}
+message CreateScheduleResponse { Schedule schedule = 1; }
+
+message GetScheduleRequest { string id = 1; }
+message GetScheduleResponse { Schedule schedule = 1; }
+
+message UpdateScheduleRequest {
+  string id = 1;
+  string name = 2;
+  string timezone = 3;
+  repeated ScheduleEntry entries = 4;
+  repeated string update_mask = 5;
+}
+message UpdateScheduleResponse { Schedule schedule = 1; }
+
+message DeleteScheduleRequest { string id = 1; }
+message DeleteScheduleResponse {}
+
+message ListSchedulesRequest {
+  string camera_id = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+message ListSchedulesResponse {
+  repeated Schedule schedules = 1;
+  string next_cursor = 2;
+}
+
+// ============================================================================
+// Retention types
+// ============================================================================
+
+message RetentionPolicy {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 retention_days = 4;
+  int64 max_bytes = 5;
+  int32 event_retention_days = 6;
+  repeated string camera_ids = 7;  // cameras using this policy
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message CreateRetentionPolicyRequest {
+  string name = 1;
+  string description = 2;
+  int32 retention_days = 3;
+  int64 max_bytes = 4;
+  int32 event_retention_days = 5;
+}
+message CreateRetentionPolicyResponse { RetentionPolicy policy = 1; }
+
+message GetRetentionPolicyRequest { string id = 1; }
+message GetRetentionPolicyResponse { RetentionPolicy policy = 1; }
+
+message UpdateRetentionPolicyRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 retention_days = 4;
+  int64 max_bytes = 5;
+  int32 event_retention_days = 6;
+  repeated string update_mask = 7;
+}
+message UpdateRetentionPolicyResponse { RetentionPolicy policy = 1; }
+
+message DeleteRetentionPolicyRequest { string id = 1; }
+message DeleteRetentionPolicyResponse {}
+
+message ListRetentionPoliciesRequest {
+  int32 page_size = 1;
+  string cursor = 2;
+}
+
+message ListRetentionPoliciesResponse {
+  repeated RetentionPolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message ApplyRetentionPolicyRequest {
+  string policy_id = 1;
+  repeated string camera_ids = 2;
+}
+message ApplyRetentionPolicyResponse { RetentionPolicy policy = 1; }
+
+// ============================================================================
+// Integration types
+// ============================================================================
+
+enum IntegrationKind {
+  INTEGRATION_KIND_UNSPECIFIED = 0;
+  INTEGRATION_KIND_WEBHOOK = 1;
+  INTEGRATION_KIND_MQTT = 2;
+  INTEGRATION_KIND_SYSLOG = 3;
+  INTEGRATION_KIND_CUSTOM = 100;
+}
+
+message Integration {
+  string id = 1;
+  string name = 2;
+  IntegrationKind kind = 3;
+  bool enabled = 4;
+  map<string, string> config = 5;
+  repeated EventKind subscribed_events = 6;
+  repeated string camera_ids = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message CreateIntegrationRequest {
+  string name = 1;
+  IntegrationKind kind = 2;
+  map<string, string> config = 3;
+  repeated EventKind subscribed_events = 4;
+  repeated string camera_ids = 5;
+}
+message CreateIntegrationResponse { Integration integration = 1; }
+
+message GetIntegrationRequest { string id = 1; }
+message GetIntegrationResponse { Integration integration = 1; }
+
+message UpdateIntegrationRequest {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  map<string, string> config = 4;
+  repeated EventKind subscribed_events = 5;
+  repeated string camera_ids = 6;
+  repeated string update_mask = 7;
+}
+message UpdateIntegrationResponse { Integration integration = 1; }
+
+message DeleteIntegrationRequest { string id = 1; }
+message DeleteIntegrationResponse {}
+
+message ListIntegrationsRequest {
+  IntegrationKind kind_filter = 1;
+  int32 page_size = 2;
+  string cursor = 3;
+}
+
+message ListIntegrationsResponse {
+  repeated Integration integrations = 1;
+  string next_cursor = 2;
+}
+
+message TestIntegrationRequest { string id = 1; }
+
+message TestIntegrationResponse {
+  bool success = 1;
+  string message = 2;
+  int64 latency_ms = 3;
+}
+
+// ============================================================================
+// Services — 7 services, 33 methods total
+// ============================================================================
+
+service CameraService {
+  rpc CreateCamera(CreateCameraRequest) returns (CreateCameraResponse);
+  rpc GetCamera(GetCameraRequest) returns (GetCameraResponse);
+  rpc UpdateCamera(UpdateCameraRequest) returns (UpdateCameraResponse);
+  rpc DeleteCamera(DeleteCameraRequest) returns (DeleteCameraResponse);
+  rpc ListCameras(ListCamerasRequest) returns (ListCamerasResponse);
+}
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+service RecordingService {
+  rpc GetRecording(GetRecordingRequest) returns (GetRecordingResponse);
+  rpc ListRecordings(ListRecordingsRequest) returns (ListRecordingsResponse);
+  rpc DeleteRecording(DeleteRecordingRequest) returns (DeleteRecordingResponse);
+  rpc ExportRecording(ExportRecordingRequest) returns (ExportRecordingResponse);
+}
+
+service EventService {
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc AcknowledgeEvent(AcknowledgeEventRequest) returns (AcknowledgeEventResponse);
+}
+
+service ScheduleService {
+  rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+  rpc GetSchedule(GetScheduleRequest) returns (GetScheduleResponse);
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse);
+  rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse);
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+}
+
+service RetentionService {
+  rpc CreateRetentionPolicy(CreateRetentionPolicyRequest) returns (CreateRetentionPolicyResponse);
+  rpc GetRetentionPolicy(GetRetentionPolicyRequest) returns (GetRetentionPolicyResponse);
+  rpc UpdateRetentionPolicy(UpdateRetentionPolicyRequest) returns (UpdateRetentionPolicyResponse);
+  rpc DeleteRetentionPolicy(DeleteRetentionPolicyRequest) returns (DeleteRetentionPolicyResponse);
+  rpc ListRetentionPolicies(ListRetentionPoliciesRequest) returns (ListRetentionPoliciesResponse);
+  rpc ApplyRetentionPolicy(ApplyRetentionPolicyRequest) returns (ApplyRetentionPolicyResponse);
+}
+
+service IntegrationService {
+  rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
+  rpc GetIntegration(GetIntegrationRequest) returns (GetIntegrationResponse);
+  rpc UpdateIntegration(UpdateIntegrationRequest) returns (UpdateIntegrationResponse);
+  rpc DeleteIntegration(DeleteIntegrationRequest) returns (DeleteIntegrationResponse);
+  rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
+  rpc TestIntegration(TestIntegrationRequest) returns (TestIntegrationResponse);
+}

@@ -60,7 +60,10 @@ func TestMigrationsApplyInOrder(t *testing.T) {
 	// 0022 is KAI-369 support_tickets + support_ticket_comments +
 	// support_provider_configs (SQLite-compatible; JSONB → TEXT,
 	// TIMESTAMPTZ → DATETIME, BOOLEAN → INTEGER via translateToSQLite).
-	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
+	// 0023 is KAI-370 notification_rate_limits + notification_delivery_providers
+	// (SQLite-compatible; JSONB → TEXT, TIMESTAMPTZ → DATETIME,
+	// BOOLEAN → INTEGER via translateToSQLite).
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 	if len(versions) != len(want) {
 		t.Fatalf("applied versions = %v, want %v", versions, want)
 	}

@@ -776,12 +776,38 @@ func TestAlwaysAvailableFileErrorMagicBytes(t *testing.T) {
 }
 
 func TestSampleConfFile(t *testing.T) {
+	// The committed mediamtx.yml carries NVR runtime configuration that
+	// deviates from pristine Conf{} defaults (logLevel: debug, api: true,
+	// playback: true, nvr: true, nvrJWTSecret: <encrypts DB keys>, and
+	// camera paths under paths:). Per CLAUDE.md, those fields must NOT be
+	// cleared from mediamtx.yml. Instead, this test normalises them on the
+	// loaded-from-file Conf before comparing against defaults, so the test
+	// still verifies that the sample file matches defaults for every field
+	// OTHER than the NVR-locked overrides.
+	normalizeNVROverrides := func(t *testing.T, c *Conf) {
+		t.Helper()
+		// Assert NVR-locked fields carry their expected runtime values
+		// (fail loudly if mediamtx.yml accidentally loses them).
+		require.Equal(t, LogLevel(1), c.LogLevel, "mediamtx.yml must keep logLevel: debug")
+		require.True(t, c.API, "mediamtx.yml must keep api: true")
+		require.True(t, c.Playback, "mediamtx.yml must keep playback: true")
+		require.True(t, c.NVR, "mediamtx.yml must keep nvr: true")
+		require.NotEmpty(t, c.NVRJWTSecret, "mediamtx.yml must keep nvrJWTSecret set (encrypts DB keys)")
+		// Reset to the pristine defaults produced by Load("").
+		c.LogLevel = LogLevel(2) // info
+		c.API = false
+		c.Playback = false
+		c.NVR = false
+		c.NVRJWTSecret = ""
+	}
+
 	func() {
 		conf1, confPath1, err := Load("../../mediamtx.yml", nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, "../../mediamtx.yml", confPath1)
 		conf1.Paths = make(map[string]*Path)
 		conf1.OptionalPaths = nil
+		normalizeNVROverrides(t, conf1)
 
 		conf2, confPath2, err := Load("", nil, nil)
 		require.NoError(t, err)
@@ -803,7 +829,12 @@ func TestSampleConfFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tmpf, confPath2)
 
-		require.Equal(t, conf1.Paths, conf2.Paths)
+		// mediamtx.yml includes NVR camera paths alongside all_others.
+		// Only compare the all_others entry, which is what the sample
+		// file is meant to demonstrate carries default path values.
+		require.Contains(t, conf1.Paths, "all_others")
+		require.Contains(t, conf2.Paths, "all_others")
+		require.Equal(t, conf1.Paths["all_others"], conf2.Paths["all_others"])
 	}()
 }
 

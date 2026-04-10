@@ -2,8 +2,18 @@
 //
 // This file draws a seam the cloud-platform team (lead-cloud) relies on:
 // everything above it is in-app Dart; everything below it is a plugin +
-// native code. The interface is deliberately tiny so a fake can be swapped
-// in during tests without pulling firebase_messaging into the Dart VM.
+// native code. The interface is deliberately tiny so a fake can be
+// swapped in during tests without pulling firebase_messaging into the
+// Dart VM.
+//
+// Hard contract (cto + lead-security gate on PR #165):
+//
+//   Every platform channel's decode path MUST route the raw native
+//   payload map through [PushMessage.fromRemote], which enforces the
+//   metadata-only contract (event_id + tenant_id + priority). On a
+//   [PushPayloadViolation] the channel LOGS + DROPS the message — never
+//   crashes the app. Use [_deliverFromRemote] so every channel shares
+//   the same behavior.
 
 import 'dart:async';
 import 'dart:io' show Platform;
@@ -13,46 +23,55 @@ import 'package:flutter/foundation.dart';
 import 'notification_strings.dart';
 import 'push_message.dart';
 
-/// Abstract platform push channel. One implementation per target platform.
-///
-/// Contract:
-///   * `start()` must be idempotent — calling it twice is a no-op.
-///   * `stop()` must release any native listeners.
-///   * `getDeviceToken()` may return `null` when the platform refuses to
-///     issue one (e.g. user denied permission, firebase not initialised,
-///     or the desktop stub).
-///   * `incoming` is a broadcast stream — multiple listeners are allowed.
+/// Abstract platform push channel. One implementation per target
+/// platform.
 abstract class PushChannel {
-  /// Returns the current device token, or `null` if one cannot be issued.
-  ///
-  /// Implementations should cache the token and only go to the platform on
-  /// first call + on token refresh. [NotificationService] re-registers the
-  /// device on every session switch regardless.
   Future<String?> getDeviceToken();
-
-  /// Broadcast stream of incoming push messages. Emits nothing until
-  /// [start] has been called.
   Stream<PushMessage> get incoming;
-
-  /// Start listening for pushes. Idempotent.
   Future<void> start();
-
-  /// Stop listening and release platform resources.
   Future<void> stop();
 
-  /// Opaque platform tag used when the client registers with the backend.
-  /// Matches the `platform` enum that lead-cloud will define on the
-  /// `RegisterDevice` RPC.
+  /// Opaque platform tag used when the client registers with the
+  /// backend.
   String get platformTag;
+}
+
+/// Shared decode helper. Every platform channel routes raw native
+/// payloads through this function so the metadata-only contract is
+/// enforced in exactly one place.
+///
+/// On success, [onMessage] is called with the decoded [PushMessage].
+/// On [PushPayloadViolation], the error is logged via `debugPrint` and
+/// the message is dropped. The app never crashes on a bad payload —
+/// that is deliberate: a single misbehaving dispatcher must not be able
+/// to take down a production device.
+void decodeRemoteAndForward(
+  Map<String, dynamic> rawNativePayload,
+  void Function(PushMessage) onMessage, {
+  String channelTag = 'PushChannel',
+}) {
+  try {
+    final msg = PushMessage.fromRemote(rawNativePayload);
+    onMessage(msg);
+  } on PushPayloadViolation catch (e) {
+    debugPrint('$channelTag: dropping push with payload violation: $e');
+  } catch (e) {
+    debugPrint('$channelTag: dropping push with decode error: $e');
+  }
 }
 
 /// APNs push channel. On iOS this will forward the token and payloads
 /// received from the iOS native side (APS + UNUserNotificationCenter).
 ///
-/// In this PR we do NOT instantiate firebase_messaging at construction
-/// time — the plugin imports are resolved lazily inside [start]. That way
-/// tests can construct an [ApnsPushChannel] on a non-iOS host without
-/// loading the platform plugin.
+/// APNs payload contract (KAI-303): the server MUST send
+///   `mutable-content: 1` + `content-available: 1` for silent wake and
+///   MUST NOT include an `alert` dict. The custom-data block carries
+///   ONLY `event_id`, `tenant_id`, `priority`. Info.plist has the full
+///   comment — see `ios/Runner/Info.plist`.
+///
+/// TODO(KAI-303-followup): iOS Notification Service Extension for
+/// optional privacy-preserving content fetch. Default OFF; no NSE
+/// target is built in this PR. Tracked as a follow-up.
 class ApnsPushChannel implements PushChannel {
   final _controller = StreamController<PushMessage>.broadcast();
   bool _started = false;
@@ -73,13 +92,13 @@ class ApnsPushChannel implements PushChannel {
     _started = true;
     // TODO(lead-cloud / follow-up): wire FirebaseMessaging.instance here.
     //   * FirebaseMessaging.instance.getAPNSToken() -> _token
-    //   * FirebaseMessaging.onMessage.listen((m) => _controller.add(...))
-    // Requires google-services init to be landed in a separate credential-
-    // landing PR — see Info.plist comment.
+    //   * FirebaseMessaging.onMessage.listen((rm) =>
+    //       decodeRemoteAndForward(rm.data, _controller.add,
+    //         channelTag: 'ApnsPushChannel'));
     assert(() {
       debugPrint(
         'ApnsPushChannel.start(): native wiring deferred pending '
-        'Firebase credential landing. See Info.plist comment for details.',
+        'Firebase credential landing. See Info.plist comment.',
       );
       return true;
     }());
@@ -92,16 +111,30 @@ class ApnsPushChannel implements PushChannel {
     await _controller.close();
   }
 
-  /// Test-only: feed a message into the stream as if it arrived from APNs.
+  /// Test-only: feed a raw remote payload map through the decode path.
+  @visibleForTesting
+  void debugDeliverFromRemote(Map<String, dynamic> raw) {
+    decodeRemoteAndForward(raw, _controller.add, channelTag: 'ApnsPushChannel');
+  }
+
+  /// Test-only: feed an already-decoded PushMessage into the stream.
   @visibleForTesting
   void debugDeliver(PushMessage m) => _controller.add(m);
 
-  /// Test-only: override the cached device token.
   @visibleForTesting
   void debugSetToken(String? t) => _token = t;
 }
 
 /// FCM push channel for Android.
+///
+/// FCM payload contract (KAI-303): data-only, NO `notification` block.
+/// This means FCM will NOT auto-display the notification when the app
+/// is killed — the foreground handler / FCM background isolate must
+/// format and display the notification client-side using i18n'd
+/// strings. This is the HIPAA-correct behavior: a `notification` block
+/// would cause FCM to auto-render the title/body on the lock screen
+/// WITHOUT going through our client-side EventDetailsLoader, leaking
+/// PII. See AndroidManifest.xml for the full comment block.
 class FcmPushChannel implements PushChannel {
   final _controller = StreamController<PushMessage>.broadcast();
   bool _started = false;
@@ -122,9 +155,13 @@ class FcmPushChannel implements PushChannel {
     _started = true;
     // TODO(lead-cloud / follow-up): wire FirebaseMessaging.instance here.
     //   * FirebaseMessaging.instance.getToken() -> _token
-    //   * FirebaseMessaging.onMessage.listen((m) => _controller.add(...))
-    //   * FirebaseMessaging.onBackgroundMessage(_bg) for background.
-    // Requires google-services.json to land — see AndroidManifest comment.
+    //   * FirebaseMessaging.onMessage.listen((rm) =>
+    //       decodeRemoteAndForward(rm.data, _controller.add,
+    //         channelTag: 'FcmPushChannel'));
+    //   * FirebaseMessaging.onBackgroundMessage(_bg) — the isolate must
+    //     call decodeRemoteAndForward + render the visible notification
+    //     itself using NotificationStrings.titleForKind(details.kind)
+    //     AFTER fetching EventDetails from Directory.
     assert(() {
       debugPrint(
         'FcmPushChannel.start(): native wiring deferred pending '
@@ -142,6 +179,11 @@ class FcmPushChannel implements PushChannel {
   }
 
   @visibleForTesting
+  void debugDeliverFromRemote(Map<String, dynamic> raw) {
+    decodeRemoteAndForward(raw, _controller.add, channelTag: 'FcmPushChannel');
+  }
+
+  @visibleForTesting
   void debugDeliver(PushMessage m) => _controller.add(m);
 
   @visibleForTesting
@@ -149,6 +191,11 @@ class FcmPushChannel implements PushChannel {
 }
 
 /// Web Push channel using the browser's `PushManager` + Service Worker.
+///
+/// Web Push payload contract (KAI-303): same as FCM/APNs — only
+/// `event_id` + `tenant_id` + `priority`. The Service Worker's `push`
+/// handler must call the Directory API on interaction, not on receipt,
+/// to avoid leaking details to browser push infrastructure.
 class WebPushChannel implements PushChannel {
   final _controller = StreamController<PushMessage>.broadcast();
   bool _started = false;
@@ -169,7 +216,8 @@ class WebPushChannel implements PushChannel {
     _started = true;
     // TODO(lead-cloud / follow-up): register the Service Worker, call
     // `pushManager.subscribe({userVisibleOnly: true, applicationServerKey})`,
-    // and bridge postMessage events from the SW into _controller.
+    // and bridge postMessage events from the SW into _controller via
+    // decodeRemoteAndForward(rawPayloadMap, _controller.add, ...).
     assert(() {
       debugPrint(
         'WebPushChannel.start(): Service Worker wiring deferred pending '
@@ -187,20 +235,18 @@ class WebPushChannel implements PushChannel {
   }
 
   @visibleForTesting
+  void debugDeliverFromRemote(Map<String, dynamic> raw) {
+    decodeRemoteAndForward(raw, _controller.add, channelTag: 'WebPushChannel');
+  }
+
+  @visibleForTesting
   void debugDeliver(PushMessage m) => _controller.add(m);
 
   @visibleForTesting
   void debugSetToken(String? t) => _token = t;
 }
 
-/// Desktop stub. macOS/Windows/Linux get a no-op channel for v1: no token,
-/// no inbound messages, and a single debug warning on [start].
-///
-/// Real native integration (UNUserNotificationCenter on macOS, Windows
-/// Notification Platform, libnotify/freedesktop on Linux) is tracked as a
-/// follow-up. Callers should treat "no token" as "push disabled" — the
-/// [NotificationService] falls back to in-app polling when this is the
-/// active channel.
+/// Desktop stub. macOS/Windows/Linux get a no-op channel for v1.
 class DesktopPushChannel implements PushChannel {
   final _controller = StreamController<PushMessage>.broadcast();
   final NotificationStrings strings;
@@ -221,7 +267,6 @@ class DesktopPushChannel implements PushChannel {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    // Intentional runtime warning — desktop users should know push is inert.
     debugPrint('DesktopPushChannel: ${strings.desktopStubWarning}');
   }
 
@@ -231,16 +276,19 @@ class DesktopPushChannel implements PushChannel {
     _started = false;
     await _controller.close();
   }
+
+  @visibleForTesting
+  void debugDeliverFromRemote(Map<String, dynamic> raw) {
+    decodeRemoteAndForward(raw, _controller.add,
+        channelTag: 'DesktopPushChannel');
+  }
 }
 
 /// Factory returning the correct [PushChannel] for the current platform.
-///
-/// Test code should construct fakes directly rather than calling this.
 PushChannel currentPlatformPushChannel({
   NotificationStrings strings = NotificationStrings.en,
 }) {
   if (kIsWeb) return WebPushChannel();
-  // `Platform.is*` throws on web, so guard behind kIsWeb above.
   if (Platform.isIOS) return ApnsPushChannel();
   if (Platform.isAndroid) return FcmPushChannel();
   return DesktopPushChannel(strings: strings);

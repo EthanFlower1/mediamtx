@@ -1,192 +1,148 @@
-// KAI-303 — PushMessage value object.
+// KAI-303 — Opaque PushMessage value object.
 //
-// Metadata-only contract. The hard rule from the ticket is:
+// HIPAA + GDPR hard contract (cto + lead-security gate on PR #165):
 //
-//     Push payloads must NEVER contain raw image bytes or PII beyond an
-//     opaque event identifier. A thumbnail, if shown, is fetched ON-TAP via
-//     an authenticated Directory API call — never delivered in the push
-//     payload itself.
+//   Push notification payloads are observable by:
+//     * the OS notification history,
+//     * Apple/Google push infrastructure logs,
+//     * lock-screen previews.
 //
-// We enforce the "no raw binary" half of that contract in the constructor:
-// every field is either a short opaque string or a DateTime, and the
-// `thumbnailUrl` is validated to be an `https://` URL, not a `data:` URI.
+//   Therefore they MUST NOT carry ANY PII, ANY human-readable text, ANY
+//   camera/person/location label, ANY timestamp, ANY kind, ANY thumbnail,
+//   or ANY directory-connection id. A push payload carries EXACTLY three
+//   fields:
 //
-// The "no PII" half of the contract is a semantic concern that can't be
-// enforced by Dart — it is documented in the PR body and in the
-// push_subscription_client contract that lead-cloud will implement against.
+//       event_id   (opaque, Directory-minted string)
+//       tenant_id  (opaque tenant scope string)
+//       priority   (numeric int: 0=low 1=normal 2=high 3=critical)
+//
+// Full event details are fetched from Directory AFTER the user taps, via
+// an authenticated `GET /api/v1/events/<event_id>` call routed through
+// [EventDetailsLoader]. The client stores NONE of this data in the push
+// layer — it lives only in the NotificationTapDispatcher → EventDetails.
+//
+// See lead-security review on PR #165, cto security gate, and the proto
+// ask for `cloud.directory.v1.Events.GetEvent` in the PR body.
 
-import 'dart:typed_data';
-
-/// Kinds of events that may produce a push notification.
+/// Notification priority bucket. Drives only the deep-link route bucket
+/// ("critical" vs "normal"), because the payload has no `kind` to branch on.
 ///
-/// Ordering matters only in tests; do not rely on index values in the wire
-/// protocol — the PushSubscriptionClient sends these as strings.
-enum PushMessageKind {
-  motion,
-  face,
-  lpr,
-  manual,
-  system,
+/// Intentionally coarse: fine-grained routing happens AFTER the client has
+/// fetched the full [EventDetails] from Directory.
+class PushPriority {
+  PushPriority._();
+
+  /// Low importance — the operator does not need to be disturbed.
+  static const int low = 0;
+
+  /// Normal importance — the default bucket for routine events.
+  static const int normal = 1;
+
+  /// High importance — surfaced to operators but not a panic alert.
+  static const int high = 2;
+
+  /// Critical — panic/duress/system-down. Routes to `/alerts/critical`.
+  static const int critical = 3;
 }
 
-extension PushMessageKindWire on PushMessageKind {
-  /// Stable wire name. Matches what the backend dispatcher will emit.
-  String get wire => switch (this) {
-        PushMessageKind.motion => 'motion',
-        PushMessageKind.face => 'face',
-        PushMessageKind.lpr => 'lpr',
-        PushMessageKind.manual => 'manual',
-        PushMessageKind.system => 'system',
-      };
-
-  static PushMessageKind fromWire(String s) {
-    return switch (s) {
-      'motion' => PushMessageKind.motion,
-      'face' => PushMessageKind.face,
-      'lpr' => PushMessageKind.lpr,
-      'manual' => PushMessageKind.manual,
-      'system' => PushMessageKind.system,
-      _ => throw ArgumentError('Unknown PushMessageKind wire value: $s'),
-    };
-  }
-}
-
-/// Metadata-only push payload produced by the cloud dispatcher (lead-cloud)
-/// and received by a [PushChannel] implementation.
+/// Opaque push payload. Metadata-only by hard contract.
 ///
-/// Construction is validating: any attempt to pass raw binary or a `data:`
-/// URI throws an [ArgumentError]. This is the first line of defence for the
-/// metadata-only contract.
+/// HIPAA + GDPR: NO PII, NO camera/person/location, NO human-readable text
+/// may live in this payload. Full event details are fetched from Directory
+/// after the user taps, via authenticated GET /api/v1/events/<eventId>.
+///
+/// See lead-security review on PR #165 and cto security gate.
 class PushMessage {
-  /// Opaque event identifier. The client re-fetches the full event record
-  /// via an authenticated API call using this id on tap.
+  /// Opaque event identifier, minted by Directory. The client re-fetches
+  /// the full event record via an authenticated API call using this id
+  /// on tap.
   final String eventId;
 
-  /// Opaque camera identifier the event belongs to. Used for deep-linking.
-  final String cameraId;
+  /// Opaque tenant scope. The [NotificationService] REJECTS any resolve
+  /// attempt whose tenantId does not match the active [AppSession] —
+  /// preventing cross-tenant fetches if a stale device-token survives a
+  /// session switch.
+  final String tenantId;
 
-  /// Kind of event — drives the deep-link dispatcher and the localised
-  /// notification title (see [NotificationStrings]).
-  final PushMessageKind kind;
+  /// Priority bucket: 0=low 1=normal 2=high 3=critical. Drives the route
+  /// returned by `routeForPushMessage`.
+  final int priority;
 
-  /// Server-assigned timestamp. Used for sort order in the in-app feed when
-  /// multiple pushes arrive out of order.
-  final DateTime timestamp;
-
-  /// Which HomeDirectoryConnection this event belongs to. Clients ignore
-  /// pushes whose `directoryConnectionId` does not match the active session.
-  final String directoryConnectionId;
-
-  /// Optional authenticated URL the UI layer may fetch on tap. MUST be
-  /// `https://` — `data:` URIs are rejected, because an embedded thumbnail
-  /// would violate the metadata-only contract.
-  final String? thumbnailUrl;
-
-  PushMessage({
+  const PushMessage({
     required this.eventId,
-    required this.cameraId,
-    required this.kind,
-    required this.timestamp,
-    required this.directoryConnectionId,
-    this.thumbnailUrl,
-  }) {
-    if (eventId.isEmpty) {
-      throw ArgumentError.value(eventId, 'eventId', 'must not be empty');
-    }
-    if (cameraId.isEmpty) {
-      throw ArgumentError.value(cameraId, 'cameraId', 'must not be empty');
-    }
-    if (directoryConnectionId.isEmpty) {
-      throw ArgumentError.value(
-        directoryConnectionId,
-        'directoryConnectionId',
-        'must not be empty',
+    required this.tenantId,
+    required this.priority,
+  });
+
+  /// Decode a push payload delivered by APNs / FCM / Web Push / Desktop.
+  ///
+  /// Defensive: this factory HARD-REJECTS any payload that carries keys
+  /// outside the allowed set. A misbehaving dispatcher that tries to stuff
+  /// `camera_id`, `kind`, `thumbnail_url`, a label, a location, or any PII
+  /// into the payload will trigger a [PushPayloadViolation] here — and
+  /// the platform channel will log + drop the message instead of crashing.
+  ///
+  /// This is the first line of defence for the metadata-only contract.
+  factory PushMessage.fromRemote(Map<String, dynamic> data) {
+    const allowed = {'event_id', 'tenant_id', 'priority'};
+    final extras = data.keys.where((k) => !allowed.contains(k)).toList();
+    if (extras.isNotEmpty) {
+      throw PushPayloadViolation(
+        'Disallowed keys in push payload: $extras. '
+        'KAI-303 hard contract: metadata-only (event_id + tenant_id + priority).',
       );
     }
-    final url = thumbnailUrl;
-    if (url != null) {
-      if (url.startsWith('data:')) {
-        throw ArgumentError.value(
-          url,
-          'thumbnailUrl',
-          'data: URIs are forbidden — metadata-only payload contract '
-              'requires thumbnails to be fetched on-tap via an authenticated '
-              'API call, not delivered inline in the push payload.',
-        );
-      }
-      if (!url.startsWith('https://')) {
-        throw ArgumentError.value(
-          url,
-          'thumbnailUrl',
-          'must be an https:// URL',
-        );
-      }
-    }
-  }
 
-  /// Factory that hard-rejects any attempt to stuff raw binary into a push
-  /// message. This is the guardrail referenced by the PR body and by
-  /// `notification_service_test.dart`.
-  ///
-  /// Callers should normally use the unnamed constructor — this factory
-  /// exists so tests and (mis)behaving integrators can prove the guardrail
-  /// actually fires.
-  factory PushMessage.rejectBinary({
-    required String eventId,
-    required String cameraId,
-    required PushMessageKind kind,
-    required DateTime timestamp,
-    required String directoryConnectionId,
-    String? thumbnailUrl,
-    Object? embeddedImage,
-  }) {
-    if (embeddedImage != null) {
-      // Covers every path an integrator might try to stuff bytes through.
-      if (embeddedImage is Uint8List ||
-          embeddedImage is List<int> ||
-          embeddedImage is ByteBuffer ||
-          embeddedImage is ByteData) {
-        throw ArgumentError.value(
-          embeddedImage.runtimeType,
-          'embeddedImage',
-          'Raw binary payloads are forbidden by the metadata-only contract. '
-              'Deliver an https:// thumbnailUrl instead and let the client '
-              'fetch it on tap via an authenticated API call.',
-        );
-      }
+    final rawEventId = data['event_id'];
+    final rawTenantId = data['tenant_id'];
+    final rawPriority = data['priority'];
+    if (rawEventId is! String || rawEventId.isEmpty) {
+      throw PushPayloadViolation('event_id missing or not a non-empty string');
+    }
+    if (rawTenantId is! String || rawTenantId.isEmpty) {
+      throw PushPayloadViolation('tenant_id missing or not a non-empty string');
+    }
+    if (rawPriority is! num) {
+      throw PushPayloadViolation('priority missing or not numeric');
     }
     return PushMessage(
-      eventId: eventId,
-      cameraId: cameraId,
-      kind: kind,
-      timestamp: timestamp,
-      directoryConnectionId: directoryConnectionId,
-      thumbnailUrl: thumbnailUrl,
+      eventId: rawEventId,
+      tenantId: rawTenantId,
+      priority: rawPriority.toInt(),
     );
   }
 
-  /// Wire decoder for platform channels that deliver payloads as a
-  /// `Map<String, dynamic>` from APNs / FCM / WebPush native layers.
-  factory PushMessage.fromWire(Map<String, dynamic> m) {
-    return PushMessage(
-      eventId: m['event_id'] as String,
-      cameraId: m['camera_id'] as String,
-      kind: PushMessageKindWire.fromWire(m['kind'] as String),
-      timestamp: DateTime.parse(m['timestamp'] as String),
-      directoryConnectionId: m['directory_connection_id'] as String,
-      thumbnailUrl: m['thumbnail_url'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toWire() => {
+  /// Encode back to the same wire shape. Only the three allowed fields.
+  Map<String, dynamic> toRemote() => {
         'event_id': eventId,
-        'camera_id': cameraId,
-        'kind': kind.wire,
-        'timestamp': timestamp.toUtc().toIso8601String(),
-        'directory_connection_id': directoryConnectionId,
-        if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+        'tenant_id': tenantId,
+        'priority': priority,
       };
 
   @override
-  String toString() => 'PushMessage($eventId/$cameraId/${kind.wire})';
+  String toString() => 'PushMessage(eventId=$eventId, tenantId=$tenantId, '
+      'priority=$priority)';
+}
+
+/// Thrown when a push payload carries any field outside the
+/// metadata-only contract (event_id + tenant_id + priority).
+///
+/// Platform channels catch this and LOG + DROP — never crash the app.
+class PushPayloadViolation implements Exception {
+  final String message;
+  PushPayloadViolation(this.message);
+  @override
+  String toString() => 'PushPayloadViolation: $message';
+}
+
+/// Thrown by [NotificationService.resolveForTap] when the push message's
+/// `tenantId` does not match the active [AppSession.tenantRef]. This is
+/// the cross-tenant fetch guard — it prevents a stale push (e.g. from a
+/// previous signed-in tenant) from fetching event details against the
+/// current tenant's Directory.
+class CrossTenantPushViolation implements Exception {
+  final String message;
+  CrossTenantPushViolation(this.message);
+  @override
+  String toString() => 'CrossTenantPushViolation: $message';
 }

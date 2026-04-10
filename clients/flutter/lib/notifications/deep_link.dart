@@ -1,49 +1,35 @@
-// KAI-303 — Deep-link route constants + dispatcher for push notifications.
+// KAI-303 — Deep-link dispatcher for opaque push notifications.
 //
-// Scope is deliberately narrow: this file maps a [PushMessageKind] to a
-// Route *name* (a string constant). The actual router wiring — i.e.
-// navigator push / go_router call — is a follow-up, because the router
-// shape is still being finalised in KAI-337 (operator workflow).
+// The push payload carries ONLY (event_id, tenant_id, priority), so
+// coarse routing uses priority alone. Fine-grained routing (by kind,
+// camera, etc.) happens AFTER the client has fetched the full
+// EventDetails from Directory on tap.
 //
-// Tests pin the kind -> route mapping so the follow-up can swap in real
-// navigation without silently changing semantics.
+// This function is pure — no side effects, no navigation.
 
 import 'push_message.dart';
 
 /// Route constants the deep-link dispatcher may return.
-///
-/// These are string identifiers, not go_router objects — the UI layer
-/// translates them into actual navigation in a follow-up.
 class NotificationRoutes {
   NotificationRoutes._();
 
-  /// Live view + recent event panel for the camera referenced by the push.
-  static const String liveEvent = '/live/event';
+  /// High-visibility alerts screen for critical (priority=3) pushes:
+  /// panic, duress, system-down.
+  static const String criticalAlerts = '/alerts/critical';
 
-  /// Face-match detail screen with the event context.
-  static const String faceEvent = '/faces/event';
-
-  /// LPR detail screen with the event context.
-  static const String lprEvent = '/lpr/event';
-
-  /// Manual alert inbox (e.g. duress / panic alerts).
-  static const String manualAlert = '/alerts/manual';
-
-  /// System health / ops screen.
-  static const String systemNotice = '/system/notices';
+  /// Default alerts inbox for low/normal/high pushes. Fine-grained
+  /// routing (live view, face inspector, etc.) happens AFTER the client
+  /// has loaded EventDetails from Directory.
+  static const String alerts = '/alerts';
 }
 
-/// Deep-link dispatcher: given a [PushMessage], returns the route name the
-/// UI layer should navigate to on tap.
+/// Deep-link dispatcher: given an opaque [PushMessage], returns the
+/// route name the UI layer should navigate to on tap.
 ///
-/// Pure function — no side effects, no navigation. Making this testable in
-/// isolation is the whole point.
+/// Since the payload has no `kind`, routing is by priority alone.
 String routeForPushMessage(PushMessage m) {
-  return switch (m.kind) {
-    PushMessageKind.motion => NotificationRoutes.liveEvent,
-    PushMessageKind.face => NotificationRoutes.faceEvent,
-    PushMessageKind.lpr => NotificationRoutes.lprEvent,
-    PushMessageKind.manual => NotificationRoutes.manualAlert,
-    PushMessageKind.system => NotificationRoutes.systemNotice,
-  };
+  if (m.priority >= PushPriority.critical) {
+    return NotificationRoutes.criticalAlerts;
+  }
+  return NotificationRoutes.alerts;
 }

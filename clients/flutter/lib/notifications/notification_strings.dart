@@ -31,6 +31,7 @@ class NotificationStrings {
     required this.errorPlatformUnsupported,
     required this.desktopStubWarning,
     required this.firebaseNotInitialisedWarning,
+    required this.crossTenantPushBanner,
   });
 
   final String permissionPromptTitle;
@@ -66,6 +67,32 @@ class NotificationStrings {
   final String desktopStubWarning;
   final String firebaseNotInitialisedWarning;
 
+  /// KAI-303: shown as a user-visible banner when a push message's
+  /// tenantId does not match the active AppSession. i18n base: en.
+  final String crossTenantPushBanner;
+
+  /// KAI-303: returns the localized notification title for a given event
+  /// kind string (as returned by Directory /api/v1/events/<id>).
+  ///
+  /// i18n base: en. The sweep agent should move these into the project's
+  /// .arb file when the localisation pipeline lands.
+  String titleForKind(String kind) {
+    switch (kind) {
+      case 'motion':
+        return eventKindMotion;
+      case 'face':
+        return eventKindFace;
+      case 'lpr':
+        return eventKindLpr;
+      case 'manual':
+        return eventKindManual;
+      case 'system':
+        return eventKindSystem;
+      default:
+        return fallbackNotificationTitle;
+    }
+  }
+
   /// Default English strings. Override via a Riverpod provider in tests or
   /// when the localisation layer lands.
   static const NotificationStrings en = NotificationStrings(
@@ -99,5 +126,7 @@ class NotificationStrings {
     firebaseNotInitialisedWarning:
         'Firebase is not initialised — push notifications will be inert. '
         'Land the google-services configuration to enable delivery.',
+    crossTenantPushBanner:
+        'A notification arrived for a different account and was ignored.',
   );
 }

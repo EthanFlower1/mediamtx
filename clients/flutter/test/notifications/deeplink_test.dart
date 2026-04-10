@@ -1,40 +1,36 @@
-// KAI-303 — Deep-link dispatcher tests: every PushMessageKind pins to a
-// route constant so a future router wiring PR can't silently change the
-// mapping.
+// KAI-303 — Deep-link dispatcher tests: routing by priority bucket only,
+// because the opaque payload has no kind.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvr_client/notifications/deep_link.dart';
 import 'package:nvr_client/notifications/push_message.dart';
 
-PushMessage _msg(PushMessageKind k) => PushMessage(
+PushMessage _msg(int priority) => PushMessage(
       eventId: 'e',
-      cameraId: 'c',
-      kind: k,
-      timestamp: DateTime.utc(2026, 4, 8),
-      directoryConnectionId: 'home',
+      tenantId: 't',
+      priority: priority,
     );
 
 void main() {
-  group('routeForPushMessage', () {
-    test('motion -> liveEvent', () {
-      expect(routeForPushMessage(_msg(PushMessageKind.motion)),
-          NotificationRoutes.liveEvent);
+  group('routeForPushMessage (priority-only routing)', () {
+    test('low -> alerts', () {
+      expect(routeForPushMessage(_msg(PushPriority.low)),
+          NotificationRoutes.alerts);
     });
-    test('face -> faceEvent', () {
-      expect(routeForPushMessage(_msg(PushMessageKind.face)),
-          NotificationRoutes.faceEvent);
+    test('normal -> alerts', () {
+      expect(routeForPushMessage(_msg(PushPriority.normal)),
+          NotificationRoutes.alerts);
     });
-    test('lpr -> lprEvent', () {
-      expect(routeForPushMessage(_msg(PushMessageKind.lpr)),
-          NotificationRoutes.lprEvent);
+    test('high -> alerts', () {
+      expect(routeForPushMessage(_msg(PushPriority.high)),
+          NotificationRoutes.alerts);
     });
-    test('manual -> manualAlert', () {
-      expect(routeForPushMessage(_msg(PushMessageKind.manual)),
-          NotificationRoutes.manualAlert);
+    test('critical -> criticalAlerts', () {
+      expect(routeForPushMessage(_msg(PushPriority.critical)),
+          NotificationRoutes.criticalAlerts);
     });
-    test('system -> systemNotice', () {
-      expect(routeForPushMessage(_msg(PushMessageKind.system)),
-          NotificationRoutes.systemNotice);
+    test('numeric overrides — anything >= 3 is critical', () {
+      expect(routeForPushMessage(_msg(5)), NotificationRoutes.criticalAlerts);
     });
   });
 }

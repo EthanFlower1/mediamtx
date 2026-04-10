@@ -29,7 +29,7 @@
 // FCM/APNs/WebPush payload. Clients also enforce the contract at receive
 // time (see PushMessage).
 
-import 'push_message.dart';
+import 'push_event_kind.dart';
 
 /// A single per-camera subscription record owned by the directory backend.
 class PushSubscription {
@@ -42,7 +42,7 @@ class PushSubscription {
   /// Which kinds of events the user wants to be notified about on this
   /// camera. An empty set means "no pushes" and is equivalent to an
   /// unsubscribe.
-  final Set<PushMessageKind> eventKinds;
+  final Set<PushEventKind> eventKinds;
 
   const PushSubscription({
     required this.id,
@@ -53,7 +53,7 @@ class PushSubscription {
   PushSubscription copyWith({
     String? id,
     String? cameraId,
-    Set<PushMessageKind>? eventKinds,
+    Set<PushEventKind>? eventKinds,
   }) {
     return PushSubscription(
       id: id ?? this.id,
@@ -87,7 +87,7 @@ abstract class PushSubscriptionClient {
   Future<void> subscribe({
     required String subscriptionId,
     required String cameraId,
-    required Set<PushMessageKind> eventKinds,
+    required Set<PushEventKind> eventKinds,
   });
 
   /// Cancel interest in events from [cameraId].

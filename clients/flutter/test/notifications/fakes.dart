@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:nvr_client/notifications/push_channel.dart';
+import 'package:nvr_client/notifications/push_event_kind.dart';
 import 'package:nvr_client/notifications/push_message.dart';
 import 'package:nvr_client/notifications/push_subscription_client.dart';
 
@@ -64,7 +65,7 @@ class FakePushSubscriptionClient implements PushSubscriptionClient {
   Future<void> subscribe({
     required String subscriptionId,
     required String cameraId,
-    required Set<PushMessageKind> eventKinds,
+    required Set<PushEventKind> eventKinds,
   }) async {
     final list = _subs[subscriptionId] ?? (throw StateError('unknown sub'));
     list.removeWhere((s) => s.cameraId == cameraId);
@@ -85,7 +86,8 @@ class FakePushSubscriptionClient implements PushSubscriptionClient {
   }
 
   @override
-  Future<List<PushSubscription>> listSubscriptions(String subscriptionId) async {
+  Future<List<PushSubscription>> listSubscriptions(
+      String subscriptionId) async {
     return List.unmodifiable(_subs[subscriptionId] ?? const []);
   }
 

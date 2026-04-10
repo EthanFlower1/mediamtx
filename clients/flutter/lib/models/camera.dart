@@ -18,6 +18,9 @@ class Camera with _$Camera {
     @JsonKey(name: 'ai_confidence') @Default(0.5) double aiConfidence,
     @JsonKey(name: 'ai_track_timeout') @Default(5) int aiTrackTimeout,
     @JsonKey(name: 'sub_stream_url') @Default('') String subStreamUrl,
+    // Proto capability flags per lead-cloud feedback (replaces stream URLs on proto)
+    @JsonKey(name: 'has_sub_stream') @Default(false) bool hasSubStream,
+    @JsonKey(name: 'has_main_stream') @Default(true) bool hasMainStream,
     @JsonKey(name: 'retention_days') @Default(30) int retentionDays,
     @JsonKey(name: 'event_retention_days') @Default(0) int eventRetentionDays,
     @JsonKey(name: 'detection_retention_days') @Default(0) int detectionRetentionDays,

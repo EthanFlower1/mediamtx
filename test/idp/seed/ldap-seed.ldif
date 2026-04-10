@@ -1,0 +1,82 @@
+# KAI-137: LDAP seed data for integration tests.
+#
+# Base DN: dc=test,dc=kaivue,dc=io  (created automatically by osixia/openldap
+# from LDAP_DOMAIN=test.kaivue.io).
+#
+# Structure:
+#   ou=People  — 3 test users
+#   ou=Groups  — 2 groups (admins, viewers)
+
+# ---------- Organisational Units ----------
+
+dn: ou=People,dc=test,dc=kaivue,dc=io
+objectClass: organizationalUnit
+ou: People
+description: Test user accounts
+
+dn: ou=Groups,dc=test,dc=kaivue,dc=io
+objectClass: organizationalUnit
+ou: Groups
+description: Test groups for RBAC mapping
+
+# ---------- Users ----------
+
+dn: uid=alice,ou=People,dc=test,dc=kaivue,dc=io
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: alice
+sn: Anderson
+givenName: Alice
+cn: Alice Anderson
+displayName: Alice Anderson
+mail: alice@test.kaivue.io
+uidNumber: 10001
+gidNumber: 10000
+homeDirectory: /home/alice
+userPassword: alice-pass
+
+dn: uid=bob,ou=People,dc=test,dc=kaivue,dc=io
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: bob
+sn: Baker
+givenName: Bob
+cn: Bob Baker
+displayName: Bob Baker
+mail: bob@test.kaivue.io
+uidNumber: 10002
+gidNumber: 10000
+homeDirectory: /home/bob
+userPassword: bob-pass
+
+dn: uid=carol,ou=People,dc=test,dc=kaivue,dc=io
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: carol
+sn: Chen
+givenName: Carol
+cn: Carol Chen
+displayName: Carol Chen
+mail: carol@test.kaivue.io
+uidNumber: 10003
+gidNumber: 10000
+homeDirectory: /home/carol
+userPassword: carol-pass
+
+# ---------- Groups ----------
+
+dn: cn=admins,ou=Groups,dc=test,dc=kaivue,dc=io
+objectClass: groupOfUniqueNames
+cn: admins
+description: Full administrative access
+uniqueMember: uid=alice,ou=People,dc=test,dc=kaivue,dc=io
+
+dn: cn=viewers,ou=Groups,dc=test,dc=kaivue,dc=io
+objectClass: groupOfUniqueNames
+cn: viewers
+description: Read-only live and playback access
+uniqueMember: uid=bob,ou=People,dc=test,dc=kaivue,dc=io
+uniqueMember: uid=carol,ou=People,dc=test,dc=kaivue,dc=io

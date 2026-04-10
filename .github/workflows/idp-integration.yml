@@ -1,0 +1,95 @@
+# KAI-137: Identity provider integration tests.
+#
+# Spins up the mock-IdP Docker Compose stack (OIDC + SAML + LDAP) and runs
+# the Go integration tests that exercise the Zitadel adapter's provider
+# configuration surface against real protocol endpoints.
+#
+# Trigger: PR changes to auth code, or nightly for real-tenant validation.
+
+name: IdP Integration Tests
+
+on:
+  pull_request:
+    paths:
+      - "internal/shared/auth/**"
+      - "test/idp/**"
+      - ".github/workflows/idp-integration.yml"
+
+  # Nightly schedule for real-tenant validation (placeholder).
+  schedule:
+    - cron: "0 4 * * *"  # 04:00 UTC daily
+
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  idp-integration:
+    name: IdP integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Start mock-IdP stack
+        run: |
+          docker compose -f test/idp/docker-compose.yml up -d --wait
+          echo "IDP_STACK_RUNNING=1" >> "$GITHUB_ENV"
+
+      - name: Verify stack health
+        run: |
+          echo "--- OIDC discovery ---"
+          curl -sf http://localhost:9090/kaivue-test/.well-known/openid-configuration | head -5
+          echo ""
+          echo "--- SAML metadata ---"
+          curl -sf http://localhost:8080/simplesaml/saml2/idp/metadata.php | head -5
+          echo ""
+          echo "--- LDAP bind ---"
+          docker exec kai-openldap ldapsearch -x -H ldap://localhost \
+            -b "dc=test,dc=kaivue,dc=io" \
+            -D "cn=admin,dc=test,dc=kaivue,dc=io" \
+            -w "admin-secret" \
+            "(ou=People)" dn | head -5
+
+      - name: Run integration tests
+        run: |
+          go test -v -tags integration -count=1 -timeout 5m \
+            ./internal/shared/auth/zitadel/idptest/...
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f test/idp/docker-compose.yml down -v
+
+  # ------------------------------------------------------------------
+  # Nightly real-tenant validation (placeholder)
+  # ------------------------------------------------------------------
+  # When KAI-220 (Zitadel on EKS) is fully deployed, add a second job
+  # here that:
+  #   1. Reads ZITADEL_DOMAIN / ZITADEL_SA_KEY from GitHub secrets
+  #   2. Runs a subset of integration tests against the staging tenant
+  #   3. Posts results to Slack via KAI-409
+  #
+  # nightly-real-tenant:
+  #   name: Nightly real-tenant validation
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'schedule'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with: { go-version-file: go.mod }
+  #     - name: Run against staging
+  #       env:
+  #         ZITADEL_DOMAIN: ${{ secrets.ZITADEL_STAGING_DOMAIN }}
+  #         ZITADEL_SA_KEY: ${{ secrets.ZITADEL_STAGING_SA_KEY }}
+  #       run: |
+  #         go test -v -tags integration,real_tenant -count=1 -timeout 10m \
+  #           ./internal/shared/auth/zitadel/idptest/...

@@ -1,0 +1,68 @@
+# KAI-232 — ArgoCD Application: region-router
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: region-router-dev
+  namespace: argocd
+  labels:
+    kaivue.io/service: region-router
+    kaivue.io/env: dev
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/dev/region-router
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: region-router-staging
+  namespace: argocd
+  labels:
+    kaivue.io/service: region-router
+    kaivue.io/env: staging
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/staging/region-router
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-staging
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: region-router-prod
+  namespace: argocd
+  labels:
+    kaivue.io/service: region-router
+    kaivue.io/env: prod
+spec:
+  project: kaivue-cloud
+  source:
+    repoURL: https://github.com/kaivue/infra-envs.git
+    targetRevision: HEAD
+    path: envs/prod/region-router
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kaivue-prod
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

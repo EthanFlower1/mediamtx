@@ -183,6 +183,15 @@ describe('EventsPage', () => {
     });
   });
 
+  it('semantic checkbox is disabled when ai.semantic_search entitlement is missing', async () => {
+    useSessionStore.setState({ entitlements: {} });
+    renderPage();
+    await waitFor(() => screen.getByTestId('events-search-semantic'));
+    const checkbox = screen.getByTestId('events-search-semantic') as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+    expect(screen.getByTestId('events-search-semantic-entitlement-hint')).toBeInTheDocument();
+  });
+
   // ---------------------------------------------------------------------------
   // Jump to playback
   // ---------------------------------------------------------------------------

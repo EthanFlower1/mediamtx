@@ -911,6 +911,7 @@
   "events.search.semanticLabel": "Semantic search",
   "events.search.semanticAriaLabel": "Toggle CLIP semantic search",
   "events.search.semanticHint": "Semantic mode uses CLIP embeddings to match visually similar events.",
+  "events.search.semanticEntitlementTooltip": "Requires AI add-on",
   "events.search.literalHint": "Literal mode matches text in the event summary and camera name.",
   "events.filters.sectionLabel": "Event filters",
   "events.filters.cameras": "Cameras",

@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next';
 export interface EventSearchProps {
   readonly value: string;
   readonly semantic: boolean;
+  /** Whether the tenant has the ai.semantic_search entitlement. */
+  readonly semanticEntitled: boolean;
   readonly onChange: (value: string) => void;
   readonly onSemanticChange: (semantic: boolean) => void;
 }
@@ -18,6 +20,7 @@ export interface EventSearchProps {
 export function EventSearch({
   value,
   semantic,
+  semanticEntitled,
   onChange,
   onSemanticChange,
 }: EventSearchProps): JSX.Element {
@@ -43,20 +46,35 @@ export function EventSearch({
           className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </label>
-      <label className="inline-flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={semantic}
-          onChange={(e) => onSemanticChange(e.target.checked)}
-          data-testid="events-search-semantic"
-          aria-label={t('events.search.semanticAriaLabel')}
-        />
-        <span className="text-xs text-slate-700">
-          {t('events.search.semanticLabel')}
-        </span>
-      </label>
+      <span className="inline-flex items-center gap-2 relative">
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={semantic}
+            disabled={!semanticEntitled}
+            onChange={(e) => onSemanticChange(e.target.checked)}
+            data-testid="events-search-semantic"
+            aria-label={t('events.search.semanticAriaLabel')}
+            aria-disabled={!semanticEntitled}
+          />
+          <span className={`text-xs ${semanticEntitled ? 'text-slate-700' : 'text-slate-400'}`}>
+            {t('events.search.semanticLabel')}
+          </span>
+        </label>
+        {!semanticEntitled && (
+          <span
+            className="text-xs text-slate-400 italic"
+            data-testid="events-search-semantic-entitlement-hint"
+            title={t('events.search.semanticEntitlementTooltip')}
+          >
+            {t('events.search.semanticEntitlementTooltip')}
+          </span>
+        )}
+      </span>
       <p className="w-full text-xs text-slate-500">
-        {semantic ? t('events.search.semanticHint') : t('events.search.literalHint')}
+        {semantic && semanticEntitled
+          ? t('events.search.semanticHint')
+          : t('events.search.literalHint')}
       </p>
     </section>
   );

@@ -39,6 +39,7 @@ export function EventsPage(): JSX.Element {
   const navigate = useNavigate();
   const tenantId = useSessionStore((s) => s.tenantId);
   const tenantName = useSessionStore((s) => s.tenantName);
+  const entitlements = useSessionStore((s) => s.entitlements);
 
   const [search, setSearch] = useState('');
   const [semantic, setSemantic] = useState(false);
@@ -128,6 +129,7 @@ export function EventsPage(): JSX.Element {
       <EventSearch
         value={search}
         semantic={semantic}
+        semanticEntitled={entitlements['ai.semantic_search'] ?? false}
         onChange={setSearch}
         onSemanticChange={setSemantic}
       />

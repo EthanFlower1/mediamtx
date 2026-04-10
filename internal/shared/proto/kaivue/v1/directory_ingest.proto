@@ -165,7 +165,7 @@ message PublishAIEventsResponse {
 }
 
 // DirectoryIngest is the Recorder → Directory client-streaming service.
-service DirectoryIngest {
+service DirectoryIngestService {
   // StreamCameraState pushes coalesced per-camera health updates.
   rpc StreamCameraState(stream StreamCameraStateRequest) returns (StreamCameraStateResponse);
 

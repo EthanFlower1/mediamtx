@@ -1,0 +1,25 @@
+version: v2
+# Connect-Go code generation for Kaivue v1 inter-role proto contracts.
+#
+# Usage:  buf generate --template buf.gen.yaml .
+# From:   internal/shared/proto/
+#
+# Dart generation is intentionally excluded — see lead-flutter for Flutter stubs.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/bluenviron/mediamtx/internal/shared/proto/gen/go
+plugins:
+  # Go message types
+  - local: protoc-gen-go
+    out: gen/go
+    opt:
+      - paths=source_relative
+  # Connect-Go service stubs (server + client)
+  - local: protoc-gen-connect-go
+    out: gen/go
+    opt:
+      - paths=source_relative
+inputs:
+  - directory: .

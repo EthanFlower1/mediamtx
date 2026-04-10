@@ -1,0 +1,42 @@
+name: Proto freshness check
+on:
+  pull_request:
+    paths:
+      - "internal/shared/proto/**"
+
+permissions:
+  contents: read
+
+jobs:
+  proto-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install protoc plugins
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+
+      - name: buf lint
+        working-directory: internal/shared/proto
+        run: buf lint
+
+      - name: buf generate
+        working-directory: internal/shared/proto
+        run: buf generate
+
+      - name: Check generated code is up-to-date
+        run: |
+          if ! git diff --exit-code internal/shared/proto/gen/; then
+            echo "::error::Generated proto stubs are out of date. Run 'cd internal/shared/proto && buf generate' and commit the results."
+            exit 1
+          fi

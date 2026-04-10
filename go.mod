@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	code.cloudfoundry.org/bytefmt v0.67.0
+	connectrpc.com/connect v1.19.1
 	github.com/EthanFlower1/onvif-go v0.0.0-20260403010837-f408f9ecc298
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/MicahParks/jwkset v0.11.0
@@ -52,6 +53,7 @@ require (
 	golang.org/x/image v0.37.0
 	golang.org/x/sys v0.42.0
 	golang.org/x/term v0.41.0
+	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.47.0
 	tailscale.com v1.96.5
 )
@@ -181,7 +183,6 @@ require (
 	golang.org/x/time v0.12.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8 // indirect

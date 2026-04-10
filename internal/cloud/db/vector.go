@@ -16,6 +16,12 @@ var tenantIDSafe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 // indexes for face_embeddings, clip_embeddings, and consent_records. This
 // MUST be called once per tenant at provisioning time (Postgres only).
 //
+// Integration point: this function should be called from a PostCreateHook
+// on internal/cloud/tenants/service.go's CreateTenant method. The hook runs
+// after the tenant row + Casbin policies + audit log entry are committed.
+// Lead-cloud is formalizing the PostCreateHook callback interface; until then,
+// wire this as a direct call after tenant creation succeeds.
+//
 // Seam #4: each tenant's embeddings live in a physically separate partition
 // with a dedicated HNSW index. A query scoped to tenant_id hits only that
 // partition's index — vectors from other tenants are unreachable even under
@@ -88,6 +94,15 @@ func (d *DB) createListPartition(ctx context.Context, parentTable, tenantID stri
 func (d *DB) createHNSWIndex(ctx context.Context, table, tenantID, column, opsClass string, m, efConstruction int) error {
 	partName := fmt.Sprintf("%s_t_%s", table, tenantID)
 	idxName := fmt.Sprintf("idx_%s_hnsw", partName)
+
+	// Bump work_mem for HNSW build to avoid spill to disk. The RDS parameter
+	// group default is 32MB (set by lead-cloud in PR #187), but HNSW index
+	// construction benefits from 256MB. SET LOCAL scopes the override to
+	// the current transaction only.
+	if _, err := d.ExecContext(ctx, "SET LOCAL work_mem = '256MB'"); err != nil {
+		return fmt.Errorf("set work_mem for HNSW build: %w", err)
+	}
+
 	ddl := fmt.Sprintf(
 		"CREATE INDEX IF NOT EXISTS %s ON %s USING hnsw (%s %s) WITH (m = %d, ef_construction = %d)",
 		idxName, partName, column, opsClass, m, efConstruction,

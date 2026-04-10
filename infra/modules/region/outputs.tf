@@ -13,8 +13,8 @@ output "eks_cluster_endpoint" {
 }
 
 output "rds_cluster_endpoint" {
-  description = "RDS writer endpoint (KAI-216)"
-  value       = module.rds.cluster_endpoint
+  description = "RDS primary writer endpoint (KAI-216)"
+  value       = module.rds.primary_endpoint
   sensitive   = true
 }
 

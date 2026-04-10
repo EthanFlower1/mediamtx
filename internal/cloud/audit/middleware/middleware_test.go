@@ -40,10 +40,10 @@ func TestMiddleware_AllowOn2xx(t *testing.T) {
 			return "cameras.add", "camera", "cam-1"
 		},
 	})
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
 
 	rw := httptest.NewRecorder()
-	h.ServeHTTP(rw, httptest.NewRequest("POST", "/v1/cameras", nil))
+	h.ServeHTTP(rw, httptest.NewRequest(http.MethodPost, "/v1/cameras", nil))
 
 	got := waitForRecord(t, inner, "tenant-a", 1)
 	if got[0].Result != audit.ResultAllow {
@@ -63,9 +63,9 @@ func TestMiddleware_DenyOn403(t *testing.T) {
 			return "cameras.add", "camera", "cam-1"
 		},
 	})
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(403) }))
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }))
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/cameras", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/cameras", nil))
 
 	got := waitForRecord(t, inner, "tenant-a", 1)
 	if got[0].Result != audit.ResultDeny {
@@ -84,9 +84,9 @@ func TestMiddleware_NoRecordOn500(t *testing.T) {
 			return "cameras.add", "camera", "cam-1"
 		},
 	})
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) }))
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) }))
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/cameras", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/cameras", nil))
 
 	// Give any stray goroutine a beat, then assert nothing was recorded.
 	time.Sleep(20 * time.Millisecond)
@@ -107,9 +107,9 @@ func TestMiddleware_UnauthenticatedSkipsRecord(t *testing.T) {
 			return "cameras.add", "camera", "cam-1"
 		},
 	})
-	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
 
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/v1/cameras", nil))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/cameras", nil))
 
 	time.Sleep(20 * time.Millisecond)
 	got, _ := inner.Query(context.Background(), audit.QueryFilter{TenantID: "tenant-a"})

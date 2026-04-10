@@ -75,6 +75,13 @@ jobs:
         # diff is comparing apples to apples.
         run: go generate ./...
 
+      - name: Generate embedded assets
+        # internal/core/VERSION and internal/servers/hls/hls.min.js are
+        # produced by `go generate`. The generators are deterministic; their
+        # output is captured into both build trees so the reproducibility
+        # diff is comparing apples to apples.
+        run: go generate ./...
+
       - name: Build A
         env:
           GOOS: linux

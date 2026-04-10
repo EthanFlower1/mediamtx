@@ -13,6 +13,8 @@ The `mediamtx.yml` file contains runtime configuration for the running server. *
 
 If `TestSampleConfFile` or similar tests fail because mediamtx.yml doesn't match defaults, fix the **test** to account for NVR settings, not the config file.
 
+CI enforces this via `scripts/check-mediamtx-config.sh` — see `.github/workflows/config-guard.yml`.
+
 ## Worktree Convention
 
 - Always create worktrees in `.worktrees/<ticket-id>` on branch `feat/<ticket-id>-<short-description>`

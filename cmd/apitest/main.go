@@ -485,7 +485,6 @@ func runAuthTests() {
 		}
 		expectStatus(cat, "Invalid token -> 401", resp, err, 401, start)
 	}
-
 }
 
 // runBruteForceTest runs the brute-force lockout test using a DEDICATED test

@@ -12,7 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/bluenviron/mediamtx/internal/cloud/audit"
-	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 

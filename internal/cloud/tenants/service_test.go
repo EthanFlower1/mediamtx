@@ -9,7 +9,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/cloud/audit"
 	clouddb "github.com/bluenviron/mediamtx/internal/cloud/db"
-	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	"github.com/bluenviron/mediamtx/internal/cloud/tenants"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )

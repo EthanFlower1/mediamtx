@@ -3,7 +3,7 @@ package tenants
 import (
 	"context"
 
-	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 

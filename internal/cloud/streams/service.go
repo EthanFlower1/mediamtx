@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/cloud/audit"
-	"github.com/bluenviron/mediamtx/internal/cloud/permissions"
+	"github.com/bluenviron/mediamtx/internal/shared/permissions"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/shared/streamclaims"
 )

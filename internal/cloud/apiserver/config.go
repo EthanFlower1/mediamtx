@@ -127,6 +127,23 @@ type Config struct {
 	// Kept separate so the JWKS endpoint can be mounted without full
 	// service wiring in environments where only key distribution matters.
 	StreamsIssuer streamsIssuer
+
+	// MetricsListenAddr is the TCP address for the dedicated admin metrics
+	// listener (KAI-422). Defaults to ":9090". The /metrics endpoint on
+	// this listener serves the shared Prometheus registry and is NOT
+	// exposed on the main API port. Set to "" to disable.
+	MetricsListenAddr string
+
+	// BuildInfo is stamped into the kaivue_build_info gauge at startup.
+	// Zero value is safe (version/commit will be empty strings).
+	BuildInfo BuildInfoConfig
+}
+
+// BuildInfoConfig carries the build metadata for kaivue_build_info (KAI-422).
+type BuildInfoConfig struct {
+	Version   string
+	Commit    string
+	GoVersion string
 }
 
 func (c *Config) validate() error {
@@ -157,5 +174,8 @@ func (c *Config) defaults() {
 	}
 	if c.ShutdownTimeout == 0 {
 		c.ShutdownTimeout = 15 * time.Second
+	}
+	if c.MetricsListenAddr == "" {
+		c.MetricsListenAddr = ":9090"
 	}
 }

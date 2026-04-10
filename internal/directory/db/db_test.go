@@ -18,7 +18,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 	versions, err := d.AppliedVersions(ctx)
 	require.NoError(t, err)
 	// Update this assertion when new migrations are added.
-	require.Equal(t, []int{1}, versions, "expected exactly migration 0001 applied")
+	require.Equal(t, []int{1, 2}, versions, "expected migrations 0001 and 0002 applied")
 }
 
 // TestMigrateIdempotent verifies that calling Migrate twice does not error.

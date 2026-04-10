@@ -14,6 +14,7 @@ import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
 import StorageBanner from './components/StorageBanner'
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
+import SubResellerHierarchy from './pages/integrator/SubResellerHierarchy'
 import { useNotifications } from './hooks/useNotifications'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { apiFetch } from './api/client'
@@ -238,6 +239,12 @@ const IconUsers = (
   </svg>
 )
 
+const IconResellers = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -343,6 +350,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     ...(user?.role === 'admin'
       ? [
           { to: '/users', icon: IconUsers, label: 'Users' },
+          { to: '/resellers', icon: IconResellers, label: 'Resellers' },
           { to: '/audit', icon: IconAudit, label: 'Audit Log' },
         ]
       : []),
@@ -513,6 +521,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+      <Route path="/resellers" element={<ProtectedRoute><Layout><SubResellerHierarchy /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}

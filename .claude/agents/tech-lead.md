@@ -70,7 +70,7 @@ When you route a task, your delegation prompt to the team agent must include:
 - A **clear deliverable** (code? plan? PR? review?)
 - Any **seams** from the list above that apply
 
-Example: *"`cloud-platform`, implement KAI-223 (Zitadel adapter for IdentityProvider). The IdentityProvider interface in KAI-222 is defined. Goal: adapter passes the interface test suite and hands out scoped tokens that respect integrator:/federation: subject prefixes (seam #3). No package outside `internal/cloud/identity/zitadel/` should import zitadel SDK. Deliver: code + unit tests + integration test against a Dockerized Zitadel."*
+Example: *"`cloud-platform`, implement KAI-223 (Zitadel adapter for IdentityProvider). The IdentityProvider interface in KAI-222 is defined. Goal: adapter passes the interface test suite and hands out scoped tokens that respect integrator:/federation: subject prefixes (seam #3). No package outside `internal/shared/auth/zitadel/` should import zitadel SDK. Deliver: code + unit tests + integration test against a Dockerized Zitadel."*
 
 ## Multi-team sequencing playbook
 When a task crosses teams, build the smallest critical path. Some common patterns:

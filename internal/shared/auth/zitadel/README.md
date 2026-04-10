@@ -1,4 +1,4 @@
-# `internal/cloud/identity/zitadel`
+# `internal/shared/auth/zitadel`
 
 Zitadel-backed implementation of `auth.IdentityProvider` (KAI-223).
 
@@ -78,8 +78,8 @@ own unit tests should import `internal/shared/auth/fake` and construct
 ## Build tags
 
 ```
-go build ./internal/cloud/identity/zitadel/...                # stub (default)
-go build -tags zitadel_sdk ./internal/cloud/identity/zitadel/... # real SDK (KAI-220)
+go build ./internal/shared/auth/zitadel/...                # stub (default)
+go build -tags zitadel_sdk ./internal/shared/auth/zitadel/... # real SDK (KAI-220)
 ```
 
 - **Default (`!zitadel_sdk`):** `zitadel_sdk_stub.go` speaks Zitadel's

@@ -40,7 +40,12 @@ mixin _$Camera {
   @JsonKey(name: 'ai_track_timeout')
   int get aiTrackTimeout => throw _privateConstructorUsedError;
   @JsonKey(name: 'sub_stream_url')
-  String get subStreamUrl => throw _privateConstructorUsedError;
+  String get subStreamUrl =>
+      throw _privateConstructorUsedError; // Proto capability flags per lead-cloud feedback (replaces stream URLs on proto)
+  @JsonKey(name: 'has_sub_stream')
+  bool get hasSubStream => throw _privateConstructorUsedError;
+  @JsonKey(name: 'has_main_stream')
+  bool get hasMainStream => throw _privateConstructorUsedError;
   @JsonKey(name: 'retention_days')
   int get retentionDays => throw _privateConstructorUsedError;
   @JsonKey(name: 'event_retention_days')
@@ -99,6 +104,8 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'ai_confidence') double aiConfidence,
       @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
+      @JsonKey(name: 'has_sub_stream') bool hasSubStream,
+      @JsonKey(name: 'has_main_stream') bool hasMainStream,
       @JsonKey(name: 'retention_days') int retentionDays,
       @JsonKey(name: 'event_retention_days') int eventRetentionDays,
       @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
@@ -143,6 +150,8 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? aiConfidence = null,
     Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
+    Object? hasSubStream = null,
+    Object? hasMainStream = null,
     Object? retentionDays = null,
     Object? eventRetentionDays = null,
     Object? detectionRetentionDays = null,
@@ -208,6 +217,14 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
               as String,
+      hasSubStream: null == hasSubStream
+          ? _value.hasSubStream
+          : hasSubStream // ignore: cast_nullable_to_non_nullable
+              as bool,
+      hasMainStream: null == hasMainStream
+          ? _value.hasMainStream
+          : hasMainStream // ignore: cast_nullable_to_non_nullable
+              as bool,
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
@@ -292,6 +309,8 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'ai_confidence') double aiConfidence,
       @JsonKey(name: 'ai_track_timeout') int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') String subStreamUrl,
+      @JsonKey(name: 'has_sub_stream') bool hasSubStream,
+      @JsonKey(name: 'has_main_stream') bool hasMainStream,
       @JsonKey(name: 'retention_days') int retentionDays,
       @JsonKey(name: 'event_retention_days') int eventRetentionDays,
       @JsonKey(name: 'detection_retention_days') int detectionRetentionDays,
@@ -334,6 +353,8 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? aiConfidence = null,
     Object? aiTrackTimeout = null,
     Object? subStreamUrl = null,
+    Object? hasSubStream = null,
+    Object? hasMainStream = null,
     Object? retentionDays = null,
     Object? eventRetentionDays = null,
     Object? detectionRetentionDays = null,
@@ -399,6 +420,14 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value.subStreamUrl
           : subStreamUrl // ignore: cast_nullable_to_non_nullable
               as String,
+      hasSubStream: null == hasSubStream
+          ? _value.hasSubStream
+          : hasSubStream // ignore: cast_nullable_to_non_nullable
+              as bool,
+      hasMainStream: null == hasMainStream
+          ? _value.hasMainStream
+          : hasMainStream // ignore: cast_nullable_to_non_nullable
+              as bool,
       retentionDays: null == retentionDays
           ? _value.retentionDays
           : retentionDays // ignore: cast_nullable_to_non_nullable
@@ -479,6 +508,8 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'ai_confidence') this.aiConfidence = 0.5,
       @JsonKey(name: 'ai_track_timeout') this.aiTrackTimeout = 5,
       @JsonKey(name: 'sub_stream_url') this.subStreamUrl = '',
+      @JsonKey(name: 'has_sub_stream') this.hasSubStream = false,
+      @JsonKey(name: 'has_main_stream') this.hasMainStream = true,
       @JsonKey(name: 'retention_days') this.retentionDays = 30,
       @JsonKey(name: 'event_retention_days') this.eventRetentionDays = 0,
       @JsonKey(name: 'detection_retention_days')
@@ -535,6 +566,13 @@ class _$CameraImpl implements _Camera {
   @override
   @JsonKey(name: 'sub_stream_url')
   final String subStreamUrl;
+// Proto capability flags per lead-cloud feedback (replaces stream URLs on proto)
+  @override
+  @JsonKey(name: 'has_sub_stream')
+  final bool hasSubStream;
+  @override
+  @JsonKey(name: 'has_main_stream')
+  final bool hasMainStream;
   @override
   @JsonKey(name: 'retention_days')
   final int retentionDays;
@@ -588,7 +626,7 @@ class _$CameraImpl implements _Camera {
 
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, liveViewCodec: $liveViewCodec, streamPaths: $streamPaths)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, hasSubStream: $hasSubStream, hasMainStream: $hasMainStream, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, liveViewCodec: $liveViewCodec, streamPaths: $streamPaths)';
   }
 
   @override
@@ -616,6 +654,10 @@ class _$CameraImpl implements _Camera {
                 other.aiTrackTimeout == aiTrackTimeout) &&
             (identical(other.subStreamUrl, subStreamUrl) ||
                 other.subStreamUrl == subStreamUrl) &&
+            (identical(other.hasSubStream, hasSubStream) ||
+                other.hasSubStream == hasSubStream) &&
+            (identical(other.hasMainStream, hasMainStream) ||
+                other.hasMainStream == hasMainStream) &&
             (identical(other.retentionDays, retentionDays) ||
                 other.retentionDays == retentionDays) &&
             (identical(other.eventRetentionDays, eventRetentionDays) ||
@@ -664,6 +706,8 @@ class _$CameraImpl implements _Camera {
         aiConfidence,
         aiTrackTimeout,
         subStreamUrl,
+        hasSubStream,
+        hasMainStream,
         retentionDays,
         eventRetentionDays,
         detectionRetentionDays,
@@ -711,6 +755,8 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'ai_confidence') final double aiConfidence,
       @JsonKey(name: 'ai_track_timeout') final int aiTrackTimeout,
       @JsonKey(name: 'sub_stream_url') final String subStreamUrl,
+      @JsonKey(name: 'has_sub_stream') final bool hasSubStream,
+      @JsonKey(name: 'has_main_stream') final bool hasMainStream,
       @JsonKey(name: 'retention_days') final int retentionDays,
       @JsonKey(name: 'event_retention_days') final int eventRetentionDays,
       @JsonKey(name: 'detection_retention_days')
@@ -763,7 +809,14 @@ abstract class _Camera implements Camera {
   int get aiTrackTimeout;
   @override
   @JsonKey(name: 'sub_stream_url')
-  String get subStreamUrl;
+  String
+      get subStreamUrl; // Proto capability flags per lead-cloud feedback (replaces stream URLs on proto)
+  @override
+  @JsonKey(name: 'has_sub_stream')
+  bool get hasSubStream;
+  @override
+  @JsonKey(name: 'has_main_stream')
+  bool get hasMainStream;
   @override
   @JsonKey(name: 'retention_days')
   int get retentionDays;

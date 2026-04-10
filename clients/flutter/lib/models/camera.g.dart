@@ -19,6 +19,8 @@ _$CameraImpl _$$CameraImplFromJson(Map<String, dynamic> json) => _$CameraImpl(
       aiConfidence: (json['ai_confidence'] as num?)?.toDouble() ?? 0.5,
       aiTrackTimeout: (json['ai_track_timeout'] as num?)?.toInt() ?? 5,
       subStreamUrl: json['sub_stream_url'] as String? ?? '',
+      hasSubStream: json['has_sub_stream'] as bool? ?? false,
+      hasMainStream: json['has_main_stream'] as bool? ?? true,
       retentionDays: (json['retention_days'] as num?)?.toInt() ?? 30,
       eventRetentionDays: (json['event_retention_days'] as num?)?.toInt() ?? 0,
       detectionRetentionDays:
@@ -55,6 +57,8 @@ Map<String, dynamic> _$$CameraImplToJson(_$CameraImpl instance) =>
       'ai_confidence': instance.aiConfidence,
       'ai_track_timeout': instance.aiTrackTimeout,
       'sub_stream_url': instance.subStreamUrl,
+      'has_sub_stream': instance.hasSubStream,
+      'has_main_stream': instance.hasMainStream,
       'retention_days': instance.retentionDays,
       'event_retention_days': instance.eventRetentionDays,
       'detection_retention_days': instance.detectionRetentionDays,

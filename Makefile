@@ -23,6 +23,8 @@ help:
 	@echo "  package-windows  build Windows NSIS installer"
 	@echo "  package-all      build all platform packages"
 	@echo ""
+	@echo "  webui-embed      build React UI and embed into Directory binary"
+	@echo ""
 
 blank :=
 define NL

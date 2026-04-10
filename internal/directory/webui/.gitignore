@@ -1,0 +1,8 @@
+# KAI-330: Vite build output reproduced from source
+dist/assets/
+dist/*.js
+dist/*.css
+dist/*.map
+# Keep dist/index.html placeholder tracked
+!dist/index.html
+!dist/.gitkeep

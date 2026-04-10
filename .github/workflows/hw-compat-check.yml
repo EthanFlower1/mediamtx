@@ -1,0 +1,33 @@
+name: Hardware Compatibility Check
+on:
+  pull_request:
+    paths:
+      - 'internal/nvr/syscheck/**'
+      - 'scripts/hw-validate.sh'
+
+jobs:
+  syscheck-build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build syscheck (${{ matrix.goos }}/${{ matrix.goarch }})
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build ./internal/nvr/syscheck/...
+      - name: Run syscheck tests
+        if: matrix.goarch == 'amd64'
+        run: go test ./internal/nvr/syscheck/... -v

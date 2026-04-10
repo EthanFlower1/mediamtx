@@ -31,6 +31,8 @@ class LiveViewStringsL10n {
     required this.errorNoEndpoints,
     required this.errorAllFailed,
     required this.errorRequestFailed,
+    required this.streamMain, // KAI-300 sub-stream switcher
+    required this.streamSub, // KAI-300 sub-stream switcher
   });
 
   final String requesting;
@@ -61,6 +63,10 @@ class LiveViewStringsL10n {
   final String errorAllFailed;
   final String errorRequestFailed;
 
+  // Stream variant (KAI-300 sub-stream switcher) // i18n base: en
+  final String streamMain;
+  final String streamSub;
+
   // ── Locale definitions ──────────────────────────────────────────────────
 
   static const LiveViewStringsL10n en = LiveViewStringsL10n(
@@ -86,6 +92,8 @@ class LiveViewStringsL10n {
     errorAllFailed: 'All stream endpoints failed. Check network and camera.',
     errorRequestFailed:
         'Stream request failed. Check your connection and try again.',
+    streamMain: 'Main', // KAI-300
+    streamSub: 'Sub', // KAI-300
   );
 
   static const LiveViewStringsL10n es = LiveViewStringsL10n(
@@ -113,6 +121,8 @@ class LiveViewStringsL10n {
         'Todos los endpoints fallaron. Verifica la red y la c\u00e1mara.',
     errorRequestFailed:
         'Error al solicitar la transmisi\u00f3n. Verifica tu conexi\u00f3n.',
+    streamMain: 'Principal', // KAI-300
+    streamSub: 'Secundario', // KAI-300
   );
 
   static const LiveViewStringsL10n fr = LiveViewStringsL10n(
@@ -141,6 +151,8 @@ class LiveViewStringsL10n {
         'Tous les endpoints ont \u00e9chou\u00e9. V\u00e9rifiez le r\u00e9seau.',
     errorRequestFailed:
         'Erreur lors de la demande du flux. V\u00e9rifiez votre connexion.',
+    streamMain: 'Principal', // KAI-300
+    streamSub: 'Secondaire', // KAI-300
   );
 
   static const LiveViewStringsL10n de = LiveViewStringsL10n(
@@ -169,6 +181,8 @@ class LiveViewStringsL10n {
         'Alle Endpunkte fehlgeschlagen. Netzwerk und Kamera pr\u00fcfen.',
     errorRequestFailed:
         'Stream-Anfrage fehlgeschlagen. Verbindung \u00fcberpr\u00fcfen.',
+    streamMain: 'Haupt', // KAI-300
+    streamSub: 'Neben', // KAI-300
   );
 
   /// Returns the strings for the given locale tag (e.g. 'en', 'es', 'fr', 'de').

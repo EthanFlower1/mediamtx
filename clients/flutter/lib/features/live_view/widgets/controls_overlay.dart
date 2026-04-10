@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/live_view_state.dart';
+import '../../../api/streams_api.dart' show StreamVariant;
 import '../../../api/ptz_api.dart';
 import '../../../state/app_session.dart';
 import '../../../theme/nvr_colors.dart';
@@ -35,6 +36,8 @@ class LiveViewStrings {
   static const ptzZoom = 'ZOOM';
   static const back = 'Back';
   static const latencyMs = 'ms';
+  static const streamMain = 'Main'; // KAI-300 sub-stream switcher // i18n base: en
+  static const streamSub = 'Sub'; // KAI-300 sub-stream switcher // i18n base: en
 }
 
 class ControlsOverlay extends ConsumerStatefulWidget {
@@ -153,6 +156,11 @@ class _ControlsOverlayState extends ConsumerState<ControlsOverlay> {
                 onTalkbackChanged: (active) => ref
                     .read(liveViewStateProvider.notifier)
                     .setTalkbackActive(active),
+                hasSubStream: liveState.hasSubStream,
+                streamVariant: liveState.streamVariant,
+                onToggleStreamVariant: () => ref
+                    .read(liveViewStateProvider.notifier)
+                    .toggleStreamVariant(),
               ),
             ),
 
@@ -251,20 +259,26 @@ class _BottomBar extends StatelessWidget {
   final bool isFullscreen;
   final bool audioMuted;
   final bool talkbackActive;
+  final bool hasSubStream;
+  final StreamVariant streamVariant;
   final VoidCallback onSnapshot;
   final VoidCallback onFullscreenToggle;
   final VoidCallback onToggleAudio;
   final ValueChanged<bool> onTalkbackChanged;
+  final VoidCallback onToggleStreamVariant;
 
   const _BottomBar({
     required this.snapshotBusy,
     required this.isFullscreen,
     required this.audioMuted,
     required this.talkbackActive,
+    required this.hasSubStream,
+    required this.streamVariant,
     required this.onSnapshot,
     required this.onFullscreenToggle,
     required this.onToggleAudio,
     required this.onTalkbackChanged,
+    required this.onToggleStreamVariant,
   });
 
   @override
@@ -312,6 +326,18 @@ class _BottomBar extends StatelessWidget {
                 : LiveViewStrings.snapshot,
             onTap: snapshotBusy ? () {} : onSnapshot,
           ),
+
+          // Sub-stream / main-stream toggle (KAI-300)
+          if (hasSubStream)
+            _PillButton(
+              icon: streamVariant == StreamVariant.sub
+                  ? Icons.sd
+                  : Icons.hd,
+              label: streamVariant == StreamVariant.sub
+                  ? LiveViewStrings.streamSub
+                  : LiveViewStrings.streamMain,
+              onTap: onToggleStreamVariant,
+            ),
 
           // Fullscreen toggle
           _PillButton(

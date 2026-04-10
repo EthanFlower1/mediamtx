@@ -3,6 +3,8 @@
 // IMPORTANT: this file uses `"REPLACE_ME_*"` placeholders instead of real
 // tokens. Never paste a real JWT into a test fixture.
 
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvr_client/state/app_session.dart';
 import 'package:nvr_client/state/federation_peer.dart';
@@ -219,6 +221,71 @@ void main() {
       expect(notifier.state.knownPeers.first.status,
           FederationPeerStatus.stale);
       expect(notifier.state.knownPeers.first.catalogVersion, 2);
+    });
+  });
+
+  group('parseGroupsFromJwt (KAI-147 crossover)', () {
+    // Build a JWT with a given payload. Signature is a dummy — parser does
+    // NOT validate it (server remains authoritative).
+    String _makeJwt(Map<String, dynamic> payload) {
+      String _b64url(String input) {
+        final bytes = utf8.encode(input);
+        var encoded = base64Url.encode(bytes);
+        // Strip padding; parser re-pads on its own.
+        return encoded.replaceAll('=', '');
+      }
+
+      final header = _b64url(jsonEncode({'alg': 'none', 'typ': 'JWT'}));
+      final body = _b64url(jsonEncode(payload));
+      return '$header.$body.sig';
+    }
+
+    test('extracts groups list from a synthetic JWT', () {
+      final jwt = _makeJwt({
+        'sub': 'u-1',
+        'groups': ['admin', 'viewer'],
+      });
+      expect(parseGroupsFromJwt(jwt), equals(['admin', 'viewer']));
+    });
+
+    test('returns empty list when groups claim is empty', () {
+      final jwt = _makeJwt({'sub': 'u-1', 'groups': <String>[]});
+      expect(parseGroupsFromJwt(jwt), isEmpty);
+    });
+
+    test('returns empty list when groups claim is missing', () {
+      final jwt = _makeJwt({'sub': 'u-1'});
+      expect(parseGroupsFromJwt(jwt), isEmpty);
+    });
+
+    test('accepts groups as a space-separated string', () {
+      final jwt = _makeJwt({'sub': 'u-1', 'groups': 'admin viewer auditor'});
+      expect(parseGroupsFromJwt(jwt), equals(['admin', 'viewer', 'auditor']));
+    });
+
+    test('returns empty list on malformed JWT without throwing', () {
+      expect(parseGroupsFromJwt('not-a-jwt'), isEmpty);
+      expect(parseGroupsFromJwt(''), isEmpty);
+      expect(parseGroupsFromJwt('a.b'), isEmpty);
+    });
+
+    test('setTokens parses groups onto AppSession', () async {
+      final store = InMemorySecureTokenStore();
+      final notifier = AppSessionNotifier(store);
+      await notifier.activateConnection(
+        connection: _conn('home-1'),
+        userId: 'u-1',
+        tenantRef: 'tenant-1',
+      );
+
+      final jwt = _makeJwt({
+        'sub': 'u-1',
+        'groups': ['admin', 'viewer'],
+      });
+      await notifier.setTokens(accessToken: jwt, refreshToken: 'r-1');
+
+      expect(notifier.state.groups, equals(['admin', 'viewer']));
+      expect(notifier.state.accessToken, jwt);
     });
   });
 }

@@ -44,6 +44,12 @@ dependencies:
   # image_gallery_saver and permission_handler deferred to a follow-up
   # once client-side frame capture is added (server-side screenshot used now).
   wakelock_plus: ^1.2.0
+  # KAI-298 — background token refresh.
+  # `workmanager` drives the Android periodic task. The iOS BGTaskScheduler
+  # integration uses native Swift (AppDelegate.swift) + a method channel stub;
+  # no Dart-side iOS plugin is added here to keep the dependency graph small.
+  # Desktop and Web fall back to the foreground Timer.periodic path.
+  workmanager: ^0.5.2
 
 dev_dependencies:
   flutter_test:

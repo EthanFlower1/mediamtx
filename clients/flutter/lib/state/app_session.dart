@@ -59,6 +59,11 @@ class AppSession {
   /// switches connections, until federation sync repopulates it.
   final List<FederationPeer> knownPeers;
 
+  /// Groups claim parsed from the current access token JWT. UI-hint only —
+  /// server remains authoritative for every permission check. Empty when no
+  /// `groups` claim was present on the token. KAI-147 crossover.
+  final List<String> groups;
+
   const AppSession({
     required this.userId,
     required this.tenantRef,
@@ -66,6 +71,7 @@ class AppSession {
     this.refreshToken,
     this.activeConnection,
     this.knownPeers = const [],
+    this.groups = const [],
   });
 
   /// Empty / signed-out session.
@@ -86,6 +92,7 @@ class AppSession {
     String? refreshToken,
     HomeDirectoryConnection? activeConnection,
     List<FederationPeer>? knownPeers,
+    List<String>? groups,
     bool clearTokens = false,
     bool clearActiveConnection = false,
   }) {
@@ -98,6 +105,7 @@ class AppSession {
           ? null
           : (activeConnection ?? this.activeConnection),
       knownPeers: knownPeers ?? this.knownPeers,
+      groups: clearTokens ? const [] : (groups ?? this.groups),
     );
   }
 
@@ -165,6 +173,10 @@ class AppSessionNotifier extends StateNotifier<AppSession> {
 
   /// Persist a fresh token pair for the *currently active* connection. Throws
   /// if no connection is active — every token must be scoped to a directory.
+  ///
+  /// KAI-147 / KAI-298 crossover: parses the access token as a JWT and
+  /// extracts the `groups` claim onto [AppSession.groups]. UI hint state only;
+  /// the server remains authoritative for every permission check.
   Future<void> setTokens({
     required String accessToken,
     required String refreshToken,
@@ -185,6 +197,7 @@ class AppSessionNotifier extends StateNotifier<AppSession> {
     state = state.copyWith(
       accessToken: accessToken,
       refreshToken: refreshToken,
+      groups: parseGroupsFromJwt(accessToken),
     );
   }
 
@@ -256,19 +269,77 @@ class AppSessionNotifier extends StateNotifier<AppSession> {
   }
 }
 
+// -------------------- JWT groups parsing --------------------
+//
+// KAI-147 / KAI-298 crossover. We manually base64url-decode the middle
+// segment of the JWT rather than pull in a dependency for a 20-line util.
+// Server remains authoritative for permission decisions; this is UI hint
+// state only (e.g. "show admin-only sidebar entry").
+
+/// Parse the `groups` claim from a JWT access token.
+///
+/// Accepts either a JSON string array or a single space/comma-separated
+/// string. Returns an empty list if the token is malformed, the claim is
+/// absent, or parsing fails in any way — never throws.
+List<String> parseGroupsFromJwt(String jwt) {
+  try {
+    final parts = jwt.split('.');
+    if (parts.length < 2) return const [];
+    final payload = _base64UrlDecode(parts[1]);
+    if (payload == null) return const [];
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic>) return const [];
+    final raw = decoded['groups'];
+    if (raw == null) return const [];
+    if (raw is List) {
+      return raw.whereType<String>().toList(growable: false);
+    }
+    if (raw is String) {
+      if (raw.isEmpty) return const [];
+      // Space- or comma-separated.
+      return raw
+          .split(RegExp(r'[ ,]+'))
+          .where((s) => s.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
+  } catch (_) {
+    return const [];
+  }
+}
+
+String? _base64UrlDecode(String segment) {
+  try {
+    // Re-pad to a multiple of 4.
+    var s = segment.replaceAll('-', '+').replaceAll('_', '/');
+    final mod = s.length % 4;
+    if (mod == 2) {
+      s += '==';
+    } else if (mod == 3) {
+      s += '=';
+    } else if (mod == 1) {
+      return null;
+    }
+    final bytes = base64.decode(s);
+    return utf8.decode(bytes);
+  } catch (_) {
+    return null;
+  }
+}
+
 // -------------------- Riverpod providers --------------------
 //
 // Match the existing pattern in `lib/providers/auth_provider.dart`: a plain
 // `Provider` for the service, then a `StateNotifierProvider` for the state.
 
 /// Override this in tests with `secureTokenStoreProvider.overrideWithValue(...)`
-/// to inject an [InMemorySecureTokenStore]. Production wires it to a
-/// `flutter_secure_storage` adapter (added in a follow-up — it's a separate
-/// dependency to keep this PR pure-state).
+/// to inject an [InMemorySecureTokenStore]. The production override lives in
+/// `lib/main.dart` (`productionOverrides()`) and wires this to
+/// `FlutterSecureStorageTokenStore` on native platforms.
 final secureTokenStoreProvider = Provider<SecureTokenStore>((ref) {
-  // Default to in-memory until the flutter_secure_storage adapter ships in
-  // KAI-296. This keeps tests hermetic and avoids importing the platform
-  // plugin from the state layer.
+  // Default fallback for tests and web: in-memory only. Native production
+  // builds replace this via the override list in main.dart so the platform
+  // plugin is never imported from the state layer.
   return InMemorySecureTokenStore();
 });
 

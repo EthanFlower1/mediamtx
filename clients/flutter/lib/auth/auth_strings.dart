@@ -35,6 +35,8 @@ class AuthStrings {
     required this.recoveryCheckNetwork,
     required this.recoverySignInAgain,
     required this.recoveryRetry,
+    required this.webSessionNotPersistentWarning,
+    required this.webSessionNotPersistentDismiss,
   });
 
   final String loginScreenTitle;
@@ -65,6 +67,12 @@ class AuthStrings {
   final String recoverySignInAgain;
   final String recoveryRetry;
 
+  /// KAI-298 security review: shown on web when the secure token store falls
+  /// back to an in-memory implementation. Users must be told the session will
+  /// not survive a tab refresh.
+  final String webSessionNotPersistentWarning;
+  final String webSessionNotPersistentDismiss;
+
   /// Default English strings. Swap via a Riverpod override in tests.
   static const AuthStrings en = AuthStrings(
     loginScreenTitle: 'Sign in',
@@ -90,5 +98,9 @@ class AuthStrings {
     recoveryCheckNetwork: 'Make sure you have internet access.',
     recoverySignInAgain: 'Tap sign in to try again.',
     recoveryRetry: 'Tap retry to try again.',
+    webSessionNotPersistentWarning:
+        'Your session will not persist if you close or refresh this tab. '
+            'Sign in again on return.',
+    webSessionNotPersistentDismiss: 'Dismiss for session',
   );
 }

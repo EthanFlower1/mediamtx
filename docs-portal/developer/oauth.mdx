@@ -1,0 +1,179 @@
+---
+title: OAuth 2.0
+description: Delegated user access via OAuth 2.0 authorization code + PKCE.
+---
+
+Use OAuth 2.0 when your application acts on behalf of a Kaivue **user** rather than as a headless server. OAuth is the right choice for:
+
+- Integrations that need a customer to approve specific scopes.
+- Mobile and desktop apps where a client secret can't be kept confidential.
+- Browser-based apps where API keys would be exposed.
+
+For pure server-to-server calls, use an [API key](/developer/api-keys) instead.
+
+## Endpoints
+
+| Purpose | URL |
+|---|---|
+| Authorization | `https://auth.kaivue.com/oauth/authorize` |
+| Token | `https://auth.kaivue.com/oauth/token` |
+| Introspection | `https://auth.kaivue.com/oauth/introspect` |
+| Revocation | `https://auth.kaivue.com/oauth/revoke` |
+| Discovery | `https://auth.kaivue.com/.well-known/openid-configuration` |
+
+On-prem Directory deployments expose the same endpoints at `https://<directory-host>/auth/oauth/...` and delegate to the on-prem Zitadel sidecar.
+
+## Supported flows
+
+- **Authorization Code + PKCE** — required for all public clients (SPAs, mobile, desktop, CLI). The only flow we recommend for new integrations.
+- **Client Credentials** — for confidential machine-to-machine clients that belong to a specific tenant's integration partner. Rare; prefer API keys.
+- **Refresh Token** — standard rotation; refresh tokens are one-time-use.
+
+**Not supported:** Implicit flow, Resource Owner Password flow, Device Code flow (v1; may arrive in v2 for set-top-box integrations).
+
+## Registering an OAuth client
+
+OAuth clients are registered per-tenant by a Customer Admin via **Customer Admin → Integrations → OAuth Clients**, or by API (Enterprise plan):
+
+```bash
+curl -X POST https://api.us-east.kaivue.com/v1/oauth/clients \
+  -H "Authorization: Bearer kv_live_..." \
+  -d '{
+    "name": "My Dashboard",
+    "redirect_uris": ["https://dashboard.example/callback"],
+    "scopes": ["cameras:read", "events:read"],
+    "client_type": "public"
+  }'
+```
+
+Response includes `client_id`. For `client_type: confidential`, a `client_secret` is returned **once**.
+
+## Authorization Code + PKCE walkthrough
+
+### 1. Generate a code verifier
+
+```
+code_verifier = base64url(random(64))         // 43-128 chars
+code_challenge = base64url(sha256(code_verifier))
+```
+
+### 2. Redirect the user
+
+```
+https://auth.kaivue.com/oauth/authorize
+  ?response_type=code
+  &client_id=<your_client_id>
+  &redirect_uri=https://dashboard.example/callback
+  &scope=cameras:read events:read offline_access
+  &state=<random-anti-csrf-token>
+  &code_challenge=<code_challenge>
+  &code_challenge_method=S256
+```
+
+The `offline_access` scope is required to receive a refresh token.
+
+### 3. Exchange the code for tokens
+
+```bash
+curl -X POST https://auth.kaivue.com/oauth/token \
+  -d grant_type=authorization_code \
+  -d code=<code_from_callback> \
+  -d redirect_uri=https://dashboard.example/callback \
+  -d client_id=<your_client_id> \
+  -d code_verifier=<code_verifier>
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "rt_01HZ...",
+  "scope": "cameras:read events:read offline_access",
+  "id_token": "eyJhbGciOi..."
+}
+```
+
+### 4. Call the API
+
+```
+Authorization: Bearer eyJhbGciOi...
+```
+
+### 5. Refresh when expired
+
+```bash
+curl -X POST https://auth.kaivue.com/oauth/token \
+  -d grant_type=refresh_token \
+  -d refresh_token=<rt_...> \
+  -d client_id=<your_client_id>
+```
+
+Refresh tokens are **rotated** — you always get a new `refresh_token` in the response. Discard the old one.
+
+## Scopes
+
+Scopes are of the form `<resource>:<verb>`. Common scopes:
+
+| Scope | Grants |
+|---|---|
+| `cameras:read` | List, get, stream camera metadata + thumbnails |
+| `cameras:write` | Update camera settings, reboot, reconfigure |
+| `recordings:read` | List recordings, playback URLs, exports |
+| `events:read` | Read detection + access events |
+| `events:write` | Annotate / acknowledge events |
+| `webhooks:read` | List webhook subscriptions + delivery logs |
+| `webhooks:write` | Create / rotate / delete webhook subscriptions |
+| `actions:run` | Execute named Kaivue Actions |
+| `billing:read` | Invoices, subscription state |
+| `offline_access` | Receive a refresh token |
+
+Customer admins can restrict which scopes are available to which OAuth clients via the Customer Admin UI.
+
+## Token introspection
+
+```bash
+curl -X POST https://auth.kaivue.com/oauth/introspect \
+  -u <client_id>:<client_secret> \
+  -d token=<access_token>
+```
+
+Returns `{"active": true, "scope": "...", "exp": ..., "sub": "usr_...", "tenant_id": "..."}` or `{"active": false}` for invalid/expired tokens.
+
+## Revocation
+
+```bash
+curl -X POST https://auth.kaivue.com/oauth/revoke \
+  -u <client_id>:<client_secret> \
+  -d token=<refresh_token>
+```
+
+Revoking a refresh token also invalidates access tokens issued from it.
+
+## ID tokens
+
+When you request the `openid` scope, the token response includes a JWT `id_token` with standard OIDC claims plus Kaivue-specific:
+
+```json
+{
+  "iss": "https://auth.kaivue.com",
+  "sub": "usr_01HZ...",
+  "aud": "<client_id>",
+  "exp": 1712594400,
+  "iat": 1712590800,
+  "email": "operator@example.com",
+  "email_verified": true,
+  "kaivue_tenant_id": "tnt_01HZ...",
+  "kaivue_roles": ["operator", "investigator"]
+}
+```
+
+Verify signatures against the JWKS at `https://auth.kaivue.com/.well-known/jwks.json`.
+
+## What's next
+
+- [API keys](/developer/api-keys) — for headless server calls
+- [Scopes reference](/api-reference/scopes)
+- [SDKs](/developer/sdks) — all SDKs have built-in OAuth helpers

@@ -1,0 +1,80 @@
+---
+title: First-party integrations
+description: Kaivue's built-in integrations with access control, alarm panels, and automation platforms.
+---
+
+Kaivue ships with first-party integrations for the systems security integrators use every day. These aren't glue code you write yourself — they're built, tested, and certified by Kaivue.
+
+If you need to build a custom integration, use the [Public API](/developer/api) and [webhooks](/developer/webhooks). If you want to publish your integration to other Kaivue customers, submit it to the [Marketplace](/developer/marketplace).
+
+## Access Control
+
+| Vendor | Integration | Status |
+|---|---|---|
+| **Brivo** | Cloud-native access control. Door events stream into Kaivue, associated with cameras, visible in the event timeline. Kaivue can also trigger Brivo commands (lock/unlock) via Kaivue Actions. | GA |
+| **OpenPath / Avigilon Alta** | Same event + command surface as Brivo. Mobile credential events included. | GA |
+| **ProdataKey (PDK)** | Cloud + edge access control. Full bi-directional. | GA |
+| **Genetec Security Center** | Federated events from Security Center cardholder activity. Read-only in v1. | Beta |
+| **Lenel OnGuard** | Read-only event feed via CSV/ODBC bridge. | Planned v2 |
+
+All access-control integrations write into the same unified event stream. You don't need to query each vendor separately — one API call to `/v1/events` returns everything.
+
+## Alarm panels
+
+| Vendor | Integration | Status |
+|---|---|---|
+| **Bosch B-Series / G-Series** | Alarm events via Mode 2 integration. Arm/disarm commands supported. | GA |
+| **DMP XR-Series** | Alarm events via iCOM-SL / integrator data. Arm/disarm supported. | GA |
+| **Honeywell ProWatch** | Planned. | Planned v2 |
+
+Alarm events appear in the Kaivue timeline alongside camera events, letting operators correlate a siren trip with the camera view at that exact second.
+
+## Notifications & incident response
+
+| Vendor | Integration | Status |
+|---|---|---|
+| **Slack** | Per-channel webhook subscriptions with message formatting. OAuth-based install. | GA |
+| **Microsoft Teams** | Adaptive card messages + incoming webhook. OAuth-based install. | GA |
+| **PagerDuty** | Page on any Kaivue event type with severity mapping. | GA |
+| **Opsgenie** | Alert on any Kaivue event type with team routing. | GA |
+| **Email** | Built-in. Per-tenant SMTP or Kaivue-managed delivery. | GA |
+| **SMS / Voice** | Via Twilio. Outbound only in v1. | GA |
+
+## Automation platforms
+
+| Platform | Integration | Status |
+|---|---|---|
+| **Zapier** | Official Zapier app. Triggers on Kaivue events; actions to create bookmarks, raise alarms, run Kaivue Actions. | GA |
+| **Make (Integromat)** | Official module. Same trigger/action surface as Zapier. | GA |
+| **n8n** | Community node (maintained by Kaivue). Self-hostable. | GA |
+| **Workato** | Enterprise connector. Contact sales. | GA |
+
+All three automation integrations use the same [inbound webhook](/developer/webhooks#inbound-webhooks) + [Public API](/developer/api) surface you have access to — if an automation platform isn't on this list yet, you can wire it up yourself in under an hour.
+
+## Installing an integration
+
+1. **Customer Admin → Integrations → Add integration.**
+2. Pick the vendor.
+3. Complete the OAuth / API-key flow for the target system.
+4. Map vendor entities to Kaivue entities (e.g. Brivo doors → Kaivue cameras by proximity).
+5. Enable event types you want to ingest.
+
+Each integration documents its exact configuration steps — see the in-product integration card.
+
+## Per-integration rate limits
+
+Kaivue respects every downstream system's documented rate limits and will automatically throttle if it hits them. If your system has custom limits, configure them in the integration's advanced settings.
+
+## Data retention
+
+Events pulled from a third-party system are subject to the same retention policy as native Kaivue events. Deleting the integration does NOT delete the historical events — they remain auditable.
+
+## Support
+
+First-party integrations are covered by your Kaivue support plan. If an integration breaks because a vendor changed their API, Kaivue ships a fix within the SLA window for your plan.
+
+## What's next
+
+- [Building a custom integration](/developer/custom-integrations)
+- [Webhooks](/developer/webhooks)
+- [Public API](/developer/api)

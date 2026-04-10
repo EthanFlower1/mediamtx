@@ -1,0 +1,103 @@
+---
+title: Public API
+description: Kaivue's Connect-Go + REST API — authentication, tenancy, versioning, and base URLs.
+---
+
+The Kaivue Public API is how third-party applications and integrations interact with a customer's Kaivue account. It exposes stable, versioned endpoints for cameras, recordings, events, users, webhooks, and Kaivue Actions.
+
+## Base URLs
+
+Kaivue deploys in multiple regions. Always use the region that hosts the customer's tenant:
+
+| Region | Base URL |
+|---|---|
+| US East | `https://api.us-east.kaivue.com` |
+| EU Central | `https://api.eu-central.kaivue.com` |
+| AU South | `https://api.au-south.kaivue.com` |
+
+For on-prem customers, the Directory server exposes the same API surface at `https://<directory-host>/api/`.
+
+## Two flavors, same contracts
+
+The API is **proto-first**: all service definitions live in `proto/kaivue/` in the public SDK repos. From those, Kaivue generates:
+
+- **Connect-Go** — strongly-typed, streaming-capable RPC that works over HTTP/1.1, HTTP/2, and gRPC wire formats. Best for Go, Node (`@connectrpc/connect`), and browser SDKs.
+- **REST** — JSON over HTTP generated from the same proto via a gateway. Best for quick integrations, shell scripts, no-code tools (Zapier, n8n, Make).
+
+Both flavors share the same authentication, tenancy, rate limits, and error model. You can mix and match on the same API key.
+
+## Authentication
+
+Kaivue supports two credential types:
+
+1. **API keys** (`kv_live_...` / `kv_test_...`) — for server-to-server calls. See [API key management](/developer/api-keys).
+2. **OAuth 2.0 access tokens** — for end-user delegated access. See [OAuth](/developer/oauth).
+
+Every request MUST include one of:
+
+```
+Authorization: Bearer kv_live_...
+```
+
+or
+
+```
+Authorization: Bearer <oauth-access-token>
+```
+
+Requests without a valid credential receive `401 Unauthorized`.
+
+## Tenancy
+
+Every Kaivue API call is scoped to exactly one tenant. The tenant is determined from the credential — API keys are bound to a single tenant at creation, and OAuth tokens carry the tenant in their claims. You never pass `tenant_id` as a request parameter.
+
+Cross-tenant access is impossible by design. Casbin policies + per-query tenant filters enforce this at multiple layers.
+
+## Versioning
+
+The API is versioned via the URL path: `/v1/...`. Breaking changes ship only as new major versions; additive changes (new fields, new RPCs) land in `v1`.
+
+`v1` is **stable** and **supported for at least 24 months** after `v2` ships.
+
+Deprecated fields are marked in the proto with `[deprecated = true]` and surfaced in SDK type comments + the API reference.
+
+## Rate limits
+
+| Plan tier | Requests/minute | Burst |
+|---|---|---|
+| Free | 60 | 20 |
+| Starter | 600 | 200 |
+| Professional | 3,000 | 1,000 |
+| Enterprise | Custom | Custom |
+
+Limits are enforced per API key. Over-limit requests return `429 Too Many Requests` with a `Retry-After` header (seconds).
+
+Response headers on every request:
+
+```
+X-Kaivue-RateLimit-Limit: 600
+X-Kaivue-RateLimit-Remaining: 597
+X-Kaivue-RateLimit-Reset: 1712590800
+```
+
+## Errors
+
+All errors return a consistent JSON shape regardless of flavor:
+
+```json
+{
+  "code": "permission_denied",
+  "message": "API key does not have 'cameras.write' scope",
+  "request_id": "req_01HZ8W..."
+}
+```
+
+`code` is a stable, machine-parseable identifier. Log the `request_id` — Kaivue support can trace any request by it.
+
+## What's next
+
+- [Quickstart: your first API call](/developer/quickstart)
+- [API key management](/developer/api-keys)
+- [Outbound webhooks](/developer/webhooks)
+- [SDKs](/developer/sdks)
+- [Full API reference](/api-reference/introduction)

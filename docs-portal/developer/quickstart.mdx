@@ -1,0 +1,220 @@
+---
+title: Quickstart
+description: From zero to your first Kaivue API call, SDK call, and webhook delivery in five minutes.
+---
+
+This quickstart walks you from a brand-new account to a working integration in about five minutes. You will:
+
+1. Create a Kaivue account (or sign in).
+2. Create an API key.
+3. Make your first authenticated request with `curl`.
+4. List cameras using an SDK (Python, Node, or Go).
+5. Subscribe to a webhook and receive your first event.
+
+By the end you'll have credentials in your secret manager, a working SDK call, and a live webhook delivery — the scaffolding every Kaivue integration starts from.
+
+<Note>
+  Kaivue docs are published in English first. Localized copy (ES, FR, DE) is wired through the same Mintlify `languages` config and shares every code sample here verbatim.
+</Note>
+
+## Prerequisites
+
+- A Kaivue tenant. If you don't have one, sign up at [https://app.kaivue.com](https://app.kaivue.com) or ask your Kaivue admin to invite you.
+- `curl` (or any HTTP client) for the shell examples.
+- One of: Python 3.9+, Node 18+, Go 1.22+ for the SDK examples.
+- A publicly reachable HTTPS endpoint for the webhook step (use [webhook.site](https://webhook.site) or `ngrok http 8080` for local testing).
+
+## 1. Create an API key
+
+API keys are created per-tenant in the Customer Admin console:
+
+1. Sign in to `https://app.kaivue.com`.
+2. Open **Settings → Developer → API Keys**.
+3. Click **Create API key**.
+4. Pick a name (`my-first-integration`) and the minimum scopes you need — for this quickstart: `cameras:read`, `events:read`, `webhooks:write`.
+5. Click **Create**.
+
+The key is shown **exactly once** in the format `kv_live_...` (or `kv_test_...` if created on a sandbox tenant). Copy it into your secret manager immediately — Kaivue cannot recover it later.
+
+```
+kv_live_8f3a9c2b1e4d5f6a7b8c9d0e1f2a3b4c5d6e7f8a
+```
+
+Every authenticated request uses this key as a bearer token:
+
+```
+Authorization: Bearer kv_live_...
+```
+
+<Tip>
+  Prefer `kv_test_...` keys while developing. They hit the same API surface but are scoped to a sandbox tenant with synthetic cameras — you won't accidentally rotate a production signing secret.
+</Tip>
+
+## 2. Your first request — cURL
+
+Pick the base URL for your tenant's region (see [Public API](/developer/api#base-urls)). This quickstart uses `us-east`.
+
+```bash
+curl https://api.us-east.kaivue.com/v1/cameras \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Accept: application/json"
+```
+
+A successful response looks like:
+
+```json
+{
+  "cameras": [
+    {
+      "id": "cam_01HZ8W3PQKX6YM0T5A7BCD9EF2",
+      "name": "Front Door",
+      "online": true,
+      "site_id": "site_01HZ8V...",
+      "created_at": "2026-03-14T10:22:01Z"
+    }
+  ],
+  "next_page_token": ""
+}
+```
+
+If you get `401`, the key is missing, malformed, or revoked. If you get `403` with `code: permission_denied`, the key exists but lacks `cameras:read` — add the scope and try again. See [Errors](/developer/errors) for the full taxonomy.
+
+### With Python (`kaivue`)
+
+```bash
+pip install kaivue
+```
+
+```python
+from kaivue import KaivueClient
+
+client = KaivueClient(api_key="kv_live_...")
+
+for cam in client.cameras.list():
+    print(cam.id, cam.name, "online" if cam.online else "offline")
+```
+
+### With Node (`@kaivue/sdk`)
+
+```bash
+npm install @kaivue/sdk
+```
+
+```ts
+import { KaivueClient } from "@kaivue/sdk";
+
+const client = new KaivueClient({
+  apiKey: process.env.KAIVUE_API_KEY!,
+});
+
+for await (const cam of client.cameras.list()) {
+  console.log(cam.id, cam.name, cam.online ? "online" : "offline");
+}
+```
+
+### With Go (`github.com/kaivue/kaivue-go`)
+
+```bash
+go get github.com/kaivue/kaivue-go@latest
+```
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    kaivue "github.com/kaivue/kaivue-go"
+)
+
+func main() {
+    client := kaivue.New(kaivue.Config{APIKey: "kv_live_..."})
+    iter := client.Cameras.List(context.Background(), &kaivue.CamerasListRequest{})
+    for iter.Next() {
+        cam := iter.Value()
+        fmt.Println(cam.Id, cam.Name, cam.Online)
+    }
+    if err := iter.Err(); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+All three SDKs share the same auth contract, pagination model, and error shape — pick whichever matches your stack.
+
+## 3. Subscribe to a webhook
+
+Polling is fine for one-off scripts, but production integrations should react to events as they happen. Create an outbound webhook subscription:
+
+```bash
+curl -X POST https://api.us-east.kaivue.com/v1/webhooks/subscriptions \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-endpoint.example/hooks/kaivue",
+    "event_types": ["camera.online", "camera.offline", "motion.detected"],
+    "description": "quickstart test"
+  }'
+```
+
+Response:
+
+```json
+{
+  "id": "whs_01HZ8W...",
+  "url": "https://your-endpoint.example/hooks/kaivue",
+  "event_types": ["camera.online", "camera.offline", "motion.detected"],
+  "signing_secret": "whsec_9f3a...KEEP_THIS_SAFE",
+  "active": true,
+  "created_at": "2026-04-08T15:30:00Z"
+}
+```
+
+<Warning>
+  The `signing_secret` is shown **exactly once**. Store it in your secret manager now — Kaivue cannot recover it.
+</Warning>
+
+### Receive your first event
+
+As soon as a matching event fires (unplug and replug a test camera, wave a hand in front of it, or trigger a motion event from the Customer Admin console), Kaivue POSTs to your URL with headers:
+
+```
+Kaivue-Signature: t=1712590800,v1=5a1f...,kid=whsec_9f3a
+Idempotency-Key: whk_evt_01HZ8W...
+Content-Type: application/json
+```
+
+And a body like:
+
+```json
+{
+  "event_id": "evt_01HZ8W...",
+  "type": "motion.detected",
+  "occurred_at": "2026-04-08T15:30:07.142Z",
+  "tenant_id": "ten_01HZ8V...",
+  "data": {
+    "camera_id": "cam_01HZ8W...",
+    "priority": "normal"
+  }
+}
+```
+
+Verify the signature before trusting the payload — see [Webhooks → Signature verification](/developer/webhooks#signature-verification) for copy-pasteable verifiers in Python, Node, and Go.
+
+## 4. You're done — what's next?
+
+You now have:
+
+- An API key stored in your secret manager.
+- A working cURL / SDK call against a real Kaivue tenant.
+- A webhook subscription delivering live events to your endpoint.
+
+From here, the most common next steps are:
+
+- [OAuth 2.0](/developer/oauth) — if you're building an app that acts on behalf of Kaivue users instead of a single integration tenant.
+- [SDKs](/developer/sdks) — full reference for the Python, Go, and TypeScript clients.
+- [Recipes](/developer/recipes) — task-oriented cookbook: "record a clip when a door unlocks", "post to Slack on camera offline", "bulk-export recordings for a date range".
+- [Errors](/developer/errors), [Pagination](/developer/pagination), [Rate limits](/developer/rate-limits) — the three references every production integration ends up bookmarking.
+- [Full API reference](/api-reference/introduction) — every RPC, every field, proto-generated.

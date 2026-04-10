@@ -1,0 +1,160 @@
+---
+title: Pagination
+description: Cursor-based pagination with page_token / next_page_token — stable, tenant-safe, and SDK-iterable.
+---
+
+Every Kaivue list endpoint uses **forward-only cursor pagination**. You never pass `offset` or `page_number`. This is intentional: cursors survive inserts/deletes without skipping or duplicating rows, and they let Kaivue enforce tenant isolation cheaply at the database level.
+
+## The contract
+
+Every list response looks like this:
+
+```json
+{
+  "cameras": [
+    { "id": "cam_01HZ...", "name": "Front Door", "...": "..." },
+    { "id": "cam_02HZ...", "name": "Loading Dock", "...": "..." }
+  ],
+  "next_page_token": "cur_ChIKEGNhbV8wMUhaWDdGQkc3TkI"
+}
+```
+
+To fetch the next page, pass `next_page_token` back as `page_token`:
+
+```bash
+curl "https://api.us-east.kaivue.com/v1/cameras?page_token=cur_ChIKEGNhbV8..." \
+  -H "Authorization: Bearer kv_live_..."
+```
+
+When `next_page_token` is empty (`""` or omitted), you've reached the end.
+
+## Parameters
+
+| Parameter | Type | Default | Max | Notes |
+|---|---|---|---|---|
+| `page_size` | int | 50 | varies by endpoint, usually 100 or 200 | Servers may return fewer than `page_size` items even when more pages exist. Always trust `next_page_token`, never item count. |
+| `page_token` | string | "" | — | Opaque. Do not parse, split, base64-decode, or persist across API versions. |
+
+### Page size caps per endpoint
+
+| Endpoint | Default | Max |
+|---|---|---|
+| `/v1/cameras` | 50 | 200 |
+| `/v1/recordings` | 50 | 200 |
+| `/v1/events` | 100 | 500 |
+| `/v1/webhooks/subscriptions` | 50 | 100 |
+| `/v1/webhooks/subscriptions/{id}/deliveries` | 50 | 200 |
+| `/v1/users` | 50 | 100 |
+| `/v1/audit-log` | 100 | 500 |
+
+Requesting `page_size` above the max returns `invalid_argument` — the server never silently clamps, so client bugs surface loudly.
+
+## Cursor opacity
+
+`page_token` is opaque. It's a versioned, tenant-bound, HMAC-tagged blob. **Do not:**
+
+- Parse it or reason about its contents.
+- Store it across API major versions.
+- Share it across tenants (it won't work — HMAC check fails).
+- Use it after 24 hours (cursors expire; you'll get `invalid_argument`).
+
+If a cursor expires mid-iteration, restart from the beginning with your original filters — Kaivue list endpoints are **stable under concurrent writes** in the sense that you won't see duplicates, but you may miss items inserted before your resume point if you retry with a stale cursor.
+
+## SDK iterators
+
+All three official SDKs expose native iterators that hide pagination entirely. You never touch `page_token` unless you want to.
+
+### Python
+
+```python
+from kaivue import KaivueClient
+
+client = KaivueClient(api_key="kv_live_...")
+
+# Iterator automatically fetches the next page when exhausted
+for cam in client.cameras.list(page_size=200):
+    print(cam.id, cam.name)
+
+# Materialize if you really need a list
+all_cams = list(client.cameras.list())
+```
+
+Manual cursor control, if you need it (e.g., resumable jobs):
+
+```python
+resp = client.cameras.list_page(page_size=50)
+print(len(resp.cameras), resp.next_page_token)
+
+# Resume later
+resp2 = client.cameras.list_page(page_size=50, page_token=resp.next_page_token)
+```
+
+### TypeScript
+
+```ts
+import { KaivueClient } from "@kaivue/sdk";
+
+const client = new KaivueClient({ apiKey: process.env.KAIVUE_API_KEY! });
+
+// Async iterator — automatic pagination
+for await (const cam of client.cameras.list({ pageSize: 200 })) {
+  console.log(cam.id, cam.name);
+}
+
+// Manual control
+const page = await client.cameras.listPage({ pageSize: 50 });
+console.log(page.cameras.length, page.nextPageToken);
+```
+
+### Go
+
+```go
+iter := client.Cameras.List(ctx, &kaivue.CamerasListRequest{PageSize: 200})
+for iter.Next() {
+    cam := iter.Value()
+    fmt.Println(cam.Id, cam.Name)
+}
+if err := iter.Err(); err != nil {
+    log.Fatal(err)
+}
+
+// Manual page-by-page (for resumable jobs)
+page, err := client.Cameras.ListPage(ctx, &kaivue.CamerasListRequest{
+    PageSize:  50,
+    PageToken: savedCursor,
+})
+```
+
+## Sort order
+
+List endpoints return items in a **deterministic** order: by the endpoint's natural sort key (creation time descending for most resources, `occurred_at` descending for events). Pagination is stable against this ordering — items inserted with an older timestamp than your cursor will never appear.
+
+Items inserted **after** your iteration began may or may not appear, depending on the endpoint:
+
+| Endpoint | New inserts mid-iteration |
+|---|---|
+| `/v1/events` (reverse chronological) | Not visible until you restart |
+| `/v1/cameras` (creation time desc) | Not visible until you restart |
+| `/v1/audit-log` | Not visible until you restart (append-only, forward cursor only) |
+
+If you need to process new items as they arrive, use [webhooks](/developer/webhooks) or the [SSE events stream](/developer/recipes#stream-live-events-server-sent-events) — not polling with a cursor.
+
+## Filtering alongside pagination
+
+Filters (e.g., `?site_id=site_01HZ...`) are applied **before** pagination. The cursor embeds the filter fingerprint, so you **cannot** change filters between pages — doing so returns `invalid_argument`.
+
+```bash
+# OK
+curl ".../v1/cameras?site_id=site_01HZ...&page_size=50"
+curl ".../v1/cameras?site_id=site_01HZ...&page_size=50&page_token=cur_..."
+
+# NOT OK — filter changed
+curl ".../v1/cameras?site_id=site_01HZ...&page_size=50"
+curl ".../v1/cameras?site_id=site_OTHER&page_size=50&page_token=cur_..."  # 400 invalid_argument
+```
+
+## What's next
+
+- [Errors](/developer/errors) — what happens when a cursor expires or a filter is changed mid-iteration.
+- [Rate limits](/developer/rate-limits) — pagination doesn't exempt you from the per-minute cap; large exports should batch.
+- [Recipes → Bulk export](/developer/recipes#bulk-export-recordings-for-a-date-range) — a realistic worked example that combines pagination with async exports.

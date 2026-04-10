@@ -1,0 +1,397 @@
+---
+title: Recipes
+description: Task-oriented cookbook — copy, paste, adapt. Each recipe pairs a real operational problem with a minimal working solution.
+---
+
+Every recipe follows the same shape: **Problem → Solution → Code → Notes**. All code is copy-pasteable and forward-consistent with the rest of the developer docs (API key format `kv_live_...`, `Authorization: Bearer` headers, `Kaivue-Signature` for HMAC, scopes like `cameras:read`).
+
+<Note>
+  Recipes assume `us-east` as the example region. Swap the base URL for your tenant's region — see [Public API → Base URLs](/developer/api#base-urls).
+</Note>
+
+---
+
+## Record a clip when a door unlocks (Brivo → Kaivue)
+
+**Problem.** A Brivo-controlled door unlocks. You want the nearest camera to bookmark a 30-second clip centered on the unlock time so investigators can find it later.
+
+**Solution.** Use Brivo's outbound webhook to call Kaivue's [inbound webhook endpoint](/developer/webhooks#inbound-webhooks) with the `camera.bookmark.create` action. No glue server needed.
+
+```bash
+# 1. In Kaivue, create an inbound webhook subscription for the door
+curl -X POST https://api.us-east.kaivue.com/v1/webhooks/inbound/subscriptions \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "brivo-front-door",
+    "allowed_actions": ["camera.bookmark.create"],
+    "source_ip_allowlist": ["52.0.0.0/16"]
+  }'
+```
+
+The response includes a `subscription_id` and a `signing_secret`. Configure Brivo's outbound webhook to POST to:
+
+```
+https://api.us-east.kaivue.com/v1/webhooks/inbound/{subscription_id}
+```
+
+With body:
+
+```json
+{
+  "action": "camera.bookmark.create",
+  "params": {
+    "camera_id": "cam_01HZ8W...",
+    "timestamp": "{{event.occurred_at}}",
+    "pre_roll_seconds": 10,
+    "post_roll_seconds": 20,
+    "note": "brivo unlock — user {{event.user_id}}"
+  }
+}
+```
+
+**Notes.**
+- Brivo must HMAC-sign the request with the `signing_secret` (see [Webhooks → Signature verification](/developer/webhooks#signature-verification)).
+- Replay window is 60 seconds on the inbound side.
+- For the reverse direction (Kaivue → Brivo) see [KAI-397 outbound webhooks](/developer/webhooks#outbound-webhooks).
+
+---
+
+## Post to Slack when a camera goes offline
+
+**Problem.** Camera drops offline at 2am. You want an immediate Slack ping to the on-call channel, not a pager.
+
+**Solution.** Subscribe to `camera.offline` events; forward to a Slack incoming webhook.
+
+```python
+# slack_forwarder.py — tiny Flask app, deploy anywhere HTTPS-terminated
+import hmac, hashlib, os, time
+from flask import Flask, request, abort
+import requests
+
+app = Flask(__name__)
+SECRET = os.environ["KAIVUE_WEBHOOK_SECRET"].encode()
+SLACK = os.environ["SLACK_WEBHOOK_URL"]
+
+def verify(raw: bytes, header: str) -> bool:
+    parts = dict(kv.split("=", 1) for kv in header.split(","))
+    t = int(parts["t"])
+    if abs(time.time() - t) > 300:
+        return False
+    expected = hmac.new(SECRET, f"{t}.".encode() + raw, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, parts["v1"])
+
+@app.post("/hooks/kaivue")
+def hook():
+    if not verify(request.get_data(), request.headers.get("Kaivue-Signature", "")):
+        abort(401)
+    evt = request.get_json()
+    if evt["type"] == "camera.offline":
+        cam = evt["data"]["camera_id"]
+        requests.post(SLACK, json={"text": f":red_circle: Camera {cam} went offline"})
+    return "", 200
+```
+
+Create the subscription:
+
+```bash
+curl -X POST https://api.us-east.kaivue.com/v1/webhooks/subscriptions \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-forwarder.example/hooks/kaivue",
+    "event_types": ["camera.offline"],
+    "description": "slack on-call"
+  }'
+```
+
+**Notes.**
+- Kaivue retries for 24 hours — your forwarder can be briefly offline without losing events.
+- Dedupe on `Idempotency-Key` if your Slack forwarder is multi-instance.
+- For noisy fleets, batch offline events in a 60-second window before paging.
+
+---
+
+## Page on-call via PagerDuty on a critical event
+
+**Problem.** A `security.tamper_detected` event fires. You need PagerDuty to wake someone, not just a Slack ping.
+
+**Solution.** Use the PagerDuty Events API v2 as the webhook target. Kaivue's payload maps cleanly to a PagerDuty `trigger` event.
+
+```ts
+// pagerduty-bridge.ts — Node 18+, @kaivue/sdk for signature verification
+import { verifyWebhookSignature } from "@kaivue/sdk/webhooks";
+import express from "express";
+
+const app = express();
+app.use(express.raw({ type: "application/json" }));
+
+app.post("/hooks/kaivue", async (req, res) => {
+  const ok = verifyWebhookSignature({
+    rawBody: req.body,
+    header: req.header("Kaivue-Signature")!,
+    secret: process.env.KAIVUE_WEBHOOK_SECRET!,
+  });
+  if (!ok) return res.status(401).end();
+
+  const evt = JSON.parse(req.body.toString());
+  if (evt.type !== "security.tamper_detected") return res.status(200).end();
+
+  await fetch("https://events.pagerduty.com/v2/enqueue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      routing_key: process.env.PD_ROUTING_KEY,
+      event_action: "trigger",
+      dedup_key: evt.event_id, // collapses retries
+      payload: {
+        summary: `Tamper on camera ${evt.data.camera_id}`,
+        severity: "critical",
+        source: "kaivue",
+        custom_details: evt.data,
+      },
+    }),
+  });
+  res.status(200).end();
+});
+
+app.listen(8080);
+```
+
+**Notes.**
+- `dedup_key: evt.event_id` means Kaivue's at-least-once retries won't spawn duplicate pages.
+- For resolve events, send a second PagerDuty call with `event_action: "resolve"` and the same `dedup_key`.
+
+---
+
+## Bulk-export recordings for a date range
+
+**Problem.** Legal asks for every recording from camera X between 2026-01-01 and 2026-01-31.
+
+**Solution.** Iterate the recordings list with cursor pagination, then call `recordings.export` for each one.
+
+```python
+from datetime import datetime
+from kaivue import KaivueClient
+
+client = KaivueClient(api_key="kv_live_...")
+
+start = datetime(2026, 1, 1)
+end   = datetime(2026, 2, 1)
+
+exports = []
+for rec in client.recordings.list(
+    camera_id="cam_01HZ8W...",
+    start=start,
+    end=end,
+    page_size=200,  # SDK handles page_token iteration internally
+):
+    job = client.recordings.export(
+        recording_id=rec.id,
+        format="mp4",
+        include_audio=True,
+    )
+    exports.append(job.id)
+
+print(f"Queued {len(exports)} export jobs")
+
+# Poll (or subscribe to recording.export.completed webhook — much nicer)
+for job_id in exports:
+    status = client.recordings.get_export(job_id)
+    print(job_id, status.state, status.download_url or "")
+```
+
+**Notes.**
+- `page_size` is capped at 200 for recordings (see [Pagination](/developer/pagination)).
+- For long ranges, prefer the `recording.export.completed` webhook over polling — you'll hit rate limits less.
+- Export URLs are presigned and valid for 24 hours.
+
+---
+
+## Zero-downtime HMAC secret rotation
+
+**Problem.** Your security team mandates rotating the webhook signing secret every 90 days. You can't afford dropped events during the swap.
+
+**Solution.** Kaivue supports a 7-day default overlap where deliveries carry **two** `Kaivue-Signature` headers (primary and secondary). Your verifier accepts either. After deploying the new secret, you retire the old one.
+
+```bash
+# Step 1: create the secondary secret (default 7-day overlap window)
+curl -X POST \
+  https://api.us-east.kaivue.com/v1/webhooks/subscriptions/{id}/signing-secrets:rotate \
+  -H "Authorization: Bearer kv_live_..." \
+  -d '{"overlap_days": 7}'
+```
+
+Response includes the new `signing_secret` (shown exactly once). Deliveries during the overlap window look like:
+
+```
+Kaivue-Signature: t=1712590800,v1=5a1f...,kid=whsec_OLD
+Kaivue-Signature: t=1712590800,v1=9c2e...,kid=whsec_NEW
+```
+
+Your verifier should accept a delivery if **any** signature validates:
+
+```go
+func verifyAny(raw []byte, headers []string, keys map[string][]byte) bool {
+    for _, h := range headers {
+        parts := parseSig(h)
+        kid := parts["kid"]
+        secret, ok := keys[kid]
+        if !ok { continue }
+        if verifyOne(raw, parts, secret) { return true }
+    }
+    return false
+}
+```
+
+Once the new secret is deployed to all verifier instances:
+
+```bash
+# Step 2: retire the old one
+curl -X POST \
+  https://api.us-east.kaivue.com/v1/webhooks/subscriptions/{id}/signing-secrets:retire \
+  -H "Authorization: Bearer kv_live_..." \
+  -d '{"kid": "whsec_OLD"}'
+```
+
+**Notes.**
+- Forgetting step 2 is fine — Kaivue auto-retires the old secret when the overlap window expires.
+- Never log signing secrets, even masked.
+
+---
+
+## Verify Ed25519 outbound signatures in a FedRAMP deployment
+
+**Problem.** Your FedRAMP tenant is configured to sign outbound webhooks with Ed25519 instead of HMAC-SHA256 (FedRAMP Moderate+ deployments default to asymmetric signing so recipients don't hold the signing key).
+
+**Solution.** Fetch Kaivue's public key from the JWKS endpoint, then verify using your language's stdlib.
+
+```python
+import base64, json, urllib.request
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.exceptions import InvalidSignature
+
+JWKS_URL = "https://api.us-east.kaivue.com/v1/.well-known/webhook-jwks.json"
+
+def load_keys():
+    with urllib.request.urlopen(JWKS_URL) as r:
+        jwks = json.loads(r.read())
+    keys = {}
+    for k in jwks["keys"]:
+        if k["kty"] == "OKP" and k["crv"] == "Ed25519":
+            raw = base64.urlsafe_b64decode(k["x"] + "==")
+            keys[k["kid"]] = Ed25519PublicKey.from_public_bytes(raw)
+    return keys
+
+def verify_ed25519(raw_body: bytes, header: str, keys: dict) -> bool:
+    parts = dict(kv.split("=", 1) for kv in header.split(","))
+    pub = keys.get(parts["kid"])
+    if not pub:
+        return False
+    sig = base64.urlsafe_b64decode(parts["v2"] + "==")
+    message = f"{parts['t']}.".encode() + raw_body
+    try:
+        pub.verify(sig, message)
+        return True
+    except InvalidSignature:
+        return False
+```
+
+**Notes.**
+- The header parameter is `v2=` (Ed25519 base64url) instead of `v1=` (HMAC hex).
+- Cache the JWKS response for at least 10 minutes — Kaivue sets a `Cache-Control` header.
+- Rotate handling is identical to HMAC: multiple `Kaivue-Signature` headers during overlap.
+
+---
+
+## Trigger a PTZ preset from a custom action
+
+**Problem.** Your access-control panel fires a "perimeter breach" signal. You want the nearest PTZ camera to snap to preset #3 (loading dock) and the fixed camera next to it to start a 60-second high-quality clip.
+
+**Solution.** Define a named [Kaivue Action](/developer/integrations#kaivue-actions) that fans out to both devices, then trigger it via inbound webhook.
+
+```bash
+# Action definition (one-time, via API or Customer Admin UI)
+curl -X POST https://api.us-east.kaivue.com/v1/actions \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "perimeter.breach.loading_dock",
+    "steps": [
+      {"type": "ptz.goto_preset", "camera_id": "cam_ptz_01HZ...", "preset": 3},
+      {"type": "recording.high_quality_clip", "camera_id": "cam_fixed_01HZ...", "duration_seconds": 60}
+    ]
+  }'
+```
+
+Trigger from your upstream system via inbound webhook:
+
+```json
+{
+  "action": "perimeter.breach.loading_dock",
+  "params": {}
+}
+```
+
+**Notes.**
+- Actions are idempotent on `Idempotency-Key`. Retries are safe.
+- PTZ preset moves are asynchronous — the action response is `202 Accepted` with a `poll_url` for status.
+- The full list of action types lives in the [API reference](/api-reference/introduction).
+
+---
+
+## Stream live events (server-sent events)
+
+**Problem.** You want a live dashboard that updates as events happen — but you don't want to run a webhook receiver for it.
+
+**Solution.** Use the SSE endpoint. It carries the same event payloads as webhooks, but over a long-lived HTTP connection.
+
+```bash
+curl -N https://api.us-east.kaivue.com/v1/events:stream \
+  -H "Authorization: Bearer kv_live_..." \
+  -H "Accept: text/event-stream" \
+  --data-urlencode 'event_types=camera.online,camera.offline,motion.detected'
+```
+
+Output:
+
+```
+event: motion.detected
+id: evt_01HZ8W...
+data: {"event_id":"evt_01HZ8W...","type":"motion.detected","occurred_at":"...","data":{...}}
+
+event: camera.offline
+id: evt_01HZ8X...
+data: {...}
+```
+
+With the Node SDK:
+
+```ts
+import { KaivueClient } from "@kaivue/sdk";
+
+const client = new KaivueClient({ apiKey: process.env.KAIVUE_API_KEY! });
+
+const stream = client.events.stream({
+  eventTypes: ["camera.online", "camera.offline", "motion.detected"],
+});
+
+for await (const evt of stream) {
+  console.log(evt.type, evt.data);
+}
+```
+
+**Notes.**
+- SSE connections count against your rate limit as 1 request/min while open.
+- Kaivue sends a keep-alive comment every 15 seconds — your client should expect it.
+- For Go, the Connect-Go streaming RPC (`client.Events.Stream`) is the native equivalent. See [SDKs → Go quickstart](/developer/sdks#go-quickstart).
+- Pass the `last_event_id` parameter on reconnect to resume from where you left off.
+
+---
+
+## What's next
+
+- [Errors](/developer/errors) — shape, codes, and how to use `request_id` with support.
+- [Pagination](/developer/pagination) — cursor model and SDK iterators (used by several recipes here).
+- [Rate limits](/developer/rate-limits) — tiers, headers, retry guidance.
+- [Integrations catalog](/developer/integrations) — pre-built connectors for Brivo, PagerDuty, Slack, and more.

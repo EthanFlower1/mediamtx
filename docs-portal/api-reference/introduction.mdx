@@ -1,0 +1,64 @@
+---
+title: API Reference
+description: Auto-generated reference for every Kaivue Public API RPC and REST endpoint.
+---
+
+This reference is generated from the `proto/kaivue/` source via [buf](https://buf.build) + our OpenAPI gateway, and is always in lockstep with the running API.
+
+## Finding a specific endpoint
+
+- **By service:** Use the left sidebar. Every Connect-Go service has its own page — Cameras, Recordings, Events, Webhooks, Actions, Users, Tenants, Billing, etc.
+- **By HTTP method + path:** Use the search bar. REST paths follow `/v1/<resource>/<id>/<subresource>`.
+- **By SDK method name:** The sidebar links cross-reference the SDK method name in all three official SDKs (Python, Go, TypeScript).
+
+## Request / response format
+
+Every RPC documents:
+
+- Full request proto with field descriptions and validation rules.
+- Full response proto.
+- All possible error codes and what they mean.
+- Required authentication (API key scope or OAuth scope).
+- Rate-limit bucket.
+- cURL + Python + Go + TypeScript examples.
+- Link to the corresponding SDK method.
+
+## Try-it sandbox
+
+Click **"Try it"** on any endpoint to fire a real request against the **sandbox tenant** — a free, ephemeral tenant Kaivue provisions for documentation experimentation. No real cameras, no real billing events; everything is simulated and reset nightly.
+
+The sandbox API key is automatically injected when you sign in to this docs portal. If you need a persistent sandbox, request one in **Customer Admin → Developer → Sandbox**.
+
+## Status & uptime
+
+Kaivue publishes live API status at [status.kaivue.com](https://status.kaivue.com). Historical uptime, current incidents, and planned maintenance are all visible without authentication.
+
+## Changelog
+
+API changes (new endpoints, new fields, deprecations) are published to the [changelog](/changelog) and the `kaivue-api-changes` mailing list. Subscribe in **Customer Admin → Developer → Notifications**.
+
+## OpenAPI spec
+
+The full OpenAPI 3.1 spec is available at:
+
+```
+https://api.us-east.kaivue.com/v1/openapi.yaml
+```
+
+Import it into Postman, Insomnia, or your code generator of choice. The spec is the same one that powers this reference.
+
+## Connect / gRPC service descriptors
+
+The proto files are published at:
+
+```
+https://github.com/kaivue/kaivue-proto
+```
+
+Use these to generate a Connect-Go or gRPC client in any language buf supports.
+
+## Support
+
+- Runtime issues → [status.kaivue.com](https://status.kaivue.com)
+- API questions → support@kaivue.com (include the `request_id` from any error response)
+- Feature requests → [github.com/kaivue/public-roadmap](https://github.com/kaivue/public-roadmap)

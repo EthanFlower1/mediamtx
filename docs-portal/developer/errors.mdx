@@ -1,0 +1,167 @@
+---
+title: Errors
+description: Canonical Kaivue error shape, code taxonomy, HTTP status mapping, and how to use request_id with support.
+---
+
+Every error Kaivue returns — REST, Connect-Go, webhook delivery failures — uses the same JSON shape and the same stable, machine-parseable code vocabulary. Write your error handling once; it works across the whole surface.
+
+## Error shape
+
+```json
+{
+  "code": "permission_denied",
+  "message": "API key does not have 'cameras.write' scope",
+  "request_id": "req_01HZ8W3PQKX6YM0T5A7BCD9EF2"
+}
+```
+
+Three fields, always present:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `code` | string | Stable, machine-parseable error code from the taxonomy below. Safe to branch on. |
+| `message` | string | Human-readable English description. Copy may change between releases — do not branch on it. |
+| `request_id` | string | Opaque request identifier. Log it. Kaivue support can trace any request by it. |
+
+Connect-Go clients receive the same three fields on the `connect.Error` type (`.Code()`, `.Message()`, `.Meta().Get("X-Kaivue-Request-Id")`).
+
+<Note>
+  Validation errors may include an additional `details` array with per-field diagnostics. See [Validation errors](#validation-errors) below.
+</Note>
+
+## Code taxonomy
+
+Kaivue's error codes are the [Connect/gRPC canonical codes](https://connectrpc.com/docs/protocol#error-codes), adopted verbatim so SDK generators don't translate. Every code maps to exactly one HTTP status.
+
+| Code | HTTP | When it fires | What to do |
+|---|---|---|---|
+| `unauthenticated` | 401 | Missing, malformed, expired, or revoked credential. | Re-authenticate. Check `Authorization` header and key/token lifetime. |
+| `permission_denied` | 403 | Credential is valid but lacks the required scope, role, or Casbin policy. | Add the scope listed in `message`. Cross-tenant access always surfaces here. |
+| `not_found` | 404 | Resource does not exist or is invisible to this credential (tenant isolation). | Verify the ID. Never leak existence across tenants — `not_found` is intentional. |
+| `already_exists` | 409 | Unique-constraint violation (e.g., camera name collision, duplicate webhook subscription). | Use the existing resource or pick a different identifier. |
+| `failed_precondition` | 400 | Request is well-formed but the system state won't allow it (e.g., rotating a secret on a paused subscription, deleting a camera with active recordings). | Fix the state and retry. **Do not blindly retry** — the error is deterministic. |
+| `resource_exhausted` | 429 | Quota exceeded (storage cap, camera count, feature entitlement). Not the same as rate-limited. | Upgrade plan or free resources. Retrying immediately will fail again. |
+| `rate_limited` | 429 | Per-key requests/minute threshold exceeded. | Respect `Retry-After` and `X-Kaivue-RateLimit-Reset`. See [Rate limits](/developer/rate-limits). |
+| `invalid_argument` | 400 | Request is syntactically valid but a field value is wrong (bad enum, out-of-range number, malformed ID). | Fix the field. `details` may pinpoint which one. |
+| `internal` | 500 | Unexpected server error. Kaivue on-call is paged. | Retry with backoff. If it persists, contact support with `request_id`. |
+| `unavailable` | 503 | Transient — dependency down, deploy in progress, circuit breaker open. | Retry with exponential backoff. SDKs do this automatically. |
+| `deadline_exceeded` | 504 | Server couldn't finish before the deadline (usually long-running analytics or export queries). | Narrow the query (shorter time range, fewer cameras) or switch to async export. |
+
+Codes that are **safe to retry** (SDKs do automatically): `unavailable`, `deadline_exceeded`, `internal` (once), `rate_limited` (after `Retry-After`).
+
+Codes that are **not safe to retry** without changes: `unauthenticated`, `permission_denied`, `not_found`, `already_exists`, `failed_precondition`, `invalid_argument`, `resource_exhausted`.
+
+## HTTP status mapping (reverse lookup)
+
+If you only see the HTTP status, use this table:
+
+| HTTP | Possible codes |
+|---|---|
+| 400 | `invalid_argument`, `failed_precondition` |
+| 401 | `unauthenticated` |
+| 403 | `permission_denied` |
+| 404 | `not_found` |
+| 409 | `already_exists` |
+| 429 | `rate_limited`, `resource_exhausted` |
+| 500 | `internal` |
+| 503 | `unavailable` |
+| 504 | `deadline_exceeded` |
+
+Always branch on `code`, not HTTP status — 400 can mean either `invalid_argument` (fix the payload) or `failed_precondition` (fix the state), and they demand different remediation.
+
+## Validation errors
+
+`invalid_argument` may include a `details` array:
+
+```json
+{
+  "code": "invalid_argument",
+  "message": "request failed validation",
+  "request_id": "req_01HZ8W...",
+  "details": [
+    {
+      "field": "event_types[2]",
+      "reason": "unknown event type 'camrea.online' — did you mean 'camera.online'?"
+    },
+    {
+      "field": "url",
+      "reason": "must be HTTPS"
+    }
+  ]
+}
+```
+
+Surface these in your UI if you have one — they're intentionally user-friendly.
+
+## Handling errors in the SDKs
+
+### Python
+
+```python
+from kaivue import KaivueClient
+from kaivue.errors import KaivueError, PermissionDenied, RateLimited
+
+client = KaivueClient(api_key="kv_live_...")
+
+try:
+    cams = list(client.cameras.list())
+except PermissionDenied as e:
+    log.error("missing scope", extra={"request_id": e.request_id, "msg": str(e)})
+except RateLimited as e:
+    time.sleep(e.retry_after_seconds)
+    # retry
+except KaivueError as e:
+    log.exception("kaivue call failed", extra={"code": e.code, "request_id": e.request_id})
+```
+
+### Node / TypeScript
+
+```ts
+import { KaivueClient, KaivueError } from "@kaivue/sdk";
+
+try {
+  for await (const cam of client.cameras.list()) {
+    // ...
+  }
+} catch (err) {
+  if (err instanceof KaivueError) {
+    console.error(err.code, err.message, err.requestId);
+    if (err.code === "rate_limited") {
+      await new Promise(r => setTimeout(r, err.retryAfterMs));
+    }
+  }
+}
+```
+
+### Go
+
+```go
+_, err := client.Cameras.Get(ctx, &kaivue.CameraGetRequest{Id: "cam_..."})
+if err != nil {
+    var kerr *kaivue.Error
+    if errors.As(err, &kerr) {
+        log.Printf("code=%s request_id=%s: %s", kerr.Code, kerr.RequestID, kerr.Message)
+        if kerr.Code == "rate_limited" {
+            time.Sleep(kerr.RetryAfter)
+        }
+    }
+}
+```
+
+## Using `request_id` with support
+
+Every response — success or failure — includes an `X-Kaivue-Request-Id` header. On errors it's also embedded in the JSON body as `request_id`.
+
+When you file a support ticket or a GitHub issue:
+
+1. Include the `request_id` of the failing call.
+2. Include the rough timestamp (UTC) and the region base URL.
+3. Redact the `Authorization` header — never paste it.
+
+With just the `request_id`, Kaivue support can pull the full server-side log, the scopes on the credential, the tenant, the route, and the exact code path that returned the error. No guessing.
+
+## What's next
+
+- [Rate limits](/developer/rate-limits) — tier table, headers, backoff strategy.
+- [Pagination](/developer/pagination) — the cursor model that powers every list endpoint.
+- [Public API](/developer/api) — auth, tenancy, versioning.

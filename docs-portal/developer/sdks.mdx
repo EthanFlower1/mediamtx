@@ -1,0 +1,205 @@
+---
+title: SDKs
+description: Official Kaivue SDKs for Python, Go, TypeScript — proto-generated, always in sync with the API.
+---
+
+All Kaivue SDKs are **proto-generated** from the same `proto/kaivue/` source that powers the API server. This means:
+
+- Type definitions are never out of date.
+- Every RPC is covered the day it ships.
+- Fixing a proto comment updates the SDK's generated docstrings on the next release.
+
+There is no hand-written API wrapper. The SDK repos contain only ergonomic helpers (auth middleware, retries, logging, pagination iterators) on top of the generated Connect client.
+
+## Official SDKs
+
+| Language | Package | Repo |
+|---|---|---|
+| Python 3.9+ | `kaivue` on PyPI | `github.com/kaivue/kaivue-python` |
+| Go 1.22+ | `github.com/kaivue/kaivue-go` | `github.com/kaivue/kaivue-go` |
+| TypeScript / Node 18+ | `@kaivue/sdk` on npm | `github.com/kaivue/kaivue-js` |
+
+All three follow [semver](https://semver.org). Major version alignment with the API version: SDK `v1.x.y` targets Kaivue API `v1`.
+
+## Python quickstart
+
+```bash
+pip install kaivue
+```
+
+```python
+from kaivue import KaivueClient
+
+client = KaivueClient(
+    api_key="kv_live_...",
+)
+
+# List cameras
+for cam in client.cameras.list():
+    print(cam.id, cam.name, cam.online)
+
+# Get recordings for a camera in a time range
+from datetime import datetime, timedelta
+end = datetime.utcnow()
+start = end - timedelta(hours=1)
+
+recordings = client.recordings.list(
+    camera_id="cam_01HZ...",
+    start=start,
+    end=end,
+)
+for r in recordings:
+    print(r.id, r.duration_seconds)
+
+# Create a webhook subscription
+sub = client.webhooks.create_subscription(
+    url="https://your-service.example/hooks/kaivue",
+    event_types=["camera.online", "motion.detected"],
+    description="Production ingest",
+)
+print("Signing secret (store once):", sub.signing_secret)
+```
+
+### OAuth (Python)
+
+```python
+from kaivue.oauth import OAuthClient
+
+oauth = OAuthClient(
+    client_id="...",
+    redirect_uri="https://dashboard.example/callback",
+)
+
+# Step 1: send user to authorize URL
+print(oauth.authorize_url(scopes=["cameras:read", "events:read", "offline_access"]))
+
+# Step 2 (in your callback handler):
+tokens = oauth.exchange_code(code=request.args["code"])
+
+# Use the token to get a client
+client = KaivueClient(access_token=tokens.access_token)
+```
+
+## Go quickstart
+
+```bash
+go get github.com/kaivue/kaivue-go@latest
+```
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    kaivue "github.com/kaivue/kaivue-go"
+)
+
+func main() {
+    client := kaivue.New(kaivue.Config{
+        APIKey: "kv_live_...",
+    })
+
+    ctx := context.Background()
+
+    // List cameras
+    iter := client.Cameras.List(ctx, &kaivue.CamerasListRequest{})
+    for iter.Next() {
+        cam := iter.Value()
+        fmt.Println(cam.Id, cam.Name, cam.Online)
+    }
+    if err := iter.Err(); err != nil {
+        log.Fatal(err)
+    }
+
+    // Create a webhook
+    sub, err := client.Webhooks.CreateSubscription(ctx, &kaivue.CreateSubscriptionRequest{
+        Url:        "https://your-service.example/hooks/kaivue",
+        EventTypes: []string{"camera.online", "motion.detected"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println("Signing secret:", sub.SigningSecret)
+}
+```
+
+The Go SDK exposes the native Connect-Go client for streaming calls:
+
+```go
+stream, err := client.Events.Stream(ctx, &kaivue.EventsStreamRequest{
+    CameraIds: []string{"cam_01HZ..."},
+})
+for stream.Receive() {
+    ev := stream.Msg()
+    fmt.Println(ev.Type, ev.OccurredAt)
+}
+```
+
+## TypeScript quickstart
+
+```bash
+npm install @kaivue/sdk
+```
+
+```ts
+import { KaivueClient } from "@kaivue/sdk";
+
+const client = new KaivueClient({
+  apiKey: process.env.KAIVUE_API_KEY!,
+});
+
+// List cameras
+for await (const cam of client.cameras.list()) {
+  console.log(cam.id, cam.name, cam.online);
+}
+
+// Get recordings
+const recordings = await client.recordings.list({
+  cameraId: "cam_01HZ...",
+  start: new Date(Date.now() - 3600_000),
+  end: new Date(),
+});
+
+// Webhook subscription
+const sub = await client.webhooks.createSubscription({
+  url: "https://your-service.example/hooks/kaivue",
+  eventTypes: ["camera.online", "motion.detected"],
+});
+console.log("Signing secret:", sub.signingSecret);
+```
+
+The TypeScript SDK is **isomorphic** — same import works in Node, Deno, Bun, and modern browsers (for OAuth flows only; do not ship API keys to the browser).
+
+## Common features
+
+Every SDK includes:
+
+- Automatic retry with exponential backoff on 5xx + network errors.
+- Rate-limit-aware throttling (reads `X-Kaivue-RateLimit-*` headers).
+- Request IDs in every error for support.
+- Built-in `Kaivue-Signature` verification helper for webhook consumers.
+- OAuth 2.0 + PKCE helpers.
+- Typed pagination iterators.
+- Configurable telemetry (structured logging hook).
+
+## Release channels
+
+- `stable` — the default. Recommended for production.
+- `rc` — release candidates, published before each minor. Opt in via `--pre` on pip, `@next` on npm, or the `release-rc` branch on Go.
+
+## Contributing
+
+SDK code is generated, but helpers are hand-written. Issues and PRs welcome in the language repos. Proto changes themselves must land in the main Kaivue repo — SDK regeneration is automatic on the next release.
+
+## Unofficial / community SDKs
+
+Kaivue Marketplace accepts community SDK listings for other languages (Rust, Ruby, Elixir, C#). These are maintained by third parties and not covered by Kaivue support.
+
+## What's next
+
+- [API reference](/api-reference/introduction)
+- [OAuth 2.0](/developer/oauth)
+- [Webhooks](/developer/webhooks)

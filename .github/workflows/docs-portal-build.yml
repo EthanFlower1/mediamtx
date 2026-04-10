@@ -1,0 +1,37 @@
+name: Docs Portal Build Check
+
+# Trigger on PRs and pushes that touch the docs portal or this workflow file.
+on:
+  pull_request:
+    paths:
+      - "docs-portal/**"
+      - ".github/workflows/docs-portal-build.yml"
+  push:
+    paths:
+      - "docs-portal/**"
+      - ".github/workflows/docs-portal-build.yml"
+
+jobs:
+  mintlify-broken-links:
+    name: Mintlify broken-links check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-portal
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # NOTE: This job is non-blocking (continue-on-error: true) for now.
+      # Mintlify CLI changes frequently and real content is still being added
+      # by the KAI-448-454 audience sub-tickets. Promote to blocking once all
+      # audience sections are populated and the CLI version is pinned.
+      - name: Run Mintlify broken-links check
+        run: npx -y mintlify@latest broken-links
+        continue-on-error: true

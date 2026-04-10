@@ -35,6 +35,15 @@ const RecordersPage = lazy(() =>
 const UsersPage = lazy(() =>
   import('./routes/admin/UsersPage').then((m) => ({ default: m.UsersPage })),
 );
+// KAI-323: LiveViewPage + PlaybackPage lazy-loaded; the grid, picker, and
+// playback timeline only ship when /admin/live or /admin/playback is visited.
+// Real WebRTC/HLS/RTSP wiring lands with KAI-334.
+const LiveViewPage = lazy(() =>
+  import('./routes/admin/LiveViewPage').then((m) => ({ default: m.LiveViewPage })),
+);
+const PlaybackPage = lazy(() =>
+  import('./routes/admin/PlaybackPage').then((m) => ({ default: m.PlaybackPage })),
+);
 const FleetDashboard = lazy(() => import('./routes/command/FleetDashboard'));
 const CustomersPage = lazy(() => import('./routes/command/CustomersPage'));
 const CustomerDrillDown = lazy(() =>
@@ -52,6 +61,8 @@ export function App(): JSX.Element {
         <Route path="/admin/cameras" element={<CamerasPage />} />
         <Route path="/admin/recorders" element={<RecordersPage />} />
         <Route path="/admin/users" element={<UsersPage />} />
+        <Route path="/admin/live" element={<LiveViewPage />} />
+        <Route path="/admin/playback/:eventId" element={<PlaybackPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CustomersPage />} />

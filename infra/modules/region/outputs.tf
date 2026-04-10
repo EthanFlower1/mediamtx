@@ -30,6 +30,23 @@ output "redis_primary_endpoint" {
   sensitive   = true
 }
 
+output "redis_reader_endpoint" {
+  description = "ElastiCache Redis reader endpoint (KAI-217)"
+  value       = module.redis.reader_endpoint
+  sensitive   = true
+}
+
+output "redis_auth_token_secret_arn" {
+  description = "Secrets Manager ARN for the Redis AUTH token (KAI-217; consumed by IRSA at runtime)"
+  value       = module.redis.auth_token_secret_arn
+  sensitive   = true
+}
+
+output "redis_security_group_id" {
+  description = "Redis security group ID (for EKS node-group ingress rules from other modules)"
+  value       = module.redis.security_group_id
+}
+
 output "vpc_id" {
   description = "VPC ID for this region"
   value       = module.vpc.vpc_id

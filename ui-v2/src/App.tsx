@@ -54,6 +54,13 @@ const AiSettingsPage = lazy(() =>
 // and retention overview only ship when /admin/schedules is visited.
 const SchedulesPage = lazy(() =>
   import('./routes/admin/SchedulesPage').then((m) => ({ default: m.SchedulesPage })),
+);
+// KAI-135: SignInMethodsPage lazy-loaded — provider list, 6 IdP wizards,
+// default provider selection, and delete confirmation only ship when
+// /admin/sign-in is visited.
+const SignInMethodsPage = lazy(() =>
+  import('./routes/admin/SignInMethodsPage').then((m) => ({ default: m.SignInMethodsPage })),
+);
 // KAI-324: EventsPage lazy-loaded — the virtualized AI detection list,
 // filter bar, semantic search toggle, and CSV/PDF export only ship when
 // /admin/events is visited.
@@ -95,6 +102,7 @@ export function App(): JSX.Element {
         <Route path="/admin/ai-settings" element={<AiSettingsPage />} />
         <Route path="/admin/schedules" element={<SchedulesPage />} />
         <Route path="/admin/events" element={<EventsPage />} />
+        <Route path="/admin/sign-in" element={<SignInMethodsPage />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/command" element={<FleetDashboard />} />
         <Route path="/command/customers" element={<CustomersPage />} />

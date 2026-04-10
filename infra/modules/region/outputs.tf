@@ -50,3 +50,16 @@ output "kms_eks_key_arn" {
   value       = module.kms.eks_key_arn
   sensitive   = true
 }
+
+# --- Zitadel (KAI-220) ---
+
+output "zitadel_external_domain" {
+  description = "Public domain for the Zitadel identity server"
+  value       = module.zitadel.external_domain
+}
+
+output "zitadel_internal_endpoint" {
+  description = "Cluster-internal gRPC endpoint for Zitadel"
+  value       = module.zitadel.internal_endpoint
+  sensitive   = true
+}

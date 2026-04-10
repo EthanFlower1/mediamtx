@@ -56,3 +56,17 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# --- Zitadel (KAI-220) ---
+
+variable "zitadel_external_domain" {
+  description = "Public domain for the Zitadel identity server (e.g. auth.kaivue.com)"
+  type        = string
+  default     = ""
+}
+
+variable "zitadel_masterkey_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing the Zitadel masterkey"
+  type        = string
+  default     = ""
+}

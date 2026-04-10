@@ -100,3 +100,17 @@ module "cloudfront" {
 
   depends_on = [module.alb]
 }
+
+module "zitadel" {
+  source = "./zitadel"
+
+  region              = var.region
+  environment         = var.environment
+  external_domain     = var.zitadel_external_domain
+  db_host             = module.rds.cluster_endpoint
+  db_admin_secret_arn = module.rds.admin_secret_arn
+  masterkey_secret_arn = var.zitadel_masterkey_secret_arn
+  tags                = local.common_tags
+
+  depends_on = [module.eks, module.rds]
+}

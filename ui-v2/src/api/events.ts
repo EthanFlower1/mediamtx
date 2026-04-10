@@ -1,10 +1,21 @@
-// KAI-324: Stub events API client.
+// KAI-324 + KAI-149 follow-up: Events API module.
 //
-// Returns typed mock AI detection events for the Customer Admin
-// Events page. Real Connect-Go generated clients will replace these
-// functions when the proto pipeline lands (KAI-238). Function
-// signatures are promise-based so migration is mechanical. All
-// queries are tenant-scoped via the session store.
+// This file contains ONLY:
+//   - shared types (AiEvent, filters, export args)
+//   - the EventsClient interface that real/mock backends implement
+//   - tenant-scoped TanStack Query key factory
+//   - pure, tested helpers (buildEventsCsv, distinctCameras)
+//   - the feature-flag bootstrap that selects mock vs real client
+//
+// Mock implementation lives in events.mock.ts. The real Connect-Go
+// client will land with the proto pipeline (KAI-238) and register
+// itself through the same bootstrap, so swapping is mechanical.
+
+import { eventsMockClient } from './events.mock';
+
+// ---------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------
 
 export type EventSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
@@ -43,154 +54,6 @@ export interface EventListFilters {
   semantic?: boolean;
 }
 
-// ---------------------------------------------------------------------
-// Deterministic mock data generators
-// ---------------------------------------------------------------------
-
-const EVENT_TYPES: readonly EventType[] = [
-  'person.detected',
-  'vehicle.detected',
-  'package.detected',
-  'face.matched',
-  'lpr.plate',
-  'anomaly.behavioral',
-  'line.crossed',
-  'intrusion.zone',
-];
-
-const SEVERITIES: readonly EventSeverity[] = [
-  'info',
-  'info',
-  'low',
-  'low',
-  'medium',
-  'medium',
-  'high',
-  'critical',
-];
-
-const CAMERA_COUNT = 10;
-
-function buildCameras(tenantId: string): readonly { id: string; name: string }[] {
-  const out: { id: string; name: string }[] = [];
-  for (let i = 0; i < CAMERA_COUNT; i++) {
-    out.push({
-      id: `cam-${tenantId}-${i.toString().padStart(3, '0')}`,
-      name: `Camera ${(i + 1).toString().padStart(3, '0')}`,
-    });
-  }
-  return out;
-}
-
-function buildEvents(tenantId: string, count: number): AiEvent[] {
-  const cameras = buildCameras(tenantId);
-  const now = Date.now();
-  const out: AiEvent[] = [];
-  for (let i = 0; i < count; i++) {
-    const type = EVENT_TYPES[i % EVENT_TYPES.length]!;
-    const severity = SEVERITIES[i % SEVERITIES.length]!;
-    const camera = cameras[i % cameras.length]!;
-    const ts = new Date(now - i * 90_000).toISOString();
-    out.push({
-      id: `evt-${i.toString().padStart(4, '0')}`,
-      tenantId,
-      cameraId: camera.id,
-      cameraName: camera.name,
-      type,
-      severity,
-      timestamp: ts,
-      summary: buildSummary(type, camera.name),
-      // Deterministic placeholder thumbnail URL — real thumbnails land
-      // with the Multi-Recorder timeline API (KAI-262).
-      thumbnailUrl: `/thumbnails/${camera.id}/${i}.jpg`,
-      clipStartSec: i * 90,
-      clipDurationSec: 12,
-    });
-  }
-  return out;
-}
-
-function buildSummary(type: EventType, cameraName: string): string {
-  // The summary text is deterministic seed data — the UI displays
-  // translated type labels separately, this is a free-text excerpt
-  // the detector would emit. Left in English in the mock because the
-  // real backend emits source-language text plus a structured code.
-  switch (type) {
-    case 'person.detected':
-      return `Person detected on ${cameraName}`;
-    case 'vehicle.detected':
-      return `Vehicle detected on ${cameraName}`;
-    case 'package.detected':
-      return `Package left at ${cameraName}`;
-    case 'face.matched':
-      return `Face match on ${cameraName}`;
-    case 'lpr.plate':
-      return `License plate read on ${cameraName}`;
-    case 'anomaly.behavioral':
-      return `Behavioral anomaly on ${cameraName}`;
-    case 'line.crossed':
-      return `Tripwire crossed on ${cameraName}`;
-    case 'intrusion.zone':
-      return `Intrusion zone breach on ${cameraName}`;
-  }
-}
-
-// ---------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------
-
-export async function listEvents(filters: EventListFilters): Promise<AiEvent[]> {
-  await Promise.resolve();
-  const all = buildEvents(filters.tenantId, 50);
-  let filtered: AiEvent[] = all;
-
-  if (filters.cameraIds && filters.cameraIds.length > 0) {
-    const set = new Set(filters.cameraIds);
-    filtered = filtered.filter((e) => set.has(e.cameraId));
-  }
-  if (filters.types && filters.types.length > 0) {
-    const set = new Set(filters.types);
-    filtered = filtered.filter((e) => set.has(e.type));
-  }
-  if (filters.severities && filters.severities.length > 0) {
-    const set = new Set(filters.severities);
-    filtered = filtered.filter((e) => set.has(e.severity));
-  }
-  if (filters.fromIso) {
-    const fromMs = Date.parse(filters.fromIso);
-    filtered = filtered.filter((e) => Date.parse(e.timestamp) >= fromMs);
-  }
-  if (filters.toIso) {
-    const toMs = Date.parse(filters.toIso);
-    filtered = filtered.filter((e) => Date.parse(e.timestamp) <= toMs);
-  }
-  if (filters.search && filters.search.trim().length > 0) {
-    const q = filters.search.trim().toLowerCase();
-    if (filters.semantic) {
-      // KAI-324: semantic search is mocked client-side — the real
-      // backend will call pgvector + CLIP embeddings (KAI-292). For
-      // the scaffold, semantic mode loosely matches on any token
-      // that appears in the summary OR the event type, which is
-      // sufficient to exercise the UI path.
-      const tokens = q.split(/\s+/).filter((tok) => tok.length > 0);
-      filtered = filtered.filter((e) =>
-        tokens.some(
-          (tok) =>
-            e.summary.toLowerCase().includes(tok) ||
-            e.type.toLowerCase().includes(tok),
-        ),
-      );
-    } else {
-      filtered = filtered.filter(
-        (e) =>
-          e.summary.toLowerCase().includes(q) ||
-          e.cameraName.toLowerCase().includes(q),
-      );
-    }
-  }
-  return filtered;
-}
-
 export interface ExportPdfArgs {
   tenantId: string;
   eventIds: readonly string[];
@@ -201,19 +64,40 @@ export interface ExportPdfResult {
   pageCount: number;
 }
 
-export async function exportEventsPdf(args: ExportPdfArgs): Promise<ExportPdfResult> {
-  // The real PDF renderer runs in the backend because it needs the
-  // original video frames. The scaffold returns a deterministic stub
-  // so the UI can render a "download ready" state.
-  await Promise.resolve();
-  return {
-    downloadUrl: `/api/v1/tenants/${args.tenantId}/events/export/pdf?ids=${args.eventIds.join(',')}`,
-    pageCount: Math.max(1, Math.ceil(args.eventIds.length / 4)),
-  };
+export interface EventsClient {
+  listEvents(filters: EventListFilters): Promise<AiEvent[]>;
+  exportEventsPdf(args: ExportPdfArgs): Promise<ExportPdfResult>;
 }
 
 // ---------------------------------------------------------------------
-// CSV generator — client-side, pure, tested.
+// Feature-flag bootstrap
+// ---------------------------------------------------------------------
+//
+// VITE_USE_MOCK_API defaults to 'true' until the Connect-Go client
+// lands (KAI-238). Set to 'false' in the production .env to force
+// the real client; the bootstrap will throw if no real client has
+// been registered, which is the behavior we want in CI.
+
+let activeClient: EventsClient = eventsMockClient;
+
+export function registerEventsClient(client: EventsClient): void {
+  activeClient = client;
+}
+
+export function resetEventsClientForTests(): void {
+  activeClient = eventsMockClient;
+}
+
+export function listEvents(filters: EventListFilters): Promise<AiEvent[]> {
+  return activeClient.listEvents(filters);
+}
+
+export function exportEventsPdf(args: ExportPdfArgs): Promise<ExportPdfResult> {
+  return activeClient.exportEventsPdf(args);
+}
+
+// ---------------------------------------------------------------------
+// Pure helpers — no I/O, safe to call from any layer.
 // ---------------------------------------------------------------------
 
 export function buildEventsCsv(events: readonly AiEvent[]): string {

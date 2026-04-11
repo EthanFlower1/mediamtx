@@ -916,4 +916,26 @@ CREATE TABLE escalation_rules (
 		CREATE INDEX idx_api_key_audit_key ON api_key_audit_log(api_key_id);
 		`,
 	},
+	// Migration 52 (KAI-276): Federation management tables for the admin UI.
+	{
+		version: 52,
+		sql: `
+CREATE TABLE federations (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE federation_peers (
+	id TEXT PRIMARY KEY,
+	federation_id TEXT NOT NULL,
+	token TEXT NOT NULL DEFAULT '',
+	status TEXT NOT NULL DEFAULT 'pending',
+	joined_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY (federation_id) REFERENCES federations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_federation_peers_fed ON federation_peers(federation_id);
+`,
+	},
 }

@@ -86,7 +86,7 @@ func (h *FederationHandler) Create(c *gin.Context) {
 	}
 
 	if h.Audit != nil {
-		h.Audit.Log(c, "federation.create", "federation", fed.ID, fmt.Sprintf("created federation %q", name))
+		h.Audit.logAction(c, "federation.create", "federation", fed.ID, fmt.Sprintf("created federation %q", name))
 	}
 
 	c.JSON(http.StatusCreated, fed)
@@ -108,7 +108,7 @@ func (h *FederationHandler) Delete(c *gin.Context) {
 	}
 
 	if h.Audit != nil {
-		h.Audit.Log(c, "federation.delete", "federation", fed.ID, fmt.Sprintf("disbanded federation %q", fed.Name))
+		h.Audit.logAction(c, "federation.delete", "federation", fed.ID, fmt.Sprintf("disbanded federation %q", fed.Name))
 	}
 
 	c.Status(http.StatusNoContent)
@@ -144,7 +144,7 @@ func (h *FederationHandler) GenerateInvite(c *gin.Context) {
 	h.mu.Unlock()
 
 	if h.Audit != nil {
-		h.Audit.Log(c, "federation.invite", "federation", fed.ID, "generated invite token")
+		h.Audit.logAction(c, "federation.invite", "federation", fed.ID, "generated invite token")
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -197,7 +197,7 @@ func (h *FederationHandler) Join(c *gin.Context) {
 	}
 
 	if h.Audit != nil {
-		h.Audit.Log(c, "federation.join", "federation", fed.ID, fmt.Sprintf("joined federation via token, peer %s", peer.ID))
+		h.Audit.logAction(c, "federation.join", "federation", fed.ID, fmt.Sprintf("joined federation via token, peer %s", peer.ID))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -222,7 +222,7 @@ func (h *FederationHandler) RemovePeer(c *gin.Context) {
 	}
 
 	if h.Audit != nil {
-		h.Audit.Log(c, "federation.remove_peer", "federation", peerID, fmt.Sprintf("removed peer %s", peerID))
+		h.Audit.logAction(c, "federation.remove_peer", "federation", peerID, fmt.Sprintf("removed peer %s", peerID))
 	}
 
 	c.Status(http.StatusNoContent)

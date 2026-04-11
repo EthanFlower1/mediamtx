@@ -141,6 +141,31 @@ class _AlertsPanelContent extends ConsumerWidget {
                   },
                 ),
         ),
+        // View All Notifications link
+        Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: NvrColors.of(context).border)),
+          ),
+          child: InkWell(
+            onTap: () {
+              onClose();
+              context.go('/notifications');
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text(
+                  'View all notifications',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: NvrColors.of(context).accent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

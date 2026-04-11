@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import type { Notification } from '../hooks/useNotifications'
 
 interface NotificationBellProps {
@@ -136,6 +137,15 @@ export default function NotificationBell({ notifications, unreadCount, onMarkAll
               ))
             )}
           </div>
+
+          {/* View All link */}
+          <Link
+            to="/notifications"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-center text-xs font-medium text-nvr-accent hover:text-nvr-accent-hover border-t border-nvr-border transition-colors"
+          >
+            View all notifications
+          </Link>
         </div>
       )}
     </div>

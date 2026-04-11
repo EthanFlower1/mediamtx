@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
 import Notifications from './pages/Notifications'
+import NotificationCenter from './pages/NotificationCenter'
 import DownloadClient from './pages/DownloadClient'
 import Integrations from './pages/Integrations'
 import Diagnostics from './pages/Diagnostics'
@@ -579,6 +580,7 @@ function AppRoutes() {
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/integrations" element={<ProtectedRoute><Layout><Integrations /></Layout></ProtectedRoute>} />
       <Route path="/federation" element={<ProtectedRoute><Layout><Federation /></Layout></ProtectedRoute>} />
+      <Route path="/notification-center" element={<ProtectedRoute><Layout><NotificationCenter /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}
       <Route path="/live" element={<Navigate to="/download" replace />} />

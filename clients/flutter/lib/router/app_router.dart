@@ -18,6 +18,7 @@ import '../screens/cameras/camera_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/schedules/schedules_screen.dart';
 import '../screens/screenshots/screenshots_screen.dart';
+import '../screens/notifications/notification_center_screen.dart';
 import '../models/camera.dart';
 
 int _indexFromPath(String path) {
@@ -29,11 +30,12 @@ int _indexFromPath(String path) {
   if (path.startsWith('/devices')) return 5;
   if (path.startsWith('/settings')) return 6;
   if (path.startsWith('/schedules')) return 7;
+  if (path.startsWith('/notifications')) return 8;
   return 0;
 }
 
 void _navigateToIndex(BuildContext context, int index) {
-  const paths = ['/dashboard', '/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules'];
+  const paths = ['/dashboard', '/live', '/playback', '/search', '/screenshots', '/devices', '/settings', '/schedules', '/notifications'];
   context.go(paths[index]);
 }
 
@@ -97,6 +99,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ]),
           GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
           GoRoute(path: '/schedules', builder: (_, __) => const SchedulesScreen()),
+          GoRoute(path: '/notifications', builder: (_, __) => const NotificationCenterScreen()),
         ],
       ),
     ],

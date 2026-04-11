@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
+	"strings"
 
 	"github.com/bluenviron/mediamtx/internal/shared/inference"
 )
@@ -16,7 +18,7 @@ import (
 // The encoder loads the CLIP text model at construction time and reuses the
 // handle for every Encode call. The model is expected to accept a single
 // input tensor named "text" of shape [1, N] (int64 token IDs) and produce
-// a single output tensor named "output" of shape [1, 768] (float32).
+// a single output tensor named "output" of shape [1, 512] (float32).
 //
 // For v1, tokenization is performed by a simple word-level tokenizer
 // identical to the one in internal/nvr/ai/embedder.go. Full BPE will be
@@ -42,7 +44,7 @@ func NewTritonTextEncoder(ctx context.Context, inf inference.Inferencer, modelID
 }
 
 // Encode tokenizes the text query and runs the CLIP text encoder, returning
-// an L2-normalized 768-dim embedding.
+// an L2-normalized 512-dim embedding.
 func (e *TritonTextEncoder) Encode(ctx context.Context, text string) ([]float32, error) {
 	tokens := tokenizeSimple(text)
 	tokenBytes := int64SliceToBytes(tokens)
@@ -96,21 +98,32 @@ const (
 	endToken   = int64(49407)
 )
 
-// tokenizeSimple produces a CLIP-compatible token sequence using simple
-// word-level lookup. This matches the v1 tokenizer in the edge embedder.
-// The output is always clipSeqLen (77) int64 values with SOT, tokens, EOT,
-// then zero padding.
+// vocabSize is the CLIP BPE vocabulary size (tokens 1..49152 are valid word
+// tokens; 0 is padding, 49406/49407 are SOT/EOT).
+const vocabSize = 49152
+
+// tokenizeSimple produces a CLIP-compatible token sequence using word-level
+// FNV hashing. Each whitespace-delimited word is lowercased and hashed to a
+// deterministic token ID in [1, vocabSize]. The output is always clipSeqLen
+// (77) int64 values: SOT at position 0, word tokens, EOT after the last
+// word, then zero padding.
 func tokenizeSimple(text string) []int64 {
 	tokens := make([]int64, clipSeqLen)
 	tokens[0] = startToken
 
-	// For the cloud encoder we pass the raw text and let the model's
-	// built-in tokenizer handle BPE. The token sequence is padded with
-	// zeros and terminated with EOT.
 	pos := 1
-	if pos < clipSeqLen {
-		tokens[pos] = endToken
+	words := strings.Fields(strings.ToLower(text))
+	for _, w := range words {
+		if pos >= clipSeqLen-1 { // reserve last slot for EOT
+			break
+		}
+		h := fnv.New32a()
+		h.Write([]byte(w))
+		id := int64(h.Sum32()%uint32(vocabSize)) + 1 // range [1, vocabSize]
+		tokens[pos] = id
+		pos++
 	}
+	tokens[pos] = endToken
 	return tokens
 }
 

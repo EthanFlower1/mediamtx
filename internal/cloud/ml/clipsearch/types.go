@@ -6,9 +6,10 @@ import (
 	"time"
 )
 
-// EmbeddingDim is the CLIP ViT-L/14 embedding dimension used in the
+// EmbeddingDim is the CLIP ViT-B/32 embedding dimension used in the
 // clip_embeddings pgvector column (KAI-292 migration 0019).
-const EmbeddingDim = 768
+// Must match internal/recorder/features/clip/config.go:DefaultEmbeddingDim.
+const EmbeddingDim = 512
 
 // DefaultLimit is the maximum number of results returned when no limit is
 // specified in the query.
@@ -93,7 +94,7 @@ type SearchResponse struct {
 // The production implementation calls Triton Inference Server; tests use a
 // deterministic fake.
 type TextEncoder interface {
-	// Encode returns a 768-dim L2-normalized embedding for the given text.
+	// Encode returns a 512-dim L2-normalized embedding for the given text.
 	Encode(ctx context.Context, text string) ([]float32, error)
 
 	// ModelVersion returns the identifier of the loaded CLIP text model.

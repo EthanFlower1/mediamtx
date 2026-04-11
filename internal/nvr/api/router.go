@@ -820,6 +820,19 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/webhooks/:id", webhookHandler.Delete)
 	protected.GET("/webhooks/:id/deliveries", webhookHandler.Deliveries)
 
+	// KAI-469: Screen sharing + ticket integration.
+	screenShareHandler := &ScreenShareHandler{DB: cfg.DB, Audit: audit}
+	protected.POST("/screen-share/sessions", screenShareHandler.Initiate)
+	protected.GET("/screen-share/sessions", screenShareHandler.List)
+	protected.GET("/screen-share/sessions/:id", screenShareHandler.Get)
+	protected.POST("/screen-share/sessions/:id/end", screenShareHandler.End)
+
+	ticketHandler := &TicketHandler{DB: cfg.DB, Audit: audit}
+	protected.POST("/tickets", ticketHandler.Create)
+	protected.GET("/tickets", ticketHandler.List)
+	protected.GET("/tickets/config/:integratorId", ticketHandler.GetHookConfig)
+	protected.PUT("/tickets/config/:integratorId", ticketHandler.UpsertHookConfig)
+
 	connHandler := &ConnectionHandler{DB: cfg.DB, ConnMgr: cfg.ConnManager}
 	protected.GET("/cameras/:id/connection", connHandler.GetState)
 	protected.GET("/cameras/:id/connection/history", connHandler.History)

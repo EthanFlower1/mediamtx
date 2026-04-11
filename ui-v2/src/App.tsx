@@ -88,6 +88,9 @@ const APIKeysPage = lazy(() => import('./routes/command/APIKeysPage'));
 // KAI-467: ImpersonationAuditPage lazy-loaded — session list, audit log table,
 // and impersonation history only ship when /command/impersonation-audit is visited.
 const ImpersonationAuditPage = lazy(() => import('./routes/command/ImpersonationAuditPage'));
+// KAI-469: SupportPage lazy-loaded — screen sharing, ticket creator, and
+// integration config only ship when /command/support is visited.
+const SupportPage = lazy(() => import('./routes/command/SupportPage'));
 const CustomerDrillDown = lazy(() =>
   import('./components/customers/CustomerDrillDown').then((m) => ({
     default: m.CustomerDrillDown,
@@ -121,6 +124,7 @@ export function App(): JSX.Element {
         <Route path="/command/permissions" element={<PermissionsPage />} />
         <Route path="/command/api-keys" element={<APIKeysPage />} />
         <Route path="/command/impersonation-audit" element={<ImpersonationAuditPage />} />
+        <Route path="/command/support" element={<SupportPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

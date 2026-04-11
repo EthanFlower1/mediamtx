@@ -28,6 +28,25 @@ func (d *DB) SetConfig(key, value string) error {
 	return err
 }
 
+// ListConfigByPrefix returns all config values whose key starts with the given prefix.
+func (d *DB) ListConfigByPrefix(prefix string) ([]string, error) {
+	rows, err := d.Query("SELECT value FROM config WHERE key LIKE ?", prefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var values []string
+	for rows.Next() {
+		var val string
+		if err := rows.Scan(&val); err != nil {
+			return nil, err
+		}
+		values = append(values, val)
+	}
+	return values, rows.Err()
+}
+
 // DeleteConfig deletes a configuration entry by key. Returns ErrNotFound if no match.
 func (d *DB) DeleteConfig(key string) error {
 	res, err := d.Exec("DELETE FROM config WHERE key = ?", key)

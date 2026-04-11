@@ -829,4 +829,51 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 49,
 		sql:     `ALTER TABLE cameras ADD COLUMN device_info TEXT NOT NULL DEFAULT '';`,
 	},
+	// Migration 50: Notification preferences, quiet hours, and escalation rules
+	// for the Customer Admin notifications page (KAI-471).
+	{
+		version: 50,
+		sql: `
+CREATE TABLE notification_preferences (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id TEXT NOT NULL,
+	camera_id TEXT NOT NULL DEFAULT '*',
+	event_type TEXT NOT NULL,
+	channel TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	UNIQUE(user_id, camera_id, event_type, channel)
+);
+
+CREATE INDEX idx_notif_prefs_user ON notification_preferences (user_id);
+
+CREATE TABLE notification_quiet_hours (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 0,
+	start_time TEXT NOT NULL DEFAULT '22:00',
+	end_time TEXT NOT NULL DEFAULT '07:00',
+	timezone TEXT NOT NULL DEFAULT 'UTC',
+	days TEXT NOT NULL DEFAULT '["mon","tue","wed","thu","fri","sat","sun"]',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	UNIQUE(user_id)
+);
+
+CREATE TABLE escalation_rules (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	event_type TEXT NOT NULL,
+	camera_id TEXT NOT NULL DEFAULT '*',
+	enabled INTEGER NOT NULL DEFAULT 1,
+	delay_minutes INTEGER NOT NULL DEFAULT 5,
+	repeat_count INTEGER NOT NULL DEFAULT 3,
+	repeat_interval_minutes INTEGER NOT NULL DEFAULT 10,
+	escalation_chain TEXT NOT NULL DEFAULT '[]',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+`,
+	},
 }

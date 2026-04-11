@@ -12,6 +12,7 @@ import Notifications from './pages/Notifications'
 import DownloadClient from './pages/DownloadClient'
 import Integrations from './pages/Integrations'
 import Diagnostics from './pages/Diagnostics'
+import Federation from './pages/Federation'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -277,6 +278,12 @@ const IconDiagnostics = (
   </svg>
 )
 
+const IconFederation = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.293-1.243a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.364" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -385,6 +392,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           { to: '/users', icon: IconUsers, label: 'Users' },
           { to: '/resellers', icon: IconResellers, label: 'Resellers' },
           { to: '/diagnostics', icon: IconDiagnostics, label: 'Diagnostics' },
+          { to: '/federation', icon: IconFederation, label: 'Federation' },
           { to: '/audit', icon: IconAudit, label: 'Audit Log' },
           { to: '/integrations', icon: IconIntegrations, label: 'Integrations' },
         ]
@@ -570,6 +578,7 @@ function AppRoutes() {
       <Route path="/diagnostics" element={<ProtectedRoute><Layout><Diagnostics /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/integrations" element={<ProtectedRoute><Layout><Integrations /></Layout></ProtectedRoute>} />
+      <Route path="/federation" element={<ProtectedRoute><Layout><Federation /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}
       <Route path="/live" element={<Navigate to="/download" replace />} />

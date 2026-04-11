@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminSettings } from './routes/admin/Settings';
 import { NotFound } from './routes/NotFound';
+import { ImpersonationBanner } from './components/customers/ImpersonationBanner';
 
 // KAI-307: top-level router. Two runtime contexts share one build;
 // route prefix selects context.
@@ -84,6 +85,9 @@ const PermissionsPage = lazy(() => import('./routes/command/PermissionsPage'));
 // KAI-319: APIKeysPage lazy-loaded — generate, list, rotate, revoke, and
 // per-key audit log only ship when /command/api-keys is visited.
 const APIKeysPage = lazy(() => import('./routes/command/APIKeysPage'));
+// KAI-467: ImpersonationAuditPage lazy-loaded — session list, audit log table,
+// and impersonation history only ship when /command/impersonation-audit is visited.
+const ImpersonationAuditPage = lazy(() => import('./routes/command/ImpersonationAuditPage'));
 const CustomerDrillDown = lazy(() =>
   import('./components/customers/CustomerDrillDown').then((m) => ({
     default: m.CustomerDrillDown,
@@ -92,6 +96,8 @@ const CustomerDrillDown = lazy(() =>
 
 export function App(): JSX.Element {
   return (
+    <>
+    <ImpersonationBanner />
     <Suspense fallback={<p role="status">Loading…</p>}>
       <Routes>
         <Route path="/" element={<Navigate to="/admin" replace />} />
@@ -114,8 +120,10 @@ export function App(): JSX.Element {
         <Route path="/command/staff" element={<StaffPage />} />
         <Route path="/command/permissions" element={<PermissionsPage />} />
         <Route path="/command/api-keys" element={<APIKeysPage />} />
+        <Route path="/command/impersonation-audit" element={<ImpersonationAuditPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
+    </>
   );
 }

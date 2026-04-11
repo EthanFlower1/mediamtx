@@ -190,7 +190,7 @@ func (d *DB) ListAPIKeyAudit(apiKeyID string) ([]*APIKeyAuditEntry, error) {
 		SELECT id, api_key_id, action, actor_id, actor_username,
 		       ip_address, details, created_at
 		FROM api_key_audit_log WHERE api_key_id = ?
-		ORDER BY created_at DESC`, apiKeyID)
+		ORDER BY id DESC`, apiKeyID)
 	if err != nil {
 		return nil, err
 	}

@@ -149,7 +149,7 @@ func grantGroup(t *testing.T, gm *permissions.FederationGrantManager, peerID, te
 	require.NoError(t, err)
 }
 
-func newCatalogHandler(t *testing.T, cfg federation.Config) *federation.Handler {
+func newCatalogHandler(t *testing.T, cfg federation.RPCConfig) *federation.RPCHandler {
 	t.Helper()
 	if cfg.ServerVersion == "" {
 		cfg.ServerVersion = testVersion
@@ -157,7 +157,7 @@ func newCatalogHandler(t *testing.T, cfg federation.Config) *federation.Handler 
 	if cfg.JWKSProvider == nil {
 		cfg.JWKSProvider = &staticJWKSProvider{json: testJWKS, maxAge: 300}
 	}
-	h, err := federation.NewHandler(cfg)
+	h, err := federation.NewRPCHandler(cfg)
 	require.NoError(t, err)
 	return h
 }
@@ -178,7 +178,7 @@ func (m *peerContextMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 	m.next.ServeHTTP(w, r)
 }
 
-func newCatalogClient(t *testing.T, handler *federation.Handler) kaivuev1connect.FederationPeerServiceClient {
+func newCatalogClient(t *testing.T, handler *federation.RPCHandler) kaivuev1connect.FederationPeerServiceClient {
 	t.Helper()
 	_, h := kaivuev1connect.NewFederationPeerServiceHandler(handler)
 	ts := httptest.NewServer(&peerContextMiddleware{next: h})
@@ -208,7 +208,7 @@ func TestListUsers_WithGrants_ReturnsFilteredUsers(t *testing.T) {
 	grantUser(t, gm, testPeerID, testTenant, "u1")
 	grantUser(t, gm, testPeerID, testTenant, "u3")
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    userStore,
 	})
@@ -237,7 +237,7 @@ func TestListUsers_NoGrants_ReturnsEmpty(t *testing.T) {
 		},
 	}}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    userStore,
 	})
@@ -253,7 +253,7 @@ func TestListUsers_NoGrants_ReturnsEmpty(t *testing.T) {
 
 func TestListUsers_MissingPeerID_ReturnsUnauthenticated(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    &memUserStore{users: map[string][]federation.UserRecord{}},
 	})
@@ -271,7 +271,7 @@ func TestListUsers_MissingPeerID_ReturnsUnauthenticated(t *testing.T) {
 
 func TestListUsers_MissingTenant_ReturnsInvalidArgument(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    &memUserStore{users: map[string][]federation.UserRecord{}},
 	})
@@ -295,7 +295,7 @@ func TestListUsers_Pagination(t *testing.T) {
 		grantUser(t, gm, testPeerID, testTenant, id)
 	}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    &memUserStore{users: map[string][]federation.UserRecord{testTenant: users}},
 	})
@@ -344,7 +344,7 @@ func TestListUsers_SearchFilter(t *testing.T) {
 	grantUser(t, gm, testPeerID, testTenant, "u1")
 	grantUser(t, gm, testPeerID, testTenant, "u2")
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    userStore,
 	})
@@ -363,7 +363,7 @@ func TestListUsers_SearchFilter(t *testing.T) {
 
 func TestListUsers_StoreError(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		UserStore:    &memUserStore{err: errors.New("db offline")},
 	})
@@ -393,7 +393,7 @@ func TestListGroups_WithGrants_ReturnsFilteredGroups(t *testing.T) {
 	grantGroup(t, gm, testPeerID, testTenant, "g1")
 	grantGroup(t, gm, testPeerID, testTenant, "g3")
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		GroupStore:   groupStore,
 	})
@@ -421,7 +421,7 @@ func TestListGroups_NoGrants_ReturnsEmpty(t *testing.T) {
 		},
 	}}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		GroupStore:   groupStore,
 	})
@@ -436,7 +436,7 @@ func TestListGroups_NoGrants_ReturnsEmpty(t *testing.T) {
 
 func TestListGroups_MissingPeerID_ReturnsUnauthenticated(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		GroupStore:   &memGroupStore{groups: map[string][]federation.GroupRecord{}},
 	})
@@ -460,7 +460,7 @@ func TestListGroups_Pagination(t *testing.T) {
 		grantGroup(t, gm, testPeerID, testTenant, id)
 	}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		GroupStore:   &memGroupStore{groups: map[string][]federation.GroupRecord{testTenant: groups}},
 	})
@@ -515,7 +515,7 @@ func TestListCameras_WithGrants_ReturnsFilteredCameras(t *testing.T) {
 	grantCamera(t, gm, testPeerID, testTenant, "cam1", permissions.ActionViewLive)
 	grantCamera(t, gm, testPeerID, testTenant, "cam3", permissions.ActionViewPlayback)
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  cameraStore,
 	})
@@ -545,7 +545,7 @@ func TestListCameras_NoGrants_ReturnsEmpty(t *testing.T) {
 		},
 	}}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  cameraStore,
 	})
@@ -560,7 +560,7 @@ func TestListCameras_NoGrants_ReturnsEmpty(t *testing.T) {
 
 func TestListCameras_MissingPeerID_ReturnsUnauthenticated(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  &memCameraStore{cameras: map[string][]federation.CameraRecord{}},
 	})
@@ -577,7 +577,7 @@ func TestListCameras_MissingPeerID_ReturnsUnauthenticated(t *testing.T) {
 
 func TestListCameras_MissingTenant_ReturnsInvalidArgument(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  &memCameraStore{cameras: map[string][]federation.CameraRecord{}},
 	})
@@ -604,7 +604,7 @@ func TestListCameras_RecorderIDFilter(t *testing.T) {
 	grantCamera(t, gm, testPeerID, testTenant, "cam1", permissions.ActionViewLive)
 	grantCamera(t, gm, testPeerID, testTenant, "cam2", permissions.ActionViewLive)
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  cameraStore,
 	})
@@ -636,7 +636,7 @@ func TestListCameras_Pagination(t *testing.T) {
 		grantCamera(t, gm, testPeerID, testTenant, id, permissions.ActionViewLive)
 	}
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  &memCameraStore{cameras: map[string][]federation.CameraRecord{testTenant: cameras}},
 	})
@@ -682,7 +682,7 @@ func TestListCameras_CameraMetadataPresent(t *testing.T) {
 	}}
 	grantCamera(t, gm, testPeerID, testTenant, "cam1", permissions.ActionViewLive)
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  cameraStore,
 	})
@@ -717,7 +717,7 @@ func TestListCameras_PartialGrants(t *testing.T) {
 	grantCamera(t, gm, testPeerID, testTenant, "cam2", permissions.ActionViewSnapshot)
 	grantCamera(t, gm, testPeerID, testTenant, "cam4", permissions.ActionViewThumbnails)
 
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  cameraStore,
 	})
@@ -736,7 +736,7 @@ func TestListCameras_PartialGrants(t *testing.T) {
 
 func TestListCameras_StoreError(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		CameraStore:  &memCameraStore{err: errors.New("connection refused")},
 	})
@@ -755,7 +755,7 @@ func TestListCameras_StoreError(t *testing.T) {
 
 func TestListUsers_NoUserStore_ReturnsUnimplemented(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 		// UserStore intentionally nil.
 	})
@@ -772,7 +772,7 @@ func TestListUsers_NoUserStore_ReturnsUnimplemented(t *testing.T) {
 
 func TestListGroups_NoGroupStore_ReturnsUnimplemented(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 	})
 	client := newCatalogClient(t, handler)
@@ -788,7 +788,7 @@ func TestListGroups_NoGroupStore_ReturnsUnimplemented(t *testing.T) {
 
 func TestListCameras_NoCameraStore_ReturnsUnimplemented(t *testing.T) {
 	gm := newGrantManager(t)
-	handler := newCatalogHandler(t, federation.Config{
+	handler := newCatalogHandler(t, federation.RPCConfig{
 		GrantManager: gm,
 	})
 	client := newCatalogClient(t, handler)

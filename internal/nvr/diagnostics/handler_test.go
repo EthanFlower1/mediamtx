@@ -26,7 +26,7 @@ func setupRouter(h *Handler) *gin.Engine {
 func TestHandler_GenerateBundle(t *testing.T) {
 	c := NewCollector(CollectorConfig{
 		Logs: &mockLogProvider{
-			entries: []CollectorCollectorLogEntry{{Level: "info", Message: "test"}},
+			entries: []CollectorLogEntry{{Level: "info", Message: "test"}},
 		},
 		Hardware: &mockHardwareProvider{
 			health: &HardwareHealth{CPUCores: 4, Tier: "mid"},
@@ -101,7 +101,7 @@ func TestHandler_GetBundle_NotFound(t *testing.T) {
 
 func TestHandler_GetBundle_Found(t *testing.T) {
 	c := NewCollector(CollectorConfig{
-		Logs:    &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
+		Logs:    &mockLogProvider{entries: []CollectorLogEntry{{Level: "info"}}},
 		Version: "1.0.0",
 		IDGen:   func() string { return "found-001" },
 	})
@@ -138,7 +138,7 @@ func TestHandler_GetBundle_Found(t *testing.T) {
 
 func TestHandler_ListBundles(t *testing.T) {
 	c := NewCollector(CollectorConfig{
-		Logs:    &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
+		Logs:    &mockLogProvider{entries: []CollectorLogEntry{{Level: "info"}}},
 		Version: "1.0.0",
 	})
 

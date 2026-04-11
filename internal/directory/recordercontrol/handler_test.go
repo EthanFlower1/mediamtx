@@ -32,8 +32,8 @@ func setupDB(t *testing.T, recorderID string) *db.DB {
 
 	// Seed a recorder.
 	_, err = d.ExecContext(ctx,
-		`INSERT INTO recorders (recorder_id, device_pubkey, token_id) VALUES (?, ?, ?)`,
-		recorderID, "test-pubkey", "test-token",
+		`INSERT INTO recorders (id, tenant_id, device_pubkey, token_id) VALUES (?, ?, ?, ?)`,
+		recorderID, "test-tenant", []byte("test-pubkey"), "test-token",
 	)
 	if err != nil {
 		t.Fatalf("seed recorder: %v", err)

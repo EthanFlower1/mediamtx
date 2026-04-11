@@ -42,7 +42,7 @@ func (s *RecorderStore) Insert(ctx context.Context, row RecorderRow) error {
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO recorders
-			(recorder_id, tenant_id, device_pubkey, os_release, hardware_json, token_id, enrolled_at)
+			(id, tenant_id, device_pubkey, os_release, hardware_json, token_id, enrolled_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		row.RecorderID,
 		row.TenantID,

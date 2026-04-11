@@ -91,7 +91,7 @@ func (m *mockUploader) Delete(_ context.Context, key string) error {
 
 func TestGenerate_AllSections(t *testing.T) {
 	logs := &mockLogProvider{
-		entries: []CollectorCollectorLogEntry{
+		entries: []CollectorLogEntry{
 			{Timestamp: time.Now().UTC().Format(time.RFC3339Nano), Level: "info", Module: "nvr", Message: "test log"},
 		},
 	}
@@ -227,7 +227,7 @@ func TestGenerate_AllSections(t *testing.T) {
 
 func TestGenerate_SelectiveSections(t *testing.T) {
 	logs := &mockLogProvider{
-		entries: []CollectorCollectorLogEntry{
+		entries: []CollectorLogEntry{
 			{Timestamp: time.Now().UTC().Format(time.RFC3339Nano), Level: "error", Module: "db", Message: "disk full"},
 		},
 	}
@@ -284,7 +284,7 @@ func TestGenerate_WithUploader(t *testing.T) {
 
 	c := NewCollector(CollectorConfig{
 		Logs: &mockLogProvider{
-			entries: []CollectorCollectorLogEntry{{Level: "info", Message: "hello"}},
+			entries: []CollectorLogEntry{{Level: "info", Message: "hello"}},
 		},
 		Uploader:      uploader,
 		EncryptionKey: make([]byte, 32), // zero key for test
@@ -321,7 +321,7 @@ func TestGenerate_UploadError(t *testing.T) {
 	uploader.uploadErr = fmt.Errorf("network timeout")
 
 	c := NewCollector(CollectorConfig{
-		Logs:     &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
+		Logs:     &mockLogProvider{entries: []CollectorLogEntry{{Level: "info"}}},
 		Uploader: uploader,
 		Version:  "1.0.0",
 		IDGen:    func() string { return "fail-001" },

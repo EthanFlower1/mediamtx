@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,11 +23,21 @@ type fakeImpersonationService struct {
 	revokeErr  error
 }
 
-func (f *fakeImpersonationService) MintScopedToken(_ context.Context, _ auth.UserID, _ string) (*crosstenant.ScopedToken, error) {
+func (f *fakeImpersonationService) MintScopedToken(_ interface {
+	Deadline() (time.Time, bool)
+	Done() <-chan struct{}
+	Err() error
+	Value(any) any
+}, _ auth.UserID, _ string) (*crosstenant.ScopedToken, error) {
 	return f.mintResult, f.mintErr
 }
 
-func (f *fakeImpersonationService) RevokeScopedSession(_ context.Context, _ string) error {
+func (f *fakeImpersonationService) RevokeScopedSession(_ interface {
+	Deadline() (time.Time, bool)
+	Done() <-chan struct{}
+	Err() error
+	Value(any) any
+}, _ string) error {
 	return f.revokeErr
 }
 
@@ -49,7 +60,7 @@ func (f *fakeAuditRecorder) Query(_ context.Context, filter audit.QueryFilter) (
 	return result, nil
 }
 
-func (f *fakeAuditRecorder) Export(_ context.Context, _ audit.QueryFilter, _ audit.ExportFormat, _ interface{ Write([]byte) (int, error) }) error {
+func (f *fakeAuditRecorder) Export(_ context.Context, _ audit.QueryFilter, _ audit.ExportFormat, _ io.Writer) error {
 	return nil
 }
 

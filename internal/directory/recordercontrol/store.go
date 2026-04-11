@@ -144,7 +144,7 @@ func (s *Store) DeleteCamera(ctx context.Context, cameraID string) (int64, error
 // RecorderExists checks if a recorder is enrolled (exists in the recorders table).
 func (s *Store) RecorderExists(ctx context.Context, recorderID string) (bool, error) {
 	var count int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM recorders WHERE recorder_id = ?`, recorderID).Scan(&count)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM recorders WHERE id = ?`, recorderID).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("recordercontrol/store: check recorder %s: %w", recorderID, err)
 	}

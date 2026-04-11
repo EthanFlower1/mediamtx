@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func openTestDB(t *testing.T) *DB {
+func openAPIKeysTestDB(t *testing.T) *DB {
 	t.Helper()
 	tmp := t.TempDir()
 	d, err := Open(tmp + "/test.db")
@@ -18,7 +18,7 @@ func openTestDB(t *testing.T) *DB {
 }
 
 func TestAPIKeyCreateAndGet(t *testing.T) {
-	d := openTestDB(t)
+	d := openAPIKeysTestDB(t)
 
 	k := &APIKey{
 		Name:          "test-key",
@@ -53,7 +53,7 @@ func TestAPIKeyCreateAndGet(t *testing.T) {
 }
 
 func TestAPIKeyList(t *testing.T) {
-	d := openTestDB(t)
+	d := openAPIKeysTestDB(t)
 
 	for i := 0; i < 3; i++ {
 		_ = d.CreateAPIKey(&APIKey{
@@ -90,7 +90,7 @@ func TestAPIKeyList(t *testing.T) {
 }
 
 func TestAPIKeyRevoke(t *testing.T) {
-	d := openTestDB(t)
+	d := openAPIKeysTestDB(t)
 
 	k := &APIKey{Name: "rk", KeyPrefix: "p", KeyHash: "rh", Scope: "read-only", CreatedBy: "u"}
 	_ = d.CreateAPIKey(k)
@@ -111,7 +111,7 @@ func TestAPIKeyRevoke(t *testing.T) {
 }
 
 func TestAPIKeyGracePeriod(t *testing.T) {
-	d := openTestDB(t)
+	d := openAPIKeysTestDB(t)
 
 	k := &APIKey{Name: "gk", KeyPrefix: "p", KeyHash: "gh", Scope: "read-only", CreatedBy: "u"}
 	_ = d.CreateAPIKey(k)
@@ -128,7 +128,7 @@ func TestAPIKeyGracePeriod(t *testing.T) {
 }
 
 func TestAPIKeyAudit(t *testing.T) {
-	d := openTestDB(t)
+	d := openAPIKeysTestDB(t)
 
 	k := &APIKey{Name: "ak", KeyPrefix: "p", KeyHash: "ah", Scope: "read-only", CreatedBy: "u"}
 	_ = d.CreateAPIKey(k)

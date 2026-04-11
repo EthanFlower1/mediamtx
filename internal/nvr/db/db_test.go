@@ -52,6 +52,17 @@ func TestOpenRunsMigrations(t *testing.T) {
 		"roles",
 		"user_camera_permissions",
 		"upgrade_migrations",
+		"notification_preferences",
+		"notification_quiet_hours",
+		"escalation_rules",
+		"api_keys",
+		"api_key_audit_log",
+		"federations",
+		"federation_peers",
+		"notifications",
+		"notification_read_state",
+		"cross_camera_tracks",
+		"cross_camera_sightings",
 	}
 
 	for _, table := range tables {
@@ -64,7 +75,7 @@ func TestOpenRunsMigrations(t *testing.T) {
 	var version int
 	err = d.QueryRow("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&version)
 	require.NoError(t, err)
-	require.Equal(t, 49, version)
+	require.Equal(t, 54, version)
 }
 
 func TestOpenWALMode(t *testing.T) {

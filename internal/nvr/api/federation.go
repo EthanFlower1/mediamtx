@@ -206,6 +206,28 @@ func (h *FederationHandler) Join(c *gin.Context) {
 	})
 }
 
+// ---------- GET /federation/peers ----------
+// List all peers for the current federation.
+
+func (h *FederationHandler) ListPeers(c *gin.Context) {
+	fed, err := h.DB.GetFederation()
+	if err != nil || fed == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no federation configured"})
+		return
+	}
+
+	peers, err := h.DB.ListFederationPeers(fed.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list peers"})
+		return
+	}
+	if peers == nil {
+		peers = []db.FederationPeer{}
+	}
+
+	c.JSON(http.StatusOK, peers)
+}
+
 // ---------- DELETE /federation/peers/:id ----------
 // Remove a peer from the federation.
 

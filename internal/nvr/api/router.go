@@ -875,6 +875,26 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/cameras/:id/connection/queue", connHandler.QueuedCommands)
 	protected.GET("/connections", connHandler.GetAllStates)
 
+	// Federation management (KAI-276).
+	federationHandler := &FederationHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/federation", federationHandler.Get)
+	protected.POST("/federation", federationHandler.Create)
+	protected.DELETE("/federation", federationHandler.Delete)
+	protected.POST("/federation/invite", federationHandler.GenerateInvite)
+	protected.POST("/federation/join", federationHandler.Join)
+	protected.GET("/federation/peers", federationHandler.ListPeers)
+	protected.DELETE("/federation/peers/:id", federationHandler.RemovePeer)
+
+	// Third-party integrations (access control, alarm, ITSM, comms).
+	integrationHandler := &IntegrationHandler{DB: cfg.DB, Audit: audit}
+	protected.GET("/integrations", integrationHandler.List)
+	protected.POST("/integrations", integrationHandler.Create)
+	protected.POST("/integrations/test", integrationHandler.Test)
+	protected.GET("/integrations/:id", integrationHandler.Get)
+	protected.PUT("/integrations/:id", integrationHandler.Update)
+	protected.PATCH("/integrations/:id", integrationHandler.Patch)
+	protected.DELETE("/integrations/:id", integrationHandler.Delete)
+
 	// Serve embedded React UI.
 	distFS, err := fs.Sub(nvrui.DistFS, "dist")
 	if err == nil {

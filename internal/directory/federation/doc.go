@@ -2,13 +2,13 @@
 // Directory-to-Directory RPCs over Connect-Go with mTLS authentication,
 // and the federation pairing lifecycle (KAI-269).
 //
-// # FederationPeerService (KAI-464 + KAI-465)
+// # FederationPeerService (KAI-464 + KAI-465 + KAI-466)
 //
 // KAI-464 laid the scaffold with Ping and GetJWKS. KAI-465 adds the three
 // catalog RPCs (ListUsers, ListGroups, ListCameras), each filtered by Casbin
 // grants for the requesting peer using the "federation:<peer_directory_id>"
-// subject prefix. SearchRecordings and MintStreamURL remain Unimplemented
-// and will be filled in by KAI-466.
+// subject prefix. KAI-466 implements SearchRecordings and MintStreamURL,
+// scoped by the requesting peer's identity and enforced via Casbin.
 //
 // # Token format (KAI-269)
 //

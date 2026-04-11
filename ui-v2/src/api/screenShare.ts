@@ -1,6 +1,6 @@
-// KAI-469: Screen sharing + ticket integration API client stubs.
+// KAI-469: Screen sharing + ticket integration API client.
 //
-// Typed promise stubs for the integrator-facing screen-sharing and
+// Typed API client for the integrator-facing screen-sharing and
 // ticket integration features:
 //   - initiateSession(spec)
 //   - getSession(sessionId)
@@ -10,8 +10,7 @@
 //   - getTicketHookConfig(integratorId)
 //   - upsertTicketHookConfig(config)
 //
-// All data is mocked here. The real implementation will be wired to
-// Connect-Go clients generated from KAI-469 protos.
+// Wired to the real backend at /api/nvr/screen-share and /api/nvr/tickets.
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,62 +85,20 @@ export interface TicketHookConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Mock dataset
+// Helpers
 // ---------------------------------------------------------------------------
 
-const CURRENT_INTEGRATOR_ID = 'integrator-001';
+const SCREEN_SHARE_BASE = '/api/nvr/screen-share';
+const TICKETS_BASE = '/api/nvr/tickets';
 
-let sessionSeq = 0;
-let ticketSeq = 0;
-
-const MOCK_SESSIONS: ScreenShareSession[] = [
-  {
-    sessionId: 'ss-001',
-    integratorId: CURRENT_INTEGRATOR_ID,
-    customerId: 'cust-integrator-001-000',
-    customerName: 'Acme 0 Retail',
-    recorderId: 'rec-001',
-    initiatedBy: 'staff@integrator.example',
-    transport: 'webrtc',
-    status: 'completed',
-    signallingUrl: 'wss://signal.kaivue.io/v1/sessions/ss-001',
-    iceServers: [{ urls: 'stun:stun.kaivue.io:3478' }],
-    linkedTicketId: 'tkt-001',
-    startedAtIso: '2026-04-09T10:00:00Z',
-    endedAtIso: '2026-04-09T10:15:00Z',
-    durationSeconds: 900,
-    createdAtIso: '2026-04-09T09:58:00Z',
-  },
-  {
-    sessionId: 'ss-002',
-    integratorId: CURRENT_INTEGRATOR_ID,
-    customerId: 'cust-integrator-001-001',
-    customerName: 'Bcme 1 Healthcare',
-    recorderId: 'rec-002',
-    initiatedBy: 'tech@integrator.example',
-    transport: 'rewind',
-    status: 'active',
-    signallingUrl: 'wss://signal.kaivue.io/v1/sessions/ss-002',
-    iceServers: [{ urls: 'stun:stun.kaivue.io:3478' }],
-    linkedTicketId: null,
-    startedAtIso: '2026-04-10T08:30:00Z',
-    endedAtIso: null,
-    durationSeconds: 0,
-    createdAtIso: '2026-04-10T08:28:00Z',
-  },
-];
-
-const MOCK_HOOK_CONFIGS: Record<string, TicketHookConfig> = {
-  [CURRENT_INTEGRATOR_ID]: {
-    configId: 'hc-001',
-    integratorId: CURRENT_INTEGRATOR_ID,
-    provider: 'zendesk',
-    apiBaseUrl: 'https://mycompany.zendesk.com',
-    autoCreate: false,
-    tagTemplate: 'kaivue,{{customer_id}}',
-    enabled: true,
-  },
-};
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -150,49 +107,33 @@ const MOCK_HOOK_CONFIGS: Record<string, TicketHookConfig> = {
 export async function initiateSession(
   spec: InitiateSessionSpec,
 ): Promise<ScreenShareSession> {
-  await new Promise((r) => setTimeout(r, 0));
-  sessionSeq += 1;
-  const sessionId = `ss-new-${sessionSeq}`;
-  const session: ScreenShareSession = {
-    sessionId,
-    integratorId: spec.integratorId,
-    customerId: spec.customerId,
-    customerName: `Customer ${spec.customerId}`,
-    recorderId: spec.recorderId,
-    initiatedBy: 'current-user',
-    transport: spec.transport,
-    status: 'pending',
-    signallingUrl: `wss://signal.kaivue.io/v1/sessions/${sessionId}`,
-    iceServers: [{ urls: 'stun:stun.kaivue.io:3478' }],
-    linkedTicketId: null,
-    startedAtIso: null,
-    endedAtIso: null,
-    durationSeconds: 0,
-    createdAtIso: new Date().toISOString(),
-  };
-  MOCK_SESSIONS.push(session);
-  return session;
+  return fetchJson<ScreenShareSession>(`${SCREEN_SHARE_BASE}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(spec),
+  });
 }
 
 export async function getSession(sessionId: string): Promise<ScreenShareSession | null> {
-  await new Promise((r) => setTimeout(r, 0));
-  return MOCK_SESSIONS.find((s) => s.sessionId === sessionId) ?? null;
+  const res = await fetch(
+    `${SCREEN_SHARE_BASE}/sessions/${encodeURIComponent(sessionId)}`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
+  }
+  return res.json() as Promise<ScreenShareSession>;
 }
 
 export async function endSession(sessionId: string): Promise<void> {
-  await new Promise((r) => setTimeout(r, 0));
-  const idx = MOCK_SESSIONS.findIndex((s) => s.sessionId === sessionId);
-  if (idx >= 0) {
-    const now = new Date().toISOString();
-    const s = MOCK_SESSIONS[idx]!;
-    MOCK_SESSIONS[idx] = {
-      ...s,
-      status: 'completed',
-      endedAtIso: now,
-      durationSeconds: s.startedAtIso
-        ? Math.floor((Date.now() - new Date(s.startedAtIso).getTime()) / 1000)
-        : 0,
-    };
+  const res = await fetch(
+    `${SCREEN_SHARE_BASE}/sessions/${encodeURIComponent(sessionId)}/end`,
+    { method: 'POST' },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
   }
 }
 
@@ -200,74 +141,45 @@ export async function listSessions(
   integratorId: string,
   customerId?: string,
 ): Promise<readonly ScreenShareSession[]> {
-  await new Promise((r) => setTimeout(r, 0));
-  return MOCK_SESSIONS.filter(
-    (s) =>
-      s.integratorId === integratorId &&
-      (!customerId || s.customerId === customerId),
+  const params = new URLSearchParams({ integratorId });
+  if (customerId) params.set('customerId', customerId);
+  return fetchJson<ScreenShareSession[]>(
+    `${SCREEN_SHARE_BASE}/sessions?${params.toString()}`,
   );
 }
 
 export async function createTicketFromContext(
   req: CreateTicketRequest,
 ): Promise<CreateTicketResult> {
-  await new Promise((r) => setTimeout(r, 0));
-  const config = MOCK_HOOK_CONFIGS[req.integratorId];
-  if (!config) {
-    throw new Error('No ticket hook configuration found for this integrator');
-  }
-  if (!config.enabled) {
-    throw new Error('Ticket integration is disabled');
-  }
-
-  ticketSeq += 1;
-  const ticketId = `tkt-new-${ticketSeq}`;
-  let url: string | undefined;
-
-  switch (config.provider) {
-    case 'zendesk':
-      url = `${config.apiBaseUrl}/agent/tickets/${ticketId}`;
-      break;
-    case 'freshdesk':
-      url = `${config.apiBaseUrl}/a/tickets/${ticketId}`;
-      break;
-    case 'internal':
-      url = `/command/support/tickets/${ticketId}`;
-      break;
-  }
-
-  // Link to session if provided
-  if (req.context.sessionId) {
-    const sessIdx = MOCK_SESSIONS.findIndex((s) => s.sessionId === req.context.sessionId);
-    if (sessIdx >= 0) {
-      MOCK_SESSIONS[sessIdx] = { ...MOCK_SESSIONS[sessIdx]!, linkedTicketId: ticketId };
-    }
-  }
-
-  return {
-    ticketId,
-    provider: config.provider,
-    url,
-  };
+  return fetchJson<CreateTicketResult>(TICKETS_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
 }
 
 export async function getTicketHookConfig(
   integratorId: string,
 ): Promise<TicketHookConfig | null> {
-  await new Promise((r) => setTimeout(r, 0));
-  return MOCK_HOOK_CONFIGS[integratorId] ?? null;
+  const res = await fetch(
+    `${TICKETS_BASE}/config?integratorId=${encodeURIComponent(integratorId)}`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
+  }
+  return res.json() as Promise<TicketHookConfig>;
 }
 
 export async function upsertTicketHookConfig(
   config: Omit<TicketHookConfig, 'configId'> & { configId?: string },
 ): Promise<TicketHookConfig> {
-  await new Promise((r) => setTimeout(r, 0));
-  const full: TicketHookConfig = {
-    ...config,
-    configId: config.configId ?? `hc-new-${Date.now()}`,
-  };
-  MOCK_HOOK_CONFIGS[config.integratorId] = full;
-  return full;
+  return fetchJson<TicketHookConfig>(`${TICKETS_BASE}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -287,10 +199,3 @@ export function sessionQueryKey(sessionId: string) {
 export function ticketHookConfigQueryKey(integratorId: string) {
   return [SCREEN_SHARE_QUERY_KEY, 'hookConfig', integratorId] as const;
 }
-
-// Test/fixture exports.
-export const __TEST__ = {
-  CURRENT_INTEGRATOR_ID,
-  MOCK_SESSIONS,
-  MOCK_HOOK_CONFIGS,
-};

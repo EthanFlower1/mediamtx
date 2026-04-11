@@ -1,16 +1,15 @@
 // KAI-319: API Keys Management client (Integrator Portal).
 //
-// Typed promise stubs for the integrator-facing API key lifecycle:
+// Typed API client for the integrator-facing API key lifecycle:
 //   - listKeys(tenantId)
 //   - createKey(args)
 //   - rotateKey(args)
 //   - revokeKey(tenantId, keyId)
 //   - getKeyAuditLog(tenantId, keyId)
 //
-// All data is mocked via apiKeys.mock.ts behind a feature-flag lazy
-// import. The real implementation will be wired to Connect-Go clients
-// generated from KAI-399/KAI-400 protos. This file is the single seam;
-// swapping transports is a one-file change.
+// Wired to the real backend endpoints at /api/v1/api-keys.
+
+import { API_BASE_URL } from './client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -120,50 +119,69 @@ export const apiKeysQueryKeys = {
 };
 
 // ---------------------------------------------------------------------------
-// Feature-flag bootstrap with lazy mock import
+// Helpers
 // ---------------------------------------------------------------------------
 
-let _client: APIKeysClient | null = null;
-
-async function getClient(): Promise<APIKeysClient> {
-  if (_client) return _client;
-  // TODO(KAI-319): replace with real Connect-Go client when KAI-400
-  // backend is merged. For now, always load mock.
-  const mock = await import('./apiKeys.mock');
-  _client = mock.mockAPIKeysClient;
-  return _client;
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
+  }
+  return res.json() as Promise<T>;
 }
 
 // ---------------------------------------------------------------------------
-// Public API -- thin wrappers that resolve the client lazily
+// Public API -- direct fetch calls to real endpoints
 // ---------------------------------------------------------------------------
 
 export async function listKeys(tenantId: string): Promise<readonly APIKeyRecord[]> {
-  const client = await getClient();
-  return client.listKeys(tenantId);
+  return fetchJson<APIKeyRecord[]>(
+    `${API_BASE_URL}/api-keys?tenantId=${encodeURIComponent(tenantId)}`,
+  );
 }
 
 export async function createKey(args: CreateKeyArgs): Promise<CreateKeyResult> {
-  const client = await getClient();
-  return client.createKey(args);
+  return fetchJson<CreateKeyResult>(`${API_BASE_URL}/api-keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
 }
 
 export async function rotateKey(args: RotateKeyArgs): Promise<RotateKeyResult> {
-  const client = await getClient();
-  return client.rotateKey(args);
+  return fetchJson<RotateKeyResult>(
+    `${API_BASE_URL}/api-keys/${encodeURIComponent(args.keyId)}/rotate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    },
+  );
 }
 
 export async function revokeKey(tenantId: string, keyId: string): Promise<void> {
-  const client = await getClient();
-  return client.revokeKey(tenantId, keyId);
+  const res = await fetch(
+    `${API_BASE_URL}/api-keys/${encodeURIComponent(keyId)}/revoke`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status} ${text}`);
+  }
 }
 
 export async function getKeyAuditLog(
   tenantId: string,
   keyId: string,
 ): Promise<readonly AuditLogEntry[]> {
-  const client = await getClient();
-  return client.getKeyAuditLog(tenantId, keyId);
+  return fetchJson<AuditLogEntry[]>(
+    `${API_BASE_URL}/api-keys/${encodeURIComponent(keyId)}/audit?tenantId=${encodeURIComponent(tenantId)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +211,6 @@ export const CURRENT_TENANT_ID = 'tenant-001';
 
 export const __TEST__ = {
   CURRENT_TENANT_ID,
-  resetClient: () => {
-    _client = null;
-  },
+  /** No-op: lazy mock client removed; kept for test compatibility. */
+  resetClient: () => {},
 };

@@ -1,0 +1,45 @@
+# KAI-277: CLIP Embedding Model — ONNX Runtime with GPU acceleration.
+# GPU profile: ~2GB VRAM, batch-friendly, latency target < 50ms.
+name: "clip-embedding"
+platform: "onnxruntime_onnx"
+max_batch_size: 16
+
+input [
+  {
+    name: "pixel_values"
+    data_type: TYPE_FP32
+    dims: [ 3, 224, 224 ]
+  }
+]
+
+output [
+  {
+    name: "embeddings"
+    data_type: TYPE_FP32
+    dims: [ 512 ]
+  }
+]
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [ 0 ]
+  }
+]
+
+dynamic_batching {
+  preferred_batch_size: [ 4, 8, 16 ]
+  max_queue_delay_microseconds: 10000
+}
+
+parameters {
+  key: "gpu_memory_fraction"
+  value: { string_value: "0.15" }
+}
+
+version_policy {
+  latest {
+    num_versions: 1
+  }
+}

@@ -1,0 +1,162 @@
+# KAI-277: KEDA ScaledObjects for per-model autoscaling.
+# Each model gets its own ScaledObject that scales based on inference queue depth.
+# Idle models scale to zero — no GPU capacity cost when unused.
+
+---
+# YOLOv8 Object Detection — high-throughput, latency-sensitive
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: triton-yolov8-detection
+  namespace: ml-inference
+  labels:
+    app: triton-inference
+    kaivue.io/model: yolov8-detection
+    kaivue.io/ticket: KAI-277
+spec:
+  scaleTargetRef:
+    name: triton-inference
+  pollingInterval: 15
+  cooldownPeriod: 300
+  idleReplicaCount: 0
+  minReplicaCount: 0
+  maxReplicaCount: 5
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: nv_inference_queue_duration_us
+        query: |
+          sum(rate(nv_inference_request_success{model="yolov8-detection"}[2m]))
+        threshold: "10"
+        activationThreshold: "1"
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: triton_queue_depth
+        query: |
+          sum(nv_inference_pending_request_count{model="yolov8-detection"})
+        threshold: "5"
+        activationThreshold: "1"
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+
+---
+# CLIP Embedding — batch-friendly, moderate latency tolerance
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: triton-clip-embedding
+  namespace: ml-inference
+  labels:
+    app: triton-inference
+    kaivue.io/model: clip-embedding
+    kaivue.io/ticket: KAI-277
+spec:
+  scaleTargetRef:
+    name: triton-inference
+  pollingInterval: 30
+  cooldownPeriod: 600
+  idleReplicaCount: 0
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: nv_inference_queue_duration_us
+        query: |
+          sum(rate(nv_inference_request_success{model="clip-embedding"}[2m]))
+        threshold: "5"
+        activationThreshold: "1"
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: triton_queue_depth
+        query: |
+          sum(nv_inference_pending_request_count{model="clip-embedding"})
+        threshold: "10"
+        activationThreshold: "1"
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 180
+
+---
+# Person Re-Identification — low volume, scale-to-zero critical
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: triton-person-reid
+  namespace: ml-inference
+  labels:
+    app: triton-inference
+    kaivue.io/model: person-reid
+    kaivue.io/ticket: KAI-277
+spec:
+  scaleTargetRef:
+    name: triton-inference
+  pollingInterval: 30
+  cooldownPeriod: 900
+  idleReplicaCount: 0
+  minReplicaCount: 0
+  maxReplicaCount: 2
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: nv_inference_queue_duration_us
+        query: |
+          sum(rate(nv_inference_request_success{model="person-reid"}[2m]))
+        threshold: "3"
+        activationThreshold: "1"
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local:9090
+        metricName: triton_queue_depth
+        query: |
+          sum(nv_inference_pending_request_count{model="person-reid"})
+        threshold: "3"
+        activationThreshold: "1"
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+        scaleDown:
+          stabilizationWindowSeconds: 600
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300

@@ -1,0 +1,96 @@
+# KAI-277: NVIDIA Triton Inference Server Helm values.
+# Deploy via: helm install triton-inference ./chart -f values.yaml -n ml-inference
+
+replicaCount: 1
+
+image:
+  repository: nvcr.io/nvidia/tritonserver
+  tag: "24.03-py3"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  httpPort: 8000
+  grpcPort: 8001
+  metricsPort: 8002
+
+resources:
+  limits:
+    nvidia.com/gpu: "1"
+    memory: "16Gi"
+    cpu: "8"
+  requests:
+    nvidia.com/gpu: "1"
+    memory: "8Gi"
+    cpu: "4"
+
+modelRepository:
+  # S3-backed model repository — Triton pulls from this path.
+  path: "s3://kaivue-${ENVIRONMENT}-models/triton-repository"
+
+tolerations:
+  - key: "nvidia.com/gpu"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+nodeSelector:
+  kaivue.io/workload: "gpu-inference"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - triton-inference
+          topologyKey: "kubernetes.io/hostname"
+
+# mTLS configuration — Istio/Linkerd sidecar handles TLS termination.
+# Triton itself serves plain gRPC/HTTP; the service mesh enforces mTLS.
+serviceMesh:
+  enabled: true
+  mtls:
+    mode: STRICT
+
+# Prometheus metrics scrape annotations.
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8002"
+  prometheus.io/path: "/metrics"
+
+# Startup / liveness / readiness probes.
+startupProbe:
+  httpGet:
+    path: /v2/health/ready
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 30
+
+livenessProbe:
+  httpGet:
+    path: /v2/health/live
+    port: 8000
+  periodSeconds: 15
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /v2/health/ready
+    port: 8000
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+# Extra args passed to tritonserver binary.
+extraArgs:
+  - "--model-control-mode=poll"
+  - "--repository-poll-secs=30"
+  - "--log-verbose=1"
+  - "--metrics-port=8002"
+  - "--allow-metrics=true"
+  - "--allow-gpu-metrics=true"

@@ -165,7 +165,7 @@ func (t *tritonClient) BatchExtract(ctx context.Context, images []ImageInput) ([
 			},
 		},
 		Outputs: []tritonOutput{
-			{Name: "output"},
+			{Name: "embeddings"},
 		},
 	}
 

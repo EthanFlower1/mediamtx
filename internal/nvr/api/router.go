@@ -17,6 +17,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/nvr/diagnostics"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
@@ -70,6 +71,7 @@ type RouterConfig struct {
 	SysChecker          *syscheck.Checker   // system requirements checker (may be nil)
 	MigrationMgr        MigrationStatusProvider // upgrade migration manager (may be nil)
 	LogManager          *logmgr.Manager    // structured log manager (may be nil)
+	DiagnosticsService  *diagnostics.Service // remote diagnostics service (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -608,6 +610,18 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/system/logging/config", logConfigHandler.GetLoggingConfig)
 	protected.PUT("/system/logging/config", logConfigHandler.UpdateLoggingConfig)
 	protected.GET("/system/logging/crashes/:filename", logConfigHandler.GetCrashDump)
+
+	// Remote diagnostics (integrator portal).
+	if cfg.DiagnosticsService != nil {
+		diagHandler := &DiagnosticsHandler{Service: cfg.DiagnosticsService}
+		protected.GET("/diagnostics/recorders", diagHandler.GetRecorderStatuses)
+		protected.GET("/diagnostics/logs", diagHandler.QueryLogs)
+		protected.POST("/diagnostics/network-probe", diagHandler.RunNetworkProbes)
+		protected.POST("/diagnostics/bundles", diagHandler.GenerateBundle)
+		protected.GET("/diagnostics/bundles", diagHandler.ListBundles)
+		protected.GET("/diagnostics/bundles/:id", diagHandler.GetBundle)
+		protected.GET("/diagnostics/bundles/:id/download", diagHandler.DownloadBundle)
+	}
 
 	// System alerts and SMTP configuration.
 	alertHandler := &AlertHandler{DB: cfg.DB, EmailSender: cfg.EmailSender}

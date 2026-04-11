@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
 import DownloadClient from './pages/DownloadClient'
+import Diagnostics from './pages/Diagnostics'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -238,6 +239,12 @@ const IconUsers = (
   </svg>
 )
 
+const IconDiagnostics = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -343,6 +350,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     ...(user?.role === 'admin'
       ? [
           { to: '/users', icon: IconUsers, label: 'Users' },
+          { to: '/diagnostics', icon: IconDiagnostics, label: 'Diagnostics' },
           { to: '/audit', icon: IconAudit, label: 'Audit Log' },
         ]
       : []),
@@ -513,6 +521,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+      <Route path="/diagnostics" element={<ProtectedRoute><Layout><Diagnostics /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}

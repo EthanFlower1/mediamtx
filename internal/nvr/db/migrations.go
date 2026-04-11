@@ -829,4 +829,32 @@ WHERE sub_stream_url IS NOT NULL AND sub_stream_url != '';
 		version: 49,
 		sql:     `ALTER TABLE cameras ADD COLUMN device_info TEXT NOT NULL DEFAULT '';`,
 	},
+	// Migration 50: Notification center — persistent, per-user read/archive state (KAI-374).
+	{
+		version: 50,
+		sql: `
+		CREATE TABLE IF NOT EXISTS notifications (
+			id TEXT PRIMARY KEY,
+			type TEXT NOT NULL DEFAULT '',
+			severity TEXT NOT NULL DEFAULT 'info',
+			camera TEXT NOT NULL DEFAULT '',
+			message TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL DEFAULT ''
+		);
+		CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+		CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+		CREATE INDEX IF NOT EXISTS idx_notifications_camera ON notifications(camera);
+		CREATE INDEX IF NOT EXISTS idx_notifications_severity ON notifications(severity);
+
+		CREATE TABLE IF NOT EXISTS notification_read_state (
+			notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+			user_id TEXT NOT NULL,
+			read_at TEXT NOT NULL DEFAULT '',
+			archived INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (notification_id, user_id)
+		);
+		CREATE INDEX IF NOT EXISTS idx_notif_read_user ON notification_read_state(user_id);
+		CREATE INDEX IF NOT EXISTS idx_notif_read_archived ON notification_read_state(user_id, archived);
+		`,
+	},
 }

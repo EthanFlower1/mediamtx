@@ -8,6 +8,7 @@ import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
+import NotificationCenter from './pages/NotificationCenter'
 import DownloadClient from './pages/DownloadClient'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
@@ -514,6 +515,7 @@ function AppRoutes() {
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Layout><NotificationCenter /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}
       <Route path="/live" element={<Navigate to="/download" replace />} />

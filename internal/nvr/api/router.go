@@ -621,6 +621,27 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/alerts", alertHandler.ListAlerts)
 	protected.POST("/alerts/:id/acknowledge", alertHandler.AcknowledgeAlert)
 
+	// Notification center (KAI-374).
+	notifHandler := &NotificationHandler{DB: cfg.DB, Events: cfg.Events}
+	protected.GET("/notifications", notifHandler.ListNotifications)
+	protected.GET("/notifications/unread-count", notifHandler.UnreadCount)
+	protected.POST("/notifications/mark-read", notifHandler.MarkRead)
+	protected.POST("/notifications/mark-unread", notifHandler.MarkUnread)
+	protected.POST("/notifications/mark-all-read", notifHandler.MarkAllRead)
+	protected.POST("/notifications/archive", notifHandler.Archive)
+	protected.POST("/notifications/restore", notifHandler.Restore)
+	protected.DELETE("/notifications", notifHandler.Delete)
+
+	// Wire up event ingestion so incoming WebSocket events are persisted.
+	if cfg.Events != nil {
+		evCh := cfg.Events.Subscribe()
+		go func() {
+			for ev := range evCh {
+				notifHandler.IngestEvent(ev)
+			}
+		}()
+	}
+
 	// Backups.
 	if cfg.BackupService != nil {
 		backupHandler := &BackupHandler{Service: cfg.BackupService}

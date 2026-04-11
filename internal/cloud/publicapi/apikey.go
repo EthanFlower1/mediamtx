@@ -25,6 +25,55 @@ var ErrAPIKeyExpired = errors.New("API key expired")
 // ErrAPIKeyRevoked is returned when an API key has been revoked.
 var ErrAPIKeyRevoked = errors.New("API key revoked")
 
+// ErrAPIKeyNotFound is returned when the requested key ID does not exist.
+var ErrAPIKeyNotFound = errors.New("API key not found")
+
+// ErrAPIKeyAlreadyRevoked is returned when attempting to revoke an already-revoked key.
+var ErrAPIKeyAlreadyRevoked = errors.New("API key already revoked")
+
+// DefaultGracePeriod is the default window during which a rotated-from key
+// remains valid after rotation.
+const DefaultGracePeriod = 24 * time.Hour
+
+// CreateAPIKeyRequest is the input for creating a new API key.
+type CreateAPIKeyRequest struct {
+	TenantID  string
+	Name      string
+	Scopes    []string
+	ExpiresAt time.Time // zero = no expiry
+	CreatedBy string
+	Tier      TenantTier
+}
+
+// CreateAPIKeyResult is returned from Create. RawKey is the plaintext key —
+// it is shown exactly once and never stored or retrievable again.
+type CreateAPIKeyResult struct {
+	RawKey string
+	Key    *APIKey
+}
+
+// RotateAPIKeyRequest is the input for rotating an existing API key.
+type RotateAPIKeyRequest struct {
+	KeyID       string
+	RotatedBy   string
+	GracePeriod time.Duration // zero = DefaultGracePeriod
+}
+
+// RotateAPIKeyResult contains the new key and the grace expiry of the old key.
+type RotateAPIKeyResult struct {
+	RawKey          string
+	NewKey          *APIKey
+	OldKeyGraceEnd  time.Time
+}
+
+// ListAPIKeysFilter constrains a List call.
+type ListAPIKeysFilter struct {
+	TenantID   string
+	IncludeRevoked bool
+	Limit      int
+	Cursor     string // key ID for keyset pagination
+}
+
 // APIKey represents a validated API key record.
 type APIKey struct {
 	// ID is the server-assigned unique identifier.
@@ -50,6 +99,13 @@ type APIKey struct {
 	LastUsedAt time.Time
 	// CreatedBy is the user who created the key.
 	CreatedBy string
+	// KeyPrefix is the first 8 characters of the key for display (e.g. "kvue_a1b").
+	KeyPrefix string
+	// RotatedFromID links to the predecessor key when created via rotation.
+	RotatedFromID string
+	// GraceExpiresAt is set on the OLD key after rotation; the old key remains
+	// valid until this time to allow consumers to switch over.
+	GraceExpiresAt time.Time
 }
 
 // IsExpired reports whether the key has passed its expiry time.
@@ -91,16 +147,39 @@ func (k *APIKey) HasScope(scope string) bool {
 	return false
 }
 
-// APIKeyStore is the interface for API key persistence. KAI-400 will
-// provide the concrete implementation; this is the contract.
+// APIKeyStore is the interface for API key persistence and lifecycle.
 type APIKeyStore interface {
+	// Create generates a new API key, stores its SHA-256 hash, and returns
+	// the plaintext key exactly once. The plaintext is never stored.
+	Create(ctx context.Context, req CreateAPIKeyRequest) (*CreateAPIKeyResult, error)
+
+	// Get returns the key metadata by ID. Returns ErrAPIKeyNotFound if missing.
+	Get(ctx context.Context, keyID string) (*APIKey, error)
+
+	// List returns keys for a tenant, ordered by created_at desc.
+	List(ctx context.Context, filter ListAPIKeysFilter) ([]*APIKey, error)
+
+	// Rotate creates a new key to replace an existing one. The old key enters
+	// a grace period (default 24h) during which both keys are valid. After the
+	// grace period the old key is treated as expired.
+	Rotate(ctx context.Context, req RotateAPIKeyRequest) (*RotateAPIKeyResult, error)
+
+	// Revoke immediately marks a key as revoked. Returns ErrAPIKeyAlreadyRevoked
+	// if already revoked, ErrAPIKeyNotFound if missing.
+	Revoke(ctx context.Context, keyID string, revokedBy string) error
+
 	// Validate looks up an API key by its raw value, verifies the hash,
-	// and returns the key record. Returns ErrInvalidAPIKey if not found.
+	// and returns the key record. Returns ErrInvalidAPIKey if not found,
+	// ErrAPIKeyExpired if expired, ErrAPIKeyRevoked if revoked.
 	Validate(ctx context.Context, rawKey string) (*APIKey, error)
 
 	// TouchLastUsed updates the last_used_at timestamp for the key.
 	// Best-effort; errors are non-fatal.
 	TouchLastUsed(ctx context.Context, keyID string) error
+
+	// ListExpiring returns active keys whose expiry falls within the given
+	// window. Used by rotation-reminder jobs.
+	ListExpiring(ctx context.Context, tenantID string, within time.Duration) ([]*APIKey, error)
 }
 
 // APIKeyToClaims converts a validated API key into auth.Claims so the

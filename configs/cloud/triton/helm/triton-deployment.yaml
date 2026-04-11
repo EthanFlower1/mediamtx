@@ -1,0 +1,146 @@
+# KAI-277: Triton Inference Server Kubernetes Deployment manifest.
+# This is the raw K8s manifest; Helm chart wraps this with templating.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-inference
+  namespace: ml-inference
+  labels:
+    app: triton-inference
+    kaivue.io/component: ml-inference
+    kaivue.io/ticket: KAI-277
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triton-inference
+  template:
+    metadata:
+      labels:
+        app: triton-inference
+        kaivue.io/component: ml-inference
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: triton-inference
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      nodeSelector:
+        kaivue.io/workload: gpu-inference
+      containers:
+        - name: triton
+          image: nvcr.io/nvidia/tritonserver:24.03-py3
+          args:
+            - tritonserver
+            - "--model-repository=s3://kaivue-models/triton-repository"
+            - "--model-control-mode=poll"
+            - "--repository-poll-secs=30"
+            - "--log-verbose=1"
+            - "--metrics-port=8002"
+            - "--allow-metrics=true"
+            - "--allow-gpu-metrics=true"
+            - "--grpc-port=8001"
+            - "--http-port=8000"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: grpc
+              containerPort: 8001
+              protocol: TCP
+            - name: metrics
+              containerPort: 8002
+              protocol: TCP
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              memory: "16Gi"
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: "1"
+              memory: "8Gi"
+              cpu: "4"
+          startupProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+          env:
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: triton-config
+                  key: aws-region
+            - name: LD_PRELOAD
+              value: ""
+          volumeMounts:
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton-inference
+  namespace: ml-inference
+  labels:
+    app: triton-inference
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+    - name: grpc
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+    - name: metrics
+      port: 8002
+      targetPort: 8002
+      protocol: TCP
+  selector:
+    app: triton-inference
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: triton-inference
+  namespace: ml-inference
+  annotations:
+    # IRSA annotation — set by Terraform
+    eks.amazonaws.com/role-arn: ""
+  labels:
+    app: triton-inference
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-inference
+  labels:
+    kaivue.io/component: ml-inference
+    istio-injection: enabled

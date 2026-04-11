@@ -1,0 +1,135 @@
+# KAI-277: Prometheus recording and alerting rules for Triton inference.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: triton-inference-rules
+  namespace: monitoring
+  labels:
+    kaivue.io/component: ml-inference
+    kaivue.io/ticket: KAI-277
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    # -----------------------------------------------------------------------
+    # Recording rules: precompute expensive queries for dashboards.
+    # -----------------------------------------------------------------------
+    - name: triton.recording
+      interval: 15s
+      rules:
+        # P99 inference latency per model (Triton native metrics).
+        - record: kaivue:triton:inference_p99_latency_ms
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(nv_inference_compute_infer_duration_us_bucket[5m])) by (model, le)
+            ) / 1000
+
+        # P95 inference latency per model.
+        - record: kaivue:triton:inference_p95_latency_ms
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(nv_inference_compute_infer_duration_us_bucket[5m])) by (model, le)
+            ) / 1000
+
+        # P99 inference latency per model (Go client metrics).
+        - record: kaivue:triton:client_inference_p99_latency_seconds
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(kaivue_triton_inference_latency_seconds_bucket[5m])) by (model, tenant_id, le)
+            )
+
+        # Throughput per model (requests/sec).
+        - record: kaivue:triton:inference_rps
+          expr: |
+            sum(rate(nv_inference_request_success[5m])) by (model)
+
+        # Current queue depth per model.
+        - record: kaivue:triton:queue_depth
+          expr: |
+            sum(nv_inference_pending_request_count) by (model)
+
+        # GPU utilization per device.
+        - record: kaivue:triton:gpu_utilization
+          expr: |
+            nv_gpu_utilization * 100
+
+        # GPU memory utilization per device.
+        - record: kaivue:triton:gpu_memory_utilization
+          expr: |
+            (nv_gpu_memory_used_bytes / nv_gpu_memory_total_bytes) * 100
+
+    # -----------------------------------------------------------------------
+    # Alerting rules.
+    # -----------------------------------------------------------------------
+    - name: triton.alerts
+      rules:
+        # P99 latency exceeds 500ms for any model for 5 minutes.
+        - alert: TritonHighP99Latency
+          expr: kaivue:triton:inference_p99_latency_ms > 500
+          for: 5m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: "Triton model {{ $labels.model }} P99 latency is {{ $value }}ms"
+            description: "P99 inference latency for model {{ $labels.model }} has exceeded 500ms for 5 minutes."
+            runbook_url: "https://docs.kaivue.io/runbooks/triton-high-latency"
+
+        # P99 latency exceeds 2s — critical.
+        - alert: TritonCriticalP99Latency
+          expr: kaivue:triton:inference_p99_latency_ms > 2000
+          for: 2m
+          labels:
+            severity: critical
+            team: ml-platform
+          annotations:
+            summary: "CRITICAL: Triton model {{ $labels.model }} P99 latency is {{ $value }}ms"
+            description: "P99 inference latency for model {{ $labels.model }} has exceeded 2s for 2 minutes."
+
+        # High queue depth — inference requests are backing up.
+        - alert: TritonHighQueueDepth
+          expr: kaivue:triton:queue_depth > 20
+          for: 3m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: "Triton model {{ $labels.model }} queue depth is {{ $value }}"
+            description: "Inference queue for model {{ $labels.model }} has over 20 pending requests for 3 minutes."
+
+        # GPU memory pressure.
+        - alert: TritonGPUMemoryHigh
+          expr: kaivue:triton:gpu_memory_utilization > 90
+          for: 5m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: "GPU {{ $labels.gpu_uuid }} memory utilization is {{ $value }}%"
+            description: "GPU memory utilization has been above 90% for 5 minutes."
+
+        # High error rate.
+        - alert: TritonHighErrorRate
+          expr: |
+            sum(rate(nv_inference_request_failure[5m])) by (model)
+            / (sum(rate(nv_inference_request_success[5m])) by (model) + 0.001)
+            > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: "Triton model {{ $labels.model }} error rate is {{ $value | humanizePercentage }}"
+            description: "Inference error rate for model {{ $labels.model }} exceeds 5% for 5 minutes."
+
+        # Model not ready.
+        - alert: TritonModelNotReady
+          expr: |
+            nv_inference_request_success == 0
+            and on(model) (time() - nv_inference_request_success offset 10m > 0)
+          for: 10m
+          labels:
+            severity: warning
+            team: ml-platform
+          annotations:
+            summary: "Triton model {{ $labels.model }} has had no successful inferences for 10m"

@@ -701,6 +701,12 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+	// Cross-camera person tracking (KAI-482 — beta).
+	trackHandler := &TrackHandler{DB: cfg.DB}
+	protected.GET("/tracks", trackHandler.ListTracks)
+	protected.GET("/tracks/:id", trackHandler.GetTrack)
+	protected.POST("/detections/:id/track", trackHandler.StartTracking)
+
 	// AI model management.
 	if cfg.ModelManager != nil {
 		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}

@@ -141,7 +141,7 @@ func (h *notifPrefsHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prefs, err := h.store.List(r.Context(), claims.TenantRef.ID, claims.Subject)
+	prefs, err := h.store.List(r.Context(), claims.TenantRef.ID, string(claims.UserID))
 	if err != nil {
 		writeError(w, NewError(CodeInternal, err))
 		return
@@ -179,7 +179,7 @@ func (h *notifPrefsHandler) upsert(w http.ResponseWriter, r *http.Request) {
 
 	p := preferences.Pref{
 		TenantID:      claims.TenantRef.ID,
-		UserID:        claims.Subject,
+		UserID:        string(claims.UserID),
 		CameraID:      req.CameraID,
 		EventType:     req.EventType,
 		Channels:      req.Channels,
@@ -236,7 +236,7 @@ func (h *notifPrefsHandler) resolve(w http.ResponseWriter, r *http.Request) {
 		sev = preferences.SeverityInfo
 	}
 
-	rd, err := h.store.ResolveDelivery(r.Context(), claims.TenantRef.ID, claims.Subject,
+	rd, err := h.store.ResolveDelivery(r.Context(), claims.TenantRef.ID, string(claims.UserID),
 		req.CameraID, req.EventType, sev)
 	if errors.Is(err, preferences.ErrPrefNotFound) {
 		writeJSON(w, http.StatusOK, notifResolveResponse{Suppressed: true, Reason: "no matching preference"})

@@ -87,6 +87,8 @@ func (rl *TieredRateLimiter) Allow(tenantID string) bool {
 	}
 
 	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
 	b, ok := rl.buckets[tenantID]
 	if !ok {
 		now := rl.now()
@@ -99,7 +101,6 @@ func (rl *TieredRateLimiter) Allow(tenantID string) bool {
 		}
 		rl.buckets[tenantID] = b
 	}
-	rl.mu.Unlock()
 
 	return b.allow(rl.now())
 }

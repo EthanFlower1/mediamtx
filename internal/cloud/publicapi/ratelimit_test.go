@@ -1,6 +1,7 @@
 package publicapi
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -97,6 +98,19 @@ func TestLimitsForTierUnknown(t *testing.T) {
 	if lim.Burst != free.Burst {
 		t.Errorf("unknown tier burst = %d; want %d (free default)", lim.Burst, free.Burst)
 	}
+}
+
+func TestTieredRateLimiter_ConcurrentAccess(t *testing.T) {
+	rl := NewTieredRateLimiter()
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rl.Allow("tenant-race-test")
+		}()
+	}
+	wg.Wait()
 }
 
 func TestTierLimitsContract(t *testing.T) {

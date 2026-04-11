@@ -83,6 +83,10 @@ func (g FederationGrant) Validate() error {
 // be granted. Administrative, destructive, and privilege-escalation actions are
 // excluded by design — a peer can never manage users, delete cameras, change
 // billing, or grant permissions on the receiving site.
+//
+// KAI-465 added ActionUsersView to support the catalog RPCs (ListUsers,
+// ListGroups). This is a read-only action — it lets the peer see user/group
+// names and emails, but not create, edit, or delete them.
 var FederationAllowedActions = map[string]bool{
 	ActionViewThumbnails: true,
 	ActionViewLive:       true,
@@ -90,6 +94,7 @@ var FederationAllowedActions = map[string]bool{
 	ActionViewSnapshot:   true,
 	ActionPTZControl:     true,
 	ActionAudioTalkback:  true,
+	ActionUsersView:      true,
 }
 
 func isFederationAllowedAction(action string) bool {

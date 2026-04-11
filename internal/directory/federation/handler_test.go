@@ -166,9 +166,9 @@ func TestGetJWKS_EmptyJWKSReturnsError(t *testing.T) {
 	assert.Equal(t, connect.CodeInternal, connectErr.Code())
 }
 
-// --- Unimplemented RPCs ---
+// --- Catalog RPCs without peer ID return Unauthenticated ---
 
-func TestListUsers_Unimplemented(t *testing.T) {
+func TestListUsers_NoPeerID_ReturnsUnauthenticated(t *testing.T) {
 	h := newTestHandler(t, &staticJWKSProvider{json: testJWKS, maxAge: 300})
 	client := newTestClient(t, h)
 
@@ -176,10 +176,10 @@ func TestListUsers_Unimplemented(t *testing.T) {
 	require.Error(t, err)
 	var connectErr *connect.Error
 	require.True(t, errors.As(err, &connectErr))
-	assert.Equal(t, connect.CodeUnimplemented, connectErr.Code())
+	assert.Equal(t, connect.CodeUnauthenticated, connectErr.Code())
 }
 
-func TestListGroups_Unimplemented(t *testing.T) {
+func TestListGroups_NoPeerID_ReturnsUnauthenticated(t *testing.T) {
 	h := newTestHandler(t, &staticJWKSProvider{json: testJWKS, maxAge: 300})
 	client := newTestClient(t, h)
 
@@ -187,10 +187,10 @@ func TestListGroups_Unimplemented(t *testing.T) {
 	require.Error(t, err)
 	var connectErr *connect.Error
 	require.True(t, errors.As(err, &connectErr))
-	assert.Equal(t, connect.CodeUnimplemented, connectErr.Code())
+	assert.Equal(t, connect.CodeUnauthenticated, connectErr.Code())
 }
 
-func TestListCameras_Unimplemented(t *testing.T) {
+func TestListCameras_NoPeerID_ReturnsUnauthenticated(t *testing.T) {
 	h := newTestHandler(t, &staticJWKSProvider{json: testJWKS, maxAge: 300})
 	client := newTestClient(t, h)
 
@@ -200,8 +200,10 @@ func TestListCameras_Unimplemented(t *testing.T) {
 	require.Error(t, err)
 	var connectErr *connect.Error
 	require.True(t, errors.As(err, &connectErr))
-	assert.Equal(t, connect.CodeUnimplemented, connectErr.Code())
+	assert.Equal(t, connect.CodeUnauthenticated, connectErr.Code())
 }
+
+// --- Unimplemented RPCs ---
 
 func TestSearchRecordings_Unimplemented(t *testing.T) {
 	h := newTestHandler(t, &staticJWKSProvider{json: testJWKS, maxAge: 300})

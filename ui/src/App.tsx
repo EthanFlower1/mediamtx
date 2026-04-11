@@ -8,6 +8,7 @@ import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
+import Notifications from './pages/Notifications'
 import DownloadClient from './pages/DownloadClient'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
@@ -238,6 +239,12 @@ const IconUsers = (
   </svg>
 )
 
+const IconNotifications = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -339,6 +346,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const navLinks: NavLinkProps[] = [
     { to: '/cameras', icon: IconCamera, label: 'Cameras' },
     { to: '/dashboard', icon: IconDashboard, label: 'Health' },
+    { to: '/notifications', icon: IconNotifications, label: 'Notifications' },
     { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
     ...(user?.role === 'admin'
       ? [
@@ -511,6 +519,7 @@ function AppRoutes() {
       <Route path="/setup" element={<Setup />} />
       <Route path="/cameras" element={<ProtectedRoute><Layout><CameraManagement /></Layout></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />

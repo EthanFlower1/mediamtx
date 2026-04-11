@@ -778,6 +778,17 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.DELETE("/exports/:id", exportHandler.Delete)
 	protected.GET("/exports/:id/download", exportHandler.Download)
 
+	// Notification preferences, quiet hours, and escalation rules (KAI-471).
+	notifPrefsHandler := &NotificationPrefsHandler{DB: cfg.DB}
+	protected.GET("/notification-preferences", notifPrefsHandler.ListPreferences)
+	protected.PUT("/notification-preferences", notifPrefsHandler.UpdatePreferences)
+	protected.GET("/notification-preferences/quiet-hours", notifPrefsHandler.GetQuietHours)
+	protected.PUT("/notification-preferences/quiet-hours", notifPrefsHandler.UpdateQuietHours)
+	protected.GET("/escalation-rules", notifPrefsHandler.ListEscalationRules)
+	protected.POST("/escalation-rules", notifPrefsHandler.CreateEscalationRule)
+	protected.PUT("/escalation-rules/:id", notifPrefsHandler.UpdateEscalationRule)
+	protected.DELETE("/escalation-rules/:id", notifPrefsHandler.DeleteEscalationRule)
+
 	// Webhooks.
 	webhookHandler := &WebhookHandler{DB: cfg.DB}
 	protected.GET("/webhooks", webhookHandler.List)

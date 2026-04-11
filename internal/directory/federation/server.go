@@ -28,8 +28,9 @@ type ServerConfig struct {
 	// certs chain to a trusted federation root are accepted.
 	ClientCAs *x509.CertPool
 
-	// Handler is the FederationPeerServiceHandler to serve.
-	Handler *RPCHandler
+	// Handler is the FederationPeerServiceHandler to serve. Use a
+	// CompositeHandler to get both RPC and streaming RPCs wired up.
+	Handler kaivuev1connect.FederationPeerServiceHandler
 
 	// Logger is the structured logger.
 	Logger *slog.Logger

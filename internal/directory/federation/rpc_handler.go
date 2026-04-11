@@ -60,10 +60,10 @@ func (c *RPCConfig) validate() error {
 	return nil
 }
 
-// RPCHandler implements the FederationPeerServiceHandler interface from
-// Connect-Go generated code. Ping and GetJWKS are fully implemented;
-// all other RPCs embed UnimplementedFederationPeerServiceHandler to
-// return CodeUnimplemented, ready for KAI-465 and KAI-466 to fill in.
+// RPCHandler implements the unary federation RPCs: Ping, GetJWKS,
+// ListUsers, ListGroups, and ListCameras. Streaming RPCs
+// (SearchRecordings, MintStreamURL) are handled by StreamingHandler;
+// use CompositeHandler to combine both.
 type RPCHandler struct {
 	kaivuev1connect.UnimplementedFederationPeerServiceHandler
 

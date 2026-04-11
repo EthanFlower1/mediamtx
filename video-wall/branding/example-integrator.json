@@ -1,0 +1,11 @@
+{
+    "id": "com.example.videowall",
+    "name": "Example Security View",
+    "publisher": "Example Systems, Ltd.",
+    "domain": "example.com",
+    "update_url": "https://updates.example.com/videowall",
+    "support_url": "https://support.example.com",
+    "icon_base": "example",
+    "accent_color": "#E53935",
+    "$comment": "Copy this file and customise for each integrator white-label build."
+}

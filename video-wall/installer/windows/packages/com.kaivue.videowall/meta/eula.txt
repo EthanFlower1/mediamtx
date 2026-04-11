@@ -1,0 +1,29 @@
+KAIVUE VIDEO WALL — END USER LICENSE AGREEMENT
+
+Copyright (c) 2026 Kaivue, Inc. All rights reserved.
+
+This software is licensed, not sold. By installing or using this software you
+agree to the terms below.
+
+1. LICENSE GRANT
+   Kaivue grants you a non-exclusive, non-transferable license to install and
+   use the Kaivue Video Wall client software on devices you own or control,
+   solely in connection with a valid Kaivue Recording Server subscription.
+
+2. RESTRICTIONS
+   You may not reverse-engineer, decompile, disassemble, or modify the software
+   except where applicable law expressly permits.
+
+3. TERMINATION
+   This license terminates automatically if you breach any term. Upon
+   termination you must destroy all copies.
+
+4. DISCLAIMER
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. KAIVUE
+   DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL KAIVUE BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+   OR CONSEQUENTIAL DAMAGES.
+
+For the full license text, visit https://kaivue.com/legal/eula

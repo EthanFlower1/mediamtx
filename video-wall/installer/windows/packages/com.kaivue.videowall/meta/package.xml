@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+    <DisplayName>%BRAND_NAME%</DisplayName>
+    <Description>SOC video wall client for live camera feeds, map overlays, and tour management.</Description>
+    <Version>@PROJECT_VERSION@</Version>
+    <ReleaseDate>@RELEASE_DATE@</ReleaseDate>
+    <Default>true</Default>
+    <Required>true</Required>
+    <ForcedInstallation>true</ForcedInstallation>
+
+    <Script>installscript.qs</Script>
+
+    <Licenses>
+        <License name="End User License Agreement" file="eula.txt" />
+    </Licenses>
+</Package>

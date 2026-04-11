@@ -701,6 +701,14 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 	protected.GET("/search", searchHandler.Search)
 	protected.POST("/search/backfill", searchHandler.Backfill)
 
+	// Forensic multi-faceted search (KAI-290).
+	forensicHandler := &ForensicSearchHandler{
+		DB:       cfg.DB,
+		Embedder: cfg.Embedder,
+	}
+	protected.POST("/forensic-search", forensicHandler.Search)
+	protected.GET("/forensic-search/samples", forensicHandler.SampleQueries)
+
 	// AI model management.
 	if cfg.ModelManager != nil {
 		modelHandler := &ModelHandler{Manager: cfg.ModelManager, AIRestarter: cfg.AIRestarter}

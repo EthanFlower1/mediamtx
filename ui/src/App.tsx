@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
 import DownloadClient from './pages/DownloadClient'
+import ForensicSearch from './pages/ForensicSearch'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -238,6 +239,12 @@ const IconUsers = (
   </svg>
 )
 
+const IconSearch = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -338,6 +345,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const navLinks: NavLinkProps[] = [
     { to: '/cameras', icon: IconCamera, label: 'Cameras' },
+    { to: '/forensic-search', icon: IconSearch, label: 'Search' },
     { to: '/dashboard', icon: IconDashboard, label: 'Health' },
     { to: '/settings', icon: IconSettings, label: 'Settings', badge: storageWarning },
     ...(user?.role === 'admin'
@@ -510,6 +518,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/setup" element={<Setup />} />
       <Route path="/cameras" element={<ProtectedRoute><Layout><CameraManagement /></Layout></ProtectedRoute>} />
+      <Route path="/forensic-search" element={<ProtectedRoute><Layout><ForensicSearch /></Layout></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />

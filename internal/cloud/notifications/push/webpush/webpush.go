@@ -58,7 +58,7 @@ type Channel struct {
 }
 
 // compile-time interface check
-var _ notifications.DeliveryChannel = (*Channel)(nil)
+var _ notifications.PushDeliveryChannel = (*Channel)(nil)
 
 // New constructs a ready-to-use Web Push channel.
 func New(cfg Config) (*Channel, error) {
@@ -106,12 +106,12 @@ func (c *Channel) Type() notifications.ChannelType {
 
 // Send implements DeliveryChannel. The msg.Target should be a JSON-encoded
 // Subscription object.
-func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifications.DeliveryResult, error) {
+func (c *Channel) Send(ctx context.Context, msg notifications.PushMessage) (notifications.PushDeliveryResult, error) {
 	var sub Subscription
 	if err := json.Unmarshal([]byte(msg.Target), &sub); err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("parse subscription: %v", err),
 		}, nil
 	}
@@ -124,36 +124,36 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 		"badge":    msg.Badge,
 	})
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       sub.Endpoint,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("marshal payload: %v", err),
 		}, nil
 	}
 
 	encrypted, err := encryptPayload(sub, payload)
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       sub.Endpoint,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("encrypt: %v", err),
 		}, nil
 	}
 
 	vapidHeader, err := c.generateVAPIDAuth(sub.Endpoint)
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       sub.Endpoint,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("vapid: %v", err),
 		}, nil
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sub.Endpoint, bytes.NewReader(encrypted.body))
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       sub.Endpoint,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -171,9 +171,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	resp, err := c.client.Do(req)
 	if err != nil {
 		atomic.AddInt64(&c.failed, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       sub.Endpoint,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -183,10 +183,10 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 }
 
 // BatchSend implements DeliveryChannel.
-func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.DeliveryResult, error) {
-	results := make([]notifications.DeliveryResult, len(msg.Targets))
+func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.PushDeliveryResult, error) {
+	results := make([]notifications.PushDeliveryResult, len(msg.Targets))
 	for i, tgt := range msg.Targets {
-		single := notifications.Message{
+		single := notifications.PushMessage{
 			MessageID:   fmt.Sprintf("%s-%d", msg.MessageID, i),
 			TenantID:    msg.TenantID,
 			UserID:      tgt.UserID,
@@ -204,9 +204,9 @@ func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage)
 		}
 		result, err := c.Send(ctx, single)
 		if err != nil {
-			results[i] = notifications.DeliveryResult{
+			results[i] = notifications.PushDeliveryResult{
 				Target:       tgt.DeviceToken,
-				State:        notifications.StateFailed,
+				State:        notifications.PushStateFailed,
 				ErrorMessage: err.Error(),
 			}
 			continue
@@ -260,39 +260,39 @@ func (c *Channel) generateVAPIDAuth(audience string) (string, error) {
 	return fmt.Sprintf("vapid t=%s, k=%s", signed, pubEncoded), nil
 }
 
-func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.DeliveryResult, error) {
+func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.PushDeliveryResult, error) {
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		atomic.AddInt64(&c.sent, 1)
 		location := resp.Header.Get("Location")
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:     target,
-			State:      notifications.StateDelivered,
+			State:      notifications.PushStateDelivered,
 			PlatformID: location,
 		}, nil
 
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
 		atomic.AddInt64(&c.removed, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:            target,
-			State:             notifications.StateUnreachable,
+			State:             notifications.PushStateUnreachable,
 			ErrorCode:         fmt.Sprintf("%d", resp.StatusCode),
 			ShouldRemoveToken: true,
 		}, nil
 
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:    target,
-			State:     notifications.StateThrottled,
+			State:     notifications.PushStateThrottled,
 			ErrorCode: "429",
 		}, nil
 
 	default:
 		atomic.AddInt64(&c.failed, 1)
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorCode:    fmt.Sprintf("%d", resp.StatusCode),
 			ErrorMessage: string(respBody),
 		}, nil

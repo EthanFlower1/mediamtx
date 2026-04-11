@@ -5,28 +5,28 @@ import (
 	"time"
 )
 
-// DeliveryChannel is the interface that all notification delivery adapters
-// (FCM, APNs, Web Push, email, SMS, webhook) must implement. KAI-476 defined
-// the contract; KAI-477 adds the push-notification implementations.
-type DeliveryChannel interface {
+// PushDeliveryChannel is the interface that all push notification delivery
+// adapters (FCM, APNs, Web Push) must implement. This is distinct from
+// DeliveryChannel (channel.go) which covers email/SMS/voice channels.
+type PushDeliveryChannel interface {
 	// Type returns the channel type this adapter handles.
 	Type() ChannelType
 
 	// Send delivers a single message to a single recipient device/endpoint.
-	Send(ctx context.Context, msg Message) (DeliveryResult, error)
+	Send(ctx context.Context, msg PushMessage) (PushDeliveryResult, error)
 
 	// BatchSend delivers a message to multiple recipient devices/endpoints.
-	// Implementations should return one DeliveryResult per target, in the
+	// Implementations should return one PushDeliveryResult per target, in the
 	// same order as msg.Targets.
-	BatchSend(ctx context.Context, msg BatchMessage) ([]DeliveryResult, error)
+	BatchSend(ctx context.Context, msg BatchMessage) ([]PushDeliveryResult, error)
 
 	// CheckHealth verifies that the adapter's backend (FCM API, APNs
 	// gateway, etc.) is reachable and credentials are valid.
 	CheckHealth(ctx context.Context) error
 }
 
-// Message is a single push notification to be delivered.
-type Message struct {
+// PushMessage is a single push notification to be delivered.
+type PushMessage struct {
 	// MessageID is a caller-assigned idempotency key.
 	MessageID string `json:"message_id"`
 	TenantID  string `json:"tenant_id"`
@@ -96,53 +96,53 @@ const (
 	PlatformWebPush Platform = "webpush"
 )
 
-// DeliveryResult records the outcome of delivering to a single target.
-type DeliveryResult struct {
-	Target       string        `json:"target"`
-	State        DeliveryState `json:"state"`
-	PlatformID   string        `json:"platform_id,omitempty"`
-	ErrorCode    string        `json:"error_code,omitempty"`
-	ErrorMessage string        `json:"error_message,omitempty"`
+// PushDeliveryResult records the outcome of delivering to a single target.
+type PushDeliveryResult struct {
+	Target       string             `json:"target"`
+	State        PushDeliveryState  `json:"state"`
+	PlatformID   string             `json:"platform_id,omitempty"`
+	ErrorCode    string             `json:"error_code,omitempty"`
+	ErrorMessage string             `json:"error_message,omitempty"`
 
 	// ShouldRemoveToken is true when the push gateway reports the token as
 	// invalid or unregistered. The caller should deregister the device.
 	ShouldRemoveToken bool `json:"should_remove_token,omitempty"`
 }
 
-// DeliveryState is the terminal state after a single send attempt.
-type DeliveryState string
+// PushDeliveryState is the terminal state after a single send attempt.
+type PushDeliveryState string
 
 const (
-	StateDelivered   DeliveryState = "delivered"
-	StateFailed      DeliveryState = "failed"
-	StateThrottled   DeliveryState = "throttled"
-	StateUnreachable DeliveryState = "unreachable"
+	PushStateDelivered   PushDeliveryState = "delivered"
+	PushStateFailed      PushDeliveryState = "failed"
+	PushStateThrottled   PushDeliveryState = "throttled"
+	PushStateUnreachable PushDeliveryState = "unreachable"
 )
 
-// ChannelRegistry provides type-based routing to registered DeliveryChannel
+// PushChannelRegistry provides type-based routing to registered PushDeliveryChannel
 // implementations.
-type ChannelRegistry struct {
-	channels map[ChannelType]DeliveryChannel
+type PushChannelRegistry struct {
+	channels map[ChannelType]PushDeliveryChannel
 }
 
-// NewChannelRegistry creates an empty registry.
-func NewChannelRegistry() *ChannelRegistry {
-	return &ChannelRegistry{channels: make(map[ChannelType]DeliveryChannel)}
+// NewPushChannelRegistry creates an empty registry.
+func NewPushChannelRegistry() *PushChannelRegistry {
+	return &PushChannelRegistry{channels: make(map[ChannelType]PushDeliveryChannel)}
 }
 
 // Register adds a delivery channel adapter to the registry.
-func (r *ChannelRegistry) Register(ch DeliveryChannel) {
+func (r *PushChannelRegistry) Register(ch PushDeliveryChannel) {
 	r.channels[ch.Type()] = ch
 }
 
 // Get returns the registered channel for the given type, or nil.
-func (r *ChannelRegistry) Get(ct ChannelType) DeliveryChannel {
+func (r *PushChannelRegistry) Get(ct ChannelType) PushDeliveryChannel {
 	return r.channels[ct]
 }
 
 // All returns every registered channel.
-func (r *ChannelRegistry) All() map[ChannelType]DeliveryChannel {
-	out := make(map[ChannelType]DeliveryChannel, len(r.channels))
+func (r *PushChannelRegistry) All() map[ChannelType]PushDeliveryChannel {
+	out := make(map[ChannelType]PushDeliveryChannel, len(r.channels))
 	for k, v := range r.channels {
 		out[k] = v
 	}

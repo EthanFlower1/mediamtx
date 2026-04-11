@@ -58,7 +58,7 @@ type Channel struct {
 }
 
 // compile-time interface check
-var _ notifications.DeliveryChannel = (*Channel)(nil)
+var _ notifications.PushDeliveryChannel = (*Channel)(nil)
 
 // New constructs a ready-to-use APNs channel.
 func New(cfg Config) (*Channel, error) {
@@ -110,12 +110,12 @@ func (c *Channel) Type() notifications.ChannelType {
 }
 
 // Send implements DeliveryChannel.
-func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifications.DeliveryResult, error) {
+func (c *Channel) Send(ctx context.Context, msg notifications.PushMessage) (notifications.PushDeliveryResult, error) {
 	token, err := c.getToken()
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("jwt: %v", err),
 		}, nil
 	}
@@ -123,9 +123,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	payload := c.buildPayload(msg)
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("marshal: %v", err),
 		}, nil
 	}
@@ -133,9 +133,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	url := fmt.Sprintf("%s/3/device/%s", c.endpoint, msg.Target)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -160,9 +160,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	resp, err := c.client.Do(req)
 	if err != nil {
 		atomic.AddInt64(&c.failed, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -172,10 +172,10 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 }
 
 // BatchSend implements DeliveryChannel.
-func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.DeliveryResult, error) {
-	results := make([]notifications.DeliveryResult, len(msg.Targets))
+func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.PushDeliveryResult, error) {
+	results := make([]notifications.PushDeliveryResult, len(msg.Targets))
 	for i, tgt := range msg.Targets {
-		single := notifications.Message{
+		single := notifications.PushMessage{
 			MessageID:   fmt.Sprintf("%s-%d", msg.MessageID, i),
 			TenantID:    msg.TenantID,
 			UserID:      tgt.UserID,
@@ -193,9 +193,9 @@ func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage)
 		}
 		result, err := c.Send(ctx, single)
 		if err != nil {
-			results[i] = notifications.DeliveryResult{
+			results[i] = notifications.PushDeliveryResult{
 				Target:       tgt.DeviceToken,
-				State:        notifications.StateFailed,
+				State:        notifications.PushStateFailed,
 				ErrorMessage: err.Error(),
 			}
 			continue
@@ -243,7 +243,7 @@ type apnsErrorResponse struct {
 	Reason string `json:"reason"`
 }
 
-func (c *Channel) buildPayload(msg notifications.Message) apnsPayload {
+func (c *Channel) buildPayload(msg notifications.PushMessage) apnsPayload {
 	aps := apnsAps{
 		Alert: apnsAlert{
 			Title: msg.Title,
@@ -295,13 +295,13 @@ func (c *Channel) getToken() (string, error) {
 	return c.token, nil
 }
 
-func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.DeliveryResult, error) {
+func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.PushDeliveryResult, error) {
 	if resp.StatusCode == http.StatusOK {
 		atomic.AddInt64(&c.sent, 1)
 		apnsID := resp.Header.Get("apns-id")
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:     target,
-			State:      notifications.StateDelivered,
+			State:      notifications.PushStateDelivered,
 			PlatformID: apnsID,
 		}, nil
 	}
@@ -310,9 +310,9 @@ func (c *Channel) parseResponse(resp *http.Response, target string) (notificatio
 	var apnsErr apnsErrorResponse
 	_ = json.Unmarshal(respBody, &apnsErr)
 
-	result := notifications.DeliveryResult{
+	result := notifications.PushDeliveryResult{
 		Target:       target,
-		State:        notifications.StateFailed,
+		State:        notifications.PushStateFailed,
 		ErrorCode:    apnsErr.Reason,
 		ErrorMessage: apnsErr.Reason,
 	}
@@ -320,10 +320,10 @@ func (c *Channel) parseResponse(resp *http.Response, target string) (notificatio
 	switch apnsErr.Reason {
 	case "BadDeviceToken", "Unregistered", "ExpiredToken":
 		result.ShouldRemoveToken = true
-		result.State = notifications.StateUnreachable
+		result.State = notifications.PushStateUnreachable
 		atomic.AddInt64(&c.removed, 1)
 	case "TooManyRequests":
-		result.State = notifications.StateThrottled
+		result.State = notifications.PushStateThrottled
 	default:
 		atomic.AddInt64(&c.failed, 1)
 	}

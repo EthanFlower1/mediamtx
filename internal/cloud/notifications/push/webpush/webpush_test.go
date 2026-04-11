@@ -82,7 +82,7 @@ func TestSend_Success(t *testing.T) {
 
 	sub := makeSubscription(t, srv.URL+"/push/v1/abc")
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		MessageID: "msg-1",
 		Target:    sub,
 		Title:     "Test Alert",
@@ -93,7 +93,7 @@ func TestSend_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateDelivered {
+	if result.State != notifications.PushStateDelivered {
 		t.Errorf("expected delivered, got %s (err: %s)", result.State, result.ErrorMessage)
 	}
 }
@@ -113,14 +113,14 @@ func TestSend_SubscriptionExpired(t *testing.T) {
 
 	sub := makeSubscription(t, srv.URL+"/push/v1/xyz")
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		Target: sub,
 		Title:  "Test",
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateUnreachable {
+	if result.State != notifications.PushStateUnreachable {
 		t.Errorf("expected unreachable, got %s", result.State)
 	}
 	if !result.ShouldRemoveToken {
@@ -143,10 +143,10 @@ func TestSend_RateLimited(t *testing.T) {
 
 	sub := makeSubscription(t, srv.URL+"/push/v1/abc")
 
-	result, _ := ch.Send(context.Background(), notifications.Message{
+	result, _ := ch.Send(context.Background(), notifications.PushMessage{
 		Target: sub,
 	})
-	if result.State != notifications.StateThrottled {
+	if result.State != notifications.PushStateThrottled {
 		t.Errorf("expected throttled, got %s", result.State)
 	}
 }
@@ -159,10 +159,10 @@ func TestSend_InvalidSubscription(t *testing.T) {
 		Subject:         "mailto:test@kaivue.com",
 	})
 
-	result, _ := ch.Send(context.Background(), notifications.Message{
+	result, _ := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "not-json",
 	})
-	if result.State != notifications.StateFailed {
+	if result.State != notifications.PushStateFailed {
 		t.Errorf("expected failed, got %s", result.State)
 	}
 }
@@ -263,7 +263,7 @@ func TestStats(t *testing.T) {
 	})
 
 	sub := makeSubscription(t, srv.URL+"/push/v1/a")
-	ch.Send(context.Background(), notifications.Message{Target: sub, Title: "x"})
+	ch.Send(context.Background(), notifications.PushMessage{Target: sub, Title: "x"})
 
 	sent, failed, removed := ch.Stats()
 	if sent != 1 {

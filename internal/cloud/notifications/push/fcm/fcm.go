@@ -48,7 +48,7 @@ type Channel struct {
 }
 
 // compile-time interface check
-var _ notifications.DeliveryChannel = (*Channel)(nil)
+var _ notifications.PushDeliveryChannel = (*Channel)(nil)
 
 // New constructs a ready-to-use FCM channel.
 func New(cfg Config) (*Channel, error) {
@@ -80,12 +80,12 @@ func (c *Channel) Type() notifications.ChannelType {
 }
 
 // Send implements DeliveryChannel.
-func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifications.DeliveryResult, error) {
+func (c *Channel) Send(ctx context.Context, msg notifications.PushMessage) (notifications.PushDeliveryResult, error) {
 	token, err := c.tokenSource.Token(ctx)
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("token source: %v", err),
 		}, nil
 	}
@@ -93,9 +93,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	payload := c.buildPayload(msg)
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("marshal: %v", err),
 		}, nil
 	}
@@ -103,9 +103,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	url := fmt.Sprintf("%s/v1/projects/%s/messages:send", c.endpoint, c.projectID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -115,9 +115,9 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 	resp, err := c.client.Do(req)
 	if err != nil {
 		atomic.AddInt64(&c.failed, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       msg.Target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: err.Error(),
 		}, nil
 	}
@@ -128,10 +128,10 @@ func (c *Channel) Send(ctx context.Context, msg notifications.Message) (notifica
 
 // BatchSend implements DeliveryChannel. FCM v1 does not have a native batch
 // endpoint, so we fan out individual sends.
-func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.DeliveryResult, error) {
-	results := make([]notifications.DeliveryResult, len(msg.Targets))
+func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage) ([]notifications.PushDeliveryResult, error) {
+	results := make([]notifications.PushDeliveryResult, len(msg.Targets))
 	for i, tgt := range msg.Targets {
-		single := notifications.Message{
+		single := notifications.PushMessage{
 			MessageID:   fmt.Sprintf("%s-%d", msg.MessageID, i),
 			TenantID:    msg.TenantID,
 			UserID:      tgt.UserID,
@@ -149,9 +149,9 @@ func (c *Channel) BatchSend(ctx context.Context, msg notifications.BatchMessage)
 		}
 		result, err := c.Send(ctx, single)
 		if err != nil {
-			results[i] = notifications.DeliveryResult{
+			results[i] = notifications.PushDeliveryResult{
 				Target:       tgt.DeviceToken,
-				State:        notifications.StateFailed,
+				State:        notifications.PushStateFailed,
 				ErrorMessage: err.Error(),
 			}
 			continue
@@ -172,8 +172,8 @@ func (c *Channel) CheckHealth(ctx context.Context) error {
 }
 
 // Metrics returns delivery statistics.
-func (c *Channel) Metrics() notifications.DeliveryResult {
-	return notifications.DeliveryResult{}
+func (c *Channel) Metrics() notifications.PushDeliveryResult {
+	return notifications.PushDeliveryResult{}
 }
 
 // Stats returns cumulative counters.
@@ -227,7 +227,7 @@ type fcmError struct {
 	Status  string `json:"status"`
 }
 
-func (c *Channel) buildPayload(msg notifications.Message) fcmRequest {
+func (c *Channel) buildPayload(msg notifications.PushMessage) fcmRequest {
 	m := fcmMessage{
 		Token: msg.Target,
 		Notification: &fcmNotification{
@@ -259,13 +259,13 @@ func (c *Channel) buildPayload(msg notifications.Message) fcmRequest {
 	return fcmRequest{Message: m}
 }
 
-func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.DeliveryResult, error) {
+func (c *Channel) parseResponse(resp *http.Response, target string) (notifications.PushDeliveryResult, error) {
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		atomic.AddInt64(&c.failed, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:       target,
-			State:        notifications.StateFailed,
+			State:        notifications.PushStateFailed,
 			ErrorMessage: fmt.Sprintf("read response: %v", err),
 		}, nil
 	}
@@ -274,9 +274,9 @@ func (c *Channel) parseResponse(resp *http.Response, target string) (notificatio
 		var r fcmResponse
 		_ = json.Unmarshal(respBody, &r)
 		atomic.AddInt64(&c.sent, 1)
-		return notifications.DeliveryResult{
+		return notifications.PushDeliveryResult{
 			Target:     target,
-			State:      notifications.StateDelivered,
+			State:      notifications.PushStateDelivered,
 			PlatformID: r.Name,
 		}, nil
 	}
@@ -284,9 +284,9 @@ func (c *Channel) parseResponse(resp *http.Response, target string) (notificatio
 	var r fcmResponse
 	_ = json.Unmarshal(respBody, &r)
 
-	result := notifications.DeliveryResult{
+	result := notifications.PushDeliveryResult{
 		Target: target,
-		State:  notifications.StateFailed,
+		State:  notifications.PushStateFailed,
 	}
 	if r.Error != nil {
 		result.ErrorCode = r.Error.Status
@@ -297,10 +297,10 @@ func (c *Channel) parseResponse(resp *http.Response, target string) (notificatio
 	case http.StatusNotFound, http.StatusGone:
 		// Token is invalid or unregistered
 		result.ShouldRemoveToken = true
-		result.State = notifications.StateUnreachable
+		result.State = notifications.PushStateUnreachable
 		atomic.AddInt64(&c.removed, 1)
 	case http.StatusTooManyRequests:
-		result.State = notifications.StateThrottled
+		result.State = notifications.PushStateThrottled
 	default:
 		atomic.AddInt64(&c.failed, 1)
 	}

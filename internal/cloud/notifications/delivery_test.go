@@ -7,29 +7,29 @@ import (
 	"github.com/bluenviron/mediamtx/internal/cloud/notifications"
 )
 
-// fakeChannel is a minimal DeliveryChannel for registry tests.
-type fakeChannel struct {
+// fakePushChannel is a minimal PushDeliveryChannel for registry tests.
+type fakePushChannel struct {
 	ct notifications.ChannelType
 }
 
-func (f *fakeChannel) Type() notifications.ChannelType { return f.ct }
-func (f *fakeChannel) Send(_ context.Context, _ notifications.Message) (notifications.DeliveryResult, error) {
-	return notifications.DeliveryResult{State: notifications.StateDelivered}, nil
+func (f *fakePushChannel) Type() notifications.ChannelType { return f.ct }
+func (f *fakePushChannel) Send(_ context.Context, _ notifications.PushMessage) (notifications.PushDeliveryResult, error) {
+	return notifications.PushDeliveryResult{State: notifications.PushStateDelivered}, nil
 }
-func (f *fakeChannel) BatchSend(_ context.Context, msg notifications.BatchMessage) ([]notifications.DeliveryResult, error) {
-	out := make([]notifications.DeliveryResult, len(msg.Targets))
+func (f *fakePushChannel) BatchSend(_ context.Context, msg notifications.BatchMessage) ([]notifications.PushDeliveryResult, error) {
+	out := make([]notifications.PushDeliveryResult, len(msg.Targets))
 	for i := range out {
-		out[i] = notifications.DeliveryResult{State: notifications.StateDelivered}
+		out[i] = notifications.PushDeliveryResult{State: notifications.PushStateDelivered}
 	}
 	return out, nil
 }
-func (f *fakeChannel) CheckHealth(_ context.Context) error { return nil }
+func (f *fakePushChannel) CheckHealth(_ context.Context) error { return nil }
 
-func TestChannelRegistry(t *testing.T) {
-	reg := notifications.NewChannelRegistry()
+func TestPushChannelRegistry(t *testing.T) {
+	reg := notifications.NewPushChannelRegistry()
 
-	push := &fakeChannel{ct: notifications.ChannelPush}
-	email := &fakeChannel{ct: notifications.ChannelEmail}
+	push := &fakePushChannel{ct: notifications.ChannelPush}
+	email := &fakePushChannel{ct: notifications.ChannelEmail}
 
 	reg.Register(push)
 	reg.Register(email)

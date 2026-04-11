@@ -60,7 +60,7 @@ func TestSend_Success(t *testing.T) {
 		t.Fatalf("new: %v", err)
 	}
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		MessageID: "msg-1",
 		Target:    "apns-device-token-abc",
 		Title:     "Camera Alert",
@@ -70,7 +70,7 @@ func TestSend_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateDelivered {
+	if result.State != notifications.PushStateDelivered {
 		t.Errorf("expected delivered, got %s", result.State)
 	}
 	if result.PlatformID != "uuid-apns-123" {
@@ -95,13 +95,13 @@ func TestSend_BadDeviceToken(t *testing.T) {
 		Endpoint:   srv.URL,
 	})
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "bad-token",
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateUnreachable {
+	if result.State != notifications.PushStateUnreachable {
 		t.Errorf("expected unreachable, got %s", result.State)
 	}
 	if !result.ShouldRemoveToken {
@@ -126,10 +126,10 @@ func TestSend_Unregistered(t *testing.T) {
 		Endpoint:   srv.URL,
 	})
 
-	result, _ := ch.Send(context.Background(), notifications.Message{
+	result, _ := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "expired-token",
 	})
-	if result.State != notifications.StateUnreachable {
+	if result.State != notifications.PushStateUnreachable {
 		t.Errorf("expected unreachable, got %s", result.State)
 	}
 	if !result.ShouldRemoveToken {
@@ -154,10 +154,10 @@ func TestSend_RateLimited(t *testing.T) {
 		Endpoint:   srv.URL,
 	})
 
-	result, _ := ch.Send(context.Background(), notifications.Message{
+	result, _ := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "token-abc",
 	})
-	if result.State != notifications.StateThrottled {
+	if result.State != notifications.PushStateThrottled {
 		t.Errorf("expected throttled, got %s", result.State)
 	}
 }
@@ -260,7 +260,7 @@ func TestStats(t *testing.T) {
 		Endpoint:   srv.URL,
 	})
 
-	ch.Send(context.Background(), notifications.Message{Target: "t1", Title: "x"})
+	ch.Send(context.Background(), notifications.PushMessage{Target: "t1", Title: "x"})
 
 	sent, failed, removed := ch.Stats()
 	if sent != 1 {

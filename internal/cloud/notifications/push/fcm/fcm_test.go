@@ -40,7 +40,7 @@ func TestSend_Success(t *testing.T) {
 		t.Fatalf("new: %v", err)
 	}
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		MessageID: "msg-1",
 		TenantID:  "tenant-1",
 		UserID:    "user-1",
@@ -52,7 +52,7 @@ func TestSend_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateDelivered {
+	if result.State != notifications.PushStateDelivered {
 		t.Errorf("expected delivered, got %s", result.State)
 	}
 	if result.PlatformID != "projects/test/messages/123" {
@@ -79,13 +79,13 @@ func TestSend_InvalidToken(t *testing.T) {
 		Endpoint:    srv.URL,
 	})
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "invalid-token",
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateUnreachable {
+	if result.State != notifications.PushStateUnreachable {
 		t.Errorf("expected unreachable, got %s", result.State)
 	}
 	if !result.ShouldRemoveToken {
@@ -112,13 +112,13 @@ func TestSend_RateLimited(t *testing.T) {
 		Endpoint:    srv.URL,
 	})
 
-	result, err := ch.Send(context.Background(), notifications.Message{
+	result, err := ch.Send(context.Background(), notifications.PushMessage{
 		Target: "token-abc",
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	if result.State != notifications.StateThrottled {
+	if result.State != notifications.PushStateThrottled {
 		t.Errorf("expected throttled, got %s", result.State)
 	}
 }
@@ -161,7 +161,7 @@ func TestBatchSend(t *testing.T) {
 		t.Errorf("expected 3 HTTP requests, got %d", count)
 	}
 	for i, r := range results {
-		if r.State != notifications.StateDelivered {
+		if r.State != notifications.PushStateDelivered {
 			t.Errorf("result[%d]: expected delivered, got %s", i, r.State)
 		}
 	}
@@ -200,8 +200,8 @@ func TestStats(t *testing.T) {
 		Endpoint:    srv.URL,
 	})
 
-	ch.Send(context.Background(), notifications.Message{Target: "t1", Title: "x"})
-	ch.Send(context.Background(), notifications.Message{Target: "t2", Title: "x"})
+	ch.Send(context.Background(), notifications.PushMessage{Target: "t1", Title: "x"})
+	ch.Send(context.Background(), notifications.PushMessage{Target: "t2", Title: "x"})
 
 	sent, failed, removed := ch.Stats()
 	if sent != 2 {

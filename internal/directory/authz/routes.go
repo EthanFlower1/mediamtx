@@ -129,4 +129,9 @@ var DirectoryRoutes = RouteTable{
 	{Method: "POST", PathPrefix: "/api/v1/federation/search/recordings", Route: Route{
 		Action: "recordings.search", ResourceType: "recordings",
 	}},
+
+	// --- Federation streams (cross-site playback, KAI-274) ---
+	{Method: "POST", PathPrefix: "/api/v1/federation/streams/request", Route: Route{
+		Action: "view.live", ResourceType: "streams",
+	}},
 }

@@ -468,6 +468,78 @@ func TestCrossTenantIsolation(t *testing.T) {
 	}
 }
 
+func TestStartTimeoutWorkerAdvancesEscalation(t *testing.T) {
+	notifier := &fakeNotifier{}
+	svc, clock := newService(t, notifier, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	chain, _, _ := svc.CreateChain(ctx, escalation.Chain{
+		TenantID: "tenant-1",
+		Name:     "Worker Test",
+		Enabled:  true,
+	}, []escalation.Step{
+		{TargetType: escalation.TargetUser, TargetID: "user-1", ChannelType: escalation.ChannelPush, TimeoutSeconds: 1},
+		{TargetType: escalation.TargetUser, TargetID: "user-2", ChannelType: escalation.ChannelEmail, TimeoutSeconds: 1},
+	})
+
+	svc.StartEscalation(ctx, "tenant-1", "alert-worker", chain.ChainID)
+	if notifier.CallCount() != 1 {
+		t.Fatalf("expected 1 notify after start, got %d", notifier.CallCount())
+	}
+
+	// Advance past the 1-second timeout so the worker will find it expired.
+	clock.Advance(2 * time.Second)
+
+	// Start the timeout worker with a very short interval.
+	svc.StartTimeoutWorker(ctx, "tenant-1", 50*time.Millisecond)
+
+	// Wait for the worker to process at least one tick.
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for worker to advance escalation")
+		default:
+		}
+		if notifier.CallCount() >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Verify escalation advanced to tier 2.
+	ae, err := svc.GetAlertEscalation(ctx, "tenant-1", "alert-worker")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if ae.CurrentStep != 2 {
+		t.Errorf("expected current_step 2, got %d", ae.CurrentStep)
+	}
+	if ae.State != escalation.StateNotified {
+		t.Errorf("expected state notified, got %s", ae.State)
+	}
+	if notifier.LastCall().Step.TargetID != "user-2" {
+		t.Errorf("expected notify for user-2, got %s", notifier.LastCall().Step.TargetID)
+	}
+
+	// Cancel should stop the worker (no panic/leak).
+	cancel()
+}
+
+func TestStartTimeoutWorkerStopsOnCancel(t *testing.T) {
+	svc, _ := newService(t, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	svc.StartTimeoutWorker(ctx, "tenant-1", 10*time.Millisecond)
+
+	// Cancel immediately — the goroutine should exit cleanly.
+	cancel()
+
+	// Give goroutine time to exit. If it leaks, race detector will catch it.
+	time.Sleep(50 * time.Millisecond)
+}
+
 func TestGetAlertNotFound(t *testing.T) {
 	svc, _ := newService(t, nil, nil)
 	ctx := context.Background()

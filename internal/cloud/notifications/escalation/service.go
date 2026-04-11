@@ -371,6 +371,23 @@ func (s *Service) advanceEscalation(ctx context.Context, ae AlertEscalation) err
 	return nil
 }
 
+// StartTimeoutWorker runs a background goroutine that calls ProcessTimeouts
+// at the given interval for the specified tenant. It stops when ctx is cancelled.
+func (s *Service) StartTimeoutWorker(ctx context.Context, tenantID string, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_, _ = s.ProcessTimeouts(ctx, tenantID)
+			}
+		}
+	}()
+}
+
 // GetAlertEscalation returns the current escalation state for an alert.
 func (s *Service) GetAlertEscalation(ctx context.Context, tenantID, alertID string) (*AlertEscalation, error) {
 	return s.getAlertEscalation(ctx, tenantID, alertID)

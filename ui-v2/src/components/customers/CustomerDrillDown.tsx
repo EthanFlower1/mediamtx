@@ -7,6 +7,7 @@ import {
   customerQueryKey,
   getCustomer,
 } from '@/api/customers';
+import { useImpersonationStore } from '@/stores/impersonation';
 import { ImpersonateConfirmDialog } from './ImpersonateConfirmDialog';
 
 // KAI-309: Customer drill-down page.
@@ -42,6 +43,7 @@ export function CustomerDrillDown(): JSX.Element {
   const customerId = params.customerId ?? '';
   const [tab, setTab] = useState<TabId>('overview');
   const [impersonating, setImpersonating] = useState(false);
+  const startImpersonationSession = useImpersonationStore((s) => s.startSession);
 
   const query = useQuery({
     queryKey: customerQueryKey(customerId),
@@ -51,9 +53,26 @@ export function CustomerDrillDown(): JSX.Element {
 
   const impersonateMutation = useMutation({
     mutationFn: (reason: string) => beginImpersonation(customerId, reason),
-    onSuccess: () => {
+    onSuccess: (session) => {
       setImpersonating(false);
-      navigate('/admin?impersonating=true');
+      // KAI-467: Set session in store so ImpersonationBanner renders.
+      startImpersonationSession({
+        sessionId: session.sessionId,
+        mode: 'integrator',
+        impersonatingUserId: session.integratorUserId,
+        impersonatingUserName: 'Current User',
+        impersonatingTenantId: 'integrator-001',
+        impersonatedTenantId: session.customerId,
+        impersonatedTenantName: customer?.name ?? session.customerId,
+        scopedPermissions: ['view.live', 'view.playback', 'cameras.edit'],
+        status: 'active',
+        reason: session.reason,
+        createdAtIso: session.beganAtIso,
+        expiresAtIso: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        terminatedAtIso: null,
+        terminatedBy: null,
+      });
+      navigate('/admin');
     },
   });
 

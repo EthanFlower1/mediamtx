@@ -1,0 +1,10 @@
+{
+    "id": "com.kaivue.videowall",
+    "name": "Kaivue Video Wall",
+    "publisher": "Kaivue, Inc.",
+    "domain": "kaivue.com",
+    "update_url": "https://updates.kaivue.com/videowall",
+    "support_url": "https://support.kaivue.com",
+    "icon_base": "kaivue",
+    "accent_color": "#0066CC"
+}

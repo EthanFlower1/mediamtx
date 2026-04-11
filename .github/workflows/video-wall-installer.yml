@@ -1,0 +1,176 @@
+# --------------------------------------------------------------------------
+# video-wall-installer.yml — Build, sign, and package the Video Wall client.
+#
+# Triggers: push to feat/KAI-340*, or manual dispatch.
+#
+# Jobs:
+#   1. windows — MSVC 2022 build + Qt IFW installer + EV code signing
+#   2. linux   — GCC 12 build + .deb (Ubuntu 22.04) + .rpm (RHEL 9)
+# --------------------------------------------------------------------------
+name: Video Wall Installer
+
+on:
+  push:
+    branches: ['feat/KAI-340*']
+    paths: ['video-wall/**', '.github/workflows/video-wall-installer.yml']
+  pull_request:
+    branches: [main]
+    paths: ['video-wall/**']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Release channel (stable / beta)'
+        required: false
+        default: 'beta'
+      brand:
+        description: 'Branding profile name (from branding/*.json)'
+        required: false
+        default: 'kaivue'
+
+env:
+  QT_VERSION: '6.7.2'
+  QT_IFW_VERSION: '4.8.1'
+  CHANNEL: ${{ github.event.inputs.channel || 'beta' }}
+  BRAND: ${{ github.event.inputs.brand || 'kaivue' }}
+
+jobs:
+  # ════════════════════════════════════════════════════════════════════════
+  # WINDOWS
+  # ════════════════════════════════════════════════════════════════════════
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        working-directory: video-wall
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: 'qtmultimedia qtlocation'
+          tools: 'tools_ifw'
+
+      - name: Configure (CMake)
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_INSTALL_PREFIX=build/install `
+            -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }}"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Install
+        run: cmake --install build --config Release
+
+      - name: Sign binaries (EV)
+        if: env.AZURE_VAULT_URI != ''
+        env:
+          AZURE_VAULT_URI: ${{ secrets.AZURE_VAULT_URI }}
+          AZURE_CERT_NAME: ${{ secrets.AZURE_CERT_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $files = Get-ChildItem -Recurse build/install -Include *.exe,*.dll
+          pwsh scripts/sign-windows.ps1 -Files $files.FullName
+
+      - name: Build installer (Qt IFW)
+        shell: bash
+        env:
+          PLATFORM: windows
+        run: |
+          export PATH="${QT_ROOT_DIR}/../../Tools/QtInstallerFramework/${QT_IFW_VERSION}/bin:$PATH"
+          bash scripts/build-installer.sh \
+            --platform windows \
+            --brand "$BRAND" \
+            --channel "$CHANNEL" \
+            ${{ env.AZURE_VAULT_URI == '' && '--skip-sign' || '' }}
+
+      - name: Sign installer (EV)
+        if: env.AZURE_VAULT_URI != ''
+        env:
+          AZURE_VAULT_URI: ${{ secrets.AZURE_VAULT_URI }}
+          AZURE_CERT_NAME: ${{ secrets.AZURE_CERT_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $installer = Get-ChildItem build/*-Setup.exe | Select-Object -First 1
+          pwsh scripts/sign-windows.ps1 -Files $installer.FullName
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: video-wall/build/*-Setup.exe
+
+      - name: Upload update repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-update-repo
+          path: video-wall/build/repository/
+
+  # ════════════════════════════════════════════════════════════════════════
+  # LINUX
+  # ════════════════════════════════════════════════════════════════════════
+  linux:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: video-wall
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build rpm \
+            libvulkan-dev libgl1-mesa-dev
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          modules: 'qtmultimedia qtlocation'
+
+      - name: Configure (CMake)
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=build/install \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR}"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Build .deb + .rpm
+        run: |
+          bash scripts/build-installer.sh \
+            --platform linux \
+            --brand "$BRAND" \
+            --channel "$CHANNEL"
+
+      - name: Verify .deb (lintian)
+        run: |
+          sudo apt-get install -y lintian || true
+          lintian build/*.deb --suppress-tags dir-or-file-in-opt || true
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: video-wall/build/*.deb
+
+      - name: Upload .rpm
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-rpm
+          path: video-wall/build/rpm-staging/RPMS/**/*.rpm

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata for Linux package managers / software centres. -->
+<component type="desktop-application">
+    <id>com.kaivue.videowall</id>
+    <name>Kaivue Video Wall</name>
+    <summary>SOC video wall client for live camera feeds and map overlays</summary>
+    <metadata_license>CC0-1.0</metadata_license>
+    <project_license>LicenseRef-proprietary=https://kaivue.com/legal/eula</project_license>
+
+    <description>
+        <p>
+            Multi-monitor live camera view, floor-plan map overlays, tour
+            management, and PTZ control for security operations centres.
+            Connects to the Kaivue Recording Server over RTSP, HLS, or WebRTC.
+        </p>
+    </description>
+
+    <url type="homepage">https://kaivue.com</url>
+    <url type="bugtracker">https://support.kaivue.com</url>
+
+    <launchable type="desktop-id">kaivue-video-wall.desktop</launchable>
+
+    <releases>
+        <release version="0.1.0" date="2026-04-10">
+            <description><p>Initial release — KAI-340 packaging.</p></description>
+        </release>
+    </releases>
+
+    <content_rating type="oars-1.1" />
+</component>

@@ -69,3 +69,31 @@ set_tests_properties(tst_map_view PROPERTIES
     TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ---------------------------------------------------------------------------
+# Update checker unit tests (KAI-340)
+# Headless — validates manifest parsing, version comparison, and signal
+# wiring without network access. Safe for CI containers.
+# ---------------------------------------------------------------------------
+qt_add_executable(tst_update_checker
+    updater/tst_update_checker.cpp
+
+    "${CMAKE_SOURCE_DIR}/src/updater/UpdateChecker.cpp"
+)
+
+target_include_directories(tst_update_checker PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+
+target_link_libraries(tst_update_checker PRIVATE
+    Qt6::Test
+    Qt6::Core
+    Qt6::Network
+)
+
+add_test(NAME tst_update_checker COMMAND tst_update_checker)
+set_tests_properties(tst_update_checker PROPERTIES
+    LABELS "updater"
+    TIMEOUT 60
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

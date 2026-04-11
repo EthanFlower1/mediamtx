@@ -5,10 +5,13 @@
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQuickStyle>
 #include <QLoggingCategory>
+#include <QVersionNumber>
 
 #include "crash/CrashReporter.h"
+#include "updater/UpdateChecker.h"
 #include "version.h"
 
 int main(int argc, char *argv[])
@@ -46,6 +49,23 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(EXIT_FAILURE); },
         Qt::QueuedConnection);
+
+    // ── In-app updater (KAI-340) ──────────────────────────────────────────
+    // Polls the update manifest once per hour. On Windows, applies updates
+    // via the Qt IFW MaintenanceTool; on Linux, directs the user to the
+    // package repository.
+    kaivue::updater::UpdateChecker updater;
+    updater.setCurrentVersion(
+        QVersionNumber::fromString(
+            QStringLiteral(KAIVUE_VIDEOWALL_VERSION)));
+    updater.setManifestUrl(
+        QStringLiteral("https://updates.kaivue.com/videowall"));
+    updater.setCheckIntervalSecs(3600);
+    updater.start();
+
+    // Expose the updater to QML so the UI can bind to update notifications.
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("updateChecker"), &updater);
 
     engine.loadFromModule(QStringLiteral("Kaivue.VideoWall"),
                           QStringLiteral("Main"));

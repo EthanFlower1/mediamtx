@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Qt Installer Framework — global installer configuration.
+  Docs: https://doc.qt.io/qtinstallerframework/ifw-globalconfig.html
+
+  Branding tokens (%BRAND_NAME%, %BRAND_PUBLISHER%) are replaced at build time
+  by scripts/build-installer.sh so integrator white-label builds just swap
+  the branding/<integrator>.json file.
+-->
+<Installer>
+    <Name>%BRAND_NAME%</Name>
+    <Version>@PROJECT_VERSION@</Version>
+    <Title>%BRAND_NAME% Setup</Title>
+    <Publisher>%BRAND_PUBLISHER%</Publisher>
+    <StartMenuDir>%BRAND_NAME%</StartMenuDir>
+
+    <TargetDir>@ApplicationsDirX86@/%BRAND_NAME%</TargetDir>
+
+    <!-- Allow non-admin install into user-local Program Files. -->
+    <AllowNonAsciiCharacters>true</AllowNonAsciiCharacters>
+    <AllowSpaceInPath>true</AllowSpaceInPath>
+
+    <!-- Control script for custom pages (EULA, firewall checkbox). -->
+    <ControlScript>controlscript.qs</ControlScript>
+
+    <!-- Run maintenance tool for uninstall / in-app update. -->
+    <MaintenanceToolName>%BRAND_NAME%Maintenance</MaintenanceToolName>
+
+    <!-- Online update repository — used by the in-app updater. -->
+    <RemoteRepositories>
+        <Repository>
+            <Url>https://updates.kaivue.com/videowall/windows/@CHANNEL@</Url>
+            <Enabled>1</Enabled>
+            <DisplayName>Kaivue Video Wall Updates</DisplayName>
+        </Repository>
+    </RemoteRepositories>
+</Installer>

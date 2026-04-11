@@ -93,6 +93,10 @@ qt_add_executable(KaivueVideoWall
     # Crashpad (Windows) backend swaps in during Wave 6 hardening; the
     # public API stays stable so call sites do not move.
     src/crash/CrashReporter.cpp
+
+    # In-app updater — checks remote manifest and delegates to Qt IFW
+    # MaintenanceTool on Windows, system package manager on Linux (KAI-340).
+    src/updater/UpdateChecker.cpp
 )
 
 target_include_directories(KaivueVideoWall PRIVATE
@@ -127,8 +131,9 @@ if(WIN32)
 endif()
 
 # ---------------------------------------------------------------------------
-# Install rules — stubbed for Qt Installer Framework integration in Wave 3.
-# EV code signing of the Windows installer is deferred to end-of-roadmap.
+# Install rules — Qt IFW on Windows, .deb/.rpm on Linux (KAI-340).
+# EV code signing is wired through scripts/sign-windows.ps1 (Azure HSM or
+# local USB token). The build-installer.sh script drives the full pipeline.
 # ---------------------------------------------------------------------------
 include(GNUInstallDirs)
 
@@ -139,7 +144,8 @@ install(TARGETS KaivueVideoWall
 )
 
 # Qt deployment helper — populates platform plugins, QML modules, etc.
-# Actual installer (Qt IFW on Windows, .deb/.rpm on Linux) is wired up later.
+# The installer pipeline in scripts/build-installer.sh uses the deployed
+# output from cmake --install to populate IFW packages / .deb / .rpm.
 qt_generate_deploy_qml_app_script(
     TARGET KaivueVideoWall
     OUTPUT_SCRIPT deploy_script

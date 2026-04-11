@@ -58,3 +58,12 @@ desktop.ini
 
 # Logs
 *.log
+
+# Installer build artifacts
+installer-staging/
+deb-staging/
+rpm-staging/
+repository/
+*.deb
+*.rpm
+*-Setup.exe

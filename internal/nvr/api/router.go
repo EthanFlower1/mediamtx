@@ -72,6 +72,7 @@ type RouterConfig struct {
 	MigrationMgr        MigrationStatusProvider // upgrade migration manager (may be nil)
 	LogManager          *logmgr.Manager    // structured log manager (may be nil)
 	DiagnosticsHandler  *diagnostics.Handler // support bundle generator (may be nil)
+	DiagnosticsService  *diagnostics.Service // remote diagnostics service (may be nil)
 }
 
 // RegisterRoutes registers all NVR API routes on the given gin engine.
@@ -617,6 +618,17 @@ func RegisterRoutes(engine *gin.Engine, cfg *RouterConfig) *ExportHandler {
 		protected.GET("/diagnostics/bundle/:id", cfg.DiagnosticsHandler.GetBundle)
 		protected.GET("/diagnostics/bundles", cfg.DiagnosticsHandler.ListBundles)
 		protected.POST("/diagnostics/cleanup", cfg.DiagnosticsHandler.CleanExpired)
+	}
+
+	// Remote diagnostics (integrator portal).
+	if cfg.DiagnosticsService != nil {
+		diagHandler := &DiagnosticsHandler{Service: cfg.DiagnosticsService}
+		protected.GET("/diagnostics/recorders", diagHandler.GetRecorderStatuses)
+		protected.GET("/diagnostics/logs", diagHandler.QueryLogs)
+		protected.POST("/diagnostics/network-probe", diagHandler.RunNetworkProbes)
+		protected.GET("/diagnostics/bundles", diagHandler.ListBundles)
+		protected.GET("/diagnostics/bundles/:id", diagHandler.GetBundle)
+		protected.GET("/diagnostics/bundles/:id/download", diagHandler.DownloadBundle)
 	}
 
 	// System alerts and SMTP configuration.

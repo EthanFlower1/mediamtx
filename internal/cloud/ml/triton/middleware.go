@@ -1,11 +1,22 @@
 package triton
 
 import (
+	"context"
 	"net/http"
 )
 
 // TenantHeader is the HTTP/gRPC metadata key for per-tenant routing.
 const TenantHeader = "x-kaivue-tenant-id"
+
+// tenantContextKey is the context key for storing the tenant ID.
+type tenantContextKey struct{}
+
+// TenantFromContext extracts the tenant ID stored by TenantRoutingMiddleware.
+// Returns an empty string if no tenant is present.
+func TenantFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(tenantContextKey{}).(string)
+	return v
+}
 
 // TenantRoutingMiddleware extracts the tenant ID from the incoming request
 // and propagates it to the Triton inference context. It returns 400 if the
@@ -17,9 +28,10 @@ func TenantRoutingMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "missing required header: "+TenantHeader, http.StatusBadRequest)
 			return
 		}
-		// Propagate tenant to downstream via context header passthrough.
+		// Store tenant in context and propagate to downstream handlers.
 		// The Istio/Envoy sidecar will use this for subset routing.
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), tenantContextKey{}, tenantID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

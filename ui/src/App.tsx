@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import UserManagement from './pages/UserManagement'
 import AuditLog from './pages/AuditLog'
 import DownloadClient from './pages/DownloadClient'
+import Integrations from './pages/Integrations'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -238,6 +239,12 @@ const IconUsers = (
   </svg>
 )
 
+const IconIntegrations = (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
+  </svg>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Branding hook (fetch once, listen for updates)                     */
 /* ------------------------------------------------------------------ */
@@ -344,6 +351,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       ? [
           { to: '/users', icon: IconUsers, label: 'Users' },
           { to: '/audit', icon: IconAudit, label: 'Audit Log' },
+          { to: '/integrations', icon: IconIntegrations, label: 'Integrations' },
         ]
       : []),
     { to: '/download', icon: IconDownload, label: 'Get Client' },
@@ -514,6 +522,7 @@ function AppRoutes() {
       <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="/audit" element={<ProtectedRoute><Layout><AuditLog /></Layout></ProtectedRoute>} />
+      <Route path="/integrations" element={<ProtectedRoute><Layout><Integrations /></Layout></ProtectedRoute>} />
       <Route path="/download" element={<ProtectedRoute><Layout><DownloadClient /></Layout></ProtectedRoute>} />
       {/* Redirect old non-admin routes to the download client page */}
       <Route path="/live" element={<Navigate to="/download" replace />} />

@@ -124,6 +124,11 @@ func New(cfg Config) (*Server, error) {
 		s.RegisterBehavioralRoutes(cfg.BehavioralStore)
 	}
 
+	// ------------------- KAI-371: Notification preferences CRUD -------
+	if cfg.NotificationPrefsStore != nil {
+		s.RegisterNotificationPrefsRoutes(cfg.NotificationPrefsStore)
+	}
+
 	s.http = &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           s.mux,

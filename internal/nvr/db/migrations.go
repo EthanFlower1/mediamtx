@@ -966,4 +966,34 @@ CREATE INDEX idx_federation_peers_fed ON federation_peers(federation_id);
 		CREATE INDEX IF NOT EXISTS idx_notif_read_archived ON notification_read_state(user_id, archived);
 		`,
 	},
+	// Migration 54: Cross-camera person tracking tables (KAI-482).
+	{
+		version: 54,
+		sql: `
+		CREATE TABLE IF NOT EXISTS cross_camera_tracks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			label TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'active',
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			detection_id INTEGER NOT NULL DEFAULT 0
+		);
+
+		CREATE TABLE IF NOT EXISTS cross_camera_sightings (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			track_id INTEGER NOT NULL,
+			camera_id TEXT NOT NULL,
+			timestamp TEXT NOT NULL,
+			end_time TEXT NOT NULL DEFAULT '',
+			confidence REAL NOT NULL DEFAULT 0.0,
+			thumbnail TEXT NOT NULL DEFAULT '',
+			FOREIGN KEY (track_id) REFERENCES cross_camera_tracks(id) ON DELETE CASCADE,
+			FOREIGN KEY (camera_id) REFERENCES cameras(id) ON DELETE CASCADE
+		);
+
+		CREATE INDEX idx_sightings_track ON cross_camera_sightings (track_id);
+		CREATE INDEX idx_sightings_camera ON cross_camera_sightings (camera_id);
+		CREATE INDEX idx_tracks_detection ON cross_camera_tracks (detection_id);
+		`,
+	},
 }

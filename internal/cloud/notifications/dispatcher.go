@@ -134,6 +134,25 @@ func (q *MemoryDeadLetterQueue) Len(_ context.Context) (int, error) {
 }
 
 // -----------------------------------------------------------------------
+// Suppressor interface
+// -----------------------------------------------------------------------
+
+// SuppressionDecision is the outcome of a suppression evaluation.
+type SuppressionDecision struct {
+	Suppress bool
+	Reason   string
+}
+
+// Suppressor evaluates whether a notification should be suppressed.
+// Implementations typically check clustering, false-positive history,
+// and activity baselines. The Dispatcher treats a nil Suppressor as
+// "no suppression" for backward compatibility.
+type Suppressor interface {
+	// EvaluateMessage decides whether msg should be suppressed.
+	EvaluateMessage(ctx context.Context, msg Message) (SuppressionDecision, error)
+}
+
+// -----------------------------------------------------------------------
 // Dispatcher
 // -----------------------------------------------------------------------
 
@@ -143,6 +162,12 @@ type DispatcherConfig struct {
 	Idempotency IdempotencyStore
 	DLQ         DeadLetterQueue
 	Metrics     *MetricsCollector
+
+	// Suppressor is an optional suppression engine. When non-nil the
+	// Dispatcher calls EvaluateMessage before sending. If the decision
+	// is to suppress, the message is not delivered and a
+	// DeliveryStateSuppressed result is returned instead.
+	Suppressor Suppressor
 
 	// MaxRetries is the number of times to retry a failed delivery
 	// before dead-lettering. Defaults to 3.
@@ -164,6 +189,7 @@ type Dispatcher struct {
 	idempotency IdempotencyStore
 	dlq         DeadLetterQueue
 	metrics     *MetricsCollector
+	suppressor  Suppressor
 	maxRetries  int
 	baseDelay   time.Duration
 	maxDelay    time.Duration
@@ -197,6 +223,7 @@ func NewDispatcher(cfg DispatcherConfig) (*Dispatcher, error) {
 		idempotency: cfg.Idempotency,
 		dlq:         cfg.DLQ,
 		metrics:     cfg.Metrics,
+		suppressor:  cfg.Suppressor,
 		maxRetries:  cfg.MaxRetries,
 		baseDelay:   cfg.RetryBaseDelay,
 		maxDelay:    cfg.RetryMaxDelay,
@@ -223,6 +250,28 @@ func (d *Dispatcher) Dispatch(ctx context.Context, msg Message) ([]DeliveryResul
 	}
 	if dup {
 		return nil, ErrDuplicateMessage
+	}
+
+	// Suppression check (optional — nil suppressor means no suppression).
+	if d.suppressor != nil {
+		decision, sErr := d.suppressor.EvaluateMessage(ctx, msg)
+		if sErr != nil {
+			return nil, fmt.Errorf("notifications: suppression check: %w", sErr)
+		}
+		if decision.Suppress {
+			_ = d.idempotency.Record(ctx, msg.ID)
+			results := make([]DeliveryResult, len(msg.To))
+			for i, r := range msg.To {
+				results[i] = DeliveryResult{
+					MessageID:    msg.ID,
+					Recipient:    r.Address,
+					State:        DeliveryStateSuppressed,
+					ErrorMessage: decision.Reason,
+					Timestamp:    time.Now().UTC(),
+				}
+			}
+			return results, nil
+		}
 	}
 
 	// Find a channel that supports this message type.

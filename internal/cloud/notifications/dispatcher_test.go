@@ -236,6 +236,140 @@ func TestDispatcherBatchSend(t *testing.T) {
 	}
 }
 
+// fakeSuppressor is a test double for the Suppressor interface.
+type fakeSuppressor struct {
+	decision notifications.SuppressionDecision
+	err      error
+}
+
+func (s *fakeSuppressor) EvaluateMessage(_ context.Context, _ notifications.Message) (notifications.SuppressionDecision, error) {
+	return s.decision, s.err
+}
+
+func newTestDispatcherWithSuppressor(ch notifications.DeliveryChannel, sup notifications.Suppressor) (*notifications.Dispatcher, *notifications.MetricsCollector, *notifications.MemoryDeadLetterQueue) {
+	reg := notifications.NewChannelRegistry()
+	reg.Register(ch)
+	metrics := notifications.NewMetricsCollector()
+	dlq := notifications.NewMemoryDeadLetterQueue()
+	d, _ := notifications.NewDispatcher(notifications.DispatcherConfig{
+		Registry:       reg,
+		Idempotency:    notifications.NewMemoryIdempotencyStore(),
+		DLQ:            dlq,
+		Metrics:        metrics,
+		Suppressor:     sup,
+		MaxRetries:     2,
+		RetryBaseDelay: 1 * time.Millisecond,
+		RetryMaxDelay:  5 * time.Millisecond,
+	})
+	return d, metrics, dlq
+}
+
+func TestDispatcherSuppressorBlocksSend(t *testing.T) {
+	sendCalled := false
+	ch := &fakeChannel{
+		name:  "test_email",
+		types: []notifications.MessageType{notifications.MessageTypeEmail},
+		batchSendFn: func(_ context.Context, _ notifications.Message) ([]notifications.DeliveryResult, error) {
+			sendCalled = true
+			return []notifications.DeliveryResult{{
+				MessageID: "msg-001",
+				Recipient: "user@example.com",
+				State:     notifications.DeliveryStateDelivered,
+				Timestamp: time.Now().UTC(),
+			}}, nil
+		},
+	}
+	sup := &fakeSuppressor{
+		decision: notifications.SuppressionDecision{Suppress: true, Reason: "false_positive"},
+	}
+	d, _, _ := newTestDispatcherWithSuppressor(ch, sup)
+
+	results, err := d.Dispatch(context.Background(), validMessage())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sendCalled {
+		t.Error("expected channel Send to NOT be called when suppressed")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].State != notifications.DeliveryStateSuppressed {
+		t.Errorf("expected state suppressed, got %s", results[0].State)
+	}
+	if results[0].ErrorMessage != "false_positive" {
+		t.Errorf("expected reason false_positive, got %s", results[0].ErrorMessage)
+	}
+}
+
+func TestDispatcherSuppressorAllowsSend(t *testing.T) {
+	sendCalled := false
+	ch := &fakeChannel{
+		name:  "test_email",
+		types: []notifications.MessageType{notifications.MessageTypeEmail},
+		batchSendFn: func(_ context.Context, msg notifications.Message) ([]notifications.DeliveryResult, error) {
+			sendCalled = true
+			return []notifications.DeliveryResult{{
+				MessageID: msg.ID,
+				Recipient: msg.To[0].Address,
+				State:     notifications.DeliveryStateDelivered,
+				Timestamp: time.Now().UTC(),
+			}}, nil
+		},
+	}
+	sup := &fakeSuppressor{
+		decision: notifications.SuppressionDecision{Suppress: false},
+	}
+	d, _, _ := newTestDispatcherWithSuppressor(ch, sup)
+
+	results, err := d.Dispatch(context.Background(), validMessage())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sendCalled {
+		t.Error("expected channel Send to be called when not suppressed")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].State != notifications.DeliveryStateDelivered {
+		t.Errorf("expected state delivered, got %s", results[0].State)
+	}
+}
+
+func TestDispatcherNilSuppressorAllowsSend(t *testing.T) {
+	sendCalled := false
+	ch := &fakeChannel{
+		name:  "test_email",
+		types: []notifications.MessageType{notifications.MessageTypeEmail},
+		batchSendFn: func(_ context.Context, msg notifications.Message) ([]notifications.DeliveryResult, error) {
+			sendCalled = true
+			return []notifications.DeliveryResult{{
+				MessageID: msg.ID,
+				Recipient: msg.To[0].Address,
+				State:     notifications.DeliveryStateDelivered,
+				Timestamp: time.Now().UTC(),
+			}}, nil
+		},
+	}
+	// nil suppressor — backward compatible
+	d, _, _ := newTestDispatcherWithSuppressor(ch, nil)
+
+	results, err := d.Dispatch(context.Background(), validMessage())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !sendCalled {
+		t.Error("expected channel Send to be called with nil suppressor")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].State != notifications.DeliveryStateDelivered {
+		t.Errorf("expected state delivered, got %s", results[0].State)
+	}
+}
+
 func TestDispatcherContextCancellation(t *testing.T) {
 	ch := &fakeChannel{
 		name:  "slow_email",

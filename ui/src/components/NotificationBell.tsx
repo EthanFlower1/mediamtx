@@ -57,8 +57,10 @@ export default function NotificationBell({ notifications, unreadCount, onMarkAll
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="relative p-1.5 text-nvr-text-secondary hover:text-nvr-text-primary transition-colors"
-        aria-label="Notifications"
+        className="relative p-1.5 text-nvr-text-secondary hover:text-nvr-text-primary transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
+        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+        aria-expanded={open}
+        aria-haspopup="true"
       >
         <svg
           className="w-5 h-5"

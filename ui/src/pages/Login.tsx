@@ -68,31 +68,37 @@ export default function Login() {
         <div className="bg-nvr-bg-secondary/80 backdrop-blur-sm border border-nvr-border rounded-2xl p-6 shadow-2xl">
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <div>
+              <label htmlFor="login-username" className="sr-only">Username</label>
               <input
+                id="login-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Username"
                 required
                 autoComplete="username"
+                aria-required="true"
                 className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-4 py-3 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
               />
             </div>
             <div>
+              <label htmlFor="login-password" className="sr-only">Password</label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 required
                 autoComplete="current-password"
+                aria-required="true"
                 className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-4 py-3 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
               />
             </div>
 
             {error && (
-              <div className="flex items-start gap-3 bg-nvr-danger/10 border-l-4 border-nvr-danger rounded-r-lg px-4 py-3">
-                <svg className="w-4 h-4 text-nvr-danger mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div role="alert" className="flex items-start gap-3 bg-nvr-danger/10 border-l-4 border-nvr-danger rounded-r-lg px-4 py-3">
+                <svg className="w-4 h-4 text-nvr-danger mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />

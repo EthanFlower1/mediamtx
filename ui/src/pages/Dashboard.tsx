@@ -161,7 +161,7 @@ function Sparkline({
   const fillPoints = `0,${height} ${points.join(' ')} ${width},${height}`
 
   return (
-    <svg width={width} height={height} className="overflow-visible">
+    <svg width={width} height={height} className="overflow-visible" role="img" aria-label="Sparkline chart">
       <polygon points={fillPoints} fill={color} opacity="0.1" />
       <polyline
         points={points.join(' ')}
@@ -351,12 +351,13 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex items-center justify-center py-20" role="status" aria-label="Loading dashboard">
         <svg
           className="w-8 h-8 text-nvr-accent animate-spin"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"
@@ -398,8 +399,8 @@ export default function Dashboard() {
           )}
           <button
             onClick={fetchAll}
-            className="text-xs text-nvr-accent hover:text-nvr-accent/80 transition-colors"
-            title="Refresh now"
+            className="text-xs text-nvr-accent hover:text-nvr-accent/80 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded p-1"
+            aria-label="Refresh dashboard data"
           >
             <svg
               className="w-4 h-4"
@@ -407,6 +408,7 @@ export default function Dashboard() {
               viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={2}
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"
@@ -415,7 +417,9 @@ export default function Dashboard() {
               />
             </svg>
           </button>
+          <label htmlFor="refresh-interval" className="sr-only">Auto-refresh interval</label>
           <select
+            id="refresh-interval"
             value={refreshInterval}
             onChange={(e) => setRefreshInterval(Number(e.target.value))}
             className="bg-nvr-bg-secondary border border-nvr-border text-nvr-text-primary text-xs rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-nvr-accent focus:outline-none"
@@ -430,7 +434,7 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div className="bg-nvr-danger/10 border border-nvr-danger/30 text-nvr-danger text-sm rounded-lg px-4 py-3">
+        <div role="alert" className="bg-nvr-danger/10 border border-nvr-danger/30 text-nvr-danger text-sm rounded-lg px-4 py-3">
           {error}
         </div>
       )}
@@ -545,11 +549,11 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-nvr-text-muted border-b border-nvr-border">
-                  <th className="pb-2 pr-4 font-medium">Camera</th>
-                  <th className="pb-2 pr-4 font-medium">Status</th>
-                  <th className="pb-2 pr-4 font-medium">Last Segment</th>
-                  <th className="pb-2 pr-4 font-medium">Restarts</th>
-                  <th className="pb-2 font-medium">Error</th>
+                  <th scope="col" className="pb-2 pr-4 font-medium">Camera</th>
+                  <th scope="col" className="pb-2 pr-4 font-medium">Status</th>
+                  <th scope="col" className="pb-2 pr-4 font-medium">Last Segment</th>
+                  <th scope="col" className="pb-2 pr-4 font-medium">Restarts</th>
+                  <th scope="col" className="pb-2 font-medium">Error</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-nvr-border/50">

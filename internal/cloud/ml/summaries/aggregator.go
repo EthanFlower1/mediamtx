@@ -36,12 +36,13 @@ func (a *Aggregator) Aggregate(ctx context.Context, tenantID string, start, end 
 		return nil, ErrInvalidTenantID
 	}
 
-	rows, err := a.db.QueryContext(ctx, `
+	query := fmt.Sprintf(`
 		SELECT event_id, tenant_id, camera_id, category, detail, timestamp
 		FROM nvr_events
-		WHERE tenant_id = ? AND timestamp >= ? AND timestamp < ?
+		WHERE tenant_id = %s AND timestamp >= %s AND timestamp < %s
 		ORDER BY timestamp ASC`,
-		tenantID, start, end)
+		a.db.Placeholder(1), a.db.Placeholder(2), a.db.Placeholder(3))
+	rows, err := a.db.QueryContext(ctx, query, tenantID, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("aggregator query: %w", err)
 	}

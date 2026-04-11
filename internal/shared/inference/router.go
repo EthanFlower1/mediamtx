@@ -124,10 +124,10 @@ var defaultFeatureRoutes = map[Feature]FeaturePolicy{
 		PreferredBackends:  []BackendKind{BackendONNXRuntime, BackendCoreML, BackendDirectML},
 	},
 	FeatureCLIPEmbedding: {
-		PreferredLocation:  LocationCloud,
-		RequireGPU:         true,
+		PreferredLocation:  LocationEdge,
+		RequireGPU:         false,
 		AllowCloudFallback: true,
-		PreferredBackends:  []BackendKind{BackendTensorRT, BackendONNXRuntime},
+		PreferredBackends:  []BackendKind{BackendTensorRT, BackendONNXRuntime, BackendCoreML, BackendDirectML},
 	},
 	FeatureForensicSearch: {
 		PreferredLocation:  LocationCloud,

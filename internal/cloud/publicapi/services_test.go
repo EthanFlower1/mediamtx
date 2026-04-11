@@ -20,14 +20,6 @@ func TestPublicRESTPathFormat(t *testing.T) {
 	}
 }
 
-func TestPublicRESTPathWithIDFormat(t *testing.T) {
-	got := PublicRESTPathWithID("cameras", "cam-123")
-	want := "/api/v1/cameras/cam-123"
-	if got != want {
-		t.Errorf("PublicRESTPathWithID = %q; want %q", got, want)
-	}
-}
-
 func TestAllPublicPathsNonEmpty(t *testing.T) {
 	paths := AllPublicPaths()
 	if len(paths) == 0 {

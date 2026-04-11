@@ -1,7 +1,6 @@
 package publicapi
 
 import (
-	"errors"
 	"net/http"
 )
 
@@ -15,11 +14,6 @@ func PublicServicePath(service, method string) string {
 // PublicRESTPath returns the versioned REST path for a resource endpoint.
 func PublicRESTPath(resource string) string {
 	return "/api/v1/" + resource
-}
-
-// PublicRESTPathWithID returns the versioned REST path for a specific resource.
-func PublicRESTPathWithID(resource, id string) string {
-	return "/api/v1/" + resource + "/" + id
 }
 
 // publicService describes one Connect-Go service and its methods for
@@ -205,5 +199,3 @@ func TotalPublicMethodCount() int {
 	return n
 }
 
-// ErrUnimplemented is returned by stub handlers.
-var ErrUnimplemented = errors.New("not implemented")

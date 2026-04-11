@@ -12,10 +12,6 @@ const TokenVersion = "v1"
 // pairing token. Combined with the version it forms "FED-v1.".
 const TokenPrefix = "FED-"
 
-// DefaultTTLMinutes is the default time-to-live for a federation pairing
-// token, in minutes. The ticket specifies 60 minutes.
-const DefaultTTLMinutes = 60
-
 // WrapToken prepends the FED-v1 prefix to a raw signed enrollment token
 // produced by FederationCA.MintPeerEnrollmentToken.
 //

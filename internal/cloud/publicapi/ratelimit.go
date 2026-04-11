@@ -17,16 +17,20 @@ type TieredRateLimiter struct {
 	// TierResolver looks up a tenant's tier. If nil, all tenants get
 	// TierFree limits. KAI-400 will wire the real resolver.
 	TierResolver func(tenantID string) TenantTier
+
+	// stopCleanup signals the background cleanup goroutine to exit.
+	stopCleanup chan struct{}
 }
 
 type tieredBucket struct {
-	tokens   float64
-	capacity float64
-	rate     float64
-	last     time.Time
-	daily    int64
-	dayStart time.Time
-	dayQuota int64
+	tokens     float64
+	capacity   float64
+	rate       float64
+	last       time.Time
+	lastAccess time.Time
+	daily      int64
+	dayStart   time.Time
+	dayQuota   int64
 }
 
 func (b *tieredBucket) allow(now time.Time) bool {
@@ -62,11 +66,48 @@ func (b *tieredBucket) allow(now time.Time) bool {
 }
 
 // NewTieredRateLimiter creates a rate limiter with default tier limits.
+// It starts a background goroutine that evicts stale buckets every 5 minutes.
+// Call Close to stop the goroutine.
 func NewTieredRateLimiter() *TieredRateLimiter {
-	return &TieredRateLimiter{
-		buckets: make(map[string]*tieredBucket),
-		tiers:   DefaultTierLimits(),
-		now:     time.Now,
+	rl := &TieredRateLimiter{
+		buckets:     make(map[string]*tieredBucket),
+		tiers:       DefaultTierLimits(),
+		now:         time.Now,
+		stopCleanup: make(chan struct{}),
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+// Close stops the background cleanup goroutine.
+func (rl *TieredRateLimiter) Close() {
+	close(rl.stopCleanup)
+}
+
+// cleanupLoop runs every 5 minutes and removes buckets that have been idle
+// for more than 1 hour.
+func (rl *TieredRateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			rl.cleanupStale(1 * time.Hour)
+		case <-rl.stopCleanup:
+			return
+		}
+	}
+}
+
+// cleanupStale removes buckets that have not been accessed within maxIdle.
+func (rl *TieredRateLimiter) cleanupStale(maxIdle time.Duration) {
+	now := rl.now()
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	for id, b := range rl.buckets {
+		if !b.lastAccess.IsZero() && now.Sub(b.lastAccess) > maxIdle {
+			delete(rl.buckets, id)
+		}
 	}
 }
 
@@ -89,9 +130,9 @@ func (rl *TieredRateLimiter) Allow(tenantID string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
+	now := rl.now()
 	b, ok := rl.buckets[tenantID]
 	if !ok {
-		now := rl.now()
 		b = &tieredBucket{
 			tokens:   float64(limits.Burst),
 			capacity: float64(limits.Burst),
@@ -101,8 +142,9 @@ func (rl *TieredRateLimiter) Allow(tenantID string) bool {
 		}
 		rl.buckets[tenantID] = b
 	}
+	b.lastAccess = now
 
-	return b.allow(rl.now())
+	return b.allow(now)
 }
 
 // TierForTenant returns the tier for a tenant. Exported for tests.

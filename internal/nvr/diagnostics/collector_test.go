@@ -15,11 +15,11 @@ import (
 // ----- Mock providers -----
 
 type mockLogProvider struct {
-	entries []LogEntry
+	entries []CollectorLogEntry
 	err     error
 }
 
-func (m *mockLogProvider) ReadLogs(_ int) ([]LogEntry, error) {
+func (m *mockLogProvider) ReadLogs(_ int) ([]CollectorLogEntry, error) {
 	return m.entries, m.err
 }
 
@@ -91,7 +91,7 @@ func (m *mockUploader) Delete(_ context.Context, key string) error {
 
 func TestGenerate_AllSections(t *testing.T) {
 	logs := &mockLogProvider{
-		entries: []LogEntry{
+		entries: []CollectorCollectorLogEntry{
 			{Timestamp: time.Now().UTC().Format(time.RFC3339Nano), Level: "info", Module: "nvr", Message: "test log"},
 		},
 	}
@@ -227,7 +227,7 @@ func TestGenerate_AllSections(t *testing.T) {
 
 func TestGenerate_SelectiveSections(t *testing.T) {
 	logs := &mockLogProvider{
-		entries: []LogEntry{
+		entries: []CollectorCollectorLogEntry{
 			{Timestamp: time.Now().UTC().Format(time.RFC3339Nano), Level: "error", Module: "db", Message: "disk full"},
 		},
 	}
@@ -284,7 +284,7 @@ func TestGenerate_WithUploader(t *testing.T) {
 
 	c := NewCollector(CollectorConfig{
 		Logs: &mockLogProvider{
-			entries: []LogEntry{{Level: "info", Message: "hello"}},
+			entries: []CollectorCollectorLogEntry{{Level: "info", Message: "hello"}},
 		},
 		Uploader:      uploader,
 		EncryptionKey: make([]byte, 32), // zero key for test
@@ -321,7 +321,7 @@ func TestGenerate_UploadError(t *testing.T) {
 	uploader.uploadErr = fmt.Errorf("network timeout")
 
 	c := NewCollector(CollectorConfig{
-		Logs:     &mockLogProvider{entries: []LogEntry{{Level: "info"}}},
+		Logs:     &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
 		Uploader: uploader,
 		Version:  "1.0.0",
 		IDGen:    func() string { return "fail-001" },
@@ -399,7 +399,7 @@ func TestCleanExpired(t *testing.T) {
 		Uploader: uploader,
 	})
 
-	bundles := []Bundle{
+	bundles := []CollectorBundle{
 		{BundleID: "old", StorageKey: "key1", ExpiresAt: time.Now().Add(-1 * time.Hour)},
 		{BundleID: "fresh", StorageKey: "key2", ExpiresAt: time.Now().Add(24 * time.Hour)},
 	}
@@ -418,7 +418,7 @@ func TestCleanExpired(t *testing.T) {
 
 func TestCleanExpired_NoUploader(t *testing.T) {
 	c := NewCollector(CollectorConfig{})
-	deleted, err := c.CleanExpired(context.Background(), []Bundle{
+	deleted, err := c.CleanExpired(context.Background(), []CollectorBundle{
 		{BundleID: "x", StorageKey: "k", ExpiresAt: time.Now().Add(-1 * time.Hour)},
 	})
 	if err != nil {

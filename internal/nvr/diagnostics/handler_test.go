@@ -26,7 +26,7 @@ func setupRouter(h *Handler) *gin.Engine {
 func TestHandler_GenerateBundle(t *testing.T) {
 	c := NewCollector(CollectorConfig{
 		Logs: &mockLogProvider{
-			entries: []LogEntry{{Level: "info", Message: "test"}},
+			entries: []CollectorCollectorLogEntry{{Level: "info", Message: "test"}},
 		},
 		Hardware: &mockHardwareProvider{
 			health: &HardwareHealth{CPUCores: 4, Tier: "mid"},
@@ -49,7 +49,7 @@ func TestHandler_GenerateBundle(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var bundle Bundle
+	var bundle CollectorBundle
 	if err := json.Unmarshal(w.Body.Bytes(), &bundle); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestHandler_GetBundle_NotFound(t *testing.T) {
 
 func TestHandler_GetBundle_Found(t *testing.T) {
 	c := NewCollector(CollectorConfig{
-		Logs:    &mockLogProvider{entries: []LogEntry{{Level: "info"}}},
+		Logs:    &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
 		Version: "1.0.0",
 		IDGen:   func() string { return "found-001" },
 	})
@@ -129,7 +129,7 @@ func TestHandler_GetBundle_Found(t *testing.T) {
 		t.Fatalf("expected 200, got %d", getW.Code)
 	}
 
-	var bundle Bundle
+	var bundle CollectorBundle
 	json.Unmarshal(getW.Body.Bytes(), &bundle)
 	if bundle.BundleID != "found-001" {
 		t.Errorf("bundle ID = %s, want found-001", bundle.BundleID)
@@ -138,7 +138,7 @@ func TestHandler_GetBundle_Found(t *testing.T) {
 
 func TestHandler_ListBundles(t *testing.T) {
 	c := NewCollector(CollectorConfig{
-		Logs:    &mockLogProvider{entries: []LogEntry{{Level: "info"}}},
+		Logs:    &mockLogProvider{entries: []CollectorCollectorLogEntry{{Level: "info"}}},
 		Version: "1.0.0",
 	})
 
@@ -169,7 +169,7 @@ func TestHandler_ListBundles(t *testing.T) {
 		t.Fatalf("expected 200, got %d", listW.Code)
 	}
 
-	var bundles []*Bundle
+	var bundles []*CollectorBundle
 	json.Unmarshal(listW.Body.Bytes(), &bundles)
 	if len(bundles) != 2 {
 		t.Errorf("expected 2 bundles, got %d", len(bundles))

@@ -12,14 +12,14 @@ type Handler struct {
 	Collector *Collector
 
 	mu      sync.Mutex
-	bundles map[string]*Bundle // in-memory index, keyed by bundle ID
+	bundles map[string]*CollectorBundle // in-memory index, keyed by bundle ID
 }
 
 // NewHandler creates a Handler.
 func NewHandler(c *Collector) *Handler {
 	return &Handler{
 		Collector: c,
-		bundles:   make(map[string]*Bundle),
+		bundles:   make(map[string]*CollectorBundle),
 	}
 }
 
@@ -76,7 +76,7 @@ func (h *Handler) GetBundle(c *gin.Context) {
 // ListBundles handles GET /api/nvr/diagnostics/bundles.
 func (h *Handler) ListBundles(c *gin.Context) {
 	h.mu.Lock()
-	out := make([]*Bundle, 0, len(h.bundles))
+	out := make([]*CollectorBundle, 0, len(h.bundles))
 	for _, b := range h.bundles {
 		out = append(out, b)
 	}
@@ -88,7 +88,7 @@ func (h *Handler) ListBundles(c *gin.Context) {
 // CleanExpired handles POST /api/nvr/diagnostics/cleanup.
 func (h *Handler) CleanExpired(c *gin.Context) {
 	h.mu.Lock()
-	var all []Bundle
+	var all []CollectorBundle
 	for _, b := range h.bundles {
 		all = append(all, *b)
 	}

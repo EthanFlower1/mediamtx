@@ -24,10 +24,10 @@ type FileLogProvider struct {
 }
 
 // ReadLogs scans log files and returns entries within the specified time window.
-func (p *FileLogProvider) ReadLogs(hours int) ([]LogEntry, error) {
+func (p *FileLogProvider) ReadLogs(hours int) ([]CollectorLogEntry, error) {
 	cutoff := time.Now().UTC().Add(-time.Duration(hours) * time.Hour)
 
-	var entries []LogEntry
+	var entries []CollectorLogEntry
 
 	// Read current log file.
 	logPath := filepath.Join(p.LogDir, "nvr.log")
@@ -57,14 +57,14 @@ func (p *FileLogProvider) ReadLogs(hours int) ([]LogEntry, error) {
 	return entries, nil
 }
 
-func readLogFile(path string, cutoff time.Time) ([]LogEntry, error) {
+func readLogFile(path string, cutoff time.Time) ([]CollectorLogEntry, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	var entries []LogEntry
+	var entries []CollectorLogEntry
 	scanner := bufio.NewScanner(f)
 	// Allow for large log lines.
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
@@ -74,7 +74,7 @@ func readLogFile(path string, cutoff time.Time) ([]LogEntry, error) {
 		if len(line) == 0 {
 			continue
 		}
-		var entry LogEntry
+		var entry CollectorLogEntry
 		if err := json.Unmarshal(line, &entry); err != nil {
 			continue // skip non-JSON lines
 		}

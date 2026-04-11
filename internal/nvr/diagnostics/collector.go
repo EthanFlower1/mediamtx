@@ -23,7 +23,7 @@ const DefaultTTL = 7 * 24 * time.Hour
 // LogProvider returns structured log entries for the given time window.
 type LogProvider interface {
 	// ReadLogs returns log entries from the last `hours` hours.
-	ReadLogs(hours int) ([]LogEntry, error)
+	ReadLogs(hours int) ([]CollectorLogEntry, error)
 }
 
 // MetricsProvider returns current and historical metric samples.
@@ -103,7 +103,7 @@ func NewCollector(cfg CollectorConfig) *Collector {
 // metadata; the actual archive is uploaded to temp storage if an Uploader is
 // configured. When no Uploader is present the encrypted archive bytes are
 // returned in the second return value for the caller to handle.
-func (c *Collector) Generate(ctx context.Context, req GenerateRequest) (*Bundle, []byte, error) {
+func (c *Collector) Generate(ctx context.Context, req GenerateRequest) (*CollectorBundle, []byte, error) {
 	if req.HoursBack <= 0 {
 		req.HoursBack = 24
 	}
@@ -115,7 +115,7 @@ func (c *Collector) Generate(ctx context.Context, req GenerateRequest) (*Bundle,
 
 	bundleID := c.cfg.IDGen()
 	now := time.Now().UTC()
-	bundle := &Bundle{
+	bundle := &CollectorBundle{
 		BundleID:  bundleID,
 		Status:    StatusPending,
 		Encrypted: len(c.cfg.EncryptionKey) > 0,
@@ -434,7 +434,7 @@ func ReadArchiveFile(data []byte, name string) ([]byte, error) {
 // background goroutine). It deletes bundles from storage whose ExpiresAt has
 // passed. The caller provides the list of bundles and this function calls
 // Uploader.Delete for each expired one.
-func (c *Collector) CleanExpired(ctx context.Context, bundles []Bundle) (deleted int, _ error) {
+func (c *Collector) CleanExpired(ctx context.Context, bundles []CollectorBundle) (deleted int, _ error) {
 	if c.cfg.Uploader == nil {
 		return 0, nil
 	}

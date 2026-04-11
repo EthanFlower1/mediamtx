@@ -1,0 +1,14 @@
+{
+  "id": "session-1775801456534",
+  "startedAt": "2026-04-10T06:10:56.534Z",
+  "cwd": "/Users/ethanflower/personal_projects/mediamtx",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-04-10T14:23:30.819Z",
+  "duration": 29554291
+}

@@ -2,21 +2,21 @@ package diagnostics
 
 import "time"
 
-// BundleStatus represents the lifecycle state of a diagnostics bundle.
-type BundleStatus string
+// CollectorBundleStatus represents the lifecycle state of a diagnostics bundle.
+type CollectorBundleStatus string
 
 const (
-	StatusPending   BundleStatus = "pending"
-	StatusUploading BundleStatus = "uploading"
-	StatusReady     BundleStatus = "ready"
-	StatusExpired   BundleStatus = "expired"
-	StatusFailed    BundleStatus = "failed"
+	StatusPending   CollectorBundleStatus = "pending"
+	StatusUploading CollectorBundleStatus = "uploading"
+	StatusReady     CollectorBundleStatus = "ready"
+	StatusExpired   CollectorBundleStatus = "expired"
+	StatusFailed    CollectorBundleStatus = "failed"
 )
 
 // Bundle holds metadata about a generated support bundle.
-type Bundle struct {
+type CollectorBundle struct {
 	BundleID    string       `json:"bundle_id"`
-	Status      BundleStatus `json:"status"`
+	Status      CollectorBundleStatus `json:"status"`
 	SizeBytes   int64        `json:"size_bytes"`
 	Encrypted   bool         `json:"encrypted"`
 	StorageKey  string       `json:"storage_key,omitempty"` // object key in temp storage
@@ -47,7 +47,7 @@ var AllSections = []string{
 }
 
 // LogEntry is a single structured log line included in the bundle.
-type LogEntry struct {
+type CollectorLogEntry struct {
 	Timestamp string                 `json:"timestamp"`
 	Level     string                 `json:"level"`
 	Module    string                 `json:"module"`

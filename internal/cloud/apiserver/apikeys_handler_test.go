@@ -17,7 +17,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/bluenviron/mediamtx/internal/cloud/publicapi"
+	"github.com/bluenviron/mediamtx/internal/cloud/publicapi/apikeys"
 	"github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 
@@ -34,67 +37,68 @@ func withTestClaims(ctx context.Context, tenantID, userID string) context.Contex
 
 // mockAPIKeyStore implements APIKeyStore for testing.
 type mockAPIKeyStore struct {
-	createCalled    bool
-	listCalled      bool
-	rotateCalled    bool
-	revokeCalled    bool
-	auditLogCalled  bool
-	lastTenantID    string
-	lastKeyID       string
-	lastRevokedBy   string
+	createCalled   bool
+	listCalled     bool
+	rotateCalled   bool
+	revokeCalled   bool
+	auditLogCalled bool
+	lastTenantID   string
+	lastKeyID      string
+	lastRevokedBy  string
 }
 
-func (m *mockAPIKeyStore) Create(_ context.Context, req CreateAPIKeyReq) (*CreateAPIKeyRes, error) {
+func (m *mockAPIKeyStore) Create(_ context.Context, req publicapi.CreateAPIKeyRequest) (*publicapi.CreateAPIKeyResult, error) {
 	m.createCalled = true
 	m.lastTenantID = req.TenantID
-	return &CreateAPIKeyRes{
+	return &publicapi.CreateAPIKeyResult{
 		RawKey: "kvue_testabc123def456ghi789jkl012mn",
-		Key: &APIKeyInfo{
+		Key: &publicapi.APIKey{
 			ID:        "key-test-001",
 			TenantID:  req.TenantID,
 			Name:      req.Name,
 			KeyPrefix: "kvue_tes",
 			Scopes:    req.Scopes,
-			Status:    "active",
 			CreatedBy: req.CreatedBy,
-			CreatedAt: "2026-04-08T12:00:00Z",
+			CreatedAt: time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC),
 		},
 	}, nil
 }
 
-func (m *mockAPIKeyStore) List(_ context.Context, tenantID string, _ bool) ([]*APIKeyInfo, error) {
+func (m *mockAPIKeyStore) Get(_ context.Context, _ string) (*publicapi.APIKey, error) {
+	return nil, publicapi.ErrAPIKeyNotFound
+}
+
+func (m *mockAPIKeyStore) List(_ context.Context, filter publicapi.ListAPIKeysFilter) ([]*publicapi.APIKey, error) {
 	m.listCalled = true
-	m.lastTenantID = tenantID
-	return []*APIKeyInfo{
+	m.lastTenantID = filter.TenantID
+	return []*publicapi.APIKey{
 		{
 			ID:        "key-001",
-			TenantID:  tenantID,
+			TenantID:  filter.TenantID,
 			Name:      "Production Key",
 			KeyPrefix: "kvue_a1b",
 			Scopes:    []string{"cameras:read"},
-			Status:    "active",
 			CreatedBy: "user@example.com",
-			CreatedAt: "2026-01-08T12:00:00Z",
+			CreatedAt: time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC),
 		},
 	}, nil
 }
 
-func (m *mockAPIKeyStore) Rotate(_ context.Context, keyID, rotatedBy string, graceHours int) (*RotateAPIKeyRes, error) {
+func (m *mockAPIKeyStore) Rotate(_ context.Context, req publicapi.RotateAPIKeyRequest) (*publicapi.RotateAPIKeyResult, error) {
 	m.rotateCalled = true
-	m.lastKeyID = keyID
-	return &RotateAPIKeyRes{
+	m.lastKeyID = req.KeyID
+	return &publicapi.RotateAPIKeyResult{
 		RawKey: "kvue_newkey123456789abcdef012345678",
-		NewKey: &APIKeyInfo{
+		NewKey: &publicapi.APIKey{
 			ID:        "key-new-001",
 			TenantID:  "tenant-001",
 			Name:      "Production Key",
 			KeyPrefix: "kvue_new",
 			Scopes:    []string{"cameras:read"},
-			Status:    "active",
-			CreatedBy: rotatedBy,
-			CreatedAt: "2026-04-08T12:00:00Z",
+			CreatedBy: req.RotatedBy,
+			CreatedAt: time.Date(2026, 4, 8, 12, 0, 0, 0, time.UTC),
 		},
-		OldKeyGraceEnd: "2026-04-09T12:00:00Z",
+		OldKeyGraceEnd: time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 	}, nil
 }
 
@@ -105,20 +109,33 @@ func (m *mockAPIKeyStore) Revoke(_ context.Context, keyID, revokedBy string) err
 	return nil
 }
 
-func (m *mockAPIKeyStore) ListAuditLog(_ context.Context, tenantID, keyID string, _ int) ([]APIKeyAuditEntry, error) {
+func (m *mockAPIKeyStore) Validate(_ context.Context, _ string) (*publicapi.APIKey, error) {
+	return nil, publicapi.ErrInvalidAPIKey
+}
+
+func (m *mockAPIKeyStore) TouchLastUsed(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockAPIKeyStore) ListExpiring(_ context.Context, _ string, _ time.Duration) ([]*publicapi.APIKey, error) {
+	return nil, nil
+}
+
+func (m *mockAPIKeyStore) ListAuditLog(_ context.Context, tenantID, keyID string, _ int) ([]apikeys.AuditEntry, error) {
 	m.auditLogCalled = true
 	m.lastTenantID = tenantID
 	m.lastKeyID = keyID
-	return []APIKeyAuditEntry{
+	return []apikeys.AuditEntry{
 		{
 			ID:        "audit-001",
 			KeyID:     keyID,
-			Action:    "create",
+			TenantID:  tenantID,
+			Action:    apikeys.AuditCreate,
 			ActorID:   "user@example.com",
 			IPAddress: "127.0.0.1",
 			UserAgent: "test",
 			Metadata:  "{}",
-			CreatedAt: "2026-01-08T12:00:00Z",
+			CreatedAt: time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC),
 		},
 	}, nil
 }
@@ -235,11 +252,11 @@ func TestAPIKeysHandler_Create(t *testing.T) {
 		t.Fatal("store.Create was not called")
 	}
 
-	var resp CreateAPIKeyRes
+	var resp map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
-	if resp.RawKey == "" {
+	if resp["raw_key"] == "" {
 		t.Fatal("expected raw key in response")
 	}
 }

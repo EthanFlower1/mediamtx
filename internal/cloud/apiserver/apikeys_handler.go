@@ -24,42 +24,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/bluenviron/mediamtx/internal/cloud/publicapi"
+	"github.com/bluenviron/mediamtx/internal/cloud/publicapi/apikeys"
 )
 
-// APIKeyStore is the minimal store seam the handler needs.
-// Production wires this to internal/cloud/publicapi/apikeys.Store (KAI-400).
+// APIKeyStore extends publicapi.APIKeyStore with audit log queries.
+// The concrete apikeys.Store satisfies this interface.
 type APIKeyStore interface {
-	Create(ctx context.Context, req CreateAPIKeyReq) (*CreateAPIKeyRes, error)
-	List(ctx context.Context, tenantID string, includeRevoked bool) ([]*APIKeyInfo, error)
-	Rotate(ctx context.Context, keyID string, rotatedBy string, graceHours int) (*RotateAPIKeyRes, error)
-	Revoke(ctx context.Context, keyID string, revokedBy string) error
-	ListAuditLog(ctx context.Context, tenantID, keyID string, limit int) ([]APIKeyAuditEntry, error)
+	publicapi.APIKeyStore
+	ListAuditLog(ctx context.Context, tenantID, keyID string, limit int) ([]apikeys.AuditEntry, error)
 }
 
-// CreateAPIKeyReq is the request body for key creation.
-type CreateAPIKeyReq struct {
-	TenantID     string   `json:"tenant_id"`
-	Name         string   `json:"name"`
-	Scopes       []string `json:"scopes"`
-	ExpiresInDays *int    `json:"expires_in_days"`
-	CreatedBy    string   `json:"created_by"`
-}
-
-// CreateAPIKeyRes is the response for key creation.
-type CreateAPIKeyRes struct {
-	RawKey string      `json:"raw_key"`
-	Key    *APIKeyInfo `json:"key"`
-}
-
-// RotateAPIKeyRes is the response for key rotation.
-type RotateAPIKeyRes struct {
-	RawKey          string      `json:"raw_key"`
-	NewKey          *APIKeyInfo `json:"new_key"`
-	OldKeyGraceEnd  string      `json:"old_key_grace_end"`
-}
-
-// APIKeyInfo is the JSON representation of a key (never includes the raw key).
-type APIKeyInfo struct {
+// apiKeyInfoJSON is the JSON representation of a key (never includes the raw key).
+type apiKeyInfoJSON struct {
 	ID             string   `json:"id"`
 	TenantID       string   `json:"tenant_id"`
 	Name           string   `json:"name"`
@@ -68,23 +47,52 @@ type APIKeyInfo struct {
 	Status         string   `json:"status"`
 	CreatedBy      string   `json:"created_by"`
 	CreatedAt      string   `json:"created_at"`
-	ExpiresAt      *string  `json:"expires_at"`
-	RevokedAt      *string  `json:"revoked_at"`
-	LastUsedAt     *string  `json:"last_used_at"`
-	RotatedFromID  *string  `json:"rotated_from_id"`
-	GraceExpiresAt *string  `json:"grace_expires_at"`
+	ExpiresAt      *string  `json:"expires_at,omitempty"`
+	RevokedAt      *string  `json:"revoked_at,omitempty"`
+	LastUsedAt     *string  `json:"last_used_at,omitempty"`
+	RotatedFromID  *string  `json:"rotated_from_id,omitempty"`
+	GraceExpiresAt *string  `json:"grace_expires_at,omitempty"`
 }
 
-// APIKeyAuditEntry is a single audit log row.
-type APIKeyAuditEntry struct {
-	ID        string `json:"id"`
-	KeyID     string `json:"key_id"`
-	Action    string `json:"action"`
-	ActorID   string `json:"actor_id"`
-	IPAddress string `json:"ip_address"`
-	UserAgent string `json:"user_agent"`
-	Metadata  string `json:"metadata"`
-	CreatedAt string `json:"created_at"`
+// apiKeyToJSON converts a publicapi.APIKey to the JSON-friendly representation.
+func apiKeyToJSON(k *publicapi.APIKey) *apiKeyInfoJSON {
+	info := &apiKeyInfoJSON{
+		ID:        k.ID,
+		TenantID:  k.TenantID,
+		Name:      k.Name,
+		KeyPrefix: k.KeyPrefix,
+		Scopes:    k.Scopes,
+		CreatedBy: k.CreatedBy,
+		CreatedAt: k.CreatedAt.Format(time.RFC3339),
+	}
+	if k.IsRevoked() {
+		info.Status = "revoked"
+	} else if k.IsExpired() {
+		info.Status = "expired"
+	} else {
+		info.Status = "active"
+	}
+	if !k.ExpiresAt.IsZero() {
+		s := k.ExpiresAt.Format(time.RFC3339)
+		info.ExpiresAt = &s
+	}
+	if !k.RevokedAt.IsZero() {
+		s := k.RevokedAt.Format(time.RFC3339)
+		info.RevokedAt = &s
+	}
+	if !k.LastUsedAt.IsZero() {
+		s := k.LastUsedAt.Format(time.RFC3339)
+		info.LastUsedAt = &s
+	}
+	if k.RotatedFromID != "" {
+		s := k.RotatedFromID
+		info.RotatedFromID = &s
+	}
+	if !k.GraceExpiresAt.IsZero() {
+		s := k.GraceExpiresAt.Format(time.RFC3339)
+		info.GraceExpiresAt = &s
+	}
+	return info
 }
 
 // apiKeysHandler holds the store reference.
@@ -151,13 +159,21 @@ func (h *apiKeysHandler) handleList(w http.ResponseWriter, r *http.Request) {
 
 	includeRevoked := r.URL.Query().Get("include_revoked") == "true"
 
-	keys, err := h.store.List(r.Context(), claims.TenantRef.ID, includeRevoked)
+	filter := publicapi.ListAPIKeysFilter{
+		TenantID:       claims.TenantRef.ID,
+		IncludeRevoked: includeRevoked,
+	}
+	keys, err := h.store.List(r.Context(), filter)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "failed to list keys"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"keys": keys})
+	jsonKeys := make([]*apiKeyInfoJSON, len(keys))
+	for i, k := range keys {
+		jsonKeys[i] = apiKeyToJSON(k)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"keys": jsonKeys})
 }
 
 // handleCreate creates a new API key.
@@ -183,12 +199,17 @@ func (h *apiKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := CreateAPIKeyReq{
-		TenantID:      claims.TenantRef.ID,
-		Name:          body.Name,
-		Scopes:        body.Scopes,
-		ExpiresInDays: body.ExpiresInDays,
-		CreatedBy:     string(claims.UserID),
+	var expiresAt time.Time
+	if body.ExpiresInDays != nil && *body.ExpiresInDays > 0 {
+		expiresAt = time.Now().AddDate(0, 0, *body.ExpiresInDays)
+	}
+
+	req := publicapi.CreateAPIKeyRequest{
+		TenantID:  claims.TenantRef.ID,
+		Name:      body.Name,
+		Scopes:    body.Scopes,
+		ExpiresAt: expiresAt,
+		CreatedBy: string(claims.UserID),
 	}
 
 	result, err := h.store.Create(r.Context(), req)
@@ -197,7 +218,10 @@ func (h *apiKeysHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, result)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"raw_key": result.RawKey,
+		"key":     apiKeyToJSON(result.Key),
+	})
 }
 
 // handleRotate rotates an existing key.
@@ -216,17 +240,28 @@ func (h *apiKeysHandler) handleRotate(w http.ResponseWriter, r *http.Request, ke
 		return
 	}
 
-	if body.GracePeriodHours <= 0 {
-		body.GracePeriodHours = 24
+	gracePeriod := time.Duration(body.GracePeriodHours) * time.Hour
+	if gracePeriod <= 0 {
+		gracePeriod = publicapi.DefaultGracePeriod
 	}
 
-	result, err := h.store.Rotate(r.Context(), keyID, string(claims.UserID), body.GracePeriodHours)
+	req := publicapi.RotateAPIKeyRequest{
+		KeyID:       keyID,
+		RotatedBy:   string(claims.UserID),
+		GracePeriod: gracePeriod,
+	}
+
+	result, err := h.store.Rotate(r.Context(), req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "failed to rotate key"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"raw_key":            result.RawKey,
+		"new_key":            apiKeyToJSON(result.NewKey),
+		"old_key_grace_end":  result.OldKeyGraceEnd.Format(time.RFC3339),
+	})
 }
 
 // handleRevoke revokes a key immediately.

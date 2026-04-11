@@ -28,21 +28,21 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
       return (
         <div className="min-h-screen bg-nvr-bg-primary flex items-center justify-center p-6">
           <div className="bg-nvr-bg-secondary border border-nvr-border rounded-xl p-6 md:p-8 max-w-md w-full text-center">
-            <div className="text-4xl mb-4 text-nvr-danger">!</div>
-            <h2 className="text-lg font-semibold text-nvr-text-primary mb-2">Something went wrong</h2>
+            <div className="text-4xl mb-4 text-nvr-danger" aria-hidden="true">!</div>
+            <h2 className="text-lg font-semibold text-nvr-text-primary mb-2" role="alert">Something went wrong</h2>
             <p className="text-sm text-nvr-text-secondary mb-4">
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <div className="flex gap-2 justify-center">
               <button
                 onClick={this.handleRetry}
-                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px]"
+                className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Retry
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px]"
+                className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-4 py-2 rounded-lg border border-nvr-border transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
               >
                 Reload Page
               </button>

@@ -47,15 +47,15 @@ export default function KeyboardShortcutsHelp({ onClose }: { onClose: () => void
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="shortcuts-dialog-title">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
       <div
         className="relative z-10 bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-nvr-border">
-          <h2 className="text-lg font-semibold text-nvr-text-primary">Keyboard Shortcuts</h2>
+          <h2 id="shortcuts-dialog-title" className="text-lg font-semibold text-nvr-text-primary">Keyboard Shortcuts</h2>
           <button
             onClick={onClose}
             className="text-nvr-text-muted hover:text-nvr-text-primary transition-colors p-1 rounded-lg hover:bg-nvr-bg-tertiary focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"

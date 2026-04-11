@@ -53,12 +53,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-nvr-bg-primary gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-nvr-bg-primary gap-4" role="status" aria-label="Loading application">
         <svg
           className="w-8 h-8 text-nvr-accent animate-spin"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path
@@ -95,6 +96,7 @@ function NavItem({ to, icon, label, badge }: NavLinkProps) {
   return (
     <Link
       to={to}
+      aria-current={isActive ? 'page' : undefined}
       className={`relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded ${
         isActive
           ? 'text-white border-b-2 border-nvr-accent'
@@ -104,7 +106,9 @@ function NavItem({ to, icon, label, badge }: NavLinkProps) {
       {icon}
       {label}
       {badge && (
-        <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-nvr-warning" />
+        <span className="absolute top-1.5 right-0.5 w-2 h-2 rounded-full bg-nvr-warning" aria-label="Attention needed">
+          <span className="sr-only">Attention needed</span>
+        </span>
       )}
     </Link>
   )
@@ -127,6 +131,7 @@ function MobileNavItem({
     <Link
       to={to}
       onClick={onClick}
+      aria-current={isActive ? 'page' : undefined}
       className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
         isActive
           ? 'text-white bg-nvr-bg-tertiary'
@@ -135,7 +140,11 @@ function MobileNavItem({
     >
       {icon}
       <span className="flex-1">{label}</span>
-      {badge && <span className="w-2 h-2 rounded-full bg-nvr-warning" />}
+      {badge && (
+        <span className="w-2 h-2 rounded-full bg-nvr-warning">
+          <span className="sr-only">Attention needed</span>
+        </span>
+      )}
     </Link>
   )
 }
@@ -165,11 +174,13 @@ function UserMenu() {
         onClick={() => setOpen(!open)}
         className="w-8 h-8 rounded-full bg-nvr-accent/20 text-nvr-accent text-xs font-bold flex items-center justify-center hover:bg-nvr-accent/30 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
         aria-label="User menu"
+        aria-expanded={open}
+        aria-haspopup="true"
       >
         {initials}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-48 bg-nvr-bg-secondary border border-nvr-border rounded-lg shadow-xl overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-48 bg-nvr-bg-secondary border border-nvr-border rounded-lg shadow-xl overflow-hidden z-50" role="menu">
           <div className="px-4 py-3 border-b border-nvr-border">
             <p className="text-sm font-medium text-nvr-text-primary">{user?.username}</p>
             <p className="text-xs text-nvr-text-muted capitalize">{user?.role}</p>
@@ -199,41 +210,41 @@ function UserMenu() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  SVG icon helpers                                                   */
+/*  SVG icon helpers (aria-hidden for decorative icons)                */
 /* ------------------------------------------------------------------ */
 const IconCamera = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
   </svg>
 )
 
 const IconDashboard = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
   </svg>
 )
 
 const IconAudit = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 )
 
 const IconSettings = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 )
 
 const IconDownload = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
   </svg>
 )
 
 const IconUsers = (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
   </svg>
 )
@@ -351,8 +362,16 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-nvr-bg-primary">
+      {/* Skip to main content link for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[60] focus:top-2 focus:left-2 focus:bg-nvr-accent focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
+
       {/* ---- Top nav bar ---- */}
-      <nav className="bg-nvr-bg-secondary border-b border-nvr-border">
+      <nav className="bg-nvr-bg-secondary border-b border-nvr-border" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto flex items-center h-14 px-4 sm:px-6 lg:px-8">
           {/* Brand */}
           <Link to="/cameras" className="flex items-center gap-2 mr-8">
@@ -407,14 +426,15 @@ function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ---- Mobile sidebar overlay ---- */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={closeSidebar}
+            aria-hidden="true"
           />
           {/* Sidebar panel */}
-          <div className="absolute top-0 right-0 bottom-0 w-72 bg-nvr-bg-secondary border-l border-nvr-border shadow-2xl flex flex-col animate-slide-in">
+          <nav className="absolute top-0 right-0 bottom-0 w-72 bg-nvr-bg-secondary border-l border-nvr-border shadow-2xl flex flex-col animate-slide-in" aria-label="Mobile navigation">
             {/* Header */}
             <div className="flex items-center justify-between h-14 px-4 border-b border-nvr-border">
               <span className="text-white font-bold text-base">Menu</span>
@@ -449,7 +469,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <UserLogoutButton onClose={closeSidebar} />
             </div>
-          </div>
+          </nav>
         </div>
       )}
 
@@ -458,7 +478,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <ToastContainer />
 
       {/* ---- Page content ---- */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" tabIndex={-1}>
         {children}
       </main>
 

@@ -39,8 +39,8 @@ export default function StorageBanner() {
 
   if (storage.critical) {
     return (
-      <div className="bg-red-900/80 border-b border-red-700 px-4 py-2 text-sm text-red-200 flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <div role="alert" className="bg-red-900/80 border-b border-red-700 px-4 py-2 text-sm text-red-200 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <circle cx="12" cy="12" r="10" />
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -54,8 +54,8 @@ export default function StorageBanner() {
   }
 
   return (
-    <div className="bg-amber-900/60 border-b border-amber-700 px-4 py-2 text-sm text-amber-200 flex items-center gap-2">
-      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+    <div role="alert" className="bg-amber-900/60 border-b border-amber-700 px-4 py-2 text-sm text-amber-200 flex items-center gap-2">
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />

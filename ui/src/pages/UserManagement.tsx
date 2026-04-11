@@ -49,8 +49,8 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="User dialog">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" />
       <div
         className="relative bg-nvr-bg-secondary border border-nvr-border rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
@@ -151,9 +151,10 @@ function UserForm({
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Username</label>
+          <label htmlFor="user-form-username" className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Username</label>
           {isEdit ? (
             <input
+              id="user-form-username"
               type="text"
               value={user.username}
               disabled
@@ -161,6 +162,7 @@ function UserForm({
             />
           ) : (
             <input
+              id="user-form-username"
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -172,10 +174,11 @@ function UserForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">
+          <label htmlFor="user-form-password" className="block text-sm font-medium text-nvr-text-secondary mb-1.5">
             Password {isEdit && <span className="text-nvr-text-muted font-normal">(leave blank to keep current)</span>}
           </label>
           <input
+            id="user-form-password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -188,9 +191,11 @@ function UserForm({
         {/* Role toggle cards */}
         <div>
           <label className="block text-sm font-medium text-nvr-text-secondary mb-2">Role</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="User role">
             <button
               type="button"
+              role="radio"
+              aria-checked={role === 'admin'}
               onClick={() => setRole('admin')}
               className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 role === 'admin'
@@ -203,6 +208,8 @@ function UserForm({
             </button>
             <button
               type="button"
+              role="radio"
+              aria-checked={role === 'viewer'}
               onClick={() => setRole('viewer')}
               className={`p-3 rounded-lg border text-center transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
                 role === 'viewer'
@@ -256,7 +263,7 @@ function UserForm({
         </div>
       </div>
 
-      {error && <p className="text-nvr-danger text-sm mt-3">{error}</p>}
+      {error && <p role="alert" className="text-nvr-danger text-sm mt-3">{error}</p>}
 
       <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-nvr-border">
         <button
@@ -344,8 +351,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
           <>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Current Password</label>
+                <label htmlFor="chpw-current" className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Current Password</label>
                 <input
+                  id="chpw-current"
                   type="password"
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
@@ -354,8 +362,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">New Password</label>
+                <label htmlFor="chpw-new" className="block text-sm font-medium text-nvr-text-secondary mb-1.5">New Password</label>
                 <input
+                  id="chpw-new"
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
@@ -364,8 +373,9 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Confirm New Password</label>
+                <label htmlFor="chpw-confirm" className="block text-sm font-medium text-nvr-text-secondary mb-1.5">Confirm New Password</label>
                 <input
+                  id="chpw-confirm"
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
@@ -375,7 +385,7 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             </div>
 
-            {error && <p className="text-nvr-danger text-sm mt-3">{error}</p>}
+            {error && <p role="alert" className="text-nvr-danger text-sm mt-3">{error}</p>}
 
             <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-nvr-border">
               <button

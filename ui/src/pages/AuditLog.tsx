@@ -285,12 +285,13 @@ export default function AuditLog() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Search */}
           <div className="lg:col-span-2">
-            <label className="block text-xs font-medium text-nvr-text-muted mb-1">Search</label>
+            <label htmlFor="audit-search" className="block text-xs font-medium text-nvr-text-muted mb-1">Search</label>
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nvr-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
+                id="audit-search"
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -302,8 +303,9 @@ export default function AuditLog() {
 
           {/* Action type filter */}
           <div>
-            <label className="block text-xs font-medium text-nvr-text-muted mb-1">Action</label>
+            <label htmlFor="audit-action" className="block text-xs font-medium text-nvr-text-muted mb-1">Action</label>
             <select
+              id="audit-action"
               value={actionFilter}
               onChange={e => setActionFilter(e.target.value)}
               className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
@@ -316,8 +318,9 @@ export default function AuditLog() {
 
           {/* Date from */}
           <div>
-            <label className="block text-xs font-medium text-nvr-text-muted mb-1">From</label>
+            <label htmlFor="audit-date-from" className="block text-xs font-medium text-nvr-text-muted mb-1">From</label>
             <input
+              id="audit-date-from"
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
@@ -327,8 +330,9 @@ export default function AuditLog() {
 
           {/* Date to */}
           <div>
-            <label className="block text-xs font-medium text-nvr-text-muted mb-1">To</label>
+            <label htmlFor="audit-date-to" className="block text-xs font-medium text-nvr-text-muted mb-1">To</label>
             <input
+              id="audit-date-to"
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
@@ -339,8 +343,9 @@ export default function AuditLog() {
 
         {/* User filter (text input since we don't have a users list here) */}
         <div className="mt-3">
-          <label className="block text-xs font-medium text-nvr-text-muted mb-1">User ID</label>
+          <label htmlFor="audit-user-id" className="block text-xs font-medium text-nvr-text-muted mb-1">User ID</label>
           <input
+            id="audit-user-id"
             type="text"
             value={userFilter}
             onChange={e => setUserFilter(e.target.value)}
@@ -369,7 +374,7 @@ export default function AuditLog() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-4">
+        <div role="alert" className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-4">
           <p className="text-sm text-red-400">{error}</p>
         </div>
       )}
@@ -394,12 +399,12 @@ export default function AuditLog() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-nvr-border bg-nvr-bg-tertiary/50">
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">Timestamp</th>
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">User</th>
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">Action</th>
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">Resource</th>
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">Details</th>
-                    <th className="text-left px-4 py-3 font-medium text-nvr-text-muted">IP Address</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">Timestamp</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">User</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">Action</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">Resource</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">Details</th>
+                    <th scope="col" className="text-left px-4 py-3 font-medium text-nvr-text-muted">IP Address</th>
                   </tr>
                 </thead>
                 <tbody>

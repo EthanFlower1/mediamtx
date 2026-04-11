@@ -29,7 +29,7 @@ type ServerConfig struct {
 	ClientCAs *x509.CertPool
 
 	// Handler is the FederationPeerServiceHandler to serve.
-	Handler *Handler
+	Handler *RPCHandler
 
 	// Logger is the structured logger.
 	Logger *slog.Logger

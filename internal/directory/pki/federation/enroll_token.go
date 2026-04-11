@@ -177,3 +177,19 @@ func DerivePeerTokenVerifyKey(rootKey ed25519.PrivateKey) (ed25519.PublicKey, er
 	}
 	return signingKey.Public().(ed25519.PublicKey), nil
 }
+
+// PeerTokenVerifyKey returns the ed25519 public key that can verify peer
+// enrollment tokens issued by this FederationCA. This is the key the
+// founding Directory passes to the join handler so it can verify incoming
+// tokens without exposing the root private key.
+//
+// Added for KAI-269 (federation pairing lifecycle).
+func (c *FederationCA) PeerTokenVerifyKey() (ed25519.PublicKey, error) {
+	c.mu.RLock()
+	rootKey := c.rootKey
+	c.mu.RUnlock()
+	if rootKey == nil {
+		return nil, errors.New("federation: PeerTokenVerifyKey: CA not initialized")
+	}
+	return DerivePeerTokenVerifyKey(rootKey)
+}

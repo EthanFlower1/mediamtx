@@ -94,7 +94,7 @@ func selfSignedCA(t *testing.T) (caCert *x509.Certificate, caPool *x509.CertPool
 func TestServer_MTLSPingRoundTrip(t *testing.T) {
 	_, caPool, serverCert, clientCert := selfSignedCA(t)
 
-	handler, err := federation.NewHandler(federation.Config{
+	handler, err := federation.NewRPCHandler(federation.RPCConfig{
 		ServerVersion: "1.0.0-mTLS-test",
 		JWKSProvider:  &staticJWKSProvider{json: testJWKS, maxAge: 300},
 	})
@@ -148,7 +148,7 @@ func TestServer_MTLSPingRoundTrip(t *testing.T) {
 func TestServer_RejectsNoClientCert(t *testing.T) {
 	_, caPool, serverCert, _ := selfSignedCA(t)
 
-	handler, err := federation.NewHandler(federation.Config{
+	handler, err := federation.NewRPCHandler(federation.RPCConfig{
 		ServerVersion: "1.0.0-reject-test",
 		JWKSProvider:  &staticJWKSProvider{json: testJWKS, maxAge: 300},
 	})

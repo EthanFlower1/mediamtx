@@ -41,9 +41,9 @@ const testJWKS = `{
   ]
 }`
 
-func newTestHandler(t *testing.T, provider federation.JWKSProvider) *federation.Handler {
+func newTestHandler(t *testing.T, provider federation.RPCJWKSProvider) *federation.RPCHandler {
 	t.Helper()
-	h, err := federation.NewHandler(federation.Config{
+	h, err := federation.NewRPCHandler(federation.RPCConfig{
 		ServerVersion: testVersion,
 		JWKSProvider:  provider,
 	})
@@ -51,7 +51,7 @@ func newTestHandler(t *testing.T, provider federation.JWKSProvider) *federation.
 	return h
 }
 
-func newTestClient(t *testing.T, handler *federation.Handler) kaivuev1connect.FederationPeerServiceClient {
+func newTestClient(t *testing.T, handler *federation.RPCHandler) kaivuev1connect.FederationPeerServiceClient {
 	t.Helper()
 	_, h := kaivuev1connect.NewFederationPeerServiceHandler(handler)
 	ts := httptest.NewServer(h)
@@ -61,16 +61,16 @@ func newTestClient(t *testing.T, handler *federation.Handler) kaivuev1connect.Fe
 
 // --- NewHandler validation ---
 
-func TestNewHandler_MissingVersion(t *testing.T) {
-	_, err := federation.NewHandler(federation.Config{
+func TestNewRPCHandler_MissingVersion(t *testing.T) {
+	_, err := federation.NewRPCHandler(federation.RPCConfig{
 		JWKSProvider: &staticJWKSProvider{json: testJWKS, maxAge: 300},
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "ServerVersion")
 }
 
-func TestNewHandler_MissingJWKSProvider(t *testing.T) {
-	_, err := federation.NewHandler(federation.Config{
+func TestNewRPCHandler_MissingJWKSProvider(t *testing.T) {
+	_, err := federation.NewRPCHandler(federation.RPCConfig{
 		ServerVersion: "1.0.0",
 	})
 	assert.Error(t, err)

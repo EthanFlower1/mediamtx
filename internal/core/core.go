@@ -37,6 +37,9 @@ import (
 	"github.com/bluenviron/mediamtx/internal/servers/srt"
 	"github.com/bluenviron/mediamtx/internal/servers/webrtc"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
+
+	"github.com/bluenviron/mediamtx/internal/directory"
+	recorderboot "github.com/bluenviron/mediamtx/internal/recorder"
 )
 
 //go:generate go run ./versiongetter
@@ -129,6 +132,12 @@ type Core struct {
 	api             *api.API
 	confWatcher     *confwatcher.ConfWatcher
 
+	// Runtime mode booters — nil until the concrete boot packages
+	// (internal/directory/boot.go, internal/recorder/boot.go) are
+	// wired in. When nil the dispatch falls back to stub log messages.
+	directoryBooter kairuntime.DirectoryBooter
+	recorderBooter  kairuntime.RecorderBooter
+
 	// in
 	chAPIConfigSet chan *conf.Conf
 
@@ -198,6 +207,12 @@ func New(args []string) (*Core, bool) {
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return nil, false
+	}
+
+	// Wire the concrete Directory booter when the mode requires it.
+	mode := p.conf.Mode.Runtime()
+	if mode == kairuntime.ModeDirectory || mode == kairuntime.ModeAllInOne {
+		p.directoryBooter = directory.NewBooter()
 	}
 
 	err = p.createResources(true)
@@ -297,10 +312,9 @@ outer:
 // no-op: the rest of createResources continues to run unchanged so
 // that upgrading an existing deployment has no behavior impact.
 //
-// Directory / Recorder / AllInOne hooks log a clearly marked stub
-// message today; they will be replaced with real boot calls as
-// the dependent tickets (KAI-226, KAI-246, KAI-243, KAI-244, KAI-250)
-// land.
+// When DirectoryBooter and/or RecorderBooter are set on the Core
+// (wired in by the concrete boot packages), the hooks delegate to
+// them. Otherwise the hooks log a stub warning.
 func (p *Core) dispatchRuntimeMode() error {
 	mode := p.conf.Mode.Runtime()
 	p.Log(logger.Info, "runtime mode: %s", mode.String())
@@ -311,27 +325,65 @@ func (p *Core) dispatchRuntimeMode() error {
 			// createResources is the legacy code path.
 			return nil
 		},
-		StartDirectory: func() error {
-			p.Log(logger.Warn,
-				"[KAI-237] directory subsystem boot is a stub; "+
-					"real wiring tracked in KAI-226 / KAI-246")
-			return nil
-		},
-		StartRecorder: func() error {
-			p.Log(logger.Warn,
-				"[KAI-237] recorder subsystem boot is a stub; "+
-					"real wiring tracked in KAI-226 / KAI-246 / KAI-250")
-			return nil
-		},
-		AutoPair: func() error {
-			p.Log(logger.Warn,
-				"[KAI-237] all-in-one auto-pairing is a stub; "+
-					"real pairing tracked in KAI-243 / KAI-244")
-			return nil
-		},
+		StartDirectory: p.makeDirectoryHook(),
+		StartRecorder:  p.makeRecorderHook(),
+		AutoPair:       p.makeAutoPairHook(),
 	}
 
 	return kairuntime.Dispatch(mode, hooks)
+}
+
+// makeDirectoryHook returns the StartDirectory hook. If a concrete
+// DirectoryBooter is wired in it delegates to Boot(); otherwise it
+// logs a stub warning.
+func (p *Core) makeDirectoryHook() func() error {
+	return func() error {
+		if p.directoryBooter != nil {
+			p.Log(logger.Info, "booting directory subsystem")
+			return p.directoryBooter.Boot(p.ctx, p.conf, nil)
+		}
+		p.Log(logger.Warn,
+			"[KAI-237] directory subsystem boot is a stub; "+
+				"real wiring tracked in KAI-226 / KAI-246")
+		return nil
+	}
+}
+
+// makeRecorderHook returns the StartRecorder hook. If a concrete
+// RecorderBooter is wired in it delegates to Boot(); otherwise it
+// logs a stub warning.
+func (p *Core) makeRecorderHook() func() error {
+	return func() error {
+		if p.recorderBooter != nil {
+			p.Log(logger.Info, "booting recorder subsystem")
+			return p.recorderBooter.Boot(p.ctx, p.conf, nil)
+		}
+		p.Log(logger.Warn,
+			"[KAI-237] recorder subsystem boot is a stub; "+
+				"real wiring tracked in KAI-226 / KAI-246 / KAI-250")
+		return nil
+	}
+}
+
+// makeAutoPairHook returns the AutoPair hook. If both booters are
+// wired in it performs in-process pairing via runtime.AutoPair;
+// otherwise it logs a stub warning.
+func (p *Core) makeAutoPairHook() func() error {
+	return func() error {
+		if p.directoryBooter != nil && p.recorderBooter != nil {
+			p.Log(logger.Info, "performing all-in-one auto-pairing")
+			return kairuntime.AutoPair(
+				p.ctx,
+				p.directoryBooter.PairingService(),
+				p.recorderBooter.PairingRedeemer(),
+				nil,
+			)
+		}
+		p.Log(logger.Warn,
+			"[KAI-237] all-in-one auto-pairing is a stub; "+
+				"real pairing tracked in KAI-243 / KAI-244")
+		return nil
+	}
 }
 
 func (p *Core) createResources(initial bool) error {

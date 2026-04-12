@@ -209,10 +209,13 @@ func New(args []string) (*Core, bool) {
 		return nil, false
 	}
 
-	// Wire the concrete Directory booter when the mode requires it.
+	// Wire the concrete Directory and Recorder booters when the mode requires them.
 	mode := p.conf.Mode.Runtime()
 	if mode == kairuntime.ModeDirectory || mode == kairuntime.ModeAllInOne {
 		p.directoryBooter = directory.NewBooter()
+	}
+	if mode == kairuntime.ModeRecorder || mode == kairuntime.ModeAllInOne {
+		p.recorderBooter = &recorderboot.Booter{}
 	}
 
 	err = p.createResources(true)

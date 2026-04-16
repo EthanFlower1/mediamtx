@@ -435,6 +435,16 @@ func (p *Core) createResources(initial bool) error {
 			return err
 		}
 
+		// In Directory-only mode, the Directory boot.go handles everything.
+		// Skip the legacy MediaMTX streaming stack to avoid port conflicts.
+		if kairuntime.Mode(p.conf.Mode) == kairuntime.ModeDirectory {
+			p.Log(logger.Info, "running in Directory mode — streaming stack skipped")
+			select {
+			case <-p.ctx.Done():
+				return nil
+			}
+		}
+
 		// on Linux, try to raise the number of file descriptors that can be opened
 		// to allow the maximum possible number of clients.
 		rlimit.Raise() //nolint:errcheck
@@ -574,6 +584,7 @@ func (p *Core) createResources(initial bool) error {
 			parent:            p,
 		}
 		if p.nvr != nil {
+			pm.onNVRSegmentCreate = p.nvr.OnSegmentCreate
 			pm.onNVRSegmentComplete = p.nvr.OnSegmentComplete
 		}
 		p.pathManager = pm

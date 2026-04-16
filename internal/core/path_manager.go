@@ -81,6 +81,7 @@ type pathManager struct {
 	pathConfs            map[string]*conf.Path
 	authManager          pathManagerAuthManager
 	externalCmdPool      *externalcmd.Pool
+	onNVRSegmentCreate   func(string)
 	onNVRSegmentComplete func(string, time.Duration)
 	metrics              *metrics.Metrics
 	parent               pathManagerParent
@@ -472,6 +473,7 @@ func (pm *pathManager) createPath(
 		matches:              matches,
 		wg:                   &pm.wg,
 		externalCmdPool:      pm.externalCmdPool,
+		onNVRSegmentCreate:   pm.onNVRSegmentCreate,
 		onNVRSegmentComplete: pm.onNVRSegmentComplete,
 		parent:               pm,
 	}
@@ -636,14 +638,34 @@ func (pm *pathManager) APIPathsList() (*defs.APIPathList, error) {
 	case pm.chAPIPathsList <- req:
 		res := <-req.res
 
-		res.data = &defs.APIPathList{
-			Items: []defs.APIPath{},
+		// Fan out path queries concurrently to avoid serial channel round-trips.
+		type result struct {
+			item *defs.APIPath
+			err  error
+		}
+		results := make([]result, len(res.paths))
+		paths := make([]*path, 0, len(res.paths))
+		for _, pa := range res.paths {
+			paths = append(paths, pa)
 		}
 
-		for _, pa := range res.paths {
-			item, err := pa.APIPathsGet(pathAPIPathsGetReq{})
-			if err == nil {
-				res.data.Items = append(res.data.Items, *item)
+		var wg sync.WaitGroup
+		wg.Add(len(paths))
+		for i, pa := range paths {
+			go func(idx int, p *path) {
+				defer wg.Done()
+				item, err := p.APIPathsGet(pathAPIPathsGetReq{})
+				results[idx] = result{item: item, err: err}
+			}(i, pa)
+		}
+		wg.Wait()
+
+		res.data = &defs.APIPathList{
+			Items: make([]defs.APIPath, 0, len(results)),
+		}
+		for _, r := range results {
+			if r.err == nil {
+				res.data.Items = append(res.data.Items, *r.item)
 			}
 		}
 

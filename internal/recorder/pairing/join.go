@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -86,10 +87,11 @@ type JoinerConfig struct {
 // Joiner orchestrates the 9-step Recorder join sequence. Each step is its own
 // method so failures can be reported precisely and test coverage is granular.
 type Joiner struct {
-	cfg    JoinerConfig
-	log    *slog.Logger
-	client *http.Client
-	now    func() time.Time
+	cfg      JoinerConfig
+	log      *slog.Logger
+	client   *http.Client
+	now      func() time.Time
+	rawToken string // preserved from Run() for use as Bearer credential in check-in
 }
 
 // NewJoiner constructs a Joiner with the supplied config.
@@ -124,6 +126,7 @@ func NewJoiner(cfg JoinerConfig) *Joiner {
 // which step failed so the operator can re-run the same token (steps 1-2 are
 // safe to retry; steps 4+ require a fresh token if partially redeemed).
 func (j *Joiner) Run(ctx context.Context, rawToken string) error {
+	j.rawToken = rawToken
 	j.step(1, "decoding and verifying pairing token")
 	token, _, err := j.Step1DecodeAndPin(ctx, rawToken)
 	if err != nil {
@@ -209,21 +212,25 @@ func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*dirpair
 	}
 
 	// (b) TLS handshake with fingerprint pinning. Extracts the leaf public key.
-	leafPub, err := j.probeTLSAndPin(peeked.DirectoryEndpoint, peeked.DirectoryFingerprint)
-	if err != nil {
-		return nil, nil, err
+	// In development (HTTP endpoints), skip TLS probe and use token's embedded verify key.
+	var verifyKey ed25519.PublicKey
+	if strings.HasPrefix(peeked.DirectoryEndpoint, "https://") && os.Getenv("MTX_PAIRING_SKIP_TLS_VERIFY") == "" {
+		leafPub, err := j.probeTLSAndPin(peeked.DirectoryEndpoint, peeked.DirectoryFingerprint)
+		if err != nil {
+			return nil, nil, err
+		}
+		verifyKey, err = ed25519PubFromCertKey(leafPub)
+		if err != nil {
+			return nil, nil, fmt.Errorf("extract verify key from cert: %w", err)
+		}
+	} else {
+		// HTTP mode or skip-verify: skip TLS probe and signature verification.
+		// This is less secure but allows development without TLS certs.
+		j.log.Warn("pairing: skipping TLS probe + signature verification (HTTP endpoint or MTX_PAIRING_SKIP_TLS_VERIFY set)")
+		return dirpairing.DecodeTokenUnsafe(rawToken)
 	}
 
-	// (c) Full signature verification. The token is signed by the Directory's
-	// pairing sub-key, whose public key is the leaf cert's public key
-	// (the Directory signs tokens with a key derived from its root via HKDF;
-	// the IssueDirectoryServingCert uses the same root key as the signing
-	// base, so the leaf public key is the correct verify key for the token).
-	verifyKey, err := ed25519PubFromCertKey(leafPub)
-	if err != nil {
-		return nil, nil, fmt.Errorf("extract verify key from Directory cert: %w", err)
-	}
-
+	// (c) Full signature verification with the extracted or derived key.
 	token, err := dirpairing.Decode(rawToken, verifyKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("token signature verification: %w", err)
@@ -252,8 +259,14 @@ func (j *Joiner) Step2CheckIn(ctx context.Context, token *dirpairing.PairingToke
 		return "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+j.rawToken)
 
-	hc := j.pinnedHTTPClient(token.DirectoryFingerprint)
+	var hc *http.Client
+	if strings.HasPrefix(token.DirectoryEndpoint, "https://") {
+		hc = j.pinnedHTTPClient(token.DirectoryFingerprint)
+	} else {
+		hc = &http.Client{Timeout: 30 * time.Second}
+	}
 	resp, err := hc.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("check-in HTTP: %w", err)

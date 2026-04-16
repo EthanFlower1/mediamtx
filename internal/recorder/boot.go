@@ -119,6 +119,10 @@ func (c *BootConfig) stateDir() string {
 	if c.StateDir != "" {
 		return c.StateDir
 	}
+	// Check env var override (for Docker)
+	if dir := os.Getenv("MTX_RECORDER_STATE_DIR"); dir != "" {
+		return dir
+	}
 	return DefaultStateDir
 }
 
@@ -194,6 +198,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	// -----------------------------------------------------------
 	// 1. Open local state store (SQLite)
 	// -----------------------------------------------------------
+	if err := os.MkdirAll(cfg.stateDir(), 0o755); err != nil {
+		return nil, fmt.Errorf("recorder boot: create state dir %s: %w", cfg.stateDir(), err)
+	}
 	log.Info("recorder: opening local state store", slog.String("path", cfg.dbPath()))
 	store, err := state.Open(cfg.dbPath(), state.Options{})
 	if err != nil {
@@ -251,6 +258,14 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		log.Info("recorder: already paired",
 			slog.String("recorder_uuid", ps.RecorderUUID),
 			slog.String("directory_url", ps.DirectoryURL))
+	}
+
+	// Allow overriding the Directory URL from env (Docker networking).
+	if override := os.Getenv("MTX_DIRECTORY_URL"); override != "" {
+		log.Info("recorder: overriding directory URL from MTX_DIRECTORY_URL",
+			slog.String("original", ps.DirectoryURL),
+			slog.String("override", override))
+		ps.DirectoryURL = override
 	}
 
 	// -----------------------------------------------------------

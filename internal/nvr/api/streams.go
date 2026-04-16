@@ -264,7 +264,7 @@ func (h *StreamHandler) UpdateRoles(c *gin.Context) {
 	}
 
 	var req struct {
-		Roles string `json:"roles" binding:"required"`
+		Roles string `json:"roles"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request: " + err.Error()})

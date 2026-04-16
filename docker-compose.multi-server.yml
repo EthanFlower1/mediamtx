@@ -1,0 +1,114 @@
+# Multi-Server KaiVue Deployment — Real Runtime Mode Separation
+# Directory (control plane) + 2 Recorders (paired via real cameras on LAN)
+#
+# The Directory boots first, generates pairing tokens, and writes them to a
+# shared volume. Each Recorder waits for its token, then boots with
+# MTX_PAIRING_TOKEN set so the 9-step join sequence runs automatically.
+#
+# Recorders use network_mode: host so they can discover ONVIF cameras on your LAN.
+#
+# Usage:
+#   docker compose -f docker-compose.multi-server.yml up --build
+#   ./scripts/multi-server-up.sh --build --detach
+
+services:
+  # ── Directory (control plane) ──────────────────────────────
+  directory:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    container_name: kaivue-directory
+    environment:
+      MTX_API: "yes"
+      MTX_NVR: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_LOGLEVEL: debug
+      MTX_MODE: directory
+      NUM_RECORDERS: "2"
+      # Advertise the Docker bridge IP so Recorders (on host network) can reach us
+      MTX_DIRECTORY_ENDPOINT: "http://host.docker.internal:9997"
+    ports:
+      - "9997:9997"   # API / Admin UI
+    volumes:
+      - directory-data:/data
+      - pairing-tokens:/pairing
+      - ./scripts/docker:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/directory-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9997/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Recorder 1 ─────────────────────────────────────────────
+  # Uses host networking so it can see ONVIF cameras on your LAN
+  recorder-1:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    container_name: kaivue-recorder-1
+    network_mode: host
+    environment:
+      MTX_API: "yes"
+      MTX_NVR: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_LOGLEVEL: debug
+      MTX_MODE: recorder
+      RECORDER_ID: "1"
+      MTX_RECORDER_STATE_DIR: /data/recorder
+      # Override the Directory endpoint from the token to use host IP
+      MTX_DIRECTORY_URL: "http://localhost:9997"
+      MTX_PAIRING_SKIP_TLS_VERIFY: "1"
+    volumes:
+      - recorder1-data:/data
+      - recorder1-recordings:/recordings
+      - pairing-tokens:/pairing:ro
+      - ./scripts/docker:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/recorder-entrypoint.sh"]
+    depends_on:
+      directory:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Recorder 2 ─────────────────────────────────────────────
+  recorder-2:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    container_name: kaivue-recorder-2
+    network_mode: host
+    environment:
+      MTX_API: "yes"
+      MTX_NVR: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_LOGLEVEL: debug
+      MTX_MODE: recorder
+      RECORDER_ID: "2"
+      MTX_RECORDER_STATE_DIR: /data/recorder
+      MTX_DIRECTORY_URL: "http://localhost:9997"
+      MTX_PAIRING_SKIP_TLS_VERIFY: "1"
+      # Use different ports so Recorder 2 doesn't clash with Recorder 1
+      MTX_RTSPADDRESS: ":8564"
+      MTX_HLSADDRESS: ":8898"
+      MTX_WEBRTCADDRESS: ":8899"
+      MTX_APIADDRESS: ":9998"
+    volumes:
+      - recorder2-data:/data
+      - recorder2-recordings:/recordings
+      - pairing-tokens:/pairing:ro
+      - ./scripts/docker:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/recorder-entrypoint.sh"]
+    depends_on:
+      directory:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  directory-data:
+  recorder1-data:
+  recorder1-recordings:
+  recorder2-data:
+  recorder2-recordings:
+  pairing-tokens:

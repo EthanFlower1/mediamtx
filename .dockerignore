@@ -13,3 +13,11 @@
 /.local-backup/
 /node_modules/
 /ui/node_modules/
+/ui-v2/node_modules/
+/clients/
+/sdks/
+/.claude-flow/
+/.git/
+/video-wall/
+/infra/
+*.output

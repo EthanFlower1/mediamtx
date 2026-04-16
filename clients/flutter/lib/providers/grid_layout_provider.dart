@@ -150,9 +150,26 @@ class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
     _saveActive();
   }
 
+  void addCamera(String cameraId) {
+    final newSlots = Map<int, String>.from(_layout.slots);
+    if (newSlots.values.contains(cameraId)) return; // already present
+    // Find the next available slot index.
+    int next = 0;
+    while (newSlots.containsKey(next)) next++;
+    newSlots[next] = cameraId;
+    state = state.copyWith(active: _layout.copyWith(slots: newSlots));
+    _saveActive();
+  }
+
   void removeCamera(int slot) {
     final newSlots = Map<int, String>.from(_layout.slots)..remove(slot);
-    state = state.copyWith(active: _layout.copyWith(slots: newSlots));
+    // Re-compact indices so there are no gaps.
+    final compacted = <int, String>{};
+    int i = 0;
+    for (final cameraId in newSlots.values) {
+      compacted[i++] = cameraId;
+    }
+    state = state.copyWith(active: _layout.copyWith(slots: compacted));
     _saveActive();
   }
 
@@ -172,11 +189,19 @@ class GridLayoutNotifier extends StateNotifier<GridLayoutState> {
   }
 
   void fillFromGroup(List<String> cameraIds) {
+    // Auto-compute the smallest grid that fits all cameras.
+    int cols = 1;
+    while (cols * cols < cameraIds.length) {
+      cols++;
+    }
+
     final newSlots = <int, String>{};
-    for (int i = 0; i < cameraIds.length && i < _layout.totalSlots; i++) {
+    for (int i = 0; i < cameraIds.length; i++) {
       newSlots[i] = cameraIds[i];
     }
-    state = state.copyWith(active: _layout.copyWith(slots: newSlots));
+    state = state.copyWith(
+      active: _layout.copyWith(gridSize: cols, slots: newSlots),
+    );
     _saveActive();
   }
 

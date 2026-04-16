@@ -22,6 +22,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/bluenviron/mediamtx/internal/recordstore"
+
 	"github.com/bluenviron/mediamtx/internal/nvr/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
 	"github.com/bluenviron/mediamtx/internal/nvr/api"
@@ -1101,6 +1103,7 @@ func buildDBFragments(recordingID int64, fragments []api.FragmentInfo) []db.Reco
 }
 
 // indexRecordingFragments scans an fMP4 file and stores fragment metadata in the DB.
+// It also extracts the NTP timestamp from the mtxi box to correct DB timestamps.
 func (n *NVR) indexRecordingFragments(rec *db.Recording) {
 	initSize, fragments, err := api.ScanFragments(rec.FilePath)
 	if err != nil {
@@ -1117,14 +1120,23 @@ func (n *NVR) indexRecordingFragments(rec *db.Recording) {
 	if err := n.database.InsertFragments(rec.ID, dbFrags); err != nil {
 		fmt.Fprintf(os.Stderr, "NVR: failed to insert fragments for recording %d: %v\n", rec.ID, err)
 	}
+
+	// Extract NTP timestamp from the mtxi box and correct DB timestamps.
+	ntpTime, ntpErr := recordstore.ReadNTPFromFile(rec.FilePath)
+	if ntpErr == nil && !ntpTime.IsZero() {
+		mediaDuration := time.Duration(rec.DurationMs) * time.Millisecond
+		mediaStart := ntpTime.UTC().Format("2006-01-02T15:04:05.000Z")
+		mediaEnd := ntpTime.Add(mediaDuration).UTC().Format("2006-01-02T15:04:05.000Z")
+
+		if err := n.database.UpdateMediaTimestamps(rec.ID, mediaStart, mediaStart, mediaEnd); err != nil {
+			fmt.Fprintf(os.Stderr, "NVR: failed to update media timestamps for recording %d: %v\n", rec.ID, err)
+		}
+	}
 }
 
-// OnSegmentComplete is called when a recording segment finishes writing.
-// It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
-func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
-	var cam *db.Camera
-	var streamPrefix string
-
+// resolveCameraFromPath extracts the camera and optional stream prefix from a
+// recording file path. Returns nil camera if no match is found.
+func (n *NVR) resolveCameraFromPath(filePath string) (cam *db.Camera, streamPrefix string) {
 	// Try to extract camera ID from path convention: .../nvr/<camera-id>/main/...
 	// Non-default stream paths use: .../nvr/<camera-id>~<stream-prefix>/...
 	if idx := strings.Index(filePath, "nvr/"); idx >= 0 {
@@ -1139,24 +1151,65 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 			}
 			if c, err := n.database.GetCamera(candidate); err == nil {
 				cam = c
+				return
 			}
 		}
 	}
 
 	// Fallback: legacy substring match for pre-migration recordings.
-	if cam == nil {
-		cameras, err := n.database.ListCameras()
-		if err != nil {
+	cameras, err := n.database.ListCameras()
+	if err != nil {
+		return
+	}
+	for _, c := range cameras {
+		if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
+			cam = c
 			return
 		}
-		for _, c := range cameras {
-			if c.MediaMTXPath != "" && strings.Contains(filePath, c.MediaMTXPath) {
-				cam = c
-				break
-			}
+	}
+	return
+}
+
+// OnSegmentCreate is called when a new recording segment file is created on disk.
+// It inserts an in-progress recording row so playback can discover it immediately.
+func (n *NVR) OnSegmentCreate(filePath string) {
+	cam, streamPrefix := n.resolveCameraFromPath(filePath)
+	if cam == nil {
+		return
+	}
+
+	format := "fmp4"
+	if strings.HasSuffix(filePath, ".ts") {
+		format = "mpegts"
+	}
+
+	now := time.Now().UTC()
+	// Set end_time far ahead so the in-progress recording appears in time-range
+	// queries. OnSegmentComplete will update it to the real end time.
+	farFuture := now.Add(24 * time.Hour)
+	rec := &db.Recording{
+		CameraID:  cam.ID,
+		StartTime: now.Format("2006-01-02T15:04:05.000Z"),
+		EndTime:   farFuture.Format("2006-01-02T15:04:05.000Z"),
+		FilePath:  filePath,
+		Format:    format,
+	}
+
+	if streamPrefix != "" {
+		if sid, err := n.database.ResolveStreamByPathPrefix(cam.ID, streamPrefix); err == nil {
+			rec.StreamID = sid
 		}
 	}
 
+	if err := n.database.InsertRecording(rec); err != nil {
+		fmt.Fprintf(os.Stderr, "NVR: failed to insert in-progress recording for %s: %v\n", filePath, err)
+	}
+}
+
+// OnSegmentComplete is called when a recording segment finishes writing.
+// It matches recorder.OnSegmentCompleteFunc: func(path string, duration time.Duration).
+func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
+	cam, streamPrefix := n.resolveCameraFromPath(filePath)
 	if cam == nil {
 		return
 	}
@@ -1171,43 +1224,61 @@ func (n *NVR) OnSegmentComplete(filePath string, duration time.Duration) {
 		format = "mpegts"
 	}
 
-	// All timestamps are stored in UTC. The UI converts to the user's local
-	// timezone using JavaScript's Date/toLocaleTimeString for display.
 	now := time.Now().UTC()
 	start := now.Add(-duration)
 
-	rec := &db.Recording{
-		CameraID:   cam.ID,
-		StartTime:  start.Format("2006-01-02T15:04:05.000Z"),
-		EndTime:    now.Format("2006-01-02T15:04:05.000Z"),
-		DurationMs: duration.Milliseconds(),
-		FilePath:   filePath,
-		FileSize:   fileSize,
-		Format:     format,
-	}
+	// Check if this recording was already inserted by OnSegmentCreate.
+	existing, _ := n.database.GetRecordingByFilePath(filePath)
 
-	// Resolve stream ID from path prefix.
-	if streamPrefix != "" {
-		if sid, err := n.database.ResolveStreamByPathPrefix(cam.ID, streamPrefix); err == nil {
-			rec.StreamID = sid
+	var rec *db.Recording
+	if existing != nil {
+		// Update the in-progress recording with final metadata.
+		err := n.database.CompleteRecording(filePath,
+			now.Format("2006-01-02T15:04:05.000Z"),
+			duration.Milliseconds(),
+			fileSize,
+		)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "NVR: failed to complete recording for %s: %v\n", filePath, err)
+			return
 		}
-	}
+		existing.EndTime = now.Format("2006-01-02T15:04:05.000Z")
+		existing.DurationMs = duration.Milliseconds()
+		existing.FileSize = fileSize
+		rec = existing
+	} else {
+		// Fallback: insert fresh (e.g. recordings created before this change).
+		rec = &db.Recording{
+			CameraID:   cam.ID,
+			StartTime:  start.Format("2006-01-02T15:04:05.000Z"),
+			EndTime:    now.Format("2006-01-02T15:04:05.000Z"),
+			DurationMs: duration.Milliseconds(),
+			FilePath:   filePath,
+			FileSize:   fileSize,
+			Format:     format,
+		}
 
-	// Retry up to 3 times with 1-second delay on failure.
-	var insertErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		insertErr = n.database.InsertRecording(rec)
-		if insertErr == nil {
-			break
+		if streamPrefix != "" {
+			if sid, err := n.database.ResolveStreamByPathPrefix(cam.ID, streamPrefix); err == nil {
+				rec.StreamID = sid
+			}
 		}
-		fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
-		if attempt < 2 {
-			time.Sleep(1 * time.Second)
+
+		var insertErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			insertErr = n.database.InsertRecording(rec)
+			if insertErr == nil {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "NVR: recording insert attempt %d/3 failed: %v\n", attempt+1, insertErr)
+			if attempt < 2 {
+				time.Sleep(1 * time.Second)
+			}
 		}
-	}
-	if insertErr != nil {
-		fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
-		return
+		if insertErr != nil {
+			fmt.Fprintf(os.Stderr, "NVR: failed to insert recording after 3 attempts for %s: %v\n", filePath, insertErr)
+			return
+		}
 	}
 
 	// Notify the scheduler for health tracking.

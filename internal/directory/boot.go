@@ -76,7 +76,11 @@ func (c *BootConfig) withDefaults() {
 		c.MDNSEnabled = &t
 	}
 	if c.DirectoryEndpoint == "" {
-		c.DirectoryEndpoint = "http://localhost" + c.ListenAddr
+		if env := os.Getenv("MTX_DIRECTORY_ENDPOINT"); env != "" {
+			c.DirectoryEndpoint = env
+		} else {
+			c.DirectoryEndpoint = "http://localhost" + c.ListenAddr
+		}
 	}
 }
 

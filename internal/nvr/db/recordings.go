@@ -19,11 +19,12 @@ type Recording struct {
 	DurationMs int64  `json:"duration_ms"`
 	FilePath   string `json:"file_path"`
 	FileSize   int64  `json:"file_size"`
-	Format       string  `json:"format"`
-	InitSize     int64   `json:"init_size"`
-	Status       string  `json:"status"`
-	StatusDetail *string `json:"status_detail"`
-	VerifiedAt   *string `json:"verified_at"`
+	Format         string  `json:"format"`
+	InitSize       int64   `json:"init_size"`
+	Status         string  `json:"status"`
+	StatusDetail   *string `json:"status_detail"`
+	VerifiedAt     *string `json:"verified_at"`
+	MediaStartTime *string `json:"media_start_time,omitempty"`
 }
 
 // RecordingFragment represents a single moof+mdat fragment within an fMP4 recording.
@@ -107,7 +108,7 @@ func (d *DB) HasFragments(recordingID int64) (bool, error) {
 // GetUnindexedRecordings returns recording IDs that have no fragments, newest first.
 func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
 	rows, err := d.Query(`
-        SELECT r.id, r.camera_id, r.stream_id, r.start_time, r.end_time, r.duration_ms, r.file_path, r.file_size, r.format, r.init_size, r.status, r.status_detail, r.verified_at
+        SELECT r.id, r.camera_id, r.stream_id, r.start_time, r.end_time, r.duration_ms, r.file_path, r.file_size, r.format, r.init_size, r.status, r.status_detail, r.verified_at, r.media_start_time
         FROM recordings r
         LEFT JOIN recording_fragments rf ON rf.recording_id = r.id
         WHERE rf.id IS NULL
@@ -121,7 +122,7 @@ func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
 	for rows.Next() {
 		rec := &Recording{}
 		if err := rows.Scan(&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
-			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize, &rec.Status, &rec.StatusDetail, &rec.VerifiedAt); err != nil {
+			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize, &rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime); err != nil {
 			return nil, err
 		}
 		recs = append(recs, rec)
@@ -160,11 +161,55 @@ func (d *DB) InsertRecording(rec *Recording) error {
 	return nil
 }
 
+// CompleteRecording updates an in-progress recording with its final end time,
+// duration, and file size. Used when a segment that was registered at creation
+// time finishes writing.
+func (d *DB) CompleteRecording(filePath string, endTime string, durationMs int64, fileSize int64) error {
+	_, err := d.Exec(`
+		UPDATE recordings SET end_time = ?, duration_ms = ?, file_size = ?
+		WHERE file_path = ?`,
+		endTime, durationMs, fileSize, filePath,
+	)
+	return err
+}
+
+// UpdateMediaTimestamps updates a recording's media_start_time, start_time, and end_time
+// from NTP-derived media timestamps. This corrects the wall-clock drift from time.Now().
+func (d *DB) UpdateMediaTimestamps(recordingID int64, mediaStartTime, startTime, endTime string) error {
+	_, err := d.Exec(`
+		UPDATE recordings SET media_start_time = ?, start_time = ?, end_time = ?
+		WHERE id = ?`,
+		mediaStartTime, startTime, endTime, recordingID,
+	)
+	return err
+}
+
+// GetRecordingByFilePath looks up a recording by its file path.
+func (d *DB) GetRecordingByFilePath(filePath string) (*Recording, error) {
+	row := d.QueryRow(`
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time
+		FROM recordings WHERE file_path = ?`, filePath)
+
+	rec := &Recording{}
+	err := row.Scan(
+		&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
+		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
+		&rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return rec, nil
+}
+
 // QueryRecordings returns recordings for a camera that overlap the given time
 // range. Overlap logic: end_time > start AND start_time < end.
 func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recording, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time
 		FROM recordings
 		WHERE camera_id = ? AND end_time > ? AND start_time < ?
 		ORDER BY start_time`,
@@ -181,7 +226,7 @@ func (d *DB) QueryRecordings(cameraID string, start, end time.Time) ([]*Recordin
 		if err := rows.Scan(
 			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
-			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime,
 		); err != nil {
 			return nil, err
 		}
@@ -228,12 +273,12 @@ func (d *DB) GetTimeline(cameraID string, start, end time.Time) ([]TimeRange, er
 func (d *DB) GetRecording(id int64) (*Recording, error) {
 	rec := &Recording{}
 	err := d.QueryRow(`
-		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time
 		FROM recordings WHERE id = ?`, id,
 	).Scan(
 		&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 		&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
-		&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+		&rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -531,7 +576,7 @@ func (d *DB) UpdateRecordingFileSize(id int64, fileSize int64) error {
 // or verified_at older than the given cutoff. Results are ordered newest-first, limited to batchSize.
 func (d *DB) GetRecordingsNeedingVerification(cutoff time.Time, batchSize int) ([]*Recording, error) {
 	rows, err := d.Query(`
-		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at
+		SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time
 		FROM recordings
 		WHERE status = 'unverified' OR (verified_at IS NOT NULL AND verified_at < ?)
 		ORDER BY start_time DESC
@@ -549,7 +594,7 @@ func (d *DB) GetRecordingsNeedingVerification(cutoff time.Time, batchSize int) (
 		if err := rows.Scan(
 			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
-			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime,
 		); err != nil {
 			return nil, err
 		}
@@ -600,7 +645,7 @@ func (d *DB) GetIntegritySummary(cameraID string) (*IntegritySummary, error) {
 
 // GetRecordingsByFilter returns recordings matching optional camera and time range filters.
 func (d *DB) GetRecordingsByFilter(cameraID string, start, end *time.Time) ([]*Recording, error) {
-	query := `SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at FROM recordings WHERE 1=1`
+	query := `SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time FROM recordings WHERE 1=1`
 	var args []interface{}
 
 	if cameraID != "" {
@@ -629,7 +674,7 @@ func (d *DB) GetRecordingsByFilter(cameraID string, start, end *time.Time) ([]*R
 		if err := rows.Scan(
 			&rec.ID, &rec.CameraID, &rec.StreamID, &rec.StartTime, &rec.EndTime,
 			&rec.DurationMs, &rec.FilePath, &rec.FileSize, &rec.Format, &rec.InitSize,
-			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt,
+			&rec.Status, &rec.StatusDetail, &rec.VerifiedAt, &rec.MediaStartTime,
 		); err != nil {
 			return nil, err
 		}

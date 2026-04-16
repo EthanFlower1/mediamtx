@@ -145,9 +145,12 @@ class _MiniOverviewPainter extends CustomPainter {
     // Recording segments: accent at 13% opacity
     final segPaint = Paint()
       ..color = colors.accent.withOpacity(0.13);
+    final now = DateTime.now();
     for (final seg in segments) {
-      final x1 = viewport.timeToPixel(seg.startTime.difference(dayStart));
-      final x2 = viewport.timeToPixel(seg.endTime.difference(dayStart));
+      final effectiveEnd = seg.effectiveEndTime;
+      final clampedEnd = effectiveEnd.isAfter(now) ? now : effectiveEnd;
+      final x1 = viewport.timeToPixel(seg.effectiveStartTime.difference(dayStart));
+      final x2 = viewport.timeToPixel(clampedEnd.difference(dayStart));
       canvas.drawRect(Rect.fromLTRB(x1, barTop, x2, barBottom), segPaint);
     }
 

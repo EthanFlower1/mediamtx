@@ -214,11 +214,15 @@ class TimelinePainter extends CustomPainter {
 
     RecordingSegment? prevSegment;
 
+    final now = DateTime.now();
     for (final seg in segments) {
       final segStartSeconds =
-          seg.startTime.difference(dayStart).inMilliseconds / 1000.0;
+          seg.effectiveStartTime.difference(dayStart).inMilliseconds / 1000.0;
+      // Cap in-progress recordings (end far in future) at the current time.
+      final effectiveEnd = seg.effectiveEndTime;
+      final clampedEnd = effectiveEnd.isAfter(now) ? now : effectiveEnd;
       final segEndSeconds =
-          seg.endTime.difference(dayStart).inMilliseconds / 1000.0;
+          clampedEnd.difference(dayStart).inMilliseconds / 1000.0;
 
       // Cull segments completely outside the visible range.
       if (segEndSeconds < range.startSeconds ||
@@ -229,8 +233,10 @@ class TimelinePainter extends CustomPainter {
 
       // Draw gray gap fill between this segment and the previous one.
       if (prevSegment != null) {
+        final prevEnd = prevSegment.effectiveEndTime;
+        final clampedPrevEnd = prevEnd.isAfter(now) ? now : prevEnd;
         final prevEndSeconds =
-            prevSegment.endTime.difference(dayStart).inMilliseconds / 1000.0;
+            clampedPrevEnd.difference(dayStart).inMilliseconds / 1000.0;
         if (segStartSeconds > prevEndSeconds) {
           final gx1 = _timeToX(prevEndSeconds, size.width)
               .clamp(0.0, size.width);

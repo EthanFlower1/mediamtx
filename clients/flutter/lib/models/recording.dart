@@ -7,6 +7,7 @@ class RecordingSegment {
   final String? filePath;
   final int? fileSize;
   final String? format;
+  final DateTime? mediaStartTime;
 
   const RecordingSegment({
     required this.id,
@@ -17,18 +18,31 @@ class RecordingSegment {
     this.filePath,
     this.fileSize,
     this.format,
+    this.mediaStartTime,
   });
+
+  /// The most accurate start time available. Prefers NTP-derived media
+  /// timestamp; falls back to DB wall-clock start_time.
+  DateTime get effectiveStartTime => mediaStartTime ?? startTime;
+
+  /// Effective end time derived from media start + duration when available.
+  DateTime get effectiveEndTime => mediaStartTime != null
+      ? mediaStartTime!.add(Duration(milliseconds: durationMs))
+      : endTime;
 
   factory RecordingSegment.fromJson(Map<String, dynamic> json) {
     return RecordingSegment(
       id: json['id'] as int,
       cameraId: json['camera_id'] as String,
-      startTime: DateTime.parse(json['start_time'] as String),
-      endTime: DateTime.parse(json['end_time'] as String),
+      startTime: DateTime.parse(json['start_time'] as String).toLocal(),
+      endTime: DateTime.parse(json['end_time'] as String).toLocal(),
       durationMs: json['duration_ms'] as int,
       filePath: json['file_path'] as String?,
       fileSize: json['file_size'] as int?,
       format: json['format'] as String?,
+      mediaStartTime: json['media_start_time'] != null
+          ? DateTime.parse(json['media_start_time'] as String).toLocal()
+          : null,
     );
   }
 }
@@ -67,8 +81,8 @@ class MotionEvent {
     );
   }
 
-  DateTime get startTime => DateTime.parse(startedAt);
+  DateTime get startTime => DateTime.parse(startedAt).toLocal();
 
   DateTime? get endTime =>
-      endedAt != null ? DateTime.parse(endedAt!) : null;
+      endedAt != null ? DateTime.parse(endedAt!).toLocal() : null;
 }

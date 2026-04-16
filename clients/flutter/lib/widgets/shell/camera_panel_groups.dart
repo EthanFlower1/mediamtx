@@ -7,6 +7,7 @@ import '../../models/camera.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/camera_panel_provider.dart';
+import '../../providers/grid_layout_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../hud/camera_thumbnail.dart';
 import '../hud/hud_button.dart';
@@ -90,9 +91,9 @@ class CameraPanelGroups extends ConsumerWidget {
                   onTapFilter: () =>
                       ref.read(cameraPanelProvider.notifier).setGroupFilter(group.id),
                   onPlayGroup: () {
-                    // TODO: trigger group playback / tour when implemented
+                    ref.read(gridLayoutProvider.notifier).fillFromGroup(group.cameraIds);
                   },
-                  onRename: () => _showRenameGroupDialog(context, ref, group),
+                  onRename: () => _showEditGroupDialog(context, ref, group),
                   onDelete: () => _showDeleteGroupDialog(context, ref, group),
                 );
               }).toList(),
@@ -122,45 +123,41 @@ class CameraPanelGroups extends ConsumerWidget {
   // -------------------------------------------------------------------------
 
   void _showCreateGroupDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (ctx) => _GroupNameDialog(
+      builder: (ctx) => _GroupEditDialog(
         title: 'NEW GROUP',
-        controller: controller,
-        onConfirm: () async {
-          final name = controller.text.trim();
-          if (name.isNotEmpty) {
-            final api = ref.read(apiClientProvider);
-            if (api != null) {
-              await api.post('/camera-groups', data: {'name': name});
-              ref.invalidate(groupsProvider);
-            }
+        onConfirm: (name, cameraIds) async {
+          final api = ref.read(apiClientProvider);
+          if (api != null && name.isNotEmpty) {
+            await api.post('/camera-groups', data: {
+              'name': name,
+              'camera_ids': cameraIds,
+            });
+            ref.invalidate(groupsProvider);
           }
-          if (ctx.mounted) Navigator.of(ctx).pop();
         },
       ),
     );
   }
 
-  void _showRenameGroupDialog(
+  void _showEditGroupDialog(
       BuildContext context, WidgetRef ref, CameraGroup group) {
-    final controller = TextEditingController(text: group.name);
     showDialog<void>(
       context: context,
-      builder: (ctx) => _GroupNameDialog(
-        title: 'RENAME GROUP',
-        controller: controller,
-        onConfirm: () async {
-          final name = controller.text.trim();
-          if (name.isNotEmpty) {
-            final api = ref.read(apiClientProvider);
-            if (api != null) {
-              await api.put('/camera-groups/${group.id}', data: {'name': name});
-              ref.invalidate(groupsProvider);
-            }
+      builder: (ctx) => _GroupEditDialog(
+        title: 'EDIT GROUP',
+        initialName: group.name,
+        initialCameraIds: group.cameraIds,
+        onConfirm: (name, cameraIds) async {
+          final api = ref.read(apiClientProvider);
+          if (api != null && name.isNotEmpty) {
+            await api.put('/camera-groups/${group.id}', data: {
+              'name': name,
+              'camera_ids': cameraIds,
+            });
+            ref.invalidate(groupsProvider);
           }
-          if (ctx.mounted) Navigator.of(ctx).pop();
         },
       ),
     );
@@ -478,50 +475,157 @@ class _GroupCameraItem extends StatelessWidget {
 // _GroupNameDialog — reusable name input dialog
 // ---------------------------------------------------------------------------
 
-class _GroupNameDialog extends StatelessWidget {
-  const _GroupNameDialog({
+class _GroupEditDialog extends ConsumerStatefulWidget {
+  const _GroupEditDialog({
     required this.title,
-    required this.controller,
     required this.onConfirm,
+    this.initialName,
+    this.initialCameraIds,
   });
 
   final String title;
-  final TextEditingController controller;
-  final VoidCallback onConfirm;
+  final Future<void> Function(String name, List<String> cameraIds) onConfirm;
+  final String? initialName;
+  final List<String>? initialCameraIds;
+
+  @override
+  ConsumerState<_GroupEditDialog> createState() => _GroupEditDialogState();
+}
+
+class _GroupEditDialogState extends ConsumerState<_GroupEditDialog> {
+  late final TextEditingController _nameController;
+  late final Set<String> _selectedCameraIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName ?? '');
+    _selectedCameraIds = {...?widget.initialCameraIds};
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final camerasAsync = ref.watch(camerasProvider);
+    final cameras = camerasAsync.valueOrNull ?? <Camera>[];
+
     return AlertDialog(
       backgroundColor: NvrColors.of(context).bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(6),
         side: BorderSide(color: NvrColors.of(context).border),
       ),
-      title: Text(title, style: NvrTypography.of(context).monoSection),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        style: TextStyle(fontSize: 13, color: NvrColors.of(context).textPrimary),
-        cursorColor: NvrColors.of(context).accent,
-        decoration: InputDecoration(
-          hintText: 'Group name',
-          hintStyle:
-              TextStyle(color: NvrColors.of(context).textMuted, fontSize: 13),
-          isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          filled: true,
-          fillColor: NvrColors.of(context).bgTertiary,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: NvrColors.of(context).border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: NvrColors.of(context).accent),
+      title: Text(widget.title, style: NvrTypography.of(context).monoSection),
+      content: SizedBox(
+        width: 280,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Name field
+              TextField(
+                controller: _nameController,
+                autofocus: true,
+                style: TextStyle(
+                    fontSize: 13, color: NvrColors.of(context).textPrimary),
+                cursorColor: NvrColors.of(context).accent,
+                decoration: InputDecoration(
+                  hintText: 'Group name',
+                  hintStyle: TextStyle(
+                      color: NvrColors.of(context).textMuted, fontSize: 13),
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  filled: true,
+                  fillColor: NvrColors.of(context).bgTertiary,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: NvrColors.of(context).border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide:
+                        BorderSide(color: NvrColors.of(context).accent),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Camera selection
+              Text('CAMERAS', style: NvrTypography.of(context).monoControl),
+              const SizedBox(height: 6),
+              if (cameras.isEmpty)
+                Text('No cameras available',
+                    style: NvrTypography.of(context).body)
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: cameras.length,
+                    itemBuilder: (_, i) {
+                      final cam = cameras[i];
+                      final selected = _selectedCameraIds.contains(cam.id);
+                      return InkWell(
+                        onTap: () => setState(() {
+                          if (selected) {
+                            _selectedCameraIds.remove(cam.id);
+                          } else {
+                            _selectedCameraIds.add(cam.id);
+                          }
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 14,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: selected
+                                        ? NvrColors.of(context).accent
+                                        : NvrColors.of(context).border,
+                                  ),
+                                  color: selected
+                                      ? NvrColors.of(context).accent
+                                          .withValues(alpha: 0.2)
+                                      : Colors.transparent,
+                                ),
+                                child: selected
+                                    ? Icon(Icons.check,
+                                        size: 10,
+                                        color: NvrColors.of(context).accent)
+                                    : null,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  cam.name,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: NvrColors.of(context).textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
-        onSubmitted: (_) => onConfirm(),
       ),
       actions: [
         TextButton(
@@ -529,10 +633,17 @@ class _GroupNameDialog extends StatelessWidget {
           child: Text('CANCEL', style: NvrTypography.of(context).monoControl),
         ),
         TextButton(
-          onPressed: onConfirm,
+          onPressed: () async {
+            await widget.onConfirm(
+              _nameController.text.trim(),
+              _selectedCameraIds.toList(),
+            );
+            if (mounted) Navigator.of(context).pop();
+          },
           child: Text(
-            'CONFIRM',
-            style: NvrTypography.of(context).monoControl.copyWith(color: NvrColors.of(context).accent),
+            widget.initialName != null ? 'SAVE' : 'CREATE',
+            style: NvrTypography.of(context).monoControl
+                .copyWith(color: NvrColors.of(context).accent),
           ),
         ),
       ],

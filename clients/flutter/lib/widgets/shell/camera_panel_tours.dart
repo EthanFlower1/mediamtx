@@ -67,6 +67,7 @@ class CameraPanelTours extends ConsumerWidget {
                       ref.read(activeTourProvider.notifier).start(tour);
                     }
                   },
+                  onEdit: () => _showEditTourDialog(context, ref, tour),
                   onDelete: () => _confirmDeleteTour(context, ref, tour),
                 );
               }).toList(),
@@ -106,6 +107,39 @@ class CameraPanelTours extends ConsumerWidget {
               'camera_ids': cameraIds,
               'dwell_seconds': dwellSeconds,
             });
+            ref.invalidate(toursProvider);
+          }
+        },
+      ),
+    );
+  }
+
+  void _showEditTourDialog(BuildContext context, WidgetRef ref, Tour tour) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _CreateTourDialog(
+        initialName: tour.name,
+        initialCameraIds: tour.cameraIds,
+        initialDwellSeconds: tour.dwellSeconds,
+        onConfirm: (name, cameraIds, dwellSeconds) async {
+          final api = ref.read(apiClientProvider);
+          if (api != null && name.isNotEmpty) {
+            await api.put('/tours/${tour.id}', data: {
+              'name': name,
+              'camera_ids': cameraIds,
+              'dwell_seconds': dwellSeconds,
+            });
+            // If this tour is currently active, restart it with new config.
+            final active = ref.read(activeTourProvider);
+            if (active.tour?.id == tour.id) {
+              ref.read(activeTourProvider.notifier).start(
+                tour.copyWith(
+                  name: name,
+                  cameraIds: cameraIds,
+                  dwellSeconds: dwellSeconds,
+                ),
+              );
+            }
             ref.invalidate(toursProvider);
           }
         },
@@ -165,13 +199,58 @@ class _TourItem extends StatelessWidget {
     required this.tour,
     required this.isActive,
     required this.onTap,
+    required this.onEdit,
     required this.onDelete,
   });
 
   final Tour tour;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
+
+  void _showContextMenu(BuildContext context, TapDownDetails details) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        details.globalPosition & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: NvrColors.of(context).bgSecondary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: NvrColors.of(context).border),
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'edit',
+          height: 32,
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 14, color: NvrColors.of(context).textSecondary),
+              const SizedBox(width: 8),
+              Text('Edit', style: TextStyle(fontSize: 12, color: NvrColors.of(context).textPrimary)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          height: 32,
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 14, color: NvrColors.of(context).danger),
+              const SizedBox(width: 8),
+              Text('Delete', style: TextStyle(fontSize: 12, color: NvrColors.of(context).danger)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'edit') onEdit();
+      if (value == 'delete') onDelete();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +258,9 @@ class _TourItem extends StatelessWidget {
     final configLabel = '$camCount CAM · ${tour.dwellSeconds}S EACH';
 
     return GestureDetector(
-      onLongPress: onDelete,
+      onSecondaryTapDown: (details) => _showContextMenu(context, details),
+      onLongPressStart: (details) => _showContextMenu(context,
+          TapDownDetails(globalPosition: details.globalPosition)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
@@ -189,11 +270,11 @@ class _TourItem extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
             color: isActive
-                ? NvrColors.of(context).accent.withOpacity(0.08)
+                ? NvrColors.of(context).accent.withValues(alpha: 0.08)
                 : NvrColors.of(context).bgTertiary,
             border: Border.all(
               color: isActive
-                  ? NvrColors.of(context).accent.withOpacity(0.35)
+                  ? NvrColors.of(context).accent.withValues(alpha: 0.35)
                   : NvrColors.of(context).border,
             ),
           ),
@@ -247,18 +328,36 @@ class _TourItem extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _CreateTourDialog extends ConsumerStatefulWidget {
-  const _CreateTourDialog({required this.onConfirm});
+  const _CreateTourDialog({
+    required this.onConfirm,
+    this.initialName,
+    this.initialCameraIds,
+    this.initialDwellSeconds,
+  });
 
   final Future<void> Function(String name, List<String> cameraIds, int dwellSeconds) onConfirm;
+  final String? initialName;
+  final List<String>? initialCameraIds;
+  final int? initialDwellSeconds;
+
+  bool get isEditing => initialName != null;
 
   @override
   ConsumerState<_CreateTourDialog> createState() => _CreateTourDialogState();
 }
 
 class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
-  final _nameController = TextEditingController();
-  final Set<String> _selectedCameraIds = {};
-  double _dwellSeconds = 10;
+  late final TextEditingController _nameController;
+  late final Set<String> _selectedCameraIds;
+  late double _dwellSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName ?? '');
+    _selectedCameraIds = {...?widget.initialCameraIds};
+    _dwellSeconds = (widget.initialDwellSeconds ?? 10).toDouble();
+  }
 
   @override
   void dispose() {
@@ -277,7 +376,8 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
         borderRadius: BorderRadius.circular(6),
         side: BorderSide(color: NvrColors.of(context).border),
       ),
-      title: Text('NEW TOUR', style: NvrTypography.of(context).monoSection),
+      title: Text(widget.isEditing ? 'EDIT TOUR' : 'NEW TOUR',
+          style: NvrTypography.of(context).monoSection),
       content: SizedBox(
         width: 280,
         child: SingleChildScrollView(
@@ -430,7 +530,7 @@ class _CreateTourDialogState extends ConsumerState<_CreateTourDialog> {
             if (mounted) Navigator.of(context).pop();
           },
           child: Text(
-            'CREATE',
+            widget.isEditing ? 'SAVE' : 'CREATE',
             style: NvrTypography.of(context).monoControl
                 .copyWith(color: NvrColors.of(context).accent),
           ),

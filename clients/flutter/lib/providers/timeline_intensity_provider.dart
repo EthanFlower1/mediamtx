@@ -9,7 +9,7 @@ class IntensityBucket {
 
   factory IntensityBucket.fromJson(Map<String, dynamic> json) {
     return IntensityBucket(
-      bucketStart: DateTime.parse(json['bucket_start'] as String),
+      bucketStart: DateTime.parse(json['bucket_start'] as String).toLocal(),
       count: json['count'] as int,
     );
   }

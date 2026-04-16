@@ -804,19 +804,27 @@ paths:
   # Settings under path "all_others" are applied to all paths that
   # do not match another entry.
   all_others:
-  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
-    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
   nvr/e9e84a21-4e7a-414f-a38a-99ed29046e37/main:
     source: rtsp://admin:Gsd4life.@192.168.1.105:554/media/video1
-  nvr/d6e6ea91-3d2b-4065-ae07-091392334e81/main:
-    record: false
-    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
-    source: rtsp://admin:Gsd4life.@192.168.1.110:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
   nvr/cbf51940-3f54-4404-9df3-e01176556961/main:
     record: false
     recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
     source: rtsp://admin:123456@192.168.1.109:554/stream0?username=admin&password=E10ADC3949BA59ABBE56E057F20F883E
+  nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main:
+    source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
+  nvr/d6e6ea91-3d2b-4065-ae07-091392334e81/main:
+    source: rtsp://admin:Gsd4life.@192.168.1.110:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
+  nvr/f9246862-5da7-4d00-8d0f-3bca3e4e988b/main:
+    source: rtsp://admin:Gsd4life.@192.168.1.218:554/cam/realmonitor?channel=1&subtype=0&unicast=true&proto=Onvif
   nvr/3870f0de-7295-4d39-8f4b-1a6a39e15663/main~a33d4430:
     record: true
     recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
     source: rtsp://admin:Gsd4life.@192.168.1.111:554/cam/realmonitor?channel=1&subtype=1&unicast=true&proto=Onvif
+  nvr/f9246862-5da7-4d00-8d0f-3bca3e4e988b/main~c8c6f2fb:
+    record: true
+    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
+    source: rtsp://admin:Gsd4life.@192.168.1.218:554/cam/realmonitor?channel=1&subtype=2&unicast=true&proto=Onvif
+  nvr/d6e6ea91-3d2b-4065-ae07-091392334e81/main~b7327385:
+    record: true
+    recordPath: ./recordings/%path/%Y-%m/%d/%H-%M-%S-%f
+    source: rtsp://admin:Gsd4life.@192.168.1.110:554/cam/realmonitor?channel=1&subtype=1&unicast=true&proto=Onvif

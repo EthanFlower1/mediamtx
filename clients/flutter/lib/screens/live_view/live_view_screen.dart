@@ -8,12 +8,13 @@ import '../../providers/auth_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/grid_layout_provider.dart';
 import '../../providers/overlay_settings_provider.dart';
+import '../../providers/tours_provider.dart';
 import '../../theme/nvr_animations.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/hud/hud_toggle.dart';
-import '../../widgets/hud/segmented_control.dart';
+
 import 'camera_tile.dart';
 
 class LiveViewScreen extends ConsumerStatefulWidget {
@@ -31,17 +32,6 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
   }
 
   /// Grid options available per device type.
-  Map<int, String> _gridOptionsForDevice(DeviceType device) {
-    switch (device) {
-      case DeviceType.phone:
-        return const {1: '1\u00D71', 2: '2\u00D72'};
-      case DeviceType.tablet:
-        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73'};
-      case DeviceType.desktop:
-        return const {1: '1\u00D71', 2: '2\u00D72', 3: '3\u00D73', 4: '4\u00D74'};
-    }
-  }
-
   /// Maps digit key labels to grid slot indices.
   int? _digitToSlot(LogicalKeyboardKey key) {
     if (key == LogicalKeyboardKey.digit1) return 0;
@@ -215,13 +205,22 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final serverUrl = auth.serverUrl ?? '';
     final device = Responsive.of(context);
     final isPhone = device == DeviceType.phone;
+    final tourState = ref.watch(activeTourProvider);
 
-    final gridOptions = _gridOptionsForDevice(device);
-
-    // Clamp current grid size to valid options for this breakpoint.
-    final effectiveGridSize = gridOptions.containsKey(gridLayout.gridSize)
-        ? gridLayout.gridSize
-        : gridOptions.keys.last;
+    // When a tour is active, override to 1x1 showing the current tour camera.
+    final int effectiveGridSize;
+    final Map<int, String> effectiveSlots;
+    if (tourState.isActive && tourState.currentCameraId != null) {
+      effectiveGridSize = 1;
+      effectiveSlots = {0: tourState.currentCameraId!};
+    } else {
+      effectiveSlots = gridLayout.slots;
+      // Compute columns from the number of tiles — auto-fit layout.
+      final n = effectiveSlots.length;
+      int cols = 1;
+      while (cols * cols < n) cols++;
+      effectiveGridSize = cols;
+    }
 
     return KeyboardListener(
       focusNode: _focusNode,
@@ -305,15 +304,6 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
 
                   // AI overlay toggle
                   _AiOverlayToggle(),
-                  const SizedBox(width: 12),
-
-                  // Grid size control
-                  HudSegmentedControl<int>(
-                    segments: gridOptions,
-                    selected: effectiveGridSize,
-                    onChanged: (value) =>
-                        ref.read(gridLayoutProvider.notifier).setGridSize(value),
-                  ),
                 ],
               ),
             ),
@@ -367,10 +357,10 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                       );
                     },
                     child: _LiveGrid(
-                      key: ValueKey(effectiveGridSize),
+                      key: ValueKey('${effectiveGridSize}_${effectiveSlots.length}_${tourState.currentCameraId}'),
                       gridSize: effectiveGridSize,
-                      totalSlots: effectiveGridSize * effectiveGridSize,
-                      slots: gridLayout.slots,
+                      totalSlots: effectiveSlots.length,
+                      slots: effectiveSlots,
                       cameras: cameras,
                       serverUrl: serverUrl,
                       isPhone: isPhone,
@@ -379,6 +369,10 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
                           ref.read(gridLayoutProvider.notifier).assignCamera(index, cameraId),
                       onSwapSlots: (from, to) =>
                           ref.read(gridLayoutProvider.notifier).swapSlots(from, to),
+                      onAddCamera: (cameraId) =>
+                          ref.read(gridLayoutProvider.notifier).addCamera(cameraId),
+                      onRemoveCamera: (slot) =>
+                          ref.read(gridLayoutProvider.notifier).removeCamera(slot),
                     ),
                   );
                 },
@@ -401,8 +395,10 @@ class _LiveGrid extends StatelessWidget {
     required this.cameras,
     required this.serverUrl,
     required this.onDoubleTap,
+    required this.onRemoveCamera,
     required this.onAssignCamera,
     required this.onSwapSlots,
+    required this.onAddCamera,
     this.isPhone = false,
   });
 
@@ -414,96 +410,169 @@ class _LiveGrid extends StatelessWidget {
   final void Function(Camera) onDoubleTap;
   final void Function(int index, String cameraId) onAssignCamera;
   final void Function(int from, int to) onSwapSlots;
+  final void Function(String cameraId) onAddCamera;
+  final void Function(int slot) onRemoveCamera;
   final bool isPhone;
+
+  void _showTileMenu(BuildContext context, Offset globalPosition, int slot) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: NvrColors.of(context).bgSecondary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: NvrColors.of(context).border),
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'remove',
+          height: 32,
+          child: Row(
+            children: [
+              Icon(Icons.close, size: 14, color: NvrColors.of(context).danger),
+              const SizedBox(width: 8),
+              Text('Remove', style: TextStyle(fontSize: 12, color: NvrColors.of(context).danger)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'remove') onRemoveCamera(slot);
+    });
+  }
+
+  Widget _buildTile(BuildContext context, int index) {
+    final cameraId = slots[index];
+    if (cameraId == null) return const SizedBox.shrink();
+
+    final camera = cameras.where((c) => c.id == cameraId).firstOrNull;
+    if (camera == null) return const SizedBox.shrink();
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) => details.data != cameraId,
+      onAcceptWithDetails: (details) {
+        final sourceIndex = slots.entries
+            .where((e) => e.value == details.data)
+            .map((e) => e.key)
+            .firstOrNull;
+        if (sourceIndex != null) {
+          onSwapSlots(sourceIndex, index);
+        } else {
+          onAssignCamera(index, details.data);
+        }
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovering = candidateData.isNotEmpty;
+        return GestureDetector(
+          onSecondaryTapDown: (details) =>
+              _showTileMenu(context, details.globalPosition, index),
+          onLongPressStart: (details) =>
+              _showTileMenu(context, details.globalPosition, index),
+          child: AnimatedOpacity(
+            opacity: isHovering ? 0.7 : 1.0,
+            duration: NvrAnimations.microDuration,
+            child: CameraTile(
+              camera: camera,
+              serverUrl: serverUrl,
+              onDoubleTap: () => onDoubleTap(camera),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      padding: EdgeInsets.all(isPhone ? 6 : 10),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: gridSize,
-        crossAxisSpacing: isPhone ? 4 : 8,
-        mainAxisSpacing: isPhone ? 4 : 8,
-        childAspectRatio: 16 / 9,
-      ),
-      itemCount: totalSlots,
-      itemBuilder: (context, index) {
-        final cameraId = slots[index];
+    final gap = isPhone ? 4.0 : 8.0;
+    final pad = isPhone ? 6.0 : 10.0;
 
-        if (cameraId != null) {
-          final camera =
-              cameras.where((c) => c.id == cameraId).firstOrNull;
+    // Build rows where each tile is Expanded. The last row's tiles
+    // naturally stretch to fill the available width.
+    final indices = List.generate(totalSlots, (i) => i);
+    final rows = <List<int>>[];
+    for (int i = 0; i < indices.length; i += gridSize) {
+      rows.add(indices.sublist(i, (i + gridSize).clamp(0, indices.length)));
+    }
 
-          if (camera != null) {
-            return DragTarget<String>(
-              onWillAcceptWithDetails: (details) =>
-                  details.data != cameraId,
-              onAcceptWithDetails: (details) {
-                final sourceIndex = slots.entries
-                    .where((e) => e.value == details.data)
-                    .map((e) => e.key)
-                    .firstOrNull;
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) =>
+          !slots.values.contains(details.data),
+      onAcceptWithDetails: (details) => onAddCamera(details.data),
+      builder: (context, candidateData, rejectedData) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final availW = constraints.maxWidth - pad * 2;
+            final availH = constraints.maxHeight - pad * 2;
+            final n = totalSlots;
 
-                if (sourceIndex != null) {
-                  onSwapSlots(sourceIndex, index);
-                } else {
-                  onAssignCamera(index, details.data);
-                }
-              },
-              builder: (context, candidateData, rejectedData) {
-                final isHovering = candidateData.isNotEmpty;
-                return AnimatedOpacity(
-                  opacity: isHovering ? 0.7 : 1.0,
-                  duration: NvrAnimations.microDuration,
-                  child: CameraTile(
-                    camera: camera,
-                    serverUrl: serverUrl,
-                    onDoubleTap: () => onDoubleTap(camera),
+            if (n == 0) return const SizedBox.shrink();
+
+            // Find the column count that maximizes tile size at 16:9.
+            int bestCols = 1;
+            double bestTileW = 0;
+            for (int cols = 1; cols <= n; cols++) {
+              final numRows = (n / cols).ceil();
+              final tileW = (availW - gap * (cols - 1)) / cols;
+              final tileH = tileW * 9 / 16;
+              final totalH = tileH * numRows + gap * (numRows - 1);
+              if (totalH <= availH && tileW > bestTileW) {
+                bestTileW = tileW;
+                bestCols = cols;
+              }
+            }
+
+            // Also check fitting by height first (landscape containers).
+            for (int cols = 1; cols <= n; cols++) {
+              final numRows = (n / cols).ceil();
+              final tileH = (availH - gap * (numRows - 1)) / numRows;
+              final tileW = tileH * 16 / 9;
+              final totalW = tileW * cols + gap * (cols - 1);
+              if (totalW <= availW && tileW > bestTileW) {
+                bestTileW = tileW;
+                bestCols = cols;
+              }
+            }
+
+            final numRows = (n / bestCols).ceil();
+            final tileW = bestTileW;
+            final tileH = tileW * 9 / 16;
+
+            // Build rows.
+            final rowWidgets = <Widget>[];
+            int idx = 0;
+            for (int r = 0; r < numRows; r++) {
+              final tilesInRow = (r < numRows - 1) ? bestCols : n - idx;
+              final rowChildren = <Widget>[];
+              for (int c = 0; c < tilesInRow; c++) {
+                if (c > 0) rowChildren.add(SizedBox(width: gap));
+                rowChildren.add(
+                  SizedBox(
+                    width: tileW,
+                    height: tileH,
+                    child: _buildTile(context, idx),
                   ),
                 );
-              },
-            );
-          }
-        }
-
-        // Empty slot
-        return DragTarget<String>(
-          onWillAcceptWithDetails: (details) => true,
-          onAcceptWithDetails: (details) {
-            onAssignCamera(index, details.data);
-          },
-          builder: (context, candidateData, rejectedData) {
-            final isHovering = candidateData.isNotEmpty;
-            return Container(
-              decoration: BoxDecoration(
-                color: NvrColors.of(context).bgPrimary,
-                border: Border.all(
-                  color:
-                      isHovering ? NvrColors.of(context).accent : NvrColors.of(context).border,
-                  width: isHovering ? 2 : 1,
-                ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Column(
+                idx++;
+              }
+              if (r > 0) rowWidgets.add(SizedBox(height: gap));
+              rowWidgets.add(Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add,
-                    color: isHovering
-                        ? NvrColors.of(context).accent
-                        : NvrColors.of(context).border,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'DROP HERE',
-                    style: NvrTypography.of(context).monoLabel.copyWith(
-                      color: isHovering
-                          ? NvrColors.of(context).accent
-                          : NvrColors.of(context).textMuted,
-                    ),
-                  ),
-                ],
+                children: rowChildren,
+              ));
+            }
+
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.all(pad),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: rowWidgets,
+                ),
               ),
             );
           },

@@ -148,6 +148,25 @@ func Decode(token string, verifyKey crypto.PublicKey) (*PairingToken, error) {
 	return &pt, nil
 }
 
+// DecodeTokenUnsafe decodes a pairing token WITHOUT signature verification.
+// This is intended for development/Docker environments where TLS is not available.
+// DO NOT use in production.
+func DecodeTokenUnsafe(token string) (*PairingToken, ed25519.PublicKey, error) {
+	parts := strings.SplitN(token, ".", 2)
+	if len(parts) < 1 {
+		return nil, nil, errors.New("pairing: decode: malformed token")
+	}
+	rawPayload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("pairing: decode: payload base64: %w", err)
+	}
+	var pt PairingToken
+	if err := json.Unmarshal(rawPayload, &pt); err != nil {
+		return nil, nil, fmt.Errorf("pairing: decode: unmarshal: %w", err)
+	}
+	return &pt, nil, nil
+}
+
 // NewSigningKey derives a domain-scoped ed25519 signing key from the site
 // root private key via HKDF-SHA256. The output is deterministic for a given
 // root key so it requires no additional key-material storage.

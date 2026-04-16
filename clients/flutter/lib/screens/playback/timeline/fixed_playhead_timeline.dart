@@ -120,9 +120,6 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   /// Ticker for auto-scroll during playback.
   Ticker? _playbackTicker;
 
-  /// Last tick time for calculating delta during auto-scroll.
-  Duration? _lastTickTime;
-
   /// Animation controller for tap-to-seek animation.
   AnimationController? _seekAnimController;
   Animation<double>? _seekAnimation;
@@ -153,14 +150,12 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   void didUpdateWidget(FixedPlayheadTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    // Update scroll offset when position changes externally
-    // (e.g., from PlaybackController seeking), but NOT during user interaction.
+    // Always snap scroll offset to the controller's authoritative position,
+    // unless the user is actively dragging. This corrects any drift between
+    // the smooth-scroll ticker and the true playback position.
     if (!_ignoreExternalUpdates && !_isDragging) {
-      final newOffset = widget.currentPosition.inMilliseconds / 1000.0 *
+      _scrollOffset = widget.currentPosition.inMilliseconds / 1000.0 *
           _pixelsPerSecond;
-      if ((newOffset - _scrollOffset).abs() > _pixelsPerSecond * 0.5) {
-        _scrollOffset = newOffset;
-      }
     }
 
     // Sync zoom level from external controller.
@@ -195,6 +190,13 @@ class _FixedPlayheadTimelineState extends State<FixedPlayheadTimeline>
   }
 
   // ─── Playback Auto-Scroll ────────────────────────────────────────────
+  /// Last tick time for calculating delta during auto-scroll.
+  Duration? _lastTickTime;
+
+  //
+  // The ticker provides smooth per-frame scrolling at playback speed.
+  // Every ~250ms the controller pushes an authoritative position via
+  // didUpdateWidget which snaps the offset, preventing accumulated drift.
 
   void _startPlaybackTickerIfNeeded() {
     if (widget.isPlaying && !_isDragging) {

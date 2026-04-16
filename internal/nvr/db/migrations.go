@@ -1014,4 +1014,8 @@ CREATE INDEX idx_federation_peers_fed ON federation_peers(federation_id);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_configs_integration ON integration_configs(integration_id);
 		`,
 	},
+	{
+		version: 56,
+		sql:     `ALTER TABLE recordings ADD COLUMN media_start_time TEXT;`,
+	},
 }

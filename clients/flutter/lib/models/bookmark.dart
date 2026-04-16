@@ -19,10 +19,10 @@ class Bookmark {
     return Bookmark(
       id: json['id'] as int,
       cameraId: json['camera_id'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
+      timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
       label: json['label'] as String,
       createdBy: json['created_by'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
     );
   }
 }

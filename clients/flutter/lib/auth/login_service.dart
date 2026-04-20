@@ -28,7 +28,7 @@ import 'sso_authorizer.dart';
 /// Must match `CFBundleURLTypes` in `ios/Runner/Info.plist` and the
 /// `<intent-filter>` in `android/app/src/main/AndroidManifest.xml`. See the
 /// auth package README for the exact platform snippets.
-const String kKaivueAuthRedirectUri = 'kaivue://auth/callback';
+const String kRaikadaAuthRedirectUri = 'raikada://auth/callback';
 
 /// Typed HTTP status codes LoginService treats specially.
 const int _httpUnauthorized = 401;
@@ -160,7 +160,7 @@ class LoginService {
         '${DateTime.now().microsecondsSinceEpoch}-${provider.id}';
     final result = await _authorizer.authorize(
       provider: provider,
-      redirectUri: kKaivueAuthRedirectUri,
+      redirectUri: kRaikadaAuthRedirectUri,
     );
 
     // Propagate typed errors from the authorizer (ssoPlugin, unknown, etc.)

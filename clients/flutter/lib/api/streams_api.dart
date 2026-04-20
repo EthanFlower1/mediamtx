@@ -226,7 +226,7 @@ class HttpStreamsApi implements StreamsApi {
           estimatedLatencyMs: 1500,
         ),
         StreamEndpoint(
-          url: 'https://relay.kaivue.cloud/$cameraId/whep',
+          url: 'https://relay.raikada.cloud/$cameraId/whep',
           transport: StreamTransport.webrtc,
           connectionType: StreamConnectionType.managedRelay,
           priority: 2,

@@ -1,4 +1,4 @@
-// cmd/apitest/main.go — Live integration test for the MediaMTX NVR API.
+// cmd/apitest/main.go — Live integration test for the Raikada API.
 //
 // Run against a real server:
 //
@@ -317,7 +317,7 @@ var cameras []CameraInfo
 
 func main() {
 	fmt.Printf("\n%s%s========================================%s\n", colorBold, colorCyan, colorReset)
-	fmt.Printf("%s%s  MediaMTX NVR — API Integration Tests  %s\n", colorBold, colorCyan, colorReset)
+	fmt.Printf("%s%s  Raikada — API Integration Tests  %s\n", colorBold, colorCyan, colorReset)
 	fmt.Printf("%s%s========================================%s\n\n", colorBold, colorCyan, colorReset)
 	fmt.Printf("Target: %s\n", baseURL)
 	fmt.Printf("User:   %s\n\n", username)
@@ -2073,7 +2073,7 @@ func runBrandingTests() {
 	{
 		start := time.Now()
 		resp, _, err := doRequest(http.MethodPut, "/api/nvr/system/branding", map[string]interface{}{
-			"product_name": "MediaMTX NVR",
+			"product_name": "Raikada",
 			"accent_color": "#2563EB",
 		})
 		dur := time.Since(start)

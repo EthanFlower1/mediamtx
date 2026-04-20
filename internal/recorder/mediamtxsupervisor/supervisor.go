@@ -22,21 +22,21 @@ type CameraSource interface {
 }
 
 // Controller is the surface the supervisor talks to in order to drive
-// the underlying MediaMTX instance. The production implementation
-// speaks HTTP to MediaMTX's `/v3/config/paths/replace` endpoints; tests
+// the underlying Raikada instance. The production implementation
+// speaks HTTP to Raikada's `/v3/config/paths/replace` endpoints; tests
 // substitute a recorder/fake.
 //
 // All methods must be safe for concurrent use.
 type Controller interface {
-	// ApplyPaths replaces the full set of MediaMTX paths the
+	// ApplyPaths replaces the full set of Raikada paths the
 	// Recorder owns with the given config. Implementations should
 	// perform a hot reload — i.e. PATCH/POST to the path-config
-	// API rather than restarting the MediaMTX process. Returning
+	// API rather than restarting the Raikada process. Returning
 	// an error signals "couldn't hot reload"; the supervisor will
 	// log it and try again on the next change.
 	ApplyPaths(ctx context.Context, set PathConfigSet) error
 
-	// Healthy returns nil iff the MediaMTX HTTP API is reachable
+	// Healthy returns nil iff the Raikada HTTP API is reachable
 	// and the controller can talk to it. The supervisor uses this
 	// for its sidecar health probe.
 	Healthy(ctx context.Context) error
@@ -47,7 +47,7 @@ type Config struct {
 	// Source is the assigned-cameras cache. Required.
 	Source CameraSource
 
-	// Controller is the MediaMTX-facing handle. Required.
+	// Controller is the Raikada-facing handle. Required.
 	Controller Controller
 
 	// Render holds the path-config rendering options. The zero
@@ -280,7 +280,7 @@ func (s *MediaMTXSupervisor) reloadOnce(ctx context.Context) error {
 	s.stats.ReloadCount++
 	s.mu.Unlock()
 
-	s.logger.Info("applied mediamtx path config",
+	s.logger.Info("applied raikada path config",
 		slog.Int("paths", len(set.Paths)),
 		slog.Int("reload_count", s.stats.ReloadCount))
 	return nil

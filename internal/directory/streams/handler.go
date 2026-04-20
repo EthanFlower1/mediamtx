@@ -3,7 +3,7 @@
 // calls POST /api/v1/streams/request with the camera ID and protocol. The
 // Directory resolves which Recorder owns the camera and returns a time-limited,
 // signed URL that the client uses to connect directly to the Recorder's
-// MediaMTX instance.
+// Raikada instance.
 package streams
 
 import (

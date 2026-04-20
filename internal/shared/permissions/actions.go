@@ -1,4 +1,4 @@
-// Package permissions is the MediaMTX cloud control plane's authorization
+// Package permissions is the Raikada cloud control plane's authorization
 // engine (KAI-225). It wraps Casbin with a multi-tenant subject/object model
 // and a fail-closed enforcer.
 //

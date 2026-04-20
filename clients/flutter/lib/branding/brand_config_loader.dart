@@ -22,7 +22,7 @@ abstract class BrandConfigLoader {
   /// Returns the [BrandConfig] for [tenantId].
   ///
   /// Implementations should return a sensible default (typically
-  /// [BrandConfig.kaivueDefault]) rather than throwing on network failure,
+  /// [BrandConfig.raikadaDefault]) rather than throwing on network failure,
   /// so the app shell can always render something.
   Future<BrandConfig> load(String tenantId);
 }
@@ -56,7 +56,7 @@ abstract class BrandAssetClient {
 ///   * Subsequent calls within [freshness] → returns cache (no fetch).
 ///   * Calls after [freshness] → tries to refresh; on failure, returns the
 ///     stale cached value (best-effort).
-///   * Calls with no cache and a failing client → returns the Kaivue
+///   * Calls with no cache and a failing client → returns the Raikada
 ///     default rather than throwing.
 class RemoteBrandConfigLoader implements BrandConfigLoader {
   RemoteBrandConfigLoader({
@@ -89,7 +89,7 @@ class RemoteBrandConfigLoader implements BrandConfigLoader {
         // Serve stale rather than blanking the UI.
         return cached.config;
       }
-      return BrandConfig.kaivueDefault();
+      return BrandConfig.raikadaDefault();
     }
   }
 

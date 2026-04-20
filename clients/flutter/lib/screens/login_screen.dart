@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -68,27 +66,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Rotated diamond logo
+                      // Raikada logo
                       Center(
-                        child: Transform.rotate(
-                          angle: pi / 4, // 0.785398
-                          child: Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: NvrColors.of(context).accent,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          'MEDIAMTX NVR',
-                          style: NvrTypography.of(context).monoSection,
+                        child: Image.asset(
+                          'assets/raikada-logo-no-bg.png',
+                          width: 80,
+                          height: 80,
                         ),
                       ),
                       const SizedBox(height: 32),

@@ -13,9 +13,9 @@ import (
 )
 
 // HTTPController is the production Controller. It speaks HTTP to the
-// MediaMTX control API documented at /v3/config/paths/...
+// Raikada control API documented at /v3/config/paths/...
 //
-// MediaMTX exposes per-path replace endpoints rather than a bulk
+// Raikada exposes per-path replace endpoints rather than a bulk
 // "set everything at once" endpoint, so HTTPController:
 //
 //  1. Lists existing paths under the configured prefix via
@@ -25,11 +25,11 @@ import (
 //  3. For every existing-but-no-longer-desired path under the prefix:
 //     `DELETE /v3/config/paths/delete/{name}`.
 //
-// All operations are hot reloads — MediaMTX applies them without a
-// process restart. The controller never restarts the MediaMTX process
+// All operations are hot reloads — Raikada applies them without a
+// process restart. The controller never restarts the Raikada process
 // itself; that is the sidecar supervisor's job.
 type HTTPController struct {
-	// BaseURL is the MediaMTX HTTP API root, e.g. "http://127.0.0.1:9997".
+	// BaseURL is the Raikada HTTP API root, e.g. "http://127.0.0.1:9997".
 	// The controller per CLAUDE.md should always be loopback-bound.
 	BaseURL string
 
@@ -38,7 +38,7 @@ type HTTPController struct {
 	Client *http.Client
 
 	// PathPrefix is the prefix the supervisor owns. Any path on
-	// the MediaMTX side that starts with this prefix is considered
+	// the Raikada side that starts with this prefix is considered
 	// Recorder-managed and may be deleted on reconcile. Must
 	// match the RenderOptions.PathPrefix used by the supervisor.
 	PathPrefix string
@@ -108,7 +108,7 @@ func (c *HTTPController) Healthy(ctx context.Context) error {
 	return nil
 }
 
-// listOwnedPaths returns the names of MediaMTX paths whose name starts
+// listOwnedPaths returns the names of Raikada paths whose name starts
 // with the configured PathPrefix. Result map values are intentionally
 // empty; we only need the keys.
 func (c *HTTPController) listOwnedPaths(ctx context.Context) (map[string]struct{}, error) {

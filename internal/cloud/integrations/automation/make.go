@@ -90,8 +90,8 @@ func DefaultMakeApp(baseURL string) *MakeApp {
 	}
 
 	return &MakeApp{
-		Name:        "mediamtx-nvr",
-		Label:       "MediaMTX NVR",
+		Name:        "raikada",
+		Label:       "Raikada",
 		Version:     "1.0.0",
 		Description: "Connect your NVR cameras and alerts to Make scenarios.",
 		BaseURL:     baseURL,

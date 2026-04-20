@@ -181,7 +181,7 @@ func (d *DB) GetCamera(id string) (*Camera, error) {
 	return cam, nil
 }
 
-// GetCameraByPath retrieves a camera by its MediaMTX path. Returns ErrNotFound if no match.
+// GetCameraByPath retrieves a camera by its Raikada path. Returns ErrNotFound if no match.
 func (d *DB) GetCameraByPath(path string) (*Camera, error) {
 	row := d.QueryRow(`
 		SELECT id, name, onvif_endpoint, onvif_username, onvif_password,

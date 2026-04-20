@@ -57,7 +57,7 @@ func TestPagerDutyClient_SendAlert(t *testing.T) {
 
 	alert := Alert{
 		Summary:   "Camera offline: front-door",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityCritical,
 		DedupKey:  "cam-front-door-offline",
 		Timestamp: time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC),

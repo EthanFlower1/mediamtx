@@ -29,7 +29,7 @@ func multiplyAndDivide(v, m, d int64) int64 {
 	return (secs*m + dec*m/d)
 }
 
-// ToStream maps a HLS stream to a MediaMTX stream.
+// ToStream maps a HLS stream to a Raikada stream.
 func ToStream(
 	c *gohlslib.Client,
 	tracks []*gohlslib.Track,

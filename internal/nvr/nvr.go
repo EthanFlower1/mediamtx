@@ -1,4 +1,4 @@
-// Package nvr implements the NVR subsystem for MediaMTX.
+// Package nvr implements the NVR subsystem for Raikada.
 package nvr
 
 import (
@@ -33,6 +33,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
+	"github.com/bluenviron/mediamtx/internal/nvr/managed"
 	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/recovery"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
@@ -50,6 +51,12 @@ type NVR struct {
 	ConfigPath     string
 	APIAddress     string
 	RecordingsPath string
+
+	// Managed mode fields (set when a Directory URL is configured).
+	DirectoryURL    string
+	ServiceToken    string
+	InternalAPIAddr string
+	RecorderID      string
 
 	database   *db.DB
 	yamlWriter *yamlwriter.Writer
@@ -89,17 +96,155 @@ type NVR struct {
 	detectionEvaluator  *scheduler.DetectionEvaluator
 	webhookDispatcher   *webhook.Dispatcher
 
+	managedClient      *managed.Client
+	managedInternalAPI *managed.InternalAPI
+
 	firstBoot bool // true when the DB was freshly created (no prior state)
 }
 
-// Initialize sets up the NVR subsystem: auto-generates JWTSecret if empty,
-// creates the DB directory, opens the database, creates the YAML writer,
-// and loads or generates RSA keys. On first boot (no existing database),
-// it creates default directories and marks the instance for setup wizard
-// redirection.
+// StartOptions controls which building blocks are activated during initialization.
+// In legacy mode (empty mode field), all options default to true. In directory
+// or recorder mode, only the relevant blocks are started.
+type StartOptions struct {
+	Camera    bool // ONVIF discovery, connection manager, camera status monitor
+	Recording bool // Scheduler, storage manager, recovery, integrity, fragment backfill
+	AI        bool // ONNX detection, CLIP embedder, AI pipelines
+	Auth      bool // RSA key generation, TLS certificates
+	Alerts    bool // Alert evaluator, email sender, webhooks
+	Managed   bool // Directory client, internal query API
+	Metrics   bool // System metrics collector
+	Backup    bool // Backup service
+	Events    bool // WebSocket notification server, event broadcaster
+}
+
+// AllOptions returns StartOptions with every block enabled (legacy mode).
+func AllOptions() StartOptions {
+	return StartOptions{
+		Camera:    true,
+		Recording: true,
+		AI:        true,
+		Auth:      true,
+		Alerts:    true,
+		Managed:   false, // only when DirectoryURL is set
+		Metrics:   true,
+		Backup:    true,
+		Events:    true,
+	}
+}
+
+// DirectoryOptions returns StartOptions for directory mode — camera management,
+// auth, alerts, events, but no recording or AI (those run on recorders).
+func DirectoryOptions() StartOptions {
+	return StartOptions{
+		Camera:  true,
+		Auth:    true,
+		Alerts:  true,
+		Metrics: true,
+		Events:  true,
+		Backup:  true,
+	}
+}
+
+// RecorderOptions returns StartOptions for recorder mode — recording, AI, and
+// managed mode, but no camera management or auth (Directory handles those).
+func RecorderOptions() StartOptions {
+	return StartOptions{
+		Recording: true,
+		AI:        true,
+		Managed:   true,
+		Metrics:   true,
+		Events:    true,
+	}
+}
+
+// Initialize sets up the NVR subsystem with the given options. Call with
+// AllOptions() for legacy mode, DirectoryOptions() for directory mode,
+// or RecorderOptions() for recorder mode.
 func (n *NVR) Initialize() error {
+	return n.InitializeWithOptions(AllOptions())
+}
+
+// InitializeWithOptions sets up the NVR subsystem, starting only the building
+// blocks enabled in opts.
+func (n *NVR) InitializeWithOptions(opts StartOptions) error {
 	n.ctx, n.ctxCancel = context.WithCancel(context.Background())
 
+	// --- Core: always runs (database, config, encryption key) ---------------
+
+	if err := n.initCore(); err != nil {
+		return err
+	}
+
+	// --- Events: broadcaster + notification server --------------------------
+
+	n.events = api.NewEventBroadcaster()
+	if opts.Events {
+		n.startNotificationServer()
+	}
+
+	// --- Camera: ONVIF, connection manager, status monitor ------------------
+
+	if opts.Camera {
+		n.initCamera()
+	}
+
+	// --- Recording: scheduler, storage, recovery, integrity -----------------
+
+	if opts.Recording {
+		n.initRecording()
+	}
+
+	// --- Metrics: system metrics collector ----------------------------------
+
+	if opts.Metrics {
+		n.metricsCollector = metrics.New(360, 10*time.Second)
+		n.metricsCollector.Start()
+	}
+
+	// --- Backup: backup service ---------------------------------------------
+
+	if opts.Backup {
+		backupDir := filepath.Join(filepath.Dir(n.DatabasePath), "backups")
+		n.backupSvc = backup.New(n.DatabasePath, n.ConfigPath, backupDir)
+		if err := n.backupSvc.Init(); err != nil {
+			log.Printf("[NVR] [WARN] backup service init: %v", err)
+		}
+	}
+
+	// --- Auth: RSA keys, TLS certificates -----------------------------------
+
+	if opts.Auth {
+		if err := n.initAuth(); err != nil {
+			return err
+		}
+	}
+
+	// --- AI: detection pipelines, embedder ----------------------------------
+
+	if opts.AI {
+		n.initAI()
+	}
+
+	// --- Alerts: evaluator, email sender ------------------------------------
+
+	if opts.Alerts {
+		n.initAlerts()
+	}
+
+	// --- Managed: Directory client, internal API ----------------------------
+
+	if opts.Managed || n.DirectoryURL != "" {
+		if err := n.startManagedMode(); err != nil {
+			log.Printf("[NVR] [WARN] managed mode failed to start: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// initCore sets up the database, JWT secret, YAML writer, and encryption key.
+// This always runs regardless of mode.
+func (n *NVR) initCore() error {
 	if n.JWTSecret == "" {
 		secret := make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
@@ -107,7 +252,6 @@ func (n *NVR) Initialize() error {
 		}
 		n.JWTSecret = hex.EncodeToString(secret)
 
-		// Persist the generated secret to the config file so it survives restarts.
 		if n.ConfigPath != "" {
 			w := yamlwriter.New(n.ConfigPath)
 			if err := w.SetTopLevelValue("nvrJWTSecret", n.JWTSecret); err != nil {
@@ -115,13 +259,11 @@ func (n *NVR) Initialize() error {
 			}
 		}
 	} else {
-		// Validate user-provided secret strength.
 		if len(n.JWTSecret) < 32 {
 			return fmt.Errorf("JWT secret must be at least 32 characters (got %d); set a stronger nvrJWTSecret in config", len(n.JWTSecret))
 		}
 	}
 
-	// Expand ~ to the user's home directory.
 	if strings.HasPrefix(n.DatabasePath, "~/") {
 		if home, err := os.UserHomeDir(); err == nil {
 			n.DatabasePath = filepath.Join(home, n.DatabasePath[2:])
@@ -133,7 +275,6 @@ func (n *NVR) Initialize() error {
 		return fmt.Errorf("create database directory: %w", err)
 	}
 
-	// Detect first boot: the database file does not yet exist.
 	_, statErr := os.Stat(n.DatabasePath)
 	n.firstBoot = os.IsNotExist(statErr)
 
@@ -150,10 +291,8 @@ func (n *NVR) Initialize() error {
 		}
 	}
 
-	// Close any orphaned motion events from a previous run.
 	_ = n.database.CloseOrphanedMotionEvents()
 
-	// Start database maintenance (integrity check, WAL checkpoint, VACUUM).
 	n.maintenanceRunner = n.database.StartMaintenance(db.DefaultMaintenanceConfig(), func(alertType, message string) {
 		log.Printf("[NVR] [db-maintenance] ALERT [%s]: %s", alertType, message)
 		if n.events != nil {
@@ -170,13 +309,18 @@ func (n *NVR) Initialize() error {
 
 	n.yamlWriter = yamlwriter.New(n.ConfigPath)
 	n.migrateMediaMTXPaths()
+
+	return nil
+}
+
+// initCamera starts ONVIF discovery, connection manager, backchannel manager,
+// and camera status monitor.
+func (n *NVR) initCamera() {
 	n.discovery = onvif.NewDiscovery()
-	n.events = api.NewEventBroadcaster()
 	n.callbackMgr = onvif.NewCallbackManager()
 
 	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
 
-	// Initialize backchannel audio session manager.
 	n.backchannelMgr = backchannel.NewManager(func(cameraID string) (string, string, string, error) {
 		cam, err := n.database.GetCamera(cameraID)
 		if err != nil {
@@ -194,33 +338,9 @@ func (n *NVR) Initialize() error {
 		return cam.ONVIFEndpoint, cam.ONVIFUsername, password, nil
 	})
 
-	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress, n.RecordingsPath)
-	n.sched.SetEventBroadcaster(n.events)
-	n.sched.Start()
-
-	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
-	n.storageMgr.SetEventPublisher(n.events)
-	n.storageMgr.Start()
-
-	n.metricsCollector = metrics.New(360, 10*time.Second)
-	n.metricsCollector.Start()
-
-	// Initialize backup service.
-	backupDir := filepath.Join(filepath.Dir(n.DatabasePath), "backups")
-	n.backupSvc = backup.New(n.DatabasePath, n.ConfigPath, backupDir)
-	if err := n.backupSvc.Init(); err != nil {
-		log.Printf("[NVR] [WARN] backup service init: %v", err)
-	}
-
-	// Start a lightweight WebSocket server on port 9998 for real-time notifications.
-	// This runs outside MediaMTX's HTTP stack to avoid the loggerWriter/Hijack issue.
-	n.startNotificationServer()
-
-	// Monitor camera online/offline state transitions and publish events.
 	n.cameraStatusDone = make(chan struct{})
 	go n.runCameraStatusMonitor(n.cameraStatusDone)
 
-	// Start connection resilience manager for ONVIF cameras.
 	n.connMgr = connmgr.New(n.database)
 	n.connMgr.OnStateChange = func(cameraID, oldState, newState, errMsg string) {
 		if n.events != nil {
@@ -238,79 +358,27 @@ func (n *NVR) Initialize() error {
 	if err := n.connMgr.Start(); err != nil {
 		log.Printf("[NVR] connection manager start error: %v", err)
 	}
+}
 
-	if err := n.loadOrGenerateKeys(); err != nil {
-		n.database.Close()
-		return fmt.Errorf("load or generate keys: %w", err)
+// initRecording starts the scheduler, storage manager, recovery, integrity
+// scanner, and fragment backfill.
+func (n *NVR) initRecording() {
+	encKey := crypto.DeriveKey(n.JWTSecret, "nvr-credential-encryption")
+
+	if n.callbackMgr == nil {
+		n.callbackMgr = onvif.NewCallbackManager()
 	}
 
-	// Initialize TLS certificate manager.
-	certDir := filepath.Join(filepath.Dir(n.DatabasePath), "tls")
-	n.tlsManager = crypto.NewTLSManager(certDir)
-	generated, err := n.tlsManager.EnsureCertificate()
-	if err != nil {
-		log.Printf("[NVR] [WARN] TLS certificate auto-generation failed: %v", err)
-	} else if generated {
-		log.Printf("[NVR] [INFO] auto-generated self-signed TLS certificate in %s", certDir)
-	}
+	n.sched = scheduler.New(n.database, n.yamlWriter, encKey, n.callbackMgr, n.APIAddress, n.RecordingsPath)
+	n.sched.SetEventBroadcaster(n.events)
+	n.sched.Start()
 
-	// Start background certificate expiry monitor.
-	go n.runCertExpiryMonitor()
+	n.storageMgr = storage.New(n.database, n.yamlWriter, n.RecordingsPath, n.APIAddress)
+	n.storageMgr.SetEventPublisher(n.events)
+	n.storageMgr.Start()
 
-	// Initialize AI detection if ONNX Runtime is available and a YOLO model exists.
-	n.aiPipelines = make(map[string]*ai.Pipeline)
-	if err := ai.InitONNXRuntime(); err != nil {
-		log.Printf("AI: ONNX Runtime not available: %v", err)
-	} else {
-		modelsDir := "./models"
-		nanoPath := filepath.Join(modelsDir, "yolov8n.onnx")
-		if _, err := os.Stat(nanoPath); err == nil {
-			det, err := ai.NewDetector(nanoPath)
-			if err != nil {
-				log.Printf("AI: failed to load YOLOv8n: %v", err)
-			} else {
-				n.aiDetector = det
-				log.Printf("AI: YOLOv8n detector loaded from %s", nanoPath)
-			}
-		} else {
-			log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
-		}
-
-		// Initialize model manager for hot-swap support.
-		n.aiModelManager = ai.NewModelManager(modelsDir, n.aiDetector, nanoPath)
-		log.Printf("AI: model manager initialized (models dir: %s)", modelsDir)
-
-		// Load CLIP embedder if model files exist (optional).
-		visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
-		textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
-		vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
-		projPath := filepath.Join(modelsDir, "clip-visual-projection.bin")
-		if _, err := os.Stat(visualPath); err == nil {
-			if _, err := os.Stat(textPath); err == nil {
-				if _, err := os.Stat(vocabPath); err == nil {
-					emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath, projPath)
-					if err != nil {
-						log.Printf("AI: failed to load CLIP embedder: %v", err)
-					} else {
-						n.aiEmbedder = emb
-						log.Printf("AI: CLIP embedder loaded (with visual projection)")
-					}
-				}
-			}
-		}
-
-		n.startAIPipelines()
-
-		// Start detection schedule evaluator to manage pipelines per schedule.
-		n.detectionEvaluator = scheduler.NewDetectionEvaluator(n.database, n)
-		n.detectionEvaluator.Start()
-	}
-
-	// Sync audio_transcode flag with YAML config: if a -live path exists
-	// in the YAML but the DB doesn't know about it, update the DB.
 	n.syncAudioTranscodeState()
 
-	// Run startup recovery: detect and repair incomplete segments from crashes.
 	if n.RecordingsPath != "" {
 		recoveryCfg := recovery.RunConfig{
 			RecordDirs: []string{n.RecordingsPath},
@@ -325,10 +393,8 @@ func (n *NVR) Initialize() error {
 		}
 	}
 
-	// Start background migration for recordings that predate fragment indexing.
 	n.startFragmentBackfill()
 
-	// Start background integrity scanner.
 	n.integrityScanner = &integrity.Scanner{
 		Interval:  1 * time.Hour,
 		BatchSize: 100,
@@ -374,8 +440,79 @@ func (n *NVR) Initialize() error {
 		},
 	}
 	go n.integrityScanner.Run(n.ctx)
+}
 
-	// Start the alert evaluator and email sender.
+// initAuth loads or generates RSA keys and TLS certificates.
+func (n *NVR) initAuth() error {
+	if err := n.loadOrGenerateKeys(); err != nil {
+		n.database.Close()
+		return fmt.Errorf("load or generate keys: %w", err)
+	}
+
+	certDir := filepath.Join(filepath.Dir(n.DatabasePath), "tls")
+	n.tlsManager = crypto.NewTLSManager(certDir)
+	generated, err := n.tlsManager.EnsureCertificate()
+	if err != nil {
+		log.Printf("[NVR] [WARN] TLS certificate auto-generation failed: %v", err)
+	} else if generated {
+		log.Printf("[NVR] [INFO] auto-generated self-signed TLS certificate in %s", certDir)
+	}
+
+	go n.runCertExpiryMonitor()
+	return nil
+}
+
+// initAI initializes AI detection pipelines and embedders.
+func (n *NVR) initAI() {
+	n.aiPipelines = make(map[string]*ai.Pipeline)
+	if err := ai.InitONNXRuntime(); err != nil {
+		log.Printf("AI: ONNX Runtime not available: %v", err)
+		return
+	}
+
+	modelsDir := "./models"
+	nanoPath := filepath.Join(modelsDir, "yolov8n.onnx")
+	if _, err := os.Stat(nanoPath); err == nil {
+		det, err := ai.NewDetector(nanoPath)
+		if err != nil {
+			log.Printf("AI: failed to load YOLOv8n: %v", err)
+		} else {
+			n.aiDetector = det
+			log.Printf("AI: YOLOv8n detector loaded from %s", nanoPath)
+		}
+	} else {
+		log.Printf("AI: YOLO model not found at %s, detection disabled", nanoPath)
+	}
+
+	n.aiModelManager = ai.NewModelManager(modelsDir, n.aiDetector, nanoPath)
+	log.Printf("AI: model manager initialized (models dir: %s)", modelsDir)
+
+	visualPath := filepath.Join(modelsDir, "clip-vit-b32-visual.onnx")
+	textPath := filepath.Join(modelsDir, "clip-vit-b32-text.onnx")
+	vocabPath := filepath.Join(modelsDir, "clip-vocab.json")
+	projPath := filepath.Join(modelsDir, "clip-visual-projection.bin")
+	if _, err := os.Stat(visualPath); err == nil {
+		if _, err := os.Stat(textPath); err == nil {
+			if _, err := os.Stat(vocabPath); err == nil {
+				emb, err := ai.NewEmbedder(visualPath, textPath, vocabPath, projPath)
+				if err != nil {
+					log.Printf("AI: failed to load CLIP embedder: %v", err)
+				} else {
+					n.aiEmbedder = emb
+					log.Printf("AI: CLIP embedder loaded (with visual projection)")
+				}
+			}
+		}
+	}
+
+	n.startAIPipelines()
+
+	n.detectionEvaluator = scheduler.NewDetectionEvaluator(n.database, n)
+	n.detectionEvaluator.Start()
+}
+
+// initAlerts starts the alert evaluator and email sender.
+func (n *NVR) initAlerts() {
 	n.emailSender = &alerts.EmailSender{DB: n.database}
 	n.alertEvaluator = &alerts.Evaluator{
 		DB:             n.database,
@@ -383,17 +520,100 @@ func (n *NVR) Initialize() error {
 		EmailSender:    n.emailSender,
 	}
 	n.alertEvaluator.Start(n.ctx)
+}
 
+// IsManagedMode reports whether this recorder is operating under Directory control.
+func (n *NVR) IsManagedMode() bool {
+	return n.DirectoryURL != ""
+}
+
+// startManagedMode initializes the Directory client and internal API.
+func (n *NVR) startManagedMode() error {
+	cfg := managed.Config{
+		DirectoryURL:   n.DirectoryURL,
+		ServiceToken:   n.ServiceToken,
+		InternalListenAddr: n.InternalAPIAddr,
+		RecorderID:     n.RecorderID,
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	// Ensure a stable recorder ID.
+	if cfg.RecorderID == "" {
+		id, err := n.database.GetConfig("recorder_id")
+		if err != nil || id == "" {
+			newID := fmt.Sprintf("rec-%s", generateShortID())
+			_ = n.database.SetConfig("recorder_id", newID)
+			cfg.RecorderID = newID
+		} else {
+			cfg.RecorderID = id
+		}
+		n.RecorderID = cfg.RecorderID
+	}
+
+	recordingsPath := n.RecordingsPath
+	if recordingsPath == "" {
+		recordingsPath = "./recordings/"
+	}
+
+	// Start the internal API for Directory queries.
+	n.managedInternalAPI = &managed.InternalAPI{
+		DB:             n.database,
+		Scheduler:      n.sched,
+		StorageManager: n.storageMgr,
+		RecordingsPath: recordingsPath,
+		ServiceToken:   n.ServiceToken,
+		RecorderID:     cfg.RecorderID,
+	}
+	if err := n.managedInternalAPI.Start(cfg.ListenAddr()); err != nil {
+		return fmt.Errorf("start internal API: %w", err)
+	}
+
+	// Start the Directory client (register + heartbeat).
+	n.managedClient = managed.NewClient(cfg, n, n.version())
+	go n.managedClient.Run(n.ctx)
+
+	log.Printf("[NVR] managed mode active — Directory: %s, Recorder ID: %s, Internal API: %s",
+		n.DirectoryURL, cfg.RecorderID, n.managedInternalAPI.Addr())
 	return nil
 }
 
-// runCameraStatusMonitor polls the MediaMTX /v3/paths/list endpoint every 5
+// CameraCount implements managed.HealthProvider.
+func (n *NVR) CameraCount() int {
+	cams, err := n.database.ListCameras()
+	if err != nil {
+		return 0
+	}
+	return len(cams)
+}
+
+// GetRecordingsPath implements managed.HealthProvider.
+func (n *NVR) GetRecordingsPath() string {
+	if n.RecordingsPath != "" {
+		return n.RecordingsPath
+	}
+	return "./recordings/"
+}
+
+// version returns the NVR version string for registration.
+func (n *NVR) version() string {
+	return "dev" // TODO: wire build-time version
+}
+
+func generateShortID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// runCameraStatusMonitor polls the Raikada /v3/paths/list endpoint every 5
 // seconds and publishes camera_online/camera_offline events on transitions.
 func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	// Map of MediaMTX path name → ready state from the previous poll.
+	// Map of Raikada path name → ready state from the previous poll.
 	prevReady := make(map[string]bool)
 	firstPoll := true
 
@@ -411,7 +631,7 @@ func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
 		case <-ticker.C:
 			resp, err := client.Get(listURL)
 			if err != nil {
-				// MediaMTX not yet ready — skip this tick.
+				// Raikada not yet ready — skip this tick.
 				continue
 			}
 
@@ -452,7 +672,7 @@ func (n *NVR) runCameraStatusMonitor(done <-chan struct{}) {
 				continue
 			}
 
-			// Build a MediaMTX path → camera name index.
+			// Build a Raikada path → camera name index.
 			pathToName := make(map[string]string, len(cameras))
 			for _, cam := range cameras {
 				if cam.MediaMTXPath != "" {
@@ -622,6 +842,11 @@ func (n *NVR) wsPort() string {
 
 // Close closes the NVR subsystem.
 func (n *NVR) Close() {
+	// Shut down managed mode components first.
+	if n.managedInternalAPI != nil {
+		n.managedInternalAPI.Shutdown()
+	}
+
 	if n.metricsCollector != nil {
 		n.metricsCollector.Stop()
 	}
@@ -727,7 +952,7 @@ func (n *NVR) syncAudioTranscodeState() {
 
 // migrateMediaMTXPaths updates camera MediaMTX paths from the old naming
 // convention (nvr/<sanitized-name>) to the new convention (nvr/<camera-id>/main).
-// It also verifies that every camera's MediaMTX path exists in the YAML config.
+// It also verifies that every camera's Raikada path exists in the YAML config.
 func (n *NVR) migrateMediaMTXPaths() {
 	cameras, err := n.database.ListCameras()
 	if err != nil {

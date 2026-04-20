@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Which version are you using?
-      description: MediaMTX version or commit
+      description: Raikada version or commit
     validations:
       required: true
 
@@ -51,7 +51,7 @@ body:
       description: |
         The maintainers must be able to REPLICATE your issue to solve it - therefore, describe in a very detailed way how to replicate it.
       value: |
-        1. start the MediaMTX
+        1. start the Raikada
         2. publish with ...
         3. read with ...
     validations:
@@ -60,18 +60,18 @@ body:
   - type: textarea
     id: conf
     attributes:
-      label: MediaMTX configuration
+      label: Raikada configuration
       description: |
-        MediaMTX configuration is often required to replicate the issue.
+        Raikada configuration is often required to replicate the issue.
       placeholder: Paste the configuration file here
       render: yaml
 
   - type: textarea
     id: logs
     attributes:
-      label: MediaMTX logs
+      label: Raikada logs
       description: |
-        MediaMTX logs are often useful to identify the issue. If you think this is the case, set 'logLevel' to 'debug' and attach logs.
+        Raikada logs are often useful to identify the issue. If you think this is the case, set 'logLevel' to 'debug' and attach logs.
       placeholder: Paste or drag the log file here
 
   - type: textarea
@@ -79,7 +79,7 @@ body:
     attributes:
       label: Packet dump
       description: |
-        If the bug arises when using MediaMTX with external hardware or software, the most helpful information you can provide is a packet dump, that can be generated in this way:
+        If the bug arises when using Raikada with external hardware or software, the most helpful information you can provide is a packet dump, that can be generated in this way:
 
         1. In mediamtx.yml, set 'dumpPackets' to 'true'
         2. Start the server and replicate the issue

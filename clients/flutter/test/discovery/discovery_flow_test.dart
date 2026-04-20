@@ -22,7 +22,7 @@ void main() {
         expect(req.url.path, '/api/v1/discover');
         return http.Response(
           jsonEncode({
-            'service': 'kaivue-directory',
+            'service': 'raikada-directory',
             'protocol_version': 1,
             'server_name': 'HQ NVR',
             'server_version': '1.4.2',
@@ -69,14 +69,14 @@ void main() {
 
       expect(controller.state.probeError, isNotNull);
       expect(controller.state.probeError!.kind,
-          DiscoverProbeErrorKind.notKaivue);
+          DiscoverProbeErrorKind.notRaikada);
       expect(controller.buildConnection(), isNull);
     });
 
     test('QR invite → probe → cloud HomeDirectoryConnection', () async {
       final mock = MockClient((req) async => http.Response(
             jsonEncode({
-              'service': 'kaivue-directory',
+              'service': 'raikada-directory',
               'protocol_version': 1,
               'server_name': 'Acme Cloud',
               'server_version': '2.0.0',
@@ -92,7 +92,7 @@ void main() {
       );
 
       final payload = jsonEncode({
-        'type': 'kaivue-directory',
+        'type': 'raikada-directory',
         'url': 'https://cloud.example.com',
         'display_name': 'Acme',
       });

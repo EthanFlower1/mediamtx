@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/detection_frame.dart';
 
-/// A timespan returned by the MediaMTX /list endpoint.
+/// A timespan returned by the Raikada /list endpoint.
 class PlaybackTimespan {
   final DateTime start;
   final double durationSecs;
@@ -35,7 +35,7 @@ class PlaybackService {
   final String serverUrl;
   PlaybackService({required this.serverUrl});
 
-  /// Fetch the list of recorded timespans from the MediaMTX /list endpoint.
+  /// Fetch the list of recorded timespans from the Raikada /list endpoint.
   /// Each timespan includes a pre-built /get URL.
   Future<List<PlaybackTimespan>> listTimespans({
     required String cameraPath,

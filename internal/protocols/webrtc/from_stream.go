@@ -668,7 +668,7 @@ func setupKLVDataChannel(
 	return nil, nil
 }
 
-// FromStream maps a MediaMTX stream to a WebRTC connection
+// FromStream maps a Raikada stream to a WebRTC connection
 func FromStream(
 	desc *description.Session,
 	r *stream.Reader,

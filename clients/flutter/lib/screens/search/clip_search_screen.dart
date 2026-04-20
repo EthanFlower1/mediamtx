@@ -114,7 +114,7 @@ class _ClipSearchScreenState extends ConsumerState<ClipSearchScreen> {
     final authService = ref.read(authServiceProvider);
     final token = await authService.getAccessToken();
 
-    // Look up camera's MediaMTX path
+    // Look up camera's Raikada path
     final cameras = ref.read(camerasProvider).valueOrNull ?? [];
     final camera = cameras.where((c) => c.id == result.cameraId).firstOrNull;
     if (camera == null) return;

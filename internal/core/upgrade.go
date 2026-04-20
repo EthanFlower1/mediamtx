@@ -172,6 +172,6 @@ func upgrade() error {
 		return err
 	}
 
-	fmt.Printf("MediaMTX upgraded successfully from %v to %v.\n", "v"+current.String(), "v"+latest.String())
+	fmt.Printf("Raikada upgraded successfully from %v to %v.\n", "v"+current.String(), "v"+latest.String())
 	return nil
 }

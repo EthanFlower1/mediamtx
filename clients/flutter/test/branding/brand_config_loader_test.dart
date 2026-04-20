@@ -25,7 +25,7 @@ class _FakeBrandAssetClient implements BrandAssetClient {
 void main() {
   group('InMemoryBrandConfigLoader', () {
     test('returns the fixture regardless of tenantId', () async {
-      final fixture = BrandConfig.kaivueDefault().copyWith(appName: 'Fixture');
+      final fixture = BrandConfig.raikadaDefault().copyWith(appName: 'Fixture');
       final loader = InMemoryBrandConfigLoader(fixture);
       expect(await loader.load('tenant-a'), equals(fixture));
       expect(await loader.load('tenant-b'), equals(fixture));
@@ -33,7 +33,7 @@ void main() {
 
     test('is deterministic across repeated calls', () async {
       final loader =
-          InMemoryBrandConfigLoader(BrandConfig.kaivueDefault());
+          InMemoryBrandConfigLoader(BrandConfig.raikadaDefault());
       final first = await loader.load('t');
       final second = await loader.load('t');
       expect(identical(first, second), isTrue);
@@ -42,7 +42,7 @@ void main() {
 
   group('RemoteBrandConfigLoader', () {
     test('delegates first call to the BrandAssetClient', () async {
-      final branded = BrandConfig.kaivueDefault().copyWith(appName: 'Acme');
+      final branded = BrandConfig.raikadaDefault().copyWith(appName: 'Acme');
       final fake = _FakeBrandAssetClient(branded);
       final loader = RemoteBrandConfigLoader(client: fake);
 
@@ -52,7 +52,7 @@ void main() {
     });
 
     test('serves from cache within the freshness window', () async {
-      final fake = _FakeBrandAssetClient(BrandConfig.kaivueDefault());
+      final fake = _FakeBrandAssetClient(BrandConfig.raikadaDefault());
       final loader = RemoteBrandConfigLoader(
         client: fake,
         freshness: const Duration(minutes: 5),
@@ -66,7 +66,7 @@ void main() {
 
     test('re-fetches after the freshness window expires', () async {
       var fakeNow = DateTime(2026, 1, 1, 12, 0, 0);
-      final fake = _FakeBrandAssetClient(BrandConfig.kaivueDefault());
+      final fake = _FakeBrandAssetClient(BrandConfig.raikadaDefault());
       final loader = RemoteBrandConfigLoader(
         client: fake,
         freshness: const Duration(minutes: 5),
@@ -81,7 +81,7 @@ void main() {
 
     test('serves stale cache when refresh fails', () async {
       var fakeNow = DateTime(2026, 1, 1, 12, 0, 0);
-      final first = BrandConfig.kaivueDefault().copyWith(appName: 'v1');
+      final first = BrandConfig.raikadaDefault().copyWith(appName: 'v1');
       final fake = _FakeBrandAssetClient(first);
       final loader = RemoteBrandConfigLoader(
         client: fake,
@@ -101,17 +101,17 @@ void main() {
       expect(fake.calls, 2);
     });
 
-    test('returns Kaivue default when no cache and client throws', () async {
-      final fake = _FakeBrandAssetClient(BrandConfig.kaivueDefault());
+    test('returns Raikada default when no cache and client throws', () async {
+      final fake = _FakeBrandAssetClient(BrandConfig.raikadaDefault());
       fake.throwNext = true;
       final loader = RemoteBrandConfigLoader(client: fake);
 
       final result = await loader.load('t');
-      expect(result, equals(BrandConfig.kaivueDefault()));
+      expect(result, equals(BrandConfig.raikadaDefault()));
     });
 
     test('invalidate() forces a re-fetch on next load', () async {
-      final fake = _FakeBrandAssetClient(BrandConfig.kaivueDefault());
+      final fake = _FakeBrandAssetClient(BrandConfig.raikadaDefault());
       final loader = RemoteBrandConfigLoader(client: fake);
 
       await loader.load('t');
@@ -121,7 +121,7 @@ void main() {
     });
 
     test('caches per-tenant independently', () async {
-      final fake = _FakeBrandAssetClient(BrandConfig.kaivueDefault());
+      final fake = _FakeBrandAssetClient(BrandConfig.raikadaDefault());
       final loader = RemoteBrandConfigLoader(client: fake);
 
       await loader.load('tenant-a');

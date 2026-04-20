@@ -14,8 +14,8 @@ export default function Login() {
 
   // Page title
   useEffect(() => {
-    document.title = 'Sign In — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Sign In — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   // Fetch version for footer
@@ -61,7 +61,7 @@ export default function Login() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">MediaMTX NVR</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Raikada</h1>
         </div>
 
         {/* Card */}
@@ -129,7 +129,7 @@ export default function Login() {
 
         {/* Footer */}
         <div className="text-center mt-6">
-          <p className="text-xs text-nvr-text-muted">Powered by MediaMTX</p>
+          <p className="text-xs text-nvr-text-muted">Powered by Raikada</p>
           {version && (
             <p className="text-xs text-nvr-text-muted/60 mt-1">v{version}</p>
           )}

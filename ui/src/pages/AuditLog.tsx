@@ -320,8 +320,8 @@ export default function AuditLog() {
 
   // Page title
   useEffect(() => {
-    document.title = 'Audit Log — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Audit Log — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   const fetchEntries = useCallback(async () => {

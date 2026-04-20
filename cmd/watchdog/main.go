@@ -1,4 +1,4 @@
-// cmd/watchdog/main.go — watchdog process for MediaMTX NVR.
+// cmd/watchdog/main.go — watchdog process for Raikada.
 // Monitors the main server process, auto-restarts on crash, detects deadlocks
 // via health-check timeouts, and applies exponential backoff between restarts.
 package main
@@ -34,9 +34,9 @@ type restartHistory struct {
 
 // config holds all watchdog tunables.
 type config struct {
-	// Path to the mediamtx binary.
+	// Path to the raikada binary.
 	binary string
-	// Extra args forwarded to mediamtx.
+	// Extra args forwarded to raikada.
 	args []string
 	// Health-check endpoint (full URL).
 	healthURL string
@@ -128,7 +128,7 @@ func main() {
 	}
 }
 
-// runServer starts the mediamtx process and monitors it.
+// runServer starts the raikada process and monitors it.
 // It returns the exit code and a human-readable reason when the server stops.
 func runServer(ctx context.Context, cfg *config) (exitCode int, reason string) {
 	cmd := exec.CommandContext(ctx, cfg.binary, cfg.args...)
@@ -283,7 +283,7 @@ func parseFlags() *config {
 	home, _ := os.UserHomeDir()
 	defaultHistory := filepath.Join(home, ".mediamtx", "watchdog-history.json")
 
-	flag.StringVar(&cfg.binary, "binary", "./mediamtx", "path to the mediamtx binary")
+	flag.StringVar(&cfg.binary, "binary", "./raikada", "path to the raikada binary")
 	flag.StringVar(&cfg.healthURL, "health-url", "http://127.0.0.1:9997/v3/paths/list", "URL to poll for health checks")
 	flag.DurationVar(&cfg.healthInterval, "health-interval", 15*time.Second, "interval between health checks")
 	flag.DurationVar(&cfg.healthTimeout, "health-timeout", 5*time.Second, "timeout for each health-check request")

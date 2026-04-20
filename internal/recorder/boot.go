@@ -5,7 +5,7 @@
 //  1. Open the local SQLite state store.
 //  2. Check pairing state; if not paired, run the 9-step Joiner.
 //  3. Bring up the tailnet mesh node.
-//  4. Start the MediaMTX supervisor (sidecar + hot-reload controller).
+//  4. Start the Raikada supervisor (sidecar + hot-reload controller).
 //  5. Connect to the Directory's RecorderControl stream (camera assignments).
 //  6. Start Directory ingest streams (camera state, segments, AI events).
 //  7. Feature pipelines (AI) are noted but deferred to their own tickets.
@@ -105,12 +105,12 @@ type BootConfig struct {
 	// instead of real tsnet. Intended for tests.
 	MeshTestMode bool
 
-	// MediaMTXAPIURL is the base URL of the MediaMTX HTTP API used
+	// MediaMTXAPIURL is the base URL of the Raikada HTTP API used
 	// by the supervisor's HTTPController. Default: "http://127.0.0.1:9997".
 	MediaMTXAPIURL string
 
 	// MediaMTXPathPrefix overrides the path prefix used by the
-	// supervisor to namespace Recorder-managed paths in MediaMTX.
+	// supervisor to namespace Recorder-managed paths in Raikada.
 	// Default: "cam_".
 	MediaMTXPathPrefix string
 }
@@ -289,7 +289,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	}
 
 	// -----------------------------------------------------------
-	// 5. Start MediaMTX supervisor
+	// 5. Start Raikada supervisor
 	// -----------------------------------------------------------
 	controller := &mediamtxsupervisor.HTTPController{
 		BaseURL:    cfg.mediaAPIURL(),

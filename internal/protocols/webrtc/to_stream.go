@@ -29,7 +29,7 @@ var errNoSupportedCodecsTo = errors.New(
 	"the stream doesn't contain any supported codec, which are currently " +
 		"AV1, VP9, VP8, H265, H264, Opus, G722, G711, LPCM")
 
-// ToStream maps a WebRTC connection to a MediaMTX stream.
+// ToStream maps a WebRTC connection to a Raikada stream.
 func ToStream(
 	pc *PeerConnection,
 	pathConf *conf.Path,

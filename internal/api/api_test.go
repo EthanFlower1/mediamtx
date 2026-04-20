@@ -228,7 +228,7 @@ func TestAuthError(t *testing.T) {
 	defer res.Body.Close()
 
 	require.Equal(t, http.StatusUnauthorized, res.StatusCode)
-	require.Equal(t, `Basic realm="mediamtx"`, res.Header.Get("WWW-Authenticate"))
+	require.Equal(t, `Basic realm="raikada"`, res.Header.Get("WWW-Authenticate"))
 	checkError(t, res.Body, "authentication error")
 
 	res, err = hc.Get("http://myuser:mypass@localhost:9997/v3/config/global/get")

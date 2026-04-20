@@ -162,7 +162,7 @@ export const INTEGRATION_DEFINITIONS: IntegrationDefinition[] = [
     fields: [
       { key: 'webhook_url', label: 'Webhook URL', type: 'url', required: true, placeholder: 'https://hooks.slack.com/services/...' },
       { key: 'channel', label: 'Channel', type: 'text', placeholder: '#security-alerts' },
-      { key: 'username', label: 'Bot Name', type: 'text', placeholder: 'MediaMTX NVR' },
+      { key: 'username', label: 'Bot Name', type: 'text', placeholder: 'Raikada' },
     ],
   },
   {

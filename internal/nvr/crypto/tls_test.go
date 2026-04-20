@@ -38,7 +38,7 @@ func TestTLSManager_GetCertificateInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, true, info.SelfSigned)
-	require.Contains(t, info.Subject, "MediaMTX NVR")
+	require.Contains(t, info.Subject, "Raikada")
 	require.Contains(t, info.DNSNames, "localhost")
 	require.True(t, info.DaysLeft > 360)
 	require.NotEmpty(t, info.Fingerprint)
@@ -87,7 +87,7 @@ func TestTLSManager_StoreCertificate_RoundTrip(t *testing.T) {
 	// Verify stored cert matches.
 	info2, err := mgr2.GetCertificateInfo()
 	require.NoError(t, err)
-	require.Contains(t, info2.Subject, "MediaMTX NVR")
+	require.Contains(t, info2.Subject, "Raikada")
 }
 
 func TestTLSManager_Paths(t *testing.T) {

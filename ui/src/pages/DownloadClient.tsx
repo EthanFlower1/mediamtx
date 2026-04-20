@@ -10,11 +10,11 @@ export default function DownloadClient() {
         </div>
 
         <h1 className="text-2xl font-bold text-nvr-text-primary mb-3">
-          Download the MediaMTX NVR Client
+          Download the Raikada Client
         </h1>
         <p className="text-nvr-text-secondary mb-8 leading-relaxed">
           Live view, playback, clip search, and recordings are available in the
-          MediaMTX NVR client app. This web console is for system administration only.
+          Raikada client app. This web console is for system administration only.
         </p>
 
         {/* Download options */}
@@ -53,7 +53,7 @@ export default function DownloadClient() {
         <div className="bg-nvr-bg-primary border border-nvr-border rounded-lg p-5 text-left">
           <h2 className="text-sm font-semibold text-nvr-text-primary mb-3">Quick Setup</h2>
           <ol className="text-sm text-nvr-text-secondary space-y-2 list-decimal list-inside">
-            <li>Download and install the MediaMTX NVR client for your platform</li>
+            <li>Download and install the Raikada client for your platform</li>
             <li>Open the app and enter your server address</li>
             <li>Sign in with your NVR credentials</li>
             <li>Start viewing live feeds, playback, and clips</li>

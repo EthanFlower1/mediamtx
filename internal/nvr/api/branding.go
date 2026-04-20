@@ -32,8 +32,8 @@ type brandingResponse struct {
 //	GET /api/nvr/system/branding
 func (h *BrandingHandler) GetBranding(c *gin.Context) {
 	resp := brandingResponse{
-		ProductName: "MediaMTX NVR",
-		AccentColor: "#6366f1",
+		ProductName: "Raikada",
+		AccentColor: "#FF8C00",
 		LogoURL:     "",
 	}
 

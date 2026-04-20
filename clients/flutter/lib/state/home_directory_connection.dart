@@ -1,7 +1,7 @@
 // KAI-295 — HomeDirectoryConnection state type.
 //
 // Models the single active "home" the Flutter app is connected to. Per the
-// Kaivue connection model, the app speaks one protocol on the wire (OIDC + a
+// Raikada connection model, the app speaks one protocol on the wire (OIDC + a
 // local form), but the backend can be either the multi-tenant cloud or an
 // on-prem Directory. Both surface the same shape — only the endpoint differs.
 //
@@ -11,7 +11,7 @@
 
 /// Which kind of "home" the user has connected to.
 ///
-/// `cloud` is the multi-tenant Kaivue cloud (e.g. `cloud.yourbrand.com`).
+/// `cloud` is the multi-tenant Raikada cloud (e.g. `cloud.yourbrand.com`).
 /// `onPrem` is a self-hosted Directory (e.g. `https://nvr.acme.local`).
 enum HomeConnectionKind {
   cloud,

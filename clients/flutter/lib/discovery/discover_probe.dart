@@ -2,7 +2,7 @@
 //
 // Given a user-supplied base URL (from manual entry, an mDNS advertisement, or
 // a QR code payload), this module performs a short HTTP probe against
-// `<base>/api/v1/discover` to confirm the remote is actually a Kaivue
+// `<base>/api/v1/discover` to confirm the remote is actually a Raikada
 // directory and to surface the metadata needed to populate a
 // [HomeDirectoryConnection] (server name, kind, supported auth methods, etc).
 //
@@ -57,7 +57,7 @@ DiscoverAuthMethod _authFromWire(String s) {
   }
 }
 
-/// Whether the probed endpoint is the Kaivue cloud or a self-hosted directory.
+/// Whether the probed endpoint is the Raikada cloud or a self-hosted directory.
 enum DiscoverDeployment { cloud, onPrem }
 
 /// Result of a successful `/api/v1/discover` call.
@@ -110,7 +110,7 @@ enum DiscoverProbeErrorKind {
   unreachable,
   timeout,
   tlsMismatch,
-  notKaivue,
+  notRaikada,
   versionMismatch,
   malformedResponse,
 }
@@ -211,8 +211,8 @@ class DiscoverProbe {
 
     if (resp.statusCode == 404) {
       throw DiscoverProbeError(
-        DiscoverProbeErrorKind.notKaivue,
-        'endpoint returned 404 (not a Kaivue directory)',
+        DiscoverProbeErrorKind.notRaikada,
+        'endpoint returned 404 (not a Raikada directory)',
       );
     }
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
@@ -238,12 +238,12 @@ class DiscoverProbe {
       );
     }
 
-    // "service" must identify this as a Kaivue directory. Anything else — even
-    // a valid JSON response from some other API — is a notKaivue error.
+    // "service" must identify this as a Raikada directory. Anything else — even
+    // a valid JSON response from some other API — is a notRaikada error.
     final service = parsed['service'];
-    if (service != 'kaivue-directory') {
+    if (service != 'raikada-directory') {
       throw DiscoverProbeError(
-        DiscoverProbeErrorKind.notKaivue,
+        DiscoverProbeErrorKind.notRaikada,
         'wrong service field: $service',
       );
     }

@@ -18,7 +18,7 @@ const (
 )
 
 // SetRecordingFunc is called by the motion state machine to enable or disable
-// recording for a given MediaMTX path.
+// recording for a given Raikada path.
 type SetRecordingFunc func(path string, record bool)
 
 // MotionSM is a per-camera motion state machine that manages recording state

@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS export_jobs;
+DROP TABLE IF EXISTS audit_entries;
+DROP TABLE IF EXISTS alert_rules;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS users;

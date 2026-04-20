@@ -128,7 +128,7 @@ func (s *Server) doAuth(ctx *gin.Context, pathName string) bool {
 	_, err := s.AuthManager.Authenticate(req)
 	if err != nil {
 		if err.AskCredentials {
-			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+			ctx.Header("WWW-Authenticate", `Basic realm="raikada"`)
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
 				Status: defs.APIErrorStatusError,
 				Error:  "authentication error",

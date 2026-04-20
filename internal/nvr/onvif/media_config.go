@@ -1,8 +1,17 @@
 package onvif
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
 
 	onvifgo "github.com/EthanFlower1/onvif-go"
 )
@@ -231,26 +240,205 @@ func GetVideoEncoderConfig(xaddr, username, password, configToken string) (*Vide
 }
 
 // SetVideoEncoderConfig updates a video encoder configuration on the device.
+// It reads the current config first to preserve fields like UseCount that the
+// camera requires. Builds the SOAP request directly to include H264 config
+// which the onvif-go library omits.
 func SetVideoEncoderConfig(xaddr, username, password string, cfg *VideoEncoderConfig) error {
 	client, err := NewClient(xaddr, username, password)
 	if err != nil {
 		return err
 	}
 
-	vec := &onvifgo.VideoEncoderConfiguration{
-		Token:    cfg.Token,
-		Name:     cfg.Name,
-		Encoding: cfg.Encoding,
-		Quality:  cfg.Quality,
-		Resolution: &onvifgo.VideoResolution{
-			Width:  cfg.Width,
-			Height: cfg.Height,
-		},
+	ctx := context.Background()
+
+	// Fetch current config so we preserve UseCount, Name, etc.
+	current, err := client.Dev.GetVideoEncoderConfiguration(ctx, cfg.Token)
+	if err != nil {
+		return fmt.Errorf("get current config before update: %w", err)
 	}
 
-	ctx := context.Background()
-	if err := client.Dev.SetVideoEncoderConfiguration(ctx, vec, true); err != nil {
+	// Apply the requested changes on top of the current config.
+	current.Encoding = cfg.Encoding
+	current.Quality = cfg.Quality
+
+	if current.Resolution == nil {
+		current.Resolution = &onvifgo.VideoResolution{}
+	}
+	current.Resolution.Width = cfg.Width
+	current.Resolution.Height = cfg.Height
+
+	if current.RateControl == nil {
+		current.RateControl = &onvifgo.VideoRateControl{}
+	}
+	current.RateControl.FrameRateLimit = cfg.FrameRate
+	if cfg.BitrateLimit > 0 {
+		current.RateControl.BitrateLimit = cfg.BitrateLimit
+	}
+	if cfg.EncodingInterval > 0 {
+		current.RateControl.EncodingInterval = cfg.EncodingInterval
+	}
+
+	if cfg.Encoding == "H264" {
+		if current.H264 == nil {
+			current.H264 = &onvifgo.H264Configuration{}
+		}
+		if cfg.H264Profile != "" {
+			current.H264.H264Profile = cfg.H264Profile
+		}
+		if cfg.GovLength > 0 {
+			current.H264.GovLength = cfg.GovLength
+		}
+	} else {
+		// Clear H264 config when switching to JPEG/MPEG4.
+		current.H264 = nil
+	}
+
+	// Build SOAP request directly — the library's SetVideoEncoderConfiguration
+	// omits the H264 block, which causes Dahua/Amcrest cameras to silently
+	// reject H264 encoder updates.
+	type setVECRequest struct {
+		XMLName       xml.Name `xml:"trt:SetVideoEncoderConfiguration"`
+		Xmlns         string   `xml:"xmlns:trt,attr"`
+		Xmlnst        string   `xml:"xmlns:tt,attr"`
+		Configuration struct {
+			Token      string `xml:"token,attr"`
+			Name       string `xml:"tt:Name"`
+			UseCount   int    `xml:"tt:UseCount"`
+			Encoding   string `xml:"tt:Encoding"`
+			Resolution *struct {
+				Width  int `xml:"tt:Width"`
+				Height int `xml:"tt:Height"`
+			} `xml:"tt:Resolution,omitempty"`
+			Quality     *float64 `xml:"tt:Quality,omitempty"`
+			RateControl *struct {
+				FrameRateLimit   int `xml:"tt:FrameRateLimit"`
+				EncodingInterval int `xml:"tt:EncodingInterval"`
+				BitrateLimit     int `xml:"tt:BitrateLimit"`
+			} `xml:"tt:RateControl,omitempty"`
+			H264 *struct {
+				GovLength   int    `xml:"tt:GovLength"`
+				H264Profile string `xml:"tt:H264Profile"`
+			} `xml:"tt:H264,omitempty"`
+		} `xml:"trt:Configuration"`
+		ForcePersistence bool `xml:"trt:ForcePersistence"`
+	}
+
+	req := setVECRequest{
+		Xmlns:            "http://www.onvif.org/ver10/media/wsdl",
+		Xmlnst:           "http://www.onvif.org/ver10/schema",
+		ForcePersistence: true,
+	}
+	req.Configuration.Token = current.Token
+	req.Configuration.Name = current.Name
+	req.Configuration.UseCount = current.UseCount
+	req.Configuration.Encoding = current.Encoding
+
+	if current.Resolution != nil {
+		req.Configuration.Resolution = &struct {
+			Width  int `xml:"tt:Width"`
+			Height int `xml:"tt:Height"`
+		}{Width: current.Resolution.Width, Height: current.Resolution.Height}
+	}
+
+	if current.Quality > 0 {
+		req.Configuration.Quality = &current.Quality
+	}
+
+	if current.RateControl != nil {
+		req.Configuration.RateControl = &struct {
+			FrameRateLimit   int `xml:"tt:FrameRateLimit"`
+			EncodingInterval int `xml:"tt:EncodingInterval"`
+			BitrateLimit     int `xml:"tt:BitrateLimit"`
+		}{
+			FrameRateLimit:   current.RateControl.FrameRateLimit,
+			EncodingInterval: current.RateControl.EncodingInterval,
+			BitrateLimit:     current.RateControl.BitrateLimit,
+		}
+	}
+
+	if current.H264 != nil {
+		req.Configuration.H264 = &struct {
+			GovLength   int    `xml:"tt:GovLength"`
+			H264Profile string `xml:"tt:H264Profile"`
+		}{
+			GovLength:   current.H264.GovLength,
+			H264Profile: current.H264.H264Profile,
+		}
+	}
+
+	// Use the media service URL from our service discovery.
+	mediaEndpoint := client.Services["media"]
+	if mediaEndpoint == "" {
+		mediaEndpoint = xaddr
+	}
+
+	if err := callSOAP(ctx, mediaEndpoint, username, password, req); err != nil {
 		return fmt.Errorf("set video encoder config: %w", err)
+	}
+	return nil
+}
+
+func buildWSSecurityHeader(username, password string) string {
+	nonce := make([]byte, 16)
+	rand.Read(nonce) //nolint:errcheck
+	created := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
+
+	h := sha1.New()
+	h.Write(nonce)
+	h.Write([]byte(created))
+	h.Write([]byte(password))
+	digest := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	nonceB64 := base64.StdEncoding.EncodeToString(nonce)
+
+	return fmt.Sprintf(
+		`<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" `+
+			`xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" s:mustUnderstand="1">`+
+			`<wsse:UsernameToken>`+
+			`<wsse:Username>%s</wsse:Username>`+
+			`<wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">%s</wsse:Password>`+
+			`<wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">%s</wsse:Nonce>`+
+			`<wsu:Created>%s</wsu:Created>`+
+			`</wsse:UsernameToken>`+
+			`</wsse:Security>`, username, digest, nonceB64, created)
+}
+
+// callSOAP sends a SOAP request with WS-Security UsernameToken authentication.
+func callSOAP(ctx context.Context, endpoint, username, password string, body interface{}) error {
+	bodyXML, err := xml.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal body: %w", err)
+	}
+
+	secHeader := buildWSSecurityHeader(username, password)
+
+	envelope := fmt.Sprintf(
+		`<?xml version="1.0" encoding="UTF-8"?>`+
+			`<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">`+
+			`<s:Header>%s</s:Header>`+
+			`<s:Body>%s</s:Body>`+
+			`</s:Envelope>`,
+		secHeader, string(bodyXML))
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader([]byte(envelope)))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/soap+xml; charset=utf-8")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("SOAP error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Check for SOAP faults in the response.
+	if strings.Contains(string(respBody), ":Fault>") {
+		return fmt.Errorf("SOAP fault: %s", string(respBody))
 	}
 	return nil
 }

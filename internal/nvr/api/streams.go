@@ -17,7 +17,7 @@ import (
 // StreamHandler implements HTTP endpoints for camera stream management.
 type StreamHandler struct {
 	DB         *db.DB
-	APIAddress string // MediaMTX API address for live track info
+	APIAddress string // Raikada API address for live track info
 }
 
 // streamRequest is the JSON body for creating or updating a camera stream.
@@ -63,7 +63,7 @@ func (h *StreamHandler) List(c *gin.Context) {
 		if cam == nil || tracksByPath == nil {
 			continue
 		}
-		// Match stream to its MediaMTX path.
+		// Match stream to its Raikada path.
 		path := cam.MediaMTXPath
 		if s.ID != "" {
 			prefix := s.ID

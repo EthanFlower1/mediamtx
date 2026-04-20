@@ -75,9 +75,9 @@ void main() {
   });
 
   group('BrandConfig', () {
-    test('kaivueDefault has sensible values', () {
-      final def = BrandConfig.kaivueDefault();
-      expect(def.appName, 'Kaivue');
+    test('raikadaDefault has sensible values', () {
+      final def = BrandConfig.raikadaDefault();
+      expect(def.appName, 'Raikada');
       expect(def.primaryColorHex, '#1F6FEB');
       expect(def.primaryColor.toARGB32(), 0xFF1F6FEB);
       expect(def.secondaryColor.toARGB32(), 0xFF6E7681);
@@ -99,14 +99,14 @@ void main() {
     });
 
     test('equality is value-based', () {
-      final a = BrandConfig.kaivueDefault();
-      final b = BrandConfig.kaivueDefault();
+      final a = BrandConfig.raikadaDefault();
+      final b = BrandConfig.raikadaDefault();
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
     });
 
     test('copyWith overrides only the given fields', () {
-      final base = BrandConfig.kaivueDefault();
+      final base = BrandConfig.raikadaDefault();
       final next = base.copyWith(appName: 'Acme Security');
       expect(next.appName, 'Acme Security');
       expect(next.primaryColorHex, base.primaryColorHex);

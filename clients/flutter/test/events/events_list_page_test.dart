@@ -69,7 +69,7 @@ List<EventSummary> _fixture() => [
 HomeDirectoryConnection _conn() => const HomeDirectoryConnection(
       id: 'conn-1',
       kind: HomeConnectionKind.cloud,
-      endpointUrl: 'https://test.kaivue.dev',
+      endpointUrl: 'https://test.raikada.dev',
       displayName: 'Test Cloud',
       discoveryMethod: DiscoveryMethod.manual,
     );

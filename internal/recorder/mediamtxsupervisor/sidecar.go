@@ -7,7 +7,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/shared/sidecar"
 )
 
-// MediaMTXSidecar adapts a MediaMTX subprocess invocation to the
+// MediaMTXSidecar adapts a Raikada subprocess invocation to the
 // sidecar.Sidecar interface so it can be managed by the generic
 // process supervisor in internal/shared/sidecar.
 //
@@ -21,7 +21,7 @@ type MediaMTXSidecar struct {
 	// supervisor lookups. Must be unique within a Supervisor.
 	SidecarName string
 
-	// Binary is the path to the mediamtx executable.
+	// Binary is the path to the raikada executable.
 	Binary string
 
 	// ConfigPath is the YAML config to launch with. Per CLAUDE.md

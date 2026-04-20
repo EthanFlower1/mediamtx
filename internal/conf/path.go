@@ -345,7 +345,7 @@ func (pconf *Path) setDefaults() {
 	pconf.RPICameraAfMode = "continuous"
 	pconf.RPICameraAfRange = "normal"
 	pconf.RPICameraAfSpeed = "normal"
-	pconf.RPICameraTextOverlay = "%Y-%m-%d %H:%M:%S - MediaMTX"
+	pconf.RPICameraTextOverlay = "%Y-%m-%d %H:%M:%S - Raikada"
 	pconf.RPICameraCodec = "auto"
 	pconf.RPICameraIDRPeriod = 60
 	pconf.RPICameraBitrate = 5000000

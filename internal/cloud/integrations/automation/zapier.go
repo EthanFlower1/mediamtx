@@ -79,7 +79,7 @@ func DefaultZapierApp(baseURL string) *ZapierApp {
 	}
 
 	return &ZapierApp{
-		Name:        "MediaMTX NVR",
+		Name:        "Raikada",
 		Version:     "1.0.0",
 		Description: "Connect your NVR cameras and alerts to thousands of apps.",
 		Auth: ZapierAuth{
@@ -88,7 +88,7 @@ func DefaultZapierApp(baseURL string) *ZapierApp {
 			AccessTokenURL:  baseURL + "/oauth/token",
 			RefreshTokenURL: baseURL + "/oauth/token",
 			Scope:           "cameras:read clips:write notifications:write",
-			ConnectionLabel: "MediaMTX NVR ({{bundle.authData.email}})",
+			ConnectionLabel: "Raikada ({{bundle.authData.email}})",
 			AutoRefresh:     true,
 		},
 		Triggers: triggers,

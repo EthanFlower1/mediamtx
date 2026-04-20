@@ -403,6 +403,16 @@ type Conf struct {
 	NVRDatabase  string `json:"nvrDatabase"`
 	NVRJWTSecret string `json:"nvrJWTSecret"`
 
+	// Directory mode data directory (defaults to /var/lib/mediamtx-directory).
+	NVRDirectoryDataDir string `json:"nvrDirectoryDataDir"`
+
+	// Managed mode: when set, the recorder registers with a Directory server
+	// and exposes an internal API for service-to-service queries.
+	NVRDirectoryURL    string `json:"nvrDirectoryURL"`
+	NVRServiceToken    string `json:"nvrServiceToken"`
+	NVRInternalAPIAddr string `json:"nvrInternalAPIAddr"`
+	NVRRecorderID      string `json:"nvrRecorderID"`
+
 	// Record (deprecated)
 	Record                *bool         `json:"record,omitempty" deprecated:"true"`
 	RecordPath            *string       `json:"recordPath,omitempty" deprecated:"true"`

@@ -253,7 +253,7 @@ func (d *Dispatcher) send(job *deliveryJob) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "MediaMTX-NVR-Webhook/1.0")
+	req.Header.Set("User-Agent", "Raikada-Webhook/1.0")
 	req.Header.Set("X-Webhook-ID", cfg.ID)
 	req.Header.Set("X-Delivery-ID", fmt.Sprintf("%d", del.ID))
 

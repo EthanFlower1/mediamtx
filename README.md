@@ -1,8 +1,8 @@
-# MediaMTX NVR
+# Raikada
 
 > Open-source network video recorder built on [MediaMTX](https://github.com/bluenviron/mediamtx)
 
-MediaMTX NVR transforms the MediaMTX streaming server into a full-featured network video recorder. It adds a React-based management UI, ONVIF camera discovery and control, recording schedules, motion detection, multi-camera playback, and user authentication — all backed by a zero-dependency SQLite database.
+Raikada transforms the MediaMTX streaming server into a full-featured network video recorder. It adds a React-based management UI, ONVIF camera discovery and control, recording schedules, motion detection, multi-camera playback, and user authentication — all backed by a zero-dependency SQLite database.
 
 ## Features
 
@@ -158,7 +158,7 @@ pathDefaults:
 
 ### Motion Detection
 
-Motion detection uses ONVIF push events -- the camera notifies MediaMTX NVR when motion starts and stops. No CPU-intensive video analysis required.
+Motion detection uses ONVIF push events -- the camera notifies Raikada when motion starts and stops. No CPU-intensive video analysis required.
 
 - Enable motion detection per camera in Camera Settings
 - Configure **motion timeout** to control how long after the last event motion is considered active
@@ -212,7 +212,7 @@ Each camera can have independent recording rules:
 |  +---------------------------------------------+  |
 |                                                  |
 |  +---------------------------------------------+  |
-|  |         MediaMTX Streaming Core             |  |
+|  |         Raikada Streaming Core               |  |
 |  |  RTSP / RTMP / HLS / WebRTC / SRT / Record |  |
 |  +---------------------------------------------+  |
 +--------------------------------------------------+
@@ -293,7 +293,7 @@ mediamtx/
 │   │   ├── crypto/        # AES encryption for stored credentials
 │   │   ├── yamlwriter/    # Programmatic mediamtx.yml updates
 │   │   └── ui/            # Embedded UI assets (dist/)
-│   ├── core/              # MediaMTX core server
+│   ├── core/              # Raikada core server
 │   ├── conf/              # Configuration parsing
 │   ├── recorder/          # Stream-to-disk recording engine
 │   ├── playback/          # Recording playback server

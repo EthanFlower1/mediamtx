@@ -27,7 +27,7 @@ import 'package:nvr_client/state/secure_token_store.dart';
 HomeDirectoryConnection _connX() => const HomeDirectoryConnection(
       id: 'conn-X',
       kind: HomeConnectionKind.cloud,
-      endpointUrl: 'https://cloud.kaivue.example',
+      endpointUrl: 'https://cloud.raikada.example',
       displayName: 'Cloud',
       discoveryMethod: DiscoveryMethod.manual,
     );

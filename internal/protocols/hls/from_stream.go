@@ -286,7 +286,7 @@ func setupAudioTracks(
 	}
 }
 
-// FromStream maps a MediaMTX stream to a HLS muxer.
+// FromStream maps a Raikada stream to a HLS muxer.
 func FromStream(
 	desc *description.Session,
 	r *stream.Reader,

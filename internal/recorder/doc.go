@@ -15,7 +15,7 @@ package recorder
 //   - ONVIF discovery and per-camera capture pipelines.
 //   - Continuous and event-driven recording to the local segment store.
 //   - Local serving of live and playback streams to authorized clients via
-//     the embedded MediaMTX sidecar.
+//     the embedded Raikada sidecar.
 //   - Disk lifecycle management: retention, GC, capacity planning, and
 //     surfacing health to the Directory.
 //   - Reporting timeline and segment metadata upstream so the Directory can
@@ -35,7 +35,7 @@ package recorder
 //     for shared types, protos, and primitives.
 //
 // During the incremental migration from internal/nvr, this package starts
-// as a thin wrapper over the existing MediaMTX segment recorder; subsystems
+// as a thin wrapper over the existing Raikada segment recorder; subsystems
 // will be moved here one at a time. Existing code in internal/nvr continues
 // to function unchanged until each migration step lands. See
 // docs/architecture/package-layout.md for the full plan.

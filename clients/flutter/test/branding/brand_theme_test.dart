@@ -7,25 +7,25 @@ import 'package:nvr_client/branding/brand_theme.dart';
 void main() {
   group('buildBrandTheme', () {
     test('returns a Material3 theme', () {
-      final theme = buildBrandTheme(BrandConfig.kaivueDefault(), dark: false);
+      final theme = buildBrandTheme(BrandConfig.raikadaDefault(), dark: false);
       expect(theme.useMaterial3, isTrue);
     });
 
     test('light variant has Brightness.light', () {
-      final theme = buildBrandTheme(BrandConfig.kaivueDefault(), dark: false);
+      final theme = buildBrandTheme(BrandConfig.raikadaDefault(), dark: false);
       expect(theme.brightness, Brightness.light);
       expect(theme.colorScheme.brightness, Brightness.light);
     });
 
     test('dark variant has Brightness.dark', () {
-      final theme = buildBrandTheme(BrandConfig.kaivueDefault(), dark: true);
+      final theme = buildBrandTheme(BrandConfig.raikadaDefault(), dark: true);
       expect(theme.brightness, Brightness.dark);
       expect(theme.colorScheme.brightness, Brightness.dark);
     });
 
     test('light and dark variants differ', () {
-      final light = buildBrandTheme(BrandConfig.kaivueDefault(), dark: false);
-      final dark = buildBrandTheme(BrandConfig.kaivueDefault(), dark: true);
+      final light = buildBrandTheme(BrandConfig.raikadaDefault(), dark: false);
+      final dark = buildBrandTheme(BrandConfig.raikadaDefault(), dark: true);
       expect(light.colorScheme.surface, isNot(dark.colorScheme.surface));
     });
 
@@ -71,7 +71,7 @@ void main() {
     });
 
     test('scaffoldBackgroundColor matches colorScheme.surface', () {
-      final theme = buildBrandTheme(BrandConfig.kaivueDefault(), dark: true);
+      final theme = buildBrandTheme(BrandConfig.raikadaDefault(), dark: true);
       expect(theme.scaffoldBackgroundColor, theme.colorScheme.surface);
     });
   });

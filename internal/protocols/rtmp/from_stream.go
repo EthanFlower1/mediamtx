@@ -37,7 +37,7 @@ func timestampToDuration(t int64, clockRate int) time.Duration {
 	return multiplyAndDivide2(time.Duration(t), time.Second, time.Duration(clockRate))
 }
 
-// FromStream maps a MediaMTX stream to a RTMP stream.
+// FromStream maps a Raikada stream to a RTMP stream.
 func FromStream(
 	desc *description.Session,
 	r *stream.Reader,

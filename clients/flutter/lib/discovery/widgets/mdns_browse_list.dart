@@ -1,7 +1,7 @@
 // KAI-296 — MdnsBrowseList widget stub.
 //
 // Subscribes to [mdnsBrowseProvider] and renders a live list of LAN-advertised
-// Kaivue directories. Taps fire the caller-supplied callback with a
+// Raikada directories. Taps fire the caller-supplied callback with a
 // [DiscoveryCandidate] ready to be probed. On platforms where mDNS is not
 // supported ([MdnsDiscovery.isSupported] == false), renders an explanatory
 // message from [DiscoveryStrings] instead of attempting to start the client.

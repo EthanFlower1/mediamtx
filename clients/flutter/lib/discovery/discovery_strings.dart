@@ -36,7 +36,7 @@ class DiscoveryStrings {
     required this.qrPayloadInvalid,
     required this.errorUnreachable,
     required this.errorTlsMismatch,
-    required this.errorNotKaivue,
+    required this.errorNotRaikada,
     required this.errorVersionMismatch,
     required this.errorTimeout,
     required this.errorMalformedResponse,
@@ -63,14 +63,14 @@ class DiscoveryStrings {
 
   final String errorUnreachable;
   final String errorTlsMismatch;
-  final String errorNotKaivue;
+  final String errorNotRaikada;
   final String errorVersionMismatch;
   final String errorTimeout;
   final String errorMalformedResponse;
 
   /// Default English strings. Swap via a Riverpod override in tests.
   static const DiscoveryStrings en = DiscoveryStrings(
-    pickerTitle: 'Connect to a Kaivue directory',
+    pickerTitle: 'Connect to a Raikada directory',
     pickerMethodManual: 'Enter server address',
     pickerMethodMdns: 'Find on local network',
     pickerMethodQr: 'Scan invite QR code',
@@ -80,16 +80,16 @@ class DiscoveryStrings {
     manualUrlEmpty: 'URL is required',
     manualConnectButton: 'Connect',
     mdnsSearching: 'Searching for directories on this network...',
-    mdnsEmpty: 'No Kaivue directories found on this network',
+    mdnsEmpty: 'No Raikada directories found on this network',
     mdnsUnsupported:
         'mDNS browsing is not available on this platform. Try entering the server URL manually.',
     qrPermissionDenied:
         'Camera permission is required to scan invite codes.',
     qrInstructions: 'Point your camera at the invite QR code.',
-    qrPayloadInvalid: 'This QR code is not a valid Kaivue invite.',
+    qrPayloadInvalid: 'This QR code is not a valid Raikada invite.',
     errorUnreachable: 'Could not reach the server. Check the URL and network.',
     errorTlsMismatch: 'TLS certificate does not match the expected fingerprint.',
-    errorNotKaivue: 'This address is not a Kaivue directory.',
+    errorNotRaikada: 'This address is not a Raikada directory.',
     errorVersionMismatch:
         'This directory runs an unsupported version. Update the app or the server.',
     errorTimeout: 'The server did not respond in time.',

@@ -37,7 +37,7 @@ class PlaybackController extends ChangeNotifier {
   // Players — one per selected camera
   final Map<String, VideoPlayerController> _players = {};
 
-  // Camera ID → MediaMTX path
+  // Camera ID → Raikada path
   final Map<String, String> _cameraPaths = {};
 
   // The recording segment currently loaded in the player.

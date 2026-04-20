@@ -150,8 +150,8 @@ func (c *OpsgenieClient) ResolveAlert(ctx context.Context, dedupKey string) (Ale
 	closeURL := fmt.Sprintf("%s/%s/close?identifierType=alias", c.endpoint, dedupKey)
 
 	payload := opsgenieCloseAlert{
-		Source: "mediamtx-nvr",
-		Note:   "Resolved by MediaMTX NVR",
+		Source: "raikada",
+		Note:   "Resolved by Raikada",
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -194,10 +194,10 @@ func (c *OpsgenieClient) ResolveAlert(ctx context.Context, dedupKey string) (Ale
 
 func (c *OpsgenieClient) TestConnection(ctx context.Context) error {
 	alert := Alert{
-		Summary:   "MediaMTX NVR integration test",
-		Source:    "mediamtx-itsm-test",
+		Summary:   "Raikada integration test",
+		Source:    "raikada-itsm-test",
 		Severity:  SeverityInfo,
-		DedupKey:  "mediamtx-test-connection",
+		DedupKey:  "raikada-test-connection",
 		Timestamp: time.Now().UTC(),
 		Details:   map[string]string{"type": "connection_test"},
 	}

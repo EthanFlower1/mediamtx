@@ -387,7 +387,7 @@ export default function Dashboard() {
           </h1>
           <p className="text-sm text-nvr-text-muted mt-0.5">
             {info
-              ? `MediaMTX ${info.version} -- ${info.platform} -- up ${formatUptime(metrics?.uptime_seconds ?? 0)}`
+              ? `Raikada ${info.version} -- ${info.platform} -- up ${formatUptime(metrics?.uptime_seconds ?? 0)}`
               : 'Loading system info...'}
           </p>
         </div>

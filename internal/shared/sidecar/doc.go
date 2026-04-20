@@ -1,5 +1,5 @@
 // Package sidecar provides a generic supervisor framework for managed
-// subprocess "sidecars" such as Zitadel and MediaMTX.
+// subprocess "sidecars" such as Zitadel and Raikada.
 //
 // The Supervisor owns a fleet of named Sidecar implementations. For each
 // one it runs a control loop that:

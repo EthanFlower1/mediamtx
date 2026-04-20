@@ -1,13 +1,12 @@
 {
-  "id": "session-1775961189280",
-  "startedAt": "2026-04-12T02:33:09.280Z",
+  "id": "session-1776718228120",
+  "startedAt": "2026-04-20T20:50:28.120Z",
   "cwd": "/Users/ethanflower/personal_projects/mediamtx",
   "context": {},
   "metrics": {
-    "edits": 55,
+    "edits": 0,
     "commands": 0,
     "tasks": 0,
     "errors": 0
-  },
-  "restoredAt": "2026-04-16T01:19:23.066Z"
+  }
 }

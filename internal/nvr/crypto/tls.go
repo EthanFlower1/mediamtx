@@ -92,8 +92,8 @@ func (m *TLSManager) generateSelfSigned() error {
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"MediaMTX NVR"},
-			CommonName:   "MediaMTX NVR",
+			Organization: []string{"Raikada"},
+			CommonName:   "Raikada",
 		},
 		NotBefore:             time.Now().Add(-1 * time.Hour),
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),

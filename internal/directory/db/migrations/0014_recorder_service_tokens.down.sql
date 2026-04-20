@@ -1,0 +1,2 @@
+-- SQLite does not support DROP COLUMN before 3.35.0; this is best-effort.
+-- In practice, rolling back requires recreating the table.

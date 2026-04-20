@@ -1,0 +1,19 @@
+logLevel: debug
+api: true
+apiAddress: :9998
+rtspAddress: :8555
+rtspEncryption: "no"
+hlsAddress: :8889
+webrtcAddress: :8890
+
+nvr: true
+nvrDatabase: ~/.mediamtx/recorder1.db
+nvrJWTSecret: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+nvrDirectoryURL: http://127.0.0.1:9997
+nvrServiceToken: test-shared-secret-at-least-32chars
+nvrInternalAPIAddr: :8880
+nvrRecorderID: recorder-laptop-1
+
+paths:
+  all_others:

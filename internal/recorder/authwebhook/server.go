@@ -12,8 +12,8 @@ import (
 	"time"
 )
 
-// AuthRequest is the JSON body MediaMTX sends when authMethod is "http".
-// Field names match MediaMTX's internal/auth/manager.go authenticateHTTP.
+// AuthRequest is the JSON body Raikada sends when authMethod is "http".
+// Field names match Raikada's internal/auth/manager.go authenticateHTTP.
 type AuthRequest struct {
 	IP       string `json:"ip"`
 	User     string `json:"user"`
@@ -34,13 +34,13 @@ type TokenVerifier interface {
 	Verify(ctx context.Context, token string) (subject, tenantID string, err error)
 }
 
-// PathResolver maps a MediaMTX path name (e.g. "cam_abc123") to a
+// PathResolver maps a Raikada path name (e.g. "cam_abc123") to a
 // camera ID and tenant ID. This is the seam to the Recorder's camera
 // cache (KAI-250 / state.Store).
 type PathResolver interface {
 	// ResolvePath returns the camera ID and tenant ID for the given
-	// MediaMTX path. Returns ("", "", nil) if the path is not a managed
-	// camera (fall through to MediaMTX's own auth for system paths).
+	// Raikada path. Returns ("", "", nil) if the path is not a managed
+	// camera (fall through to Raikada's own auth for system paths).
 	// Returns an error only on store failures.
 	ResolvePath(ctx context.Context, path string) (cameraID, tenantID string, err error)
 }
@@ -60,7 +60,7 @@ type ServerConfig struct {
 	// Log is the structured logger.
 	Log *slog.Logger
 
-	// AllowedActions controls which MediaMTX actions are checked. Actions
+	// AllowedActions controls which Raikada actions are checked. Actions
 	// not in this set are auto-allowed (e.g. "publish" from the RTSP
 	// source is always the Recorder itself).
 	// Default: {"read", "playback"}
@@ -149,7 +149,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
-// handleAuth is the single HTTP handler that MediaMTX calls.
+// handleAuth is the single HTTP handler that Raikada calls.
 func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -170,7 +170,7 @@ func (s *Server) handleAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract the viewer token. MediaMTX sends it in the "token" field
+	// Extract the viewer token. Raikada sends it in the "token" field
 	// (from query param or RTSP DESCRIBE header) or in "password" (RTSP
 	// basic auth where user is empty and password carries the JWT).
 	token := req.Token

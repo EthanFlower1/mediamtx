@@ -141,7 +141,7 @@ func (s *httpServer) checkAuthOutsideSession(ctx *gin.Context, pathName string, 
 		var terr *auth.Error
 		if errors.As(err, &terr) {
 			if terr.AskCredentials {
-				ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+				ctx.Header("WWW-Authenticate", `Basic realm="raikada"`)
 				ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
 					Status: defs.APIErrorStatusError,
 					Error:  "authentication error",
@@ -206,7 +206,7 @@ func (s *httpServer) onWHIPPost(ctx *gin.Context, pathName string, publish bool)
 		var terr *auth.Error
 		if errors.As(res.err, &terr) {
 			if terr.AskCredentials {
-				ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+				ctx.Header("WWW-Authenticate", `Basic realm="raikada"`)
 				ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
 					Status: defs.APIErrorStatusError,
 					Error:  "authentication error",

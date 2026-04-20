@@ -60,7 +60,7 @@ type GenerateResponse struct {
 	// and for manual revocation.
 	TokenID string `json:"token_id"`
 	// Token is the opaque bearer credential that must be passed to
-	// `mediamtx pair <token>` (KAI-244 CLI) within the TTL window.
+	// `raikada pair <token>` (KAI-244 CLI) within the TTL window.
 	Token string `json:"token"`
 	// ExpiresIn is a human-readable expiry hint, e.g. "15m0s".
 	ExpiresIn string `json:"expires_in"`

@@ -97,7 +97,7 @@ func TestAssignedCamerasSchema(t *testing.T) {
 }
 
 // TestAssignedCamerasEnabledIndex confirms the hot-path index for enabled
-// cameras exists. MediaMTX path-config generator (KAI-152) issues this query
+// cameras exists. Raikada path-config generator (KAI-152) issues this query
 // in its tight loop.
 func TestAssignedCamerasEnabledIndex(t *testing.T) {
 	ctx := context.Background()

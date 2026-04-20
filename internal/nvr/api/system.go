@@ -41,7 +41,7 @@ type SystemHandler struct {
 	Broadcaster    *EventBroadcaster
 	ConfigDB       *db.DB           // full DB access for config export/import
 	ConfigPath     string           // path to mediamtx.yml for reading server configuration
-	APIAddress     string           // MediaMTX API address for live camera status
+	APIAddress     string           // Raikada API address for live camera status
 	Collector      *metrics.Collector  // ring-buffer metrics collector (may be nil)
 	StorageMgr     *storage.Manager    // storage manager for disk I/O metrics (may be nil)
 	HWDetector     *hwaccel.Detector   // hardware acceleration detector (may be nil)
@@ -276,7 +276,7 @@ func (h *SystemHandler) ConfigSummary(c *gin.Context) {
 		if err == nil {
 			totalCameras = len(cameras)
 
-			// Check live status from MediaMTX API.
+			// Check live status from Raikada API.
 			statuses := h.getCameraStatuses()
 			for _, cam := range cameras {
 				if cam.MediaMTXPath != "" {
@@ -337,7 +337,7 @@ func (h *SystemHandler) ConfigSummary(c *gin.Context) {
 	})
 }
 
-// getCameraStatuses fetches all path statuses from the MediaMTX API.
+// getCameraStatuses fetches all path statuses from the Raikada API.
 func (h *SystemHandler) getCameraStatuses() map[string]string {
 	statuses := make(map[string]string)
 

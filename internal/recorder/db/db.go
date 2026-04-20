@@ -3,7 +3,7 @@
 // This database is distinct from internal/directory/db (the on-prem Directory's
 // authoritative schema) and from internal/cloud/db (the cloud control plane's
 // Postgres). The Recorder DB mirrors the subset of Directory state this node
-// actually needs to drive MediaMTX path config and capture loops, plus a small
+// actually needs to drive Raikada path config and capture loops, plus a small
 // KV table of local runtime state.
 //
 // Boundary rules:

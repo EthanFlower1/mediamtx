@@ -479,8 +479,8 @@ export default function CameraManagement() {
 
   // Page title
   useEffect(() => {
-    document.title = 'Cameras — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Cameras — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   // Search filter state

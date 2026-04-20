@@ -106,7 +106,7 @@ func (pp *PPROF) middlewareAuth(ctx *gin.Context) {
 	_, err := pp.AuthManager.Authenticate(req)
 	if err != nil {
 		if err.AskCredentials {
-			ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+			ctx.Header("WWW-Authenticate", `Basic realm="raikada"`)
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
 				Status: defs.APIErrorStatusError,
 				Error:  "authentication error",

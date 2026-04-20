@@ -18,10 +18,10 @@ import 'package:multicast_dns/multicast_dns.dart';
 import '../state/home_directory_connection.dart' as state;
 
 /// mDNS service type we browse for on the LAN.
-const String kMdnsServiceName = '_mediamtx-directory._tcp.local';
+const String kMdnsServiceName = '_raikada-directory._tcp.local';
 
-/// Expected "type" field on a valid Kaivue invite QR code.
-const String kQrInviteType = 'kaivue-directory';
+/// Expected "type" field on a valid Raikada invite QR code.
+const String kQrInviteType = 'raikada-directory';
 
 /// A single candidate endpoint produced by a discovery source.
 ///
@@ -226,10 +226,10 @@ class MdnsDiscovery implements DiscoverySource {
 // QR code invite
 // ---------------------------------------------------------------------------
 
-/// Parsed Kaivue invite payload.
+/// Parsed Raikada invite payload.
 ///
 /// The React admin console emits an invite QR as a JSON string of the form:
-/// `{"type":"kaivue-directory","url":"https://nvr.acme.local","fingerprint":"..."}`.
+/// `{"type":"raikada-directory","url":"https://nvr.acme.local","fingerprint":"..."}`.
 /// The optional fields (`display_name`, `fingerprint`) are forwarded verbatim.
 class QrInvitePayload {
   final String url;

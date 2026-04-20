@@ -132,7 +132,7 @@ const Duration kWorkManagerInterval = Duration(minutes: 15);
 //
 // PRODUCTION USE: In `AppDelegate.swift` register the task ID:
 //   BGTaskScheduler.shared.register(
-//     forTaskWithIdentifier: "com.kaivue.tokenrefresh",
+//     forTaskWithIdentifier: "com.raikada.tokenrefresh",
 //     using: nil) { task in ... }
 //
 // Then in `main.dart`:
@@ -143,7 +143,7 @@ const Duration kWorkManagerInterval = Duration(minutes: 15);
 // usage patterns. The system may defer or skip executions. The foreground
 // `Timer.periodic` in BackgroundRefreshController is the reliable path on iOS.
 
-const String kBgTaskIdentifier = 'com.kaivue.tokenrefresh';
+const String kBgTaskIdentifier = 'com.raikada.tokenrefresh';
 
 // ---------------------------------------------------------------------------
 // BackgroundRefreshController — the main orchestrator

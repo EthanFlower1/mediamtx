@@ -203,8 +203,8 @@ export default function Integrations() {
 
   // Page title
   useEffect(() => {
-    document.title = 'Integrations — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Integrations — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   // Derive unique categories from definitions

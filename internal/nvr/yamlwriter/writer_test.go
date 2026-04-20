@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testConfig = `# MediaMTX configuration
+const testConfig = `# Raikada configuration
 # General settings
 logLevel: info
 api: yes
@@ -47,7 +47,7 @@ func TestAddPath(t *testing.T) {
 	require.Contains(t, content, "nvr/parking")
 	require.Contains(t, content, "rtsp://example.com/parking")
 	// Verify comments are preserved.
-	require.Contains(t, content, "# MediaMTX configuration")
+	require.Contains(t, content, "# Raikada configuration")
 	require.Contains(t, content, "# Path configuration")
 }
 

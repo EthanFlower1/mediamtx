@@ -191,7 +191,7 @@ func TestService_SendAlertEndToEnd(t *testing.T) {
 	// Send a critical alert.
 	results, err := svc.SendAlert(ctx, Alert{
 		Summary:   "Camera offline: lobby",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityCritical,
 		DedupKey:  "cam-lobby-offline",
 		Timestamp: time.Now().UTC(),
@@ -210,7 +210,7 @@ func TestService_SendAlertEndToEnd(t *testing.T) {
 	// Send an info alert (below threshold, should not match).
 	results, err = svc.SendAlert(ctx, Alert{
 		Summary:  "System check passed",
-		Source:   "mediamtx-nvr",
+		Source:   "raikada",
 		Severity: SeverityInfo,
 	})
 	if err != nil {

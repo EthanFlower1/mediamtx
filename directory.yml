@@ -1,0 +1,7 @@
+mode: directory
+logLevel: debug
+api: true
+apiAddress: :9997
+nvrJWTSecret: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+nvrDirectoryDataDir: ./data/directory
+nvrServiceToken: test-shared-secret-at-least-32chars

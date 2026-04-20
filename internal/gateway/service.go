@@ -21,10 +21,10 @@ import (
 // is typically the loopback address inside the same process as the
 // Directory; an outer reverse proxy terminates TLS on the public edge.
 //
-// MediaMTXBaseURL is the loopback URL of the co-resident MediaMTX
+// MediaMTXBaseURL is the loopback URL of the co-resident Raikada
 // sidecar. The Gateway never proxies bytes itself: it 302-redirects
 // authenticated clients (or rewrites the URL on the way through) to a
-// path inside this MediaMTX, which in turn pulls from the upstream
+// path inside this Raikada, which in turn pulls from the upstream
 // Recorder over the mesh via its `source:` config.
 //
 // Verifier validates incoming stream JWTs. Use streamclaims.NewVerifier
@@ -67,7 +67,7 @@ func (c *Config) Validate() error {
 
 // Service is the Gateway role's top-level orchestrator. It owns:
 //   - the HTTP front-end that verifies stream JWTs and mints upstream URLs
-//   - the dynamic MediaMTX sidecar config (rendered from the Resolver)
+//   - the dynamic Raikada sidecar config (rendered from the Resolver)
 //
 // The zero value is not usable; construct via [NewService].
 type Service struct {
@@ -160,7 +160,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 //  2. Verifies it via cfg.Verifier
 //  3. Consumes the nonce via cfg.Nonce (if configured)
 //  4. Resolves the upstream RecorderEndpoint via cfg.Resolver
-//  5. Mints an upstream MediaMTX URL and 307-redirects the client
+//  5. Mints an upstream Raikada URL and 307-redirects the client
 //
 // On any failure it returns the appropriate status code and a JSON
 // error body. It NEVER leaks which check failed beyond a generic
@@ -214,10 +214,10 @@ func (s *Service) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, upstream, http.StatusTemporaryRedirect)
 }
 
-// MintUpstreamURL returns the local MediaMTX URL the client should be
+// MintUpstreamURL returns the local Raikada URL the client should be
 // redirected to for the given verified claims and resolved endpoint.
 //
-// The upstream MediaMTX has been configured with a `paths:` entry for
+// The upstream Raikada has been configured with a `paths:` entry for
 // each Recorder endpoint that uses `source: <scheme>://<recorder-host>...`,
 // so calling .../<recorder-id>/<path-name> on the local sidecar causes
 // it to pull from the upstream Recorder over the mesh.
@@ -246,14 +246,14 @@ func (s *Service) MintUpstreamURL(claims *streamclaims.StreamClaims, ep Recorder
 	return base.String(), nil
 }
 
-// RenderMediaMTXPaths returns a YAML-shaped map of MediaMTX path
+// RenderMediaMTXPaths returns a YAML-shaped map of Raikada path
 // definitions that the sidecar config writer (KAI-259 territory) can
-// marshal into the running MediaMTX instance's `paths:` block.
+// marshal into the running Raikada instance's `paths:` block.
 //
 // The shape is intentionally untyped (map[string]any) so this package
 // does not have to import the mediamtx config types — keeping the
 // gateway -> conf coupling at zero. The returned map keys are the
-// MediaMTX path names ("<recorder-id>/<camera-id>" or, for whole-Recorder
+// Raikada path names ("<recorder-id>/<camera-id>" or, for whole-Recorder
 // passthrough, "<recorder-id>/all"); the values carry `source:` URLs
 // pointing at the resolved Recorder over the mesh.
 //

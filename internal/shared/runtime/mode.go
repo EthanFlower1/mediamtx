@@ -7,7 +7,7 @@
 //
 //   - ModeDirectory  - the Directory server (admin UI, sidecar
 //     supervisor, cloud Directory client). No capture pipeline.
-//   - ModeRecorder   - the Recorder (capture pipeline, MediaMTX sidecar,
+//   - ModeRecorder   - the Recorder (capture pipeline, Raikada sidecar,
 //     Directory client). No admin UI.
 //   - ModeAllInOne   - both subsystems in-process, with automatic
 //     pairing on first boot.
@@ -95,7 +95,7 @@ type Hooks struct {
 // It returns an error if the mode is invalid or any hook fails.
 //
 // This is an additive shim: today the only populated hook is
-// StartLegacy, which forwards to the existing MediaMTX/NVR boot path.
+// StartLegacy, which forwards to the existing Raikada boot path.
 // The Directory, Recorder, and AutoPair hooks are stubs that real
 // wiring will fill in as KAI-246 (sidecar), KAI-226 (directory client),
 // and KAI-243/244 (pairing) land.
@@ -121,7 +121,7 @@ func Dispatch(mode Mode, hooks Hooks) error {
 
 	case ModeRecorder:
 		// TODO(KAI-246, KAI-226, KAI-250): wire real Recorder boot
-		// (capture pipeline + MediaMTX sidecar + Directory client +
+		// (capture pipeline + Raikada sidecar + Directory client +
 		// recorder-state SQLite).
 		if hooks.StartRecorder != nil {
 			return hooks.StartRecorder()

@@ -77,15 +77,10 @@ class _NavigationShellState extends ConsumerState<NavigationShell>
             elevation: 0,
             toolbarHeight: 44,
             titleSpacing: 12,
-            title: Transform.rotate(
-              angle: 0.785398,
-              child: Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  border: Border.all(color: colors.accent, width: 2),
-                ),
-              ),
+            title: Image.asset(
+              'assets/raikada-logo-no-bg.png',
+              width: 28,
+              height: 28,
             ),
             centerTitle: false,
             actions: [

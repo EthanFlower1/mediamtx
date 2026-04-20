@@ -1,5 +1,5 @@
 // Package scheduler evaluates recording rules on a 30-second tick and
-// manages the recording state for each camera by writing to the MediaMTX
+// manages the recording state for each camera by writing to the Raikada
 // YAML configuration.
 package scheduler
 
@@ -76,7 +76,7 @@ type CameraState struct {
 const retentionCheckInterval = 1 * time.Hour
 
 // Scheduler evaluates recording rules every 30 seconds and applies
-// recording state changes to the MediaMTX YAML configuration.
+// recording state changes to the Raikada YAML configuration.
 type Scheduler struct {
 	db              *db.DB
 	yamlWriter      *yamlwriter.Writer
@@ -138,7 +138,7 @@ func (s *Scheduler) SetEventBroadcaster(pub EventPublisher) {
 }
 
 // Start launches the background evaluation goroutine. The first evaluation
-// is deferred by 5 seconds to avoid racing with MediaMTX config load.
+// is deferred by 5 seconds to avoid racing with Raikada config load.
 func (s *Scheduler) Start() {
 	s.wg.Add(1)
 	go s.run()
@@ -270,7 +270,7 @@ func (s *Scheduler) GetAllRecordingHealth() map[string]*RecordingHealth {
 func (s *Scheduler) run() {
 	defer s.wg.Done()
 
-	// Defer first evaluation to let MediaMTX load its config.
+	// Defer first evaluation to let Raikada load its config.
 	select {
 	case <-time.After(startupDelay):
 	case <-s.stopCh:
@@ -300,7 +300,7 @@ func streamKey(cameraID, streamID string) string {
 	return cameraID + ":" + streamID
 }
 
-// streamPath returns the MediaMTX path for a stream.
+// streamPath returns the Raikada path for a stream.
 // Uses the first 8 characters of the stream ID as a stable suffix.
 // Stream names are for display only — paths use IDs so renaming a stream
 // doesn't orphan recordings or YAML entries.
@@ -315,7 +315,7 @@ func streamPath(cam *db.Camera, streamID string) string {
 	return cam.MediaMTXPath + "~" + prefix
 }
 
-// ensureStreamPath creates a MediaMTX path for a non-default stream.
+// ensureStreamPath creates a Raikada path for a non-default stream.
 // The record parameter sets the initial recording state in the YAML.
 func (s *Scheduler) ensureStreamPath(cam *db.Camera, streamID string, record bool) string {
 	if streamID == "" {

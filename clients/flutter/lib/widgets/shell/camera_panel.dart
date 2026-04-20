@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../providers/auth_provider.dart';
@@ -317,8 +318,9 @@ class CameraPanel extends ConsumerWidget {
             ),
           ),
 
-          // ── Tours section ────────────────────────────────────────────────
-          const CameraPanelTours(),
+          // ── Tours section (hidden on playback page) ─────────────────────
+          if (!GoRouterState.of(context).uri.path.startsWith('/playback'))
+            const CameraPanelTours(),
         ],
       ),
     );

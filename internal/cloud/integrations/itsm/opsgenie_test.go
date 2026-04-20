@@ -48,7 +48,7 @@ func TestOpsgenieClient_SendAlert(t *testing.T) {
 
 	alert := Alert{
 		Summary:   "Storage full on recorder-01",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityError,
 		DedupKey:  "recorder-01-storage-full",
 		Timestamp: time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC),

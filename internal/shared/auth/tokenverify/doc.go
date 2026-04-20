@@ -1,6 +1,6 @@
 // Package tokenverify implements the shared JWT verification primitive
 // used identically by every Kaivue role that accepts an access token —
-// Directory API middleware, Recorder MediaMTX auth webhook (KAI-260),
+// Directory API middleware, Recorder Raikada auth webhook (KAI-260),
 // and Gateway stream auth (KAI-261). It lives inside
 // internal/shared/auth, the architectural firewall: no Zitadel SDK type
 // ever leaks out of this package, and no caller imports Zitadel

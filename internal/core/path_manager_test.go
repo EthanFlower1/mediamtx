@@ -123,7 +123,7 @@ func TestPathManagerDynamicPathDescribeAndPublish(t *testing.T) {
 }
 
 func TestPathManagerConfigHotReload(t *testing.T) {
-	// Start MediaMTX with basic configuration
+	// Start Raikada with basic configuration
 	p, ok := newInstance("api: yes\n" +
 		"paths:\n" +
 		"  all:\n" +

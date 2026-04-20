@@ -30,6 +30,6 @@
 // directly or using crypto/x509 for a stripped-down implementation. This
 // package ships the stripped-down variant: it avoids the multi-hundred-megabyte
 // dependency closure that smallstep/certificates pulls in (badger, cloudkms,
-// pkcs11, step-cli, etc.), which is incompatible with the MediaMTX-NVR build
+// pkcs11, step-cli, etc.), which is incompatible with the Raikada build
 // footprint target. See README.md for details.
 package stepca

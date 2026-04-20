@@ -43,7 +43,7 @@ func TestBootAlreadyPaired(t *testing.T) {
 		StateDir:     dir,
 		Logger:       slog.Default(),
 		MeshTestMode: true,
-		// MediaMTX API is unreachable in tests; supervisor starts fail-open.
+		// Raikada API is unreachable in tests; supervisor starts fail-open.
 		MediaMTXAPIURL: "http://127.0.0.1:19997",
 	})
 	if err != nil {

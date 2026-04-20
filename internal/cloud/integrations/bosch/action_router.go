@@ -170,7 +170,7 @@ func (r *ActionRouter) sendWebhook(ctx context.Context, url string, event *Alarm
 		return fmt.Errorf("build webhook request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "MediaMTX-NVR-BoschIntegration/1.0")
+	req.Header.Set("User-Agent", "Raikada-BoschIntegration/1.0")
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {

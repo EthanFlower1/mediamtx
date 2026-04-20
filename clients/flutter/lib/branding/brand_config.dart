@@ -7,10 +7,10 @@
 //   * logo URL (signed URL served by KAI-353 brand asset storage)
 //   * support / privacy / terms URLs for the in-app about & legal screens
 //
-// Color strings are stored in their original hex form (e.g. `#1F6FEB` or
-// `1F6FEB`) so the wire format stays human-readable and trivially diffable.
+// Color strings are stored in their original hex form (e.g. `#FF8C00` or
+// `FF8C00`) so the wire format stays human-readable and trivially diffable.
 // Callers get `Color` objects via `primaryColor` / `secondaryColor`, which
-// fall back to the Kaivue default on parse failure so a malformed tenant
+// fall back to the Raikada default on parse failure so a malformed tenant
 // config can never crash the app shell.
 library;
 
@@ -40,16 +40,16 @@ class BrandConfig {
     required this.termsUrl,
   });
 
-  /// Built-in Kaivue default. Used when no tenant config is available, when
+  /// Built-in Raikada default. Used when no tenant config is available, when
   /// the remote fetch fails, or as the fixture for unbranded builds.
-  factory BrandConfig.kaivueDefault() => const BrandConfig(
-        appName: 'Kaivue',
-        primaryColorHex: '#1F6FEB',
-        secondaryColorHex: '#6E7681',
+  factory BrandConfig.raikadaDefault() => const BrandConfig(
+        appName: 'Raikada',
+        primaryColorHex: '#FF8C00',
+        secondaryColorHex: '#1A1A1A',
         logoUrl: '',
-        supportUrl: 'https://kaivue.com/support',
-        privacyUrl: 'https://kaivue.com/privacy',
-        termsUrl: 'https://kaivue.com/terms',
+        supportUrl: 'https://raikada.com/support',
+        privacyUrl: 'https://raikada.com/privacy',
+        termsUrl: 'https://raikada.com/terms',
       );
 
   final String appName;
@@ -60,18 +60,18 @@ class BrandConfig {
   final String privacyUrl;
   final String termsUrl;
 
-  /// Parses [primaryColorHex]. Falls back to the Kaivue default primary
+  /// Parses [primaryColorHex]. Falls back to the Raikada default primary
   /// color on malformed input rather than throwing, so the app shell can
   /// never crash on a broken tenant config.
   Color get primaryColor => parseBrandHex(
         primaryColorHex,
-        fallback: const Color(0xFF1F6FEB),
+        fallback: const Color(0xFFFF8C00),
       );
 
-  /// Parses [secondaryColorHex]. Falls back to the Kaivue default secondary.
+  /// Parses [secondaryColorHex]. Falls back to the Raikada default secondary.
   Color get secondaryColor => parseBrandHex(
         secondaryColorHex,
-        fallback: const Color(0xFF6E7681),
+        fallback: const Color(0xFF1A1A1A),
       );
 
   BrandConfig copyWith({

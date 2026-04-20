@@ -92,12 +92,12 @@ func DefaultN8NNode(baseURL string) *N8NNodeType {
 
 	return &N8NNodeType{
 		Name:        "MediaMtxNvr",
-		DisplayName: "MediaMTX NVR",
-		Description: "Interact with MediaMTX NVR cameras, clips, and alerts.",
+		DisplayName: "Raikada",
+		Description: "Interact with Raikada cameras, clips, and alerts.",
 		Version:     1,
 		Group:       []string{"transform"},
 		Defaults: N8NNodeDefaults{
-			Name:  "MediaMTX NVR",
+			Name:  "Raikada",
 			Color: "#1A82e2",
 		},
 		Credentials: []N8NCredential{

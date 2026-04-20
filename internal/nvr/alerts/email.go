@@ -23,15 +23,15 @@ type EmailSender struct {
 
 // SendTestEmail sends a test email to verify SMTP configuration.
 func (s *EmailSender) SendTestEmail(cfg *db.SMTPConfig, to string) error {
-	subject := "MediaMTX NVR - SMTP Test"
-	body := fmt.Sprintf("This is a test email from MediaMTX NVR.\n\nSent at: %s\n\nIf you received this email, your SMTP configuration is working correctly.",
+	subject := "Raikada - SMTP Test"
+	body := fmt.Sprintf("This is a test email from Raikada.\n\nSent at: %s\n\nIf you received this email, your SMTP configuration is working correctly.",
 		time.Now().UTC().Format(time.RFC3339))
 	return s.sendMail(cfg, to, subject, body)
 }
 
 // SendAlertEmail sends an email notification for an alert.
 func (s *EmailSender) SendAlertEmail(cfg *db.SMTPConfig, to string, alert *db.Alert) error {
-	subject := fmt.Sprintf("MediaMTX NVR Alert: %s [%s]", alert.RuleType, alert.Severity)
+	subject := fmt.Sprintf("Raikada Alert: %s [%s]", alert.RuleType, alert.Severity)
 	body := fmt.Sprintf("Alert: %s\n\nSeverity: %s\nType: %s\nTime: %s\n\nDetails:\n%s",
 		alert.Message, alert.Severity, alert.RuleType, alert.CreatedAt, alert.Details)
 

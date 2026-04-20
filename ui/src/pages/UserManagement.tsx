@@ -424,8 +424,8 @@ export default function UserManagement() {
 
   // Page title
   useEffect(() => {
-    document.title = 'Users — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Users — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   const showViewerTip = useMemo(() => {

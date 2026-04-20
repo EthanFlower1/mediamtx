@@ -109,25 +109,20 @@ class _LogoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final diamond = Transform.rotate(
-      angle: 0.785398, // 45 degrees
-      child: Container(
-        width: 18,
-        height: 18,
-        decoration: BoxDecoration(
-          border: Border.all(color: NvrColors.of(context).accent, width: 2),
-        ),
-      ),
+    final logo = Image.asset(
+      'assets/raikada-logo-no-bg.png',
+      width: 28,
+      height: 28,
     );
-    if (!expanded) return diamond;
+    if (!expanded) return logo;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          diamond,
+          logo,
           const SizedBox(width: 10),
           Text(
-            'NVR',
+            'RAIKADA',
             style: NvrTypography.of(context).monoSection.copyWith(
               color: NvrColors.of(context).accent,
               letterSpacing: 2,

@@ -283,8 +283,8 @@ function Toggle({ checked, onChange, label, description }: { checked: boolean; o
 export default function Settings() {
   // Page title
   useEffect(() => {
-    document.title = 'Settings — MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Settings — Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   const [activeTab, setActiveTab] = useState<TabId>('system')
@@ -324,7 +324,7 @@ export default function Settings() {
   const dbRestoreInputRef = useRef<HTMLInputElement>(null)
 
   // Branding state
-  const [brandingProductName, setBrandingProductName] = useState('MediaMTX NVR')
+  const [brandingProductName, setBrandingProductName] = useState('Raikada')
   const [brandingAccentColor, setBrandingAccentColor] = useState('#6366f1')
   const [brandingLogoURL, setBrandingLogoURL] = useState('')
   const [brandingSaving, setBrandingSaving] = useState(false)
@@ -366,7 +366,7 @@ export default function Settings() {
     apiFetch('/system/branding').then(async res => {
       if (res.ok) {
         const data = await res.json()
-        setBrandingProductName(data.product_name || 'MediaMTX NVR')
+        setBrandingProductName(data.product_name || 'Raikada')
         setBrandingAccentColor(data.accent_color || '#6366f1')
         setBrandingLogoURL(data.logo_url || '')
       }
@@ -809,7 +809,7 @@ export default function Settings() {
                   <IconServer />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg font-bold text-nvr-text-primary">MediaMTX NVR</h2>
+                  <h2 className="text-lg font-bold text-nvr-text-primary">Raikada</h2>
                   <p className="text-2xl font-mono font-semibold text-nvr-accent mt-0.5">v{systemInfo.version}</p>
                 </div>
                 <div className="text-right hidden sm:block">
@@ -1046,7 +1046,7 @@ export default function Settings() {
                 onChange={(e) => setBrandingProductName(e.target.value)}
                 maxLength={100}
                 className="w-full max-w-sm px-3 py-2 bg-nvr-bg-primary border border-nvr-border rounded-lg text-sm text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent/30 outline-none transition-colors"
-                placeholder="MediaMTX NVR"
+                placeholder="Raikada"
               />
             </div>
 

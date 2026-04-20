@@ -17,7 +17,7 @@ Map<String, dynamic> _validPayload({
   List<String> authMethods = const ['local', 'oidc'],
 }) =>
     {
-      'service': 'kaivue-directory',
+      'service': 'raikada-directory',
       'protocol_version': protocolVersion,
       'server_name': 'HQ NVR',
       'server_version': '1.4.2',

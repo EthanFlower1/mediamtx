@@ -6,7 +6,7 @@
 // testWidgets blocks.
 //
 // Prerequisites:
-//   - MediaMTX NVR server running (default: http://localhost:9997)
+//   - Raikada server running (default: http://localhost:9997)
 //   - At least one camera configured and connected
 //   - Valid admin credentials (default: admin / admin)
 //

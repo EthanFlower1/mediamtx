@@ -78,7 +78,7 @@ func TestConfFromFile(t *testing.T) {
 			RPICameraAfMode:              "continuous",
 			RPICameraAfRange:             "normal",
 			RPICameraAfSpeed:             "normal",
-			RPICameraTextOverlay:         "%Y-%m-%d %H:%M:%S - MediaMTX",
+			RPICameraTextOverlay:         "%Y-%m-%d %H:%M:%S - Raikada",
 			RPICameraCodec:               "auto",
 			RPICameraIDRPeriod:           60,
 			RPICameraBitrate:             5000000,

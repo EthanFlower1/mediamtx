@@ -1,4 +1,4 @@
-# MediaMTX NVR - Development Guidelines
+# Raikada - Development Guidelines
 
 ## Critical: Do NOT modify mediamtx.yml runtime settings
 

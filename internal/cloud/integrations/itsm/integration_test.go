@@ -67,7 +67,7 @@ func TestIntegration_PagerDutyHTTPTest(t *testing.T) {
 	// Send a trigger event.
 	result, err := client.SendAlert(ctx, Alert{
 		Summary:   "Integration test: camera offline",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityCritical,
 		DedupKey:  "int-test-cam-offline",
 		Timestamp: time.Now().UTC(),
@@ -154,7 +154,7 @@ func TestIntegration_OpsgenieHTTPTest(t *testing.T) {
 	// Send an alert.
 	result, err := client.SendAlert(ctx, Alert{
 		Summary:   "Integration test: storage full",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityError,
 		DedupKey:  "int-test-storage-full",
 		Timestamp: time.Now().UTC(),
@@ -325,7 +325,7 @@ func TestIntegration_EndToEndServiceWithHTTPTest(t *testing.T) {
 	// Test 1: Critical camera_offline alert -> should go to BOTH PD and OG.
 	results, err := svc.SendAlert(ctx, Alert{
 		Summary:   "Camera offline: parking-lot",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityCritical,
 		DedupKey:  "cam-parking-lot",
 		Timestamp: time.Now().UTC(),
@@ -341,7 +341,7 @@ func TestIntegration_EndToEndServiceWithHTTPTest(t *testing.T) {
 	// Test 2: Warning storage alert -> should go to OG only (PD rule requires critical + camera_offline).
 	results, err = svc.SendAlert(ctx, Alert{
 		Summary:   "Storage warning",
-		Source:    "mediamtx-nvr",
+		Source:    "raikada",
 		Severity:  SeverityWarning,
 		DedupKey:  "storage-warn",
 		Timestamp: time.Now().UTC(),
@@ -360,7 +360,7 @@ func TestIntegration_EndToEndServiceWithHTTPTest(t *testing.T) {
 	// Test 3: Info alert -> should match nothing (OG rule requires warning+).
 	results, err = svc.SendAlert(ctx, Alert{
 		Summary:  "Routine check",
-		Source:   "mediamtx-nvr",
+		Source:   "raikada",
 		Severity: SeverityInfo,
 	})
 	if err != nil {

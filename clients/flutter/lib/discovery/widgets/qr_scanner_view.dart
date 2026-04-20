@@ -1,7 +1,7 @@
 // KAI-296 — QrScannerView widget stub.
 //
 // Wraps `mobile_scanner` in a thin layer that calls [QrDiscovery.parsePayload]
-// on each decoded frame. The first valid Kaivue invite wins; subsequent scans
+// on each decoded frame. The first valid Raikada invite wins; subsequent scans
 // are ignored until the caller rebuilds the widget.
 //
 // On platforms where `mobile_scanner` is unavailable or camera permission is

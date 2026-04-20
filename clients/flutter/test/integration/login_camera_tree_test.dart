@@ -77,7 +77,7 @@ void main() {
       final connection2 = HomeDirectoryConnection(
         id: 'conn-2',
         kind: HomeConnectionKind.cloud,
-        endpointUrl: 'https://cloud.kaivue.io',
+        endpointUrl: 'https://cloud.raikada.io',
         displayName: 'Cloud',
         discoveryMethod: DiscoveryMethod.manual,
       );

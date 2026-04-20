@@ -159,7 +159,7 @@ func (s *httpServer) onRequest(ctx *gin.Context) {
 		var terr *auth.Error
 		if errors.As(err, &terr) {
 			if terr.AskCredentials {
-				ctx.Header("WWW-Authenticate", `Basic realm="mediamtx"`)
+				ctx.Header("WWW-Authenticate", `Basic realm="raikada"`)
 				ctx.AbortWithStatusJSON(http.StatusUnauthorized, &defs.APIError{
 					Status: defs.APIErrorStatusError,
 					Error:  "authentication error",

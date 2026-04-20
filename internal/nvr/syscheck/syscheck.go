@@ -1,4 +1,4 @@
-// Package syscheck validates system requirements for MediaMTX NVR.
+// Package syscheck validates system requirements for Raikada.
 //
 // It checks available disk space, RAM, CPU cores, required port availability,
 // and network interfaces. Results are returned as structured data suitable

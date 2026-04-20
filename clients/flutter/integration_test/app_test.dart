@@ -1,7 +1,7 @@
 // End-to-end integration tests for the NVR Flutter client.
 //
 // Prerequisites:
-//   - MediaMTX server running at http://localhost:9997
+//   - Raikada server running at http://localhost:9997
 //   - At least one camera configured (e.g. "Doorbell")
 //   - Default admin/admin credentials
 //

@@ -25,7 +25,7 @@ const (
 	// JWTIssuer is the issuer claim baked into every scoped token. Callers
 	// verifying tokens from outside the package (the API server middleware)
 	// should assert this value.
-	JWTIssuer = "mediamtx-cloud/crosstenant"
+	JWTIssuer = "raikada-cloud/crosstenant"
 
 	// DefaultTTL is the lifetime of a newly minted scoped token.
 	DefaultTTL = 15 * time.Minute

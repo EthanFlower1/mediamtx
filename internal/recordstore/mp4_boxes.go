@@ -10,7 +10,7 @@ func init() { //nolint:gochecknoinits
 	amp4.AddBoxDef(&Mtxi{}, 0)
 }
 
-// Mtxi is a MediaMTX segment info.
+// Mtxi is a Raikada segment info.
 type Mtxi struct {
 	amp4.FullBox  `mp4:"0,extend"`
 	StreamID      [16]byte `mp4:"1,size=8"`

@@ -530,7 +530,7 @@ func (w *worker) healthLoop(ctx context.Context, out chan<- error) {
 // logger at the requested level with a "stream" attribute.
 func (w *worker) pumpLogs(r io.Reader, level slog.Level) {
 	scanner := bufio.NewScanner(r)
-	// Allow long lines from verbose sidecars (MediaMTX can emit
+	// Allow long lines from verbose sidecars (Raikada can emit
 	// multi-KB RTSP DESCRIBE responses at debug level).
 	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
 	streamName := "stdout"

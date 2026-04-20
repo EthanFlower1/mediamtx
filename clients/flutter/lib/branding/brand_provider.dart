@@ -7,7 +7,7 @@
 //
 // Tests and DI should override [brandConfigLoaderProvider] in a
 // `ProviderScope` to supply an [InMemoryBrandConfigLoader]. The default
-// factory returns a loader backed by [BrandConfig.kaivueDefault] so any
+// factory returns a loader backed by [BrandConfig.raikadaDefault] so any
 // unbranded build keeps working without a network dependency.
 library;
 
@@ -27,12 +27,12 @@ final brandTenantIdProvider = Provider<String>((ref) => 'default');
 
 /// The loader used to resolve a [BrandConfig] for the current tenant.
 ///
-/// Defaults to an [InMemoryBrandConfigLoader] seeded with the Kaivue
+/// Defaults to an [InMemoryBrandConfigLoader] seeded with the Raikada
 /// default so unbranded builds and tests Just Work. Production apps
 /// override this with a [RemoteBrandConfigLoader] wired to the eventual
 /// KAI-353 asset client.
 final brandConfigLoaderProvider = Provider<BrandConfigLoader>((ref) {
-  return InMemoryBrandConfigLoader(BrandConfig.kaivueDefault());
+  return InMemoryBrandConfigLoader(BrandConfig.raikadaDefault());
 });
 
 /// The resolved [BrandConfig] for the active tenant.
@@ -48,13 +48,13 @@ final brandConfigProvider = FutureProvider<BrandConfig>((ref) async {
 /// Synchronous snapshot of the current brand config.
 ///
 /// While the async load is in-flight or has failed, this returns
-/// [BrandConfig.kaivueDefault] so callers can use it unconditionally in
+/// [BrandConfig.raikadaDefault] so callers can use it unconditionally in
 /// build methods without juggling AsyncValue states.
 final currentBrandConfigProvider = Provider<BrandConfig>((ref) {
   final async = ref.watch(brandConfigProvider);
   return async.maybeWhen(
     data: (config) => config,
-    orElse: BrandConfig.kaivueDefault,
+    orElse: BrandConfig.raikadaDefault,
   );
 });
 

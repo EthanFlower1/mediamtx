@@ -1,5 +1,5 @@
 // Package updater provides system update checking, downloading, applying,
-// and rollback functionality for the MediaMTX NVR.
+// and rollback functionality for Raikada.
 package updater
 
 import (
@@ -106,7 +106,7 @@ func (m *Manager) Check() (*CheckResult, error) {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "MediaMTX-NVR/"+m.CurrentVersion)
+	req.Header.Set("User-Agent", "Raikada/"+m.CurrentVersion)
 
 	resp, err := m.HTTPClient.Do(req)
 	if err != nil {

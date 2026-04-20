@@ -19,12 +19,12 @@ var ErrCameraNotFound = errors.New("gateway: camera not found")
 
 // RecorderEndpoint is the resolved upstream coordinate for a single
 // Recorder on the mesh. The [Service] uses it to mint a `source:` URL
-// inside the MediaMTX sidecar config and to mint per-request playback
+// inside the Raikada sidecar config and to mint per-request playback
 // URLs for clients.
 //
 // Host is the MagicDNS hostname under the recorder- prefix (matching
 // internal/recorder/mesh.RoleHostnamePrefix), e.g. "recorder-abc123".
-// MediaPort is the loopback-or-mesh port the Recorder's MediaMTX
+// MediaPort is the loopback-or-mesh port the Recorder's Raikada
 // instance listens on for the requested protocol.
 //
 // Scheme is one of "rtsp", "rtsps", "http", "https" — picked by the
@@ -35,9 +35,9 @@ type RecorderEndpoint struct {
 	Host       string
 	MediaPort  int
 	Scheme     string
-	// PathName is the MediaMTX path name on the upstream Recorder.
+	// PathName is the Raikada path name on the upstream Recorder.
 	// Typically equal to the camera id, but the resolver is free to
-	// rename (e.g. tenant prefix) so the Gateway's MediaMTX never
+	// rename (e.g. tenant prefix) so the Gateway's Raikada never
 	// has to know about the upstream layout.
 	PathName string
 }
@@ -65,8 +65,8 @@ type RecorderResolver interface {
 	Resolve(ctx context.Context, claims *streamclaims.StreamClaims) (*RecorderEndpoint, error)
 
 	// ListRecorders returns the full set of Recorder endpoints the
-	// Gateway should pre-render into its MediaMTX sidecar config at
-	// startup. The Gateway's MediaMTX has a `paths:` block populated
+	// Gateway should pre-render into its Raikada sidecar config at
+	// startup. The Gateway's Raikada has a `paths:` block populated
 	// with one entry per RecorderEndpoint so that on-demand sources
 	// can be pulled without restarting the sidecar.
 	//

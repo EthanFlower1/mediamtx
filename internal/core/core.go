@@ -107,7 +107,7 @@ var cli struct {
 	Upgrade  bool   `help:"upgrade executable to the latest version"`
 }
 
-// Core is an instance of MediaMTX.
+// Core is an instance of Raikada.
 type Core struct {
 	ctx             context.Context
 	ctxCancel       func()
@@ -148,7 +148,7 @@ type Core struct {
 // New allocates a Core.
 func New(args []string) (*Core, bool) {
 	parser, err := kong.New(&cli,
-		kong.Description("MediaMTX "+string(version)+", "+runtime.GOOS+", "+getArch()),
+		kong.Description("Raikada "+string(version)+", "+runtime.GOOS+", "+getArch()),
 		kong.UsageOnError(),
 		kong.ValueFormatter(func(value *kong.Value) string {
 			switch value.Name {
@@ -324,7 +324,7 @@ func (p *Core) dispatchRuntimeMode() error {
 
 	hooks := kairuntime.Hooks{
 		StartLegacy: func() error {
-			// No-op: existing MediaMTX/NVR boot flow in
+			// No-op: existing Raikada boot flow in
 			// createResources is the legacy code path.
 			return nil
 		},
@@ -408,7 +408,7 @@ func (p *Core) createResources(initial bool) error {
 	}
 
 	if initial {
-		p.Log(logger.Info, "MediaMTX %s, %s, %s", string(version), runtime.GOOS, getArch())
+		p.Log(logger.Info, "Raikada %s, %s, %s", string(version), runtime.GOOS, getArch())
 
 		if p.confPath != "" {
 			a, _ := filepath.Abs(p.confPath)
@@ -436,7 +436,7 @@ func (p *Core) createResources(initial bool) error {
 		}
 
 		// In Directory-only mode, the Directory boot.go handles everything.
-		// Skip the legacy MediaMTX streaming stack to avoid port conflicts.
+		// Skip the legacy Raikada streaming stack to avoid port conflicts.
 		if kairuntime.Mode(p.conf.Mode) == kairuntime.ModeDirectory {
 			p.Log(logger.Info, "running in Directory mode — streaming stack skipped")
 			select {
@@ -551,12 +551,31 @@ func (p *Core) createResources(initial bool) error {
 
 	if p.conf.NVR && p.nvr == nil {
 		p.nvr = &nvr.NVR{
-			DatabasePath: p.conf.NVRDatabase,
-			JWTSecret:    p.conf.NVRJWTSecret,
-			ConfigPath:   p.confPath,
-			APIAddress:   p.conf.APIAddress,
+			DatabasePath:    p.conf.NVRDatabase,
+			JWTSecret:       p.conf.NVRJWTSecret,
+			ConfigPath:      p.confPath,
+			APIAddress:      p.conf.APIAddress,
+			DirectoryURL:    p.conf.NVRDirectoryURL,
+			ServiceToken:    p.conf.NVRServiceToken,
+			InternalAPIAddr: p.conf.NVRInternalAPIAddr,
+			RecorderID:      p.conf.NVRRecorderID,
 		}
-		if err = p.nvr.Initialize(); err != nil {
+		// Select which building blocks to start based on runtime mode.
+		mode := p.conf.Mode.Runtime()
+		var nvrOpts nvr.StartOptions
+		switch mode {
+		case kairuntime.ModeDirectory:
+			nvrOpts = nvr.DirectoryOptions()
+		case kairuntime.ModeRecorder:
+			nvrOpts = nvr.RecorderOptions()
+		default:
+			nvrOpts = nvr.AllOptions()
+		}
+		// Enable managed mode if DirectoryURL is configured, regardless of mode.
+		if p.conf.NVRDirectoryURL != "" {
+			nvrOpts.Managed = true
+		}
+		if err = p.nvr.InitializeWithOptions(nvrOpts); err != nil {
 			return err
 		}
 

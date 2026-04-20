@@ -15,7 +15,7 @@
 //       - the request supplied an explicit is_lan=true hint AND a LAN URL
 //         is configured on the Recorder.
 //  2. Tier 2 Gateway endpoint, if Tier 2 is enabled on the recorder and
-//     a gateway URL is configured. The gateway is a MediaMTX-fronted
+//     a gateway URL is configured. The gateway is a Raikada-fronted
 //     streaming proxy on the customer's edge (KAI-261).
 //  3. Tier 3 Cloud Relay endpoint, if Tier 3 is enabled and a cloud relay
 //     URL is configured. This is the last-resort path that traverses the

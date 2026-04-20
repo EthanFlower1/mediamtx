@@ -10,12 +10,13 @@ import '../../providers/bookmarks_provider.dart';
 import '../../providers/cameras_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/recordings_provider.dart';
+import '../../providers/playback_session_provider.dart';
 import '../../providers/timeline_intensity_provider.dart';
 import '../../services/playback_service.dart';
 import '../../theme/nvr_colors.dart';
 import '../../theme/nvr_typography.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/hud/segmented_control.dart';
+
 import 'camera_player.dart';
 import 'controls/transport_bar.dart';
 import 'export_clip_dialog.dart';
@@ -56,18 +57,26 @@ class PlaybackScreen extends ConsumerStatefulWidget {
 
 class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
   PlaybackController? _controller;
-  DateTime _selectedDate = DateTime.now();
-  final Set<String> _selectedCameraIds = {};
+  late DateTime _selectedDate;
+  late final Set<String> _selectedCameraIds;
   String _lastServerUrl = '';
   bool _appliedInitialBookmark = false;
+  bool _restoredSession = false;
 
   final FocusNode _keyFocusNode = FocusNode();
 
-  /// Grid layout: 1 = 1x1, 2 = 2x2.
-  int _gridMode = 1;
-
   /// Timeline zoom preset index: {0: 24H, 1: 12H, 2: 4H, 3: 1H}.
-  int _zoomIndex = 2;
+  late int _zoomIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    final session = ref.read(playbackSessionProvider);
+    _sessionNotifier = ref.read(playbackSessionProvider.notifier);
+    _selectedDate = session.selectedDate;
+    _selectedCameraIds = {...session.selectedCameraIds};
+    _zoomIndex = session.zoomIndex;
+  }
 
   String get _dateKey =>
       '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
@@ -93,6 +102,27 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         _selectedDate = _controller!.selectedDate;
       });
     }
+  }
+
+  // Cache the notifier so we can save in dispose (where ref is unavailable).
+  PlaybackSessionNotifier? _sessionNotifier;
+
+  void _saveSession() {
+    final cameraIds = {..._selectedCameraIds};
+    final date = _selectedDate;
+    final position = _controller?.position ?? Duration.zero;
+    final zoom = _zoomIndex;
+    final notifier = _sessionNotifier;
+    if (notifier == null) return;
+    // Defer to avoid modifying provider during widget tree teardown.
+    Future(() {
+      notifier.save(
+        cameraIds: cameraIds,
+        date: date,
+        position: position,
+        zoomIndex: zoom,
+      );
+    });
   }
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────
@@ -137,9 +167,8 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
 
   @override
   void deactivate() {
-    // Pause playback when navigating away from this tab (GoRouter ShellRoute
-    // keeps the widget alive but deactivates it).
-    // Remove listener first to avoid setState during build phase.
+    // Save session and pause when navigating away.
+    _saveSession();
     _controller?.removeListener(_onControllerChanged);
     _controller?.pause();
     _controller?.addListener(_onControllerChanged);
@@ -277,6 +306,20 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
       _selectedCameraIds.add(cameras.first.id);
     }
 
+    // Restore saved position once after segments load.
+    if (!_restoredSession) {
+      _restoredSession = true;
+      final session = ref.read(playbackSessionProvider);
+      if (session.position > Duration.zero && widget.initialCameraId == null) {
+        final pos = session.position;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && pos > Duration.zero) {
+            controller.seek(pos);
+          }
+        });
+      }
+    }
+
     final pathMap = {for (final c in cameras) c.id: c.mediamtxPath};
     controller.setCameraPaths(pathMap);
     controller.setSelectedCameraIds(_selectedCameraIds.toList());
@@ -334,43 +377,28 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
         _TopBar(
           date: _formattedDate,
           onDateTap: () => _pickDate(controller),
-          gridMode: _gridMode,
-          onGridChanged: (v) => setState(() => _gridMode = v),
           onExport: () => _showExportDialog(selected, controller),
-        ),
-
-        // ── Camera selector chips ─────────────────────────────────────
-        _CameraChips(
-          cameras: cameras,
-          selectedIds: _selectedCameraIds,
-          maxCameras: 4,
-          onToggle: (id) => setState(() {
-            if (_selectedCameraIds.contains(id)) {
-              if (_selectedCameraIds.length > 1) {
-                _selectedCameraIds.remove(id);
-                // Auto-switch back to 1x1 when only one camera remains.
-                if (_selectedCameraIds.length == 1) {
-                  _gridMode = 1;
-                }
-              }
-            } else {
-              // Cap at 4 cameras for synchronized playback.
-              if (_selectedCameraIds.length >= 4) return;
-              _selectedCameraIds.add(id);
-              // Auto-switch to 2x2 grid when multiple cameras are selected.
-              if (_selectedCameraIds.length > 1) {
-                _gridMode = 2;
-              }
-            }
-          }),
         ),
 
         // ── Video area ────────────────────────────────────────────────
         Expanded(
-          child: _VideoGrid(
-            cameras: selected,
-            controller: controller,
-            columns: _gridMode == 1 ? 1 : 2,
+          child: DragTarget<String>(
+            onWillAcceptWithDetails: (details) =>
+                !_selectedCameraIds.contains(details.data),
+            onAcceptWithDetails: (details) {
+              setState(() => _selectedCameraIds.add(details.data));
+            },
+            builder: (context, candidateData, rejectedData) {
+              return _VideoGrid(
+                cameras: selected,
+                controller: controller,
+                onRemoveCamera: (camId) {
+                  if (_selectedCameraIds.length > 1) {
+                    setState(() => _selectedCameraIds.remove(camId));
+                  }
+                },
+              );
+            },
           ),
         ),
 
@@ -438,15 +466,11 @@ class _PlaybackScreenState extends ConsumerState<PlaybackScreen> {
 class _TopBar extends StatelessWidget {
   final String date;
   final VoidCallback onDateTap;
-  final int gridMode;
-  final ValueChanged<int> onGridChanged;
   final VoidCallback onExport;
 
   const _TopBar({
     required this.date,
     required this.onDateTap,
-    required this.gridMode,
-    required this.onGridChanged,
     required this.onExport,
   });
 
@@ -495,14 +519,6 @@ class _TopBar extends StatelessWidget {
           label: 'Bookmark',
           onTap: () {}, // TODO: wire add-bookmark
         ),
-        const SizedBox(width: 12),
-
-        // Grid selector
-        HudSegmentedControl<int>(
-          segments: const {1: '1\u00D71', 2: '2\u00D72'},
-          selected: gridMode,
-          onChanged: onGridChanged,
-        ),
       ],
     );
   }
@@ -533,14 +549,6 @@ class _TopBar extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             child: Icon(Icons.bookmark, size: 18, color: NvrColors.of(context).accent),
           ),
-        ),
-        const SizedBox(width: 4),
-
-        // Grid selector
-        HudSegmentedControl<int>(
-          segments: const {1: '1\u00D71', 2: '2\u00D72'},
-          selected: gridMode,
-          onChanged: onGridChanged,
         ),
       ],
     );
@@ -642,165 +650,137 @@ class _AccentButton extends StatelessWidget {
   }
 }
 
-// ── Camera Chips ─────────────────────────────────────────────────────────────
-
-class _CameraChips extends StatelessWidget {
-  final List<Camera> cameras;
-  final Set<String> selectedIds;
-  final int maxCameras;
-  final ValueChanged<String> onToggle;
-
-  const _CameraChips({
-    required this.cameras,
-    required this.selectedIds,
-    required this.onToggle,
-    this.maxCameras = 4,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final atCapacity = selectedIds.length >= maxCameras;
-    return Container(
-      color: NvrColors.of(context).bgSecondary,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: SizedBox(
-        height: 32,
-        child: Row(
-          children: [
-            // Camera count indicator
-            if (selectedIds.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: NvrColors.of(context).accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '${selectedIds.length}/$maxCameras',
-                    style: TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: NvrColors.of(context).accent,
-                    ),
-                  ),
-                ),
-              ),
-            // Camera chips
-            Expanded(
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: cameras.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final c = cameras[i];
-                  final sel = selectedIds.contains(c.id);
-                  // Dim unselected chips when at capacity.
-                  final disabled = atCapacity && !sel;
-                  return FilterChip(
-                    label: Text(c.name,
-                        style: TextStyle(
-                          color: sel
-                              ? Colors.white
-                              : disabled
-                                  ? NvrColors.of(context).textMuted
-                                  : NvrColors.of(context).textSecondary,
-                          fontSize: 11,
-                        )),
-                    selected: sel,
-                    onSelected: disabled ? null : (_) => onToggle(c.id),
-                    backgroundColor: NvrColors.of(context).bgTertiary,
-                    selectedColor: NvrColors.of(context).accent,
-                    disabledColor: NvrColors.of(context).bgTertiary,
-                    checkmarkColor: Colors.white,
-                    side: BorderSide(
-                        color: sel
-                            ? NvrColors.of(context).accent
-                            : disabled
-                                ? NvrColors.of(context).border.withValues(alpha: 0.5)
-                                : NvrColors.of(context).border),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Video Grid ───────────────────────────────────────────────────────────────
 
 class _VideoGrid extends StatelessWidget {
   final List<Camera> cameras;
   final PlaybackController controller;
-  final int columns;
+  final void Function(String cameraId) onRemoveCamera;
 
   const _VideoGrid({
     required this.cameras,
     required this.controller,
-    required this.columns,
+    required this.onRemoveCamera,
   });
+
+  void _showTileMenu(BuildContext context, Offset globalPosition, Camera cam) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: NvrColors.of(context).bgSecondary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: NvrColors.of(context).border),
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'remove',
+          height: 32,
+          child: Row(
+            children: [
+              Icon(Icons.close, size: 14, color: NvrColors.of(context).danger),
+              const SizedBox(width: 8),
+              Text('Remove', style: TextStyle(fontSize: 12, color: NvrColors.of(context).danger)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'remove') onRemoveCamera(cam.id);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     if (cameras.isEmpty) {
       return Center(
-        child: Text('Select a camera',
+        child: Text('Drag a camera here to start',
             style: TextStyle(color: NvrColors.of(context).textMuted)),
       );
     }
 
-    // Single camera — fill the space.
-    if (columns == 1 && cameras.length == 1) {
-      return Padding(
-        padding: const EdgeInsets.all(8),
-        child: CameraPlayer(
-          key: ValueKey('player-${cameras.first.id}'),
-          cameraId: cameras.first.id,
-          cameraName: cameras.first.name,
-          controller: controller,
-        ),
-      );
-    }
-
-    // Multi-camera grid.
-    final rows = (cameras.length / columns).ceil();
+    const gap = 4.0;
+    const pad = 8.0;
+    final n = cameras.length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final totalGapH = (columns - 1) * 4.0;
-        final totalGapV = (rows - 1) * 4.0;
-        final cellWidth = (constraints.maxWidth - totalGapH - 16) / columns;
-        final cellHeight = (constraints.maxHeight - totalGapV - 16) / rows;
-        final h = (cellWidth / 16 * 9).clamp(0.0, cellHeight);
-        final w = h * 16 / 9;
+        final availW = constraints.maxWidth - pad * 2;
+        final availH = constraints.maxHeight - pad * 2;
+
+        // Find the column count that maximizes tile size at 16:9.
+        int bestCols = 1;
+        double bestTileW = 0;
+        for (int cols = 1; cols <= n; cols++) {
+          final numRows = (n / cols).ceil();
+          final tileW = (availW - gap * (cols - 1)) / cols;
+          final tileH = tileW * 9 / 16;
+          final totalH = tileH * numRows + gap * (numRows - 1);
+          if (totalH <= availH && tileW > bestTileW) {
+            bestTileW = tileW;
+            bestCols = cols;
+          }
+        }
+        for (int cols = 1; cols <= n; cols++) {
+          final numRows = (n / cols).ceil();
+          final tileH = (availH - gap * (numRows - 1)) / numRows;
+          final tileW = tileH * 16 / 9;
+          final totalW = tileW * cols + gap * (cols - 1);
+          if (totalW <= availW && tileW > bestTileW) {
+            bestTileW = tileW;
+            bestCols = cols;
+          }
+        }
+
+        final numRows = (n / bestCols).ceil();
+        final tileW = bestTileW;
+        final tileH = tileW * 9 / 16;
+
+        int idx = 0;
+        final rowWidgets = <Widget>[];
+        for (int r = 0; r < numRows; r++) {
+          final tilesInRow = (r < numRows - 1) ? bestCols : n - idx;
+          final rowChildren = <Widget>[];
+          for (int c = 0; c < tilesInRow; c++) {
+            if (c > 0) rowChildren.add(const SizedBox(width: gap));
+            final cam = cameras[idx];
+            rowChildren.add(
+              SizedBox(
+                width: tileW,
+                height: tileH,
+                child: GestureDetector(
+                  onSecondaryTapDown: (details) =>
+                      _showTileMenu(context, details.globalPosition, cam),
+                  onLongPressStart: (details) =>
+                      _showTileMenu(context, details.globalPosition, cam),
+                  child: CameraPlayer(
+                    key: ValueKey('player-${cam.id}'),
+                    cameraId: cam.id,
+                    cameraName: cam.name,
+                    controller: controller,
+                  ),
+                ),
+              ),
+            );
+            idx++;
+          }
+          if (r > 0) rowWidgets.add(const SizedBox(height: gap));
+          rowWidgets.add(Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: rowChildren,
+          ));
+        }
 
         return Center(
           child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                for (final cam in cameras)
-                  SizedBox(
-                    width: w,
-                    height: h,
-                    child: CameraPlayer(
-                      key: ValueKey('player-${cam.id}'),
-                      cameraId: cam.id,
-                      cameraName: cam.name,
-                      controller: controller,
-                    ),
-                  ),
-              ],
+            padding: const EdgeInsets.all(pad),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: rowWidgets,
             ),
           ),
         );

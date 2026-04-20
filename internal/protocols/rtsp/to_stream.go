@@ -28,7 +28,7 @@ type rtspSource interface {
 	OnPacketRTP(*description.Media, format.Format, gortsplib.OnPacketRTPFunc)
 }
 
-// ToStream maps a RTSP stream to a MediaMTX stream.
+// ToStream maps a RTSP stream to a Raikada stream.
 func ToStream(
 	source rtspSource,
 	medias []*description.Media,

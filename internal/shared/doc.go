@@ -17,7 +17,7 @@
 //     per-site step-ca. Listeners use tls.Config.GetCertificate so certs
 //     rotate without restarts.
 //   - shared/sidecar    — supervisor for managed sidecar processes
-//     (Zitadel, MediaMTX). Sidecars bind to localhost or unix sockets only.
+//     (Zitadel, Raikada). Sidecars bind to localhost or unix sockets only.
 //   - shared/tsnetnode  — embedded tsnet/Headscale mesh node helpers used by
 //     every component for inter-role traffic over mTLS.
 //   - shared/errors     — stable error codes (per KAI-424) emitted across

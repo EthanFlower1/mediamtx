@@ -9,18 +9,18 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
 )
 
-// PathConfig is the Recorder-side representation of a single MediaMTX
-// path entry. It is intentionally a small subset of MediaMTX's full
+// PathConfig is the Recorder-side representation of a single Raikada
+// path entry. It is intentionally a small subset of Raikada's full
 // path schema — only the fields the Recorder actually drives.
 //
-// The field names match the MediaMTX HTTP API JSON shape so a
+// The field names match the Raikada HTTP API JSON shape so a
 // PathConfig can be marshalled directly into a
 // `/v3/config/paths/replace/{name}` request body. Fields the Recorder
 // doesn't manage (encryption, fallbacks, custom hooks, ...) are simply
-// absent and will be left at MediaMTX's defaults.
+// absent and will be left at Raikada's defaults.
 type PathConfig struct {
-	// Name is the MediaMTX path name. It is stored separately
-	// (not in the JSON body) because MediaMTX uses it as the URL
+	// Name is the Raikada path name. It is stored separately
+	// (not in the JSON body) because Raikada uses it as the URL
 	// segment when applying a single path.
 	Name string `json:"-"`
 
@@ -28,25 +28,25 @@ type PathConfig struct {
 	// cameras this is the rtsp:// URL with credentials embedded.
 	Source string `json:"source"`
 
-	// SourceOnDemand asks MediaMTX to only dial the upstream when
+	// SourceOnDemand asks Raikada to only dial the upstream when
 	// at least one reader is connected. KAI-259 sets this to true
 	// for every camera so an idle Recorder doesn't hammer cameras.
 	SourceOnDemand bool `json:"sourceOnDemand"`
 
-	// SourceOnDemandStartTimeout bounds how long MediaMTX waits
+	// SourceOnDemandStartTimeout bounds how long Raikada waits
 	// for the first frame after dialing on demand.
 	SourceOnDemandStartTimeout string `json:"sourceOnDemandStartTimeout,omitempty"`
 
-	// SourceOnDemandCloseAfter is how long MediaMTX keeps the
+	// SourceOnDemandCloseAfter is how long Raikada keeps the
 	// upstream open after the last reader disconnects.
 	SourceOnDemandCloseAfter string `json:"sourceOnDemandCloseAfter,omitempty"`
 
-	// Record enables MediaMTX's built-in recorder for this path.
+	// Record enables Raikada's built-in recorder for this path.
 	Record bool `json:"record"`
 
 	// RecordPath, RecordFormat, RecordSegmentDuration, RecordPartDuration
 	// are the recording knobs the Recorder exposes today. Empty string /
-	// zero means "fall back to the MediaMTX-side default".
+	// zero means "fall back to the Raikada-side default".
 	RecordPath            string `json:"recordPath,omitempty"`
 	RecordFormat          string `json:"recordFormat,omitempty"`
 	RecordSegmentDuration string `json:"recordSegmentDuration,omitempty"`
@@ -54,7 +54,7 @@ type PathConfig struct {
 	RecordDeleteAfter     string `json:"recordDeleteAfter,omitempty"`
 }
 
-// PathConfigSet is the full set of paths the supervisor wants MediaMTX
+// PathConfigSet is the full set of paths the supervisor wants Raikada
 // to be running, keyed by path name and sorted for deterministic diffs.
 type PathConfigSet struct {
 	Paths []PathConfig
@@ -70,16 +70,16 @@ func (p PathConfigSet) Names() []string {
 	return out
 }
 
-// RenderOptions controls how cameras are turned into MediaMTX path
+// RenderOptions controls how cameras are turned into Raikada path
 // entries. All fields are optional; sensible Recorder defaults are
 // applied via withDefaults.
 type RenderOptions struct {
 	// PathPrefix is prepended to every camera_id to form the
-	// MediaMTX path name. Default: "cam_".
+	// Raikada path name. Default: "cam_".
 	PathPrefix string
 
 	// RecordPathTemplate is the value written to each path's
-	// recordPath. MediaMTX expands its own %path / %Y / %m / %d
+	// recordPath. Raikada expands its own %path / %Y / %m / %d
 	// placeholders. Default:
 	//   "./recordings/%path/%Y-%m-%d_%H-%M-%S-%f"
 	RecordPathTemplate string

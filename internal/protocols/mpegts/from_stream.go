@@ -28,7 +28,7 @@ func multiplyAndDivide(v, m, d int64) int64 {
 	return (secs*m + dec*m/d)
 }
 
-// FromStream maps a MediaMTX stream to a MPEG-TS writer.
+// FromStream maps a Raikada stream to a MPEG-TS writer.
 func FromStream(
 	desc *description.Session,
 	r *stream.Reader,

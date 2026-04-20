@@ -75,7 +75,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
           />
         </svg>
-        <span className="text-lg font-semibold text-white tracking-wide">MediaMTX NVR</span>
+        <span className="text-lg font-semibold text-white tracking-wide">Raikada</span>
         <span className="text-sm text-nvr-text-muted">Loading...</span>
       </div>
     )
@@ -303,7 +303,7 @@ interface Branding {
 
 function useBranding() {
   const [branding, setBranding] = useState<Branding>({
-    product_name: 'MediaMTX NVR',
+    product_name: 'Raikada',
     accent_color: '#6366f1',
     logo_url: '',
   })

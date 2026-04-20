@@ -1084,8 +1084,8 @@ export default function Setup() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    document.title = 'Setup - MediaMTX NVR'
-    return () => { document.title = 'MediaMTX NVR' }
+    document.title = 'Setup - Raikada'
+    return () => { document.title = 'Raikada' }
   }, [])
 
   const handleComplete = () => {
@@ -1102,7 +1102,7 @@ export default function Setup() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Welcome to MediaMTX NVR</h1>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Welcome to Raikada</h1>
           <p className="text-sm text-nvr-text-secondary mt-2">
             {step === 1 && 'Create your admin account to get started.'}
             {step === 2 && 'Review your storage configuration.'}
@@ -1144,7 +1144,7 @@ export default function Setup() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-nvr-text-muted mt-6">Powered by MediaMTX</p>
+        <p className="text-center text-xs text-nvr-text-muted mt-6">Powered by Raikada</p>
       </div>
     </div>
   )

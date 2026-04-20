@@ -179,7 +179,7 @@ void main() {
 
     test('StreamEndpoint.connectionLabel reflects type', () {
       const ep = StreamEndpoint(
-        url: 'https://relay.kaivue.cloud/cam/whep',
+        url: 'https://relay.raikada.cloud/cam/whep',
         transport: StreamTransport.webrtc,
         connectionType: StreamConnectionType.managedRelay,
         priority: 2,

@@ -13,7 +13,7 @@ func TestStreamIDUnmarshal(t *testing.T) {
 		dec  streamID
 	}{
 		{
-			"mediamtx syntax 1",
+			"raikada syntax 1",
 			"read:mypath",
 			streamID{
 				mode: streamIDModeRead,
@@ -21,7 +21,7 @@ func TestStreamIDUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			"mediamtx syntax 2",
+			"raikada syntax 2",
 			"publish:mypath:myquery",
 			streamID{
 				mode:  streamIDModePublish,
@@ -30,7 +30,7 @@ func TestStreamIDUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			"mediamtx syntax 3",
+			"raikada syntax 3",
 			"read:mypath:myuser:mypass:myquery",
 			streamID{
 				mode:  streamIDModeRead,

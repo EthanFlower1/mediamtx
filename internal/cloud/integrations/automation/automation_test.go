@@ -294,7 +294,7 @@ func TestDispatch_NoSubscribers(t *testing.T) {
 
 func TestDefaultZapierApp(t *testing.T) {
 	app := DefaultZapierApp("https://nvr.example.com")
-	if app.Name != "MediaMTX NVR" {
+	if app.Name != "Raikada" {
 		t.Errorf("unexpected name %q", app.Name)
 	}
 	if app.Auth.Type != "oauth2" {
@@ -314,7 +314,7 @@ func TestDefaultZapierApp(t *testing.T) {
 
 func TestDefaultMakeApp(t *testing.T) {
 	app := DefaultMakeApp("https://nvr.example.com")
-	if app.Label != "MediaMTX NVR" {
+	if app.Label != "Raikada" {
 		t.Errorf("unexpected label %q", app.Label)
 	}
 	if app.Connection.Type != "oauth2" {
@@ -331,7 +331,7 @@ func TestDefaultMakeApp(t *testing.T) {
 
 func TestDefaultN8NNode(t *testing.T) {
 	node := DefaultN8NNode("https://nvr.example.com")
-	if node.DisplayName != "MediaMTX NVR" {
+	if node.DisplayName != "Raikada" {
 		t.Errorf("unexpected display name %q", node.DisplayName)
 	}
 	if len(node.Credentials) != 1 {

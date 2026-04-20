@@ -21,7 +21,7 @@ var errNoSupportedCodecs = errors.New(
 	"the stream doesn't contain any supported codec, which are currently " +
 		"H265, H264, MPEG-4 Video, MPEG-1/2 Video, Opus, MPEG-4 Audio, MPEG-1 Audio, AC-3")
 
-// ToStream maps a MPEG-TS stream to a MediaMTX stream.
+// ToStream maps a MPEG-TS stream to a Raikada stream.
 func ToStream(
 	r *EnhancedReader,
 	subStream **stream.SubStream,

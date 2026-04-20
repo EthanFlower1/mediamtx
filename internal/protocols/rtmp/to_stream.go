@@ -31,7 +31,7 @@ func fourCCToString(c message.FourCC) string {
 	return string([]byte{byte(c >> 24), byte(c >> 16), byte(c >> 8), byte(c)})
 }
 
-// ToStream maps a RTMP stream to a MediaMTX stream.
+// ToStream maps a RTMP stream to a Raikada stream.
 func ToStream(
 	r *gortmplib.Reader,
 	subStream **stream.SubStream,

@@ -15,7 +15,7 @@ import 'sso_authorizer.dart';
 /// Real authorizer — delegates to `FlutterAppAuth.authorize` with PKCE.
 ///
 /// The redirect URI is the custom scheme documented in
-/// `clients/flutter/lib/auth/README.md`: `kaivue://auth/callback`. iOS and
+/// `clients/flutter/lib/auth/README.md`: `raikada://auth/callback`. iOS and
 /// Android must declare matching handlers (Info.plist CFBundleURLTypes on
 /// iOS; intent-filter on Android) — see README for the exact snippets.
 class FlutterAppAuthAuthorizer implements SsoAuthorizer {

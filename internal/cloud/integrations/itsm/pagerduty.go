@@ -143,10 +143,10 @@ func (c *PagerDutyClient) ResolveAlert(ctx context.Context, dedupKey string) (Al
 
 func (c *PagerDutyClient) TestConnection(ctx context.Context) error {
 	alert := Alert{
-		Summary:   "MediaMTX NVR integration test",
-		Source:    "mediamtx-itsm-test",
+		Summary:   "Raikada integration test",
+		Source:    "raikada-itsm-test",
 		Severity:  SeverityInfo,
-		DedupKey:  "mediamtx-test-connection",
+		DedupKey:  "raikada-test-connection",
 		Timestamp: time.Now().UTC(),
 		Details:   map[string]string{"type": "connection_test"},
 	}

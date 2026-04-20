@@ -4,11 +4,11 @@
 // minting, bookmark creation, and clip export. The real transport binding
 // is blocked on proto-first RPCs (see PR body — proto asks):
 //
-//   * kaivue.playback.v1.LoadTimelineSpan
-//   * kaivue.playback.v1.MintPlaybackUrl
-//   * kaivue.playback.v1.CreateBookmark
-//   * kaivue.playback.v1.ExportClip
-//   * kaivue.playback.v1.AiMarkerStream  (WS push, optional for v1)
+//   * raikada.playback.v1.LoadTimelineSpan
+//   * raikada.playback.v1.MintPlaybackUrl
+//   * raikada.playback.v1.CreateBookmark
+//   * raikada.playback.v1.ExportClip
+//   * raikada.playback.v1.AiMarkerStream  (WS push, optional for v1)
 //
 // Until those protos exist this file ships:
 //   * `PlaybackClient` — the interface.

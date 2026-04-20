@@ -42,7 +42,7 @@ class _FakeStreamsApi implements StreamsApi {
                 estimatedLatencyMs: 1500,
               ),
               StreamEndpoint(
-                url: 'https://relay.kaivue.cloud/cam-1/whep',
+                url: 'https://relay.raikada.cloud/cam-1/whep',
                 transport: StreamTransport.webrtc,
                 connectionType: StreamConnectionType.managedRelay,
                 priority: 2,

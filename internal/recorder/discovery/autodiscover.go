@@ -97,7 +97,7 @@ func (a *AutoDiscoverer) Run(ctx context.Context, opts RunOptions) (string, erro
 	info, err := Listen(opts.DiscoverTimeout, nil, a.log)
 	if err != nil {
 		if errors.Is(err, ErrTimeout) {
-			return "", fmt.Errorf("no Directory found on LAN within %s — run 'mediamtx-pair <token>' instead", opts.DiscoverTimeout)
+			return "", fmt.Errorf("no Directory found on LAN within %s — run 'raikada-pair <token>' instead", opts.DiscoverTimeout)
 		}
 		return "", fmt.Errorf("mDNS listen: %w", err)
 	}

@@ -22,6 +22,8 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/mesh/headscale"
 	"github.com/bluenviron/mediamtx/internal/directory/pairing"
 	"github.com/bluenviron/mediamtx/internal/directory/pki/stepca"
+	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
+	"github.com/bluenviron/mediamtx/internal/directory/recorderapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
 	"github.com/bluenviron/mediamtx/internal/directory/timeline"
@@ -54,6 +56,11 @@ type BootConfig struct {
 	// MDNSInstanceName overrides the mDNS service instance name.
 	// Empty defaults to the system hostname.
 	MDNSInstanceName string
+
+	// RecorderServiceToken is the shared bearer token the Directory uses
+	// when querying recorders' internal APIs. Must match the nvrServiceToken
+	// configured on the recorders.
+	RecorderServiceToken string
 
 	// DirectoryEndpoint is the base URL Recorders use to reach this
 	// Directory, e.g. "https://dir.acme.local:8443". When empty the
@@ -262,12 +269,25 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		return nil, fmt.Errorf("directory: recordercontrol: %w", err)
 	}
 
+	// Recorder API (registration, heartbeats, camera CRUD, fan-out queries)
+	recorderStore := recorderapi.NewStore(ddb.DB)
+	recorderHandlers := &recorderapi.Handlers{
+		Store:    recorderStore,
+		RCStore:  rcStore,
+		EventBus: eventBus,
+		Logger:   log.With(slog.String("component", "recorderapi")),
+	}
+	fanoutSvc := &recorderapi.FanoutService{
+		Store:              recorderStore,
+		Logger:             log.With(slog.String("component", "fanout")),
+		SharedServiceToken: cfg.RecorderServiceToken,
+	}
+
+	// Recorder auth — tries bearer token first, falls back to X-Recorder-ID header.
+	recorderAuth := recorderapi.BearerOrHeaderAuth(recorderStore)
+
 	// Ingest
 	ingestStore := ingest.NewStore(ddb.DB)
-	recorderAuth := func(r *http.Request) (string, bool) {
-		id := r.Header.Get("X-Recorder-ID")
-		return id, id != ""
-	}
 	ingestLog := log.With(slog.String("component", "ingest"))
 
 	// Streams
@@ -278,8 +298,8 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	segmentStore := &dbSegmentStore{db: ddb.DB}
 	assembler := timeline.NewAssembler(segmentStore)
 
-	// Recorder store (for check-in)
-	recorderStore := pairing.NewRecorderStore(ddb)
+	// Recorder store (for pairing check-in)
+	pairingRecorderStore := pairing.NewRecorderStore(ddb)
 
 	// Pending store (for pending pairing requests)
 	pendingStore := pairing.NewPendingStore(ddb)
@@ -306,7 +326,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		uid := r.Header.Get("X-User-ID")
 		return pairing.UserID(uid), uid != ""
 	}))
-	mux.HandleFunc("/api/v1/pairing/check-in", pairing.CheckInHandler(pairingSvc, recorderStore, nil, log))
+	mux.HandleFunc("/api/v1/pairing/check-in", pairing.CheckInHandler(pairingSvc, pairingRecorderStore, nil, log))
 	mux.HandleFunc("/api/v1/pairing/pending", pairing.ListPendingHandler(pendingStore))
 
 	// Recorder control — streaming endpoint
@@ -325,6 +345,45 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 
 	// Timeline
 	mux.HandleFunc("/api/v1/timeline", timeline.Handler(assembler))
+
+	// Recorder management API — registration, heartbeats, camera CRUD
+	mux.HandleFunc("/api/v1/recorders/register", recorderHandlers.RegisterHandler())
+	mux.HandleFunc("/api/v1/recorders/heartbeat", recorderHandlers.HeartbeatHandler())
+	mux.HandleFunc("/api/v1/recorders", recorderHandlers.ListRecordersHandler())
+	mux.HandleFunc("/api/v1/cameras", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			recorderHandlers.CreateCameraHandler()(w, r)
+		case http.MethodGet:
+			recorderHandlers.ListCamerasHandler()(w, r)
+		case http.MethodDelete:
+			recorderHandlers.DeleteCameraHandler()(w, r)
+		default:
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Fan-out query endpoints — query all recorders and merge results
+	mux.HandleFunc("/api/v1/query/recordings", fanoutSvc.FanoutRecordingsHandler())
+	mux.HandleFunc("/api/v1/query/events", fanoutSvc.FanoutEventsHandler())
+	mux.HandleFunc("/api/v1/query/timeline", fanoutSvc.FanoutTimelineHandler())
+	mux.HandleFunc("/api/v1/query/health", fanoutSvc.FanoutHealthHandler())
+
+	// Admin API — users, roles, schedules, retention, alerts, audit, exports
+	adminStore := adminapi.NewStore(ddb.DB)
+	adminHandlers := &adminapi.Handlers{
+		Store:  adminStore,
+		Logger: log.With(slog.String("component", "adminapi")),
+	}
+	mux.HandleFunc("/api/v1/admin/users", adminHandlers.UsersHandler())
+	mux.HandleFunc("/api/v1/admin/users/by-id", adminHandlers.UserByIDHandler())
+	mux.HandleFunc("/api/v1/admin/roles", adminHandlers.RolesHandler())
+	mux.HandleFunc("/api/v1/admin/schedules", adminHandlers.SchedulesHandler())
+	mux.HandleFunc("/api/v1/admin/retention", adminHandlers.RetentionHandler())
+	mux.HandleFunc("/api/v1/admin/alert-rules", adminHandlers.AlertRulesHandler())
+	mux.HandleFunc("/api/v1/admin/audit", adminHandlers.AuditHandler())
+	mux.HandleFunc("/api/v1/admin/exports", adminHandlers.ExportJobsHandler())
+	mux.HandleFunc("/api/v1/admin/exports/by-id", adminHandlers.ExportJobByIDHandler())
 
 	// Web UI — SPA fallback at /admin
 	mux.Handle("/admin/", webui.Handler("/admin"))
@@ -529,9 +588,11 @@ func (b *Booter) Boot(ctx context.Context, cfg any, logger *slog.Logger) error {
 	}
 
 	bootCfg := BootConfig{
-		ListenAddr: c.APIAddress,
-		MasterKey:  masterKey,
-		Logger:     logger,
+		DataDir:              c.NVRDirectoryDataDir,
+		ListenAddr:           c.APIAddress,
+		MasterKey:            masterKey,
+		RecorderServiceToken: c.NVRServiceToken,
+		Logger:               logger,
 	}
 
 	srv, err := Boot(ctx, bootCfg)

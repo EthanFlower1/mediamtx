@@ -92,7 +92,7 @@ type HardwareHealth struct {
 	Tier        string   `json:"tier"`
 }
 
-// SidecarStatus reports health of companion services (e.g. Zitadel, MediaMTX).
+// SidecarStatus reports health of companion services (e.g. Zitadel, Raikada).
 type SidecarStatus struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"` // "running", "stopped", "unknown"

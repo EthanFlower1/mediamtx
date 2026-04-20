@@ -79,7 +79,7 @@ void main() {
   group('QrDiscovery.parsePayload', () {
     test('happy path', () {
       final payload = jsonEncode({
-        'type': 'kaivue-directory',
+        'type': 'raikada-directory',
         'url': 'https://nvr.acme.local',
         'fingerprint': 'sha256/abc',
         'display_name': 'HQ',
@@ -92,7 +92,7 @@ void main() {
 
     test('candidate wraps the payload', () {
       final payload = jsonEncode({
-        'type': 'kaivue-directory',
+        'type': 'raikada-directory',
         'url': 'https://nvr.acme.local',
         'display_name': 'HQ',
       });
@@ -115,7 +115,7 @@ void main() {
     });
 
     test('missing url throws FormatException', () {
-      final payload = jsonEncode({'type': 'kaivue-directory'});
+      final payload = jsonEncode({'type': 'raikada-directory'});
       expect(() => QrDiscovery.parsePayload(payload), throwsFormatException);
     });
   });

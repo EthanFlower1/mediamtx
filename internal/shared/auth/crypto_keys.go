@@ -1,6 +1,4 @@
-// Package crypto provides RSA key generation, HKDF key derivation,
-// and JWKS formatting for the NVR subsystem.
-package crypto
+package auth
 
 import (
 	"crypto/rand"

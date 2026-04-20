@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
+	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 )
 
 // TLSHandler provides HTTP endpoints for TLS certificate management.

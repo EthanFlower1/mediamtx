@@ -30,16 +30,16 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/backup"
 	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
-	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
+	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
 	"github.com/bluenviron/mediamtx/internal/nvr/managed"
-	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
+	"github.com/bluenviron/mediamtx/internal/shared/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/recovery"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
-	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/shared/updater"
 	"github.com/bluenviron/mediamtx/internal/nvr/webhook"
 	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
 )
@@ -197,7 +197,7 @@ func (n *NVR) InitializeWithOptions(opts StartOptions) error {
 	// --- Metrics: system metrics collector ----------------------------------
 
 	if opts.Metrics {
-		n.metricsCollector = metrics.New(360, 10*time.Second)
+		n.metricsCollector = metrics.NewCollector(360, 10*time.Second)
 		n.metricsCollector.Start()
 	}
 

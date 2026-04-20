@@ -13,7 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	nvrCrypto "github.com/bluenviron/mediamtx/internal/nvr/crypto"
+	nvrCrypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 )

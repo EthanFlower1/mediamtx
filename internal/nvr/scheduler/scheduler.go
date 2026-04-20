@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/crypto"
+	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
 	"github.com/bluenviron/mediamtx/internal/nvr/thumbnail"

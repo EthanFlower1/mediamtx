@@ -35,9 +35,9 @@ type Collector struct {
 	prevIdle  uint64 // previous /proc/stat idle jiffies
 }
 
-// New creates a Collector that retains up to maxSize samples, taken every
-// interval. Call Start to begin collection.
-func New(maxSize int, interval time.Duration) *Collector {
+// NewCollector creates a Collector that retains up to maxSize samples, taken
+// every interval. Call Start to begin collection.
+func NewCollector(maxSize int, interval time.Duration) *Collector {
 	return &Collector{
 		samples:  make([]Sample, maxSize),
 		maxSize:  maxSize,

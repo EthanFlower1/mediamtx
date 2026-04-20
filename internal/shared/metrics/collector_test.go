@@ -9,7 +9,7 @@ import (
 // that timestamps are monotonically increasing, and that Current matches the
 // last entry returned by History.
 func TestCollectorBasic(t *testing.T) {
-	c := New(10, 100*time.Millisecond)
+	c := NewCollector(10, 100*time.Millisecond)
 	c.Start()
 	time.Sleep(350 * time.Millisecond)
 	c.Stop()
@@ -37,7 +37,7 @@ func TestCollectorBasic(t *testing.T) {
 // wraps and always returns exactly maxSize samples in oldest-first order.
 func TestCollectorRingBufferWrap(t *testing.T) {
 	const maxSize = 5
-	c := New(maxSize, 50*time.Millisecond)
+	c := NewCollector(maxSize, 50*time.Millisecond)
 	c.Start()
 	time.Sleep(400 * time.Millisecond) // ~8 samples collected
 	c.Stop()
@@ -59,7 +59,7 @@ func TestCollectorRingBufferWrap(t *testing.T) {
 // TestCollectorEmpty verifies the zero state: History returns an empty slice
 // and Current returns a zero-value Sample when no data has been collected.
 func TestCollectorEmpty(t *testing.T) {
-	c := New(10, 1*time.Hour) // interval so long it will never tick in tests
+	c := NewCollector(10, 1*time.Hour) // interval so long it will never tick in tests
 
 	history := c.History()
 	if len(history) != 0 {

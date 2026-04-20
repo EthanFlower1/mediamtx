@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/logmgr"
+	"github.com/bluenviron/mediamtx/internal/shared/logmgr"
 )
 
 // LogConfigHandler handles GET/PUT /system/logging/config for reading and

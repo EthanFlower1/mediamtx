@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/diagnostics"
+	"github.com/bluenviron/mediamtx/internal/shared/diagnostics"
 )
 
 // DiagnosticsHandler exposes read-only remote diagnostics endpoints for the

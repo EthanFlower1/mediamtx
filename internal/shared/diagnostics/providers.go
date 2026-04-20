@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
-	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
+	"github.com/bluenviron/mediamtx/internal/shared/metrics"
+	"github.com/bluenviron/mediamtx/internal/shared/syscheck"
 )
 
 // ----- File-based Log Provider -----

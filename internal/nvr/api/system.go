@@ -15,10 +15,10 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/hwaccel"
-	"github.com/bluenviron/mediamtx/internal/nvr/metrics"
+	"github.com/bluenviron/mediamtx/internal/shared/hwaccel"
+	"github.com/bluenviron/mediamtx/internal/shared/metrics"
 	"github.com/bluenviron/mediamtx/internal/nvr/storage"
-	"github.com/bluenviron/mediamtx/internal/nvr/syscheck"
+	"github.com/bluenviron/mediamtx/internal/shared/syscheck"
 )
 
 // SetupChecker reports whether initial setup is required.

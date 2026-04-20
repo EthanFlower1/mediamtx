@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/logmgr"
+	"github.com/bluenviron/mediamtx/internal/shared/logmgr"
 )
 
 func setupLogConfigTest(t *testing.T) (*gin.Engine, *logmgr.Manager) {

@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/updater"
+	"github.com/bluenviron/mediamtx/internal/shared/updater"
 )
 
 // UpdateHandler implements HTTP endpoints for system update management.

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS notification_read_state; DROP TABLE IF EXISTS notifications; DROP TABLE IF EXISTS escalation_rules; DROP TABLE IF EXISTS notification_quiet_hours; DROP TABLE IF EXISTS notification_preferences;

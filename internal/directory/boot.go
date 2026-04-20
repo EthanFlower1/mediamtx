@@ -15,20 +15,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/bluenviron/mediamtx/internal/conf"
+	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
+	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 	"github.com/bluenviron/mediamtx/internal/directory/ingest"
 	"github.com/bluenviron/mediamtx/internal/directory/mdns"
 	"github.com/bluenviron/mediamtx/internal/directory/mesh/headscale"
 	"github.com/bluenviron/mediamtx/internal/directory/pairing"
 	"github.com/bluenviron/mediamtx/internal/directory/pki/stepca"
-	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recorderapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
 	"github.com/bluenviron/mediamtx/internal/directory/timeline"
 	"github.com/bluenviron/mediamtx/internal/directory/webui"
+	nvrdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
+	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
 )
 
 // BootConfig holds the parameters for booting the Directory subsystem.
@@ -66,6 +71,11 @@ type BootConfig struct {
 	// Directory, e.g. "https://dir.acme.local:8443". When empty the
 	// boot sequence constructs one from ListenAddr.
 	DirectoryEndpoint string
+
+	// NVRDBPath is the path to the NVR SQLite database used by the new
+	// camera and system API handlers. Defaults to <DataDir>/nvr.db.
+	// When empty the handlers are not registered.
+	NVRDBPath string
 }
 
 func (c *BootConfig) withDefaults() {
@@ -95,6 +105,7 @@ func (c *BootConfig) withDefaults() {
 // clean Shutdown method.
 type DirectoryServer struct {
 	DB          *directorydb.DB
+	NVRDB       *nvrdb.DB
 	CA          *stepca.ClusterCA
 	Headscale   *headscale.Coordinator
 	PairingSvc  *pairing.Service
@@ -126,6 +137,12 @@ func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	if ds.CA != nil {
 		if err := ds.CA.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Sprintf("pki: %v", err))
+		}
+	}
+
+	if ds.NVRDB != nil {
+		if err := ds.NVRDB.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("nvrdb: %v", err))
 		}
 	}
 
@@ -173,6 +190,24 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		return nil, fmt.Errorf("directory: open db: %w", err)
 	}
 	srv.DB = ddb
+
+	// ---------------------------------------------------------------
+	// 1b. Open NVR SQLite DB (optional — for cameraapi / systemapi)
+	// ---------------------------------------------------------------
+	nvrDBPath := cfg.NVRDBPath
+	if nvrDBPath == "" {
+		nvrDBPath = filepath.Join(cfg.DataDir, "nvr.db")
+	}
+	log.Info("directory: opening NVR database", "path", nvrDBPath)
+	nDB, nvrDBErr := nvrdb.Open(nvrDBPath)
+	if nvrDBErr != nil {
+		// Non-fatal: log and continue without the new camera/system API.
+		log.Warn("directory: failed to open NVR database; cameraapi/systemapi will not be registered",
+			"error", nvrDBErr)
+		nDB = nil
+	} else {
+		srv.NVRDB = nDB
+	}
 
 	// ---------------------------------------------------------------
 	// 2. Bootstrap PKI — embedded step-ca cluster CA
@@ -350,18 +385,35 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/recorders/register", recorderHandlers.RegisterHandler())
 	mux.HandleFunc("/api/v1/recorders/heartbeat", recorderHandlers.HeartbeatHandler())
 	mux.HandleFunc("/api/v1/recorders", recorderHandlers.ListRecordersHandler())
-	mux.HandleFunc("/api/v1/cameras", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			recorderHandlers.CreateCameraHandler()(w, r)
-		case http.MethodGet:
-			recorderHandlers.ListCamerasHandler()(w, r)
-		case http.MethodDelete:
-			recorderHandlers.DeleteCameraHandler()(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
+	// Camera CRUD — registered on a Gin engine so cameraapi (which uses
+	// gin.IRouter) can be wired in directly. The Gin engine is mounted as
+	// an http.Handler on /api/v1/cameras and /api/v1/cameras/ so that both
+	// the collection and item routes are served. The legacy per-method
+	// switch is superseded by the Gin router.
+	if nDB != nil {
+		gin.SetMode(gin.ReleaseMode)
+		ginRouter := gin.New()
+		ginRouter.Use(gin.Recovery())
+		cameraapi.NewHandler(nDB).Register(ginRouter)
+		systemapi.NewHandler("directory").Register(ginRouter)
+		mux.Handle("/api/v1/cameras", ginRouter)
+		mux.Handle("/api/v1/cameras/", ginRouter)
+		mux.Handle("/system/", ginRouter)
+	} else {
+		// Fallback: legacy ad-hoc handler when NVR DB is unavailable.
+		mux.HandleFunc("/api/v1/cameras", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				recorderHandlers.CreateCameraHandler()(w, r)
+			case http.MethodGet:
+				recorderHandlers.ListCamerasHandler()(w, r)
+			case http.MethodDelete:
+				recorderHandlers.DeleteCameraHandler()(w, r)
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+		})
+	}
 
 	// Fan-out query endpoints — query all recorders and merge results
 	mux.HandleFunc("/api/v1/query/recordings", fanoutSvc.FanoutRecordingsHandler())

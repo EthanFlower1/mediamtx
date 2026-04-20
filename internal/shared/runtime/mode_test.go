@@ -45,7 +45,10 @@ func TestDispatchInvalidMode(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestDispatchLegacyCallsOnlyLegacyHook(t *testing.T) {
+// TestDispatchLegacyActsAsAllInOne verifies that ModeLegacy now routes to
+// the all-in-one path (Phase 5). StartLegacy is never called; instead the
+// Directory, Recorder, and AutoPair hooks run in order.
+func TestDispatchLegacyActsAsAllInOne(t *testing.T) {
 	var called []string
 	hooks := Hooks{
 		StartLegacy:    func() error { called = append(called, "legacy"); return nil },
@@ -54,7 +57,7 @@ func TestDispatchLegacyCallsOnlyLegacyHook(t *testing.T) {
 		AutoPair:       func() error { called = append(called, "pair"); return nil },
 	}
 	require.NoError(t, Dispatch(ModeLegacy, hooks))
-	require.Equal(t, []string{"legacy"}, called)
+	require.Equal(t, []string{"directory", "recorder", "pair"}, called)
 }
 
 func TestDispatchDirectoryCallsOnlyDirectoryHook(t *testing.T) {

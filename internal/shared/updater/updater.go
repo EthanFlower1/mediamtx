@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
 // ReleaseInfo describes a version available for update.
@@ -48,6 +46,30 @@ type ApplyResult struct {
 	ToVersion   string `json:"to_version,omitempty"`
 }
 
+// UpdateRecord represents a single entry in the system update history.
+// This mirrors the UpdateRecord type in directory/db to avoid a cross-package
+// dependency. Both types share the same JSON shape and database schema.
+type UpdateRecord struct {
+	ID                int    `json:"id"`
+	FromVersion       string `json:"from_version"`
+	ToVersion         string `json:"to_version"`
+	Status            string `json:"status"` // pending, downloading, applying, completed, failed, rolled_back
+	StartedAt         string `json:"started_at"`
+	CompletedAt       string `json:"completed_at,omitempty"`
+	ErrorMessage      string `json:"error_message,omitempty"`
+	InitiatedBy       string `json:"initiated_by"`
+	SHA256Checksum    string `json:"sha256_checksum,omitempty"`
+	RollbackAvailable bool   `json:"rollback_available"`
+}
+
+// UpdateStore is the database interface required by Manager. Both
+// internal/directory/db.DB and internal/recorder/db.DB satisfy this interface.
+type UpdateStore interface {
+	InsertUpdateRecord(rec *UpdateRecord) (int64, error)
+	UpdateUpdateRecord(id int64, status string, errMsg string, rollbackAvailable bool) error
+	ListUpdateHistory(limit int) ([]*UpdateRecord, error)
+}
+
 // githubRelease is a subset of the GitHub releases API response.
 type githubRelease struct {
 	TagName     string `json:"tag_name"`
@@ -62,7 +84,7 @@ type githubRelease struct {
 
 // Manager handles update checking, downloading, and applying.
 type Manager struct {
-	DB             *db.DB
+	DB             UpdateStore
 	CurrentVersion string
 	BinaryPath     string // path to the currently running binary
 	BackupDir      string // directory for storing backup binaries
@@ -78,7 +100,7 @@ type Manager struct {
 }
 
 // New creates a new update Manager.
-func New(database *db.DB, currentVersion string) *Manager {
+func New(database UpdateStore, currentVersion string) *Manager {
 	execPath, _ := os.Executable()
 	if execPath == "" {
 		execPath = os.Args[0]
@@ -207,7 +229,7 @@ func (m *Manager) Apply(release *ReleaseInfo, initiatedBy string) (*ApplyResult,
 	}
 
 	// Record the update attempt.
-	rec := &db.UpdateRecord{
+	rec := &UpdateRecord{
 		FromVersion: m.CurrentVersion,
 		ToVersion:   release.Version,
 		Status:      "downloading",
@@ -334,7 +356,7 @@ func (m *Manager) Rollback(initiatedBy string) (*ApplyResult, error) {
 		return nil, fmt.Errorf("list update history: %w", err)
 	}
 
-	var targetRecord *db.UpdateRecord
+	var targetRecord *UpdateRecord
 	for _, r := range records {
 		if r.RollbackAvailable && (r.Status == "completed" || r.Status == "failed") {
 			targetRecord = r
@@ -352,7 +374,7 @@ func (m *Manager) Rollback(initiatedBy string) (*ApplyResult, error) {
 	}
 
 	// Record the rollback.
-	rollbackRec := &db.UpdateRecord{
+	rollbackRec := &UpdateRecord{
 		FromVersion: m.CurrentVersion,
 		ToVersion:   targetRecord.FromVersion,
 		Status:      "applying",

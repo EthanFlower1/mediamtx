@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
 	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 

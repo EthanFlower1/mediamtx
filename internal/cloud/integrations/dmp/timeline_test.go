@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 func TestTimelineIntegrator_IngestAlarmEvent(t *testing.T) {

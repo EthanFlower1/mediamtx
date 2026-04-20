@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
 )
 
 // Evaluator periodically checks alert rules and creates alerts when

@@ -21,17 +21,26 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/gin-gonic/gin"
+
+	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
+	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
+	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
+	nvrdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
 )
 
 // DefaultStateDir is the default directory for local state, device key,
@@ -113,6 +122,18 @@ type BootConfig struct {
 	// supervisor to namespace Recorder-managed paths in Raikada.
 	// Default: "cam_".
 	MediaMTXPathPrefix string
+
+	// APIAddress is the listen address for the Recorder's local HTTP API
+	// server. Default: ":9998". Set to empty to disable the API server.
+	APIAddress string
+
+	// NVRDBPath is the path to the NVR SQLite database used by the recording
+	// and detection API handlers. Defaults to <StateDir>/nvr.db.
+	NVRDBPath string
+
+	// RecordingsPath is the root directory where recording files are stored.
+	// Passed to recordingapi so it can serve file downloads.
+	RecordingsPath string
 }
 
 func (c *BootConfig) stateDir() string {
@@ -155,14 +176,40 @@ func (c *BootConfig) pathPrefix() string {
 	return "cam_"
 }
 
+func (c *BootConfig) apiAddress() string {
+	if c.APIAddress != "" {
+		return c.APIAddress
+	}
+	if addr := os.Getenv("MTX_RECORDER_API_ADDRESS"); addr != "" {
+		return addr
+	}
+	return ":9998"
+}
+
+func (c *BootConfig) nvrDBPath() string {
+	if c.NVRDBPath != "" {
+		return c.NVRDBPath
+	}
+	return filepath.Join(c.stateDir(), "nvr.db")
+}
+
+func (c *BootConfig) recordingsPath() string {
+	if c.RecordingsPath != "" {
+		return c.RecordingsPath
+	}
+	return filepath.Join(c.stateDir(), "recordings")
+}
+
 // RecorderServer is the running Recorder. Callers hold this value and
 // call Shutdown to tear down all subsystems in reverse order.
 type RecorderServer struct {
-	log       *slog.Logger
-	store     *state.Store
-	meshNode  *sharedtsnet.Node
-	cancelFn  context.CancelFunc
-	doneCh    chan struct{}
+	log        *slog.Logger
+	store      *state.Store
+	meshNode   *sharedtsnet.Node
+	httpServer *http.Server
+	nvrDB      *nvrdb.DB
+	cancelFn   context.CancelFunc
+	doneCh     chan struct{}
 
 	// Exported for health probes / metrics.
 	RecorderID   string
@@ -179,8 +226,16 @@ func (rs *RecorderServer) Shutdown() {
 	if rs.doneCh != nil {
 		<-rs.doneCh
 	}
+	if rs.httpServer != nil {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = rs.httpServer.Shutdown(shutCtx)
+	}
 	if rs.meshNode != nil {
 		_ = rs.meshNode.Shutdown(context.Background())
+	}
+	if rs.nvrDB != nil {
+		_ = rs.nvrDB.Close()
 	}
 	if rs.store != nil {
 		_ = rs.store.Close()
@@ -422,6 +477,53 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		supervisor.Close()
 	}()
 
+	// -----------------------------------------------------------
+	// 11. Open NVR DB and start local HTTP API server
+	// -----------------------------------------------------------
+	log.Info("recorder: opening NVR database", slog.String("path", cfg.nvrDBPath()))
+	nvrDB, err := nvrdb.Open(cfg.nvrDBPath())
+	if err != nil {
+		// Non-fatal: log and continue without the API server. The
+		// recording-never-stops invariant must not be broken by an API
+		// server failure.
+		log.Warn("recorder: failed to open NVR database; API server will not start",
+			slog.String("error", err.Error()))
+		nvrDB = nil
+	}
+
+	var httpSrv *http.Server
+	apiAddr := cfg.apiAddress()
+	if nvrDB != nil && apiAddr != "" {
+		gin.SetMode(gin.ReleaseMode)
+		router := gin.New()
+		router.Use(gin.Recovery())
+
+		recordingapi.NewHandler(nvrDB, cfg.recordingsPath()).Register(router)
+		detectionapi.NewHandler(nvrDB).Register(router)
+		systemapi.NewHandler("recorder").Register(router)
+
+		httpSrv = &http.Server{
+			Handler:           router,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		ln, listenErr := net.Listen("tcp", apiAddr)
+		if listenErr != nil {
+			log.Warn("recorder: failed to listen for API server",
+				slog.String("addr", apiAddr),
+				slog.String("error", listenErr.Error()))
+			httpSrv = nil
+		} else {
+			httpSrv.Addr = ln.Addr().String()
+			go func() {
+				log.Info("recorder: API server listening", slog.String("addr", ln.Addr().String()))
+				if serveErr := httpSrv.Serve(ln); serveErr != nil && serveErr != http.ErrServerClosed {
+					log.Error("recorder: API server error", slog.String("error", serveErr.Error()))
+				}
+			}()
+		}
+	}
+
 	log.Info("recorder: boot complete — paired with Directory",
 		slog.String("recorder_uuid", ps.RecorderUUID),
 		slog.String("directory_url", ps.DirectoryURL),
@@ -431,6 +533,8 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		log:          log,
 		store:        store,
 		meshNode:     meshNode,
+		httpServer:   httpSrv,
+		nvrDB:        nvrDB,
 		cancelFn:     streamCancel,
 		doneCh:       doneCh,
 		RecorderID:   ps.RecorderUUID,

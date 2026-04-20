@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // ClientConfig configures the DMP XR-Series integration.

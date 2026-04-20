@@ -34,12 +34,19 @@ class CameraStatus {
   /// only its own cameras to `unknown`.
   final String sourceConnectionId;
 
+  /// Direct URL to the Recorder that owns this camera's data plane
+  /// (live view, playback, export). `null` means the client should fall back
+  /// to the Directory endpoint (all-in-one mode). Populated from
+  /// [Camera.recorderEndpoint] when the camera list is fetched.
+  final String? recorderEndpoint;
+
   const CameraStatus({
     required this.cameraId,
     required this.state,
     required this.lastUpdated,
     required this.sourceConnectionId,
     this.reason,
+    this.recorderEndpoint,
   });
 
   CameraStatus copyWith({
@@ -48,6 +55,7 @@ class CameraStatus {
     DateTime? lastUpdated,
     String? sourceConnectionId,
     String? reason,
+    String? recorderEndpoint,
   }) {
     return CameraStatus(
       cameraId: cameraId ?? this.cameraId,
@@ -55,6 +63,7 @@ class CameraStatus {
       lastUpdated: lastUpdated ?? this.lastUpdated,
       sourceConnectionId: sourceConnectionId ?? this.sourceConnectionId,
       reason: reason ?? this.reason,
+      recorderEndpoint: recorderEndpoint ?? this.recorderEndpoint,
     );
   }
 }
@@ -148,11 +157,14 @@ class CameraStatusNotifier extends StateNotifier<Map<String, CameraStatus>> {
 }
 
 /// Provider for the camera status map. The underlying client must be
-/// overridden in tests via [cameraDirectoryClientProvider].
+/// overridden before use — either by the app's DI setup (passing a fully
+/// configured [HttpCameraDirectoryClient]) or by tests (passing a
+/// [FakeCameraDirectoryClient]).
+///
+/// The default falls back to [FakeCameraDirectoryClient] (returns empty data)
+/// so that widget trees that haven't been wired up yet don't crash.
 final cameraDirectoryClientProvider = Provider<CameraDirectoryClient>((ref) {
-  // Default to the stub HTTP impl until the real proto lands. Tests override
-  // with a FakeCameraDirectoryClient.
-  return HttpCameraDirectoryClient();
+  return FakeCameraDirectoryClient();
 });
 
 final cameraStatusProvider = StateNotifierProvider<CameraStatusNotifier,

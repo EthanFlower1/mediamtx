@@ -25,8 +25,10 @@ type Mode string
 // Runtime modes.
 const (
 	// ModeLegacy is the implicit default when no mode is configured.
-	// It boots the current single-binary NVR exactly as before so
-	// that upgrading a running deployment is a no-op.
+	// As of Phase 5 (KAI-237), ModeLegacy now behaves identically to
+	// ModeAllInOne: it boots both the Directory and Recorder subsystems
+	// in-process and auto-pairs them. The legacy single-NVR code path
+	// is preserved alongside (not yet removed — that happens in Phase 6).
 	ModeLegacy Mode = ""
 
 	// ModeDirectory boots the Directory subsystem only.
@@ -74,20 +76,25 @@ func (m Mode) Validate() error {
 // no-op for that role (useful for tests).
 type Hooks struct {
 	// StartDirectory boots the Directory subsystem. Called for
-	// ModeDirectory and ModeAllInOne.
+	// ModeDirectory, ModeAllInOne, and ModeLegacy.
 	StartDirectory func() error
 
 	// StartRecorder boots the Recorder subsystem. Called for
-	// ModeRecorder and ModeAllInOne.
+	// ModeRecorder, ModeAllInOne, and ModeLegacy.
 	StartRecorder func() error
 
 	// AutoPair performs in-process pairing of a Recorder to a
-	// Directory. Called once for ModeAllInOne after both subsystems
-	// have started. Tracked in KAI-243 / KAI-244.
+	// Directory. Called once for ModeAllInOne and ModeLegacy after both
+	// subsystems have started. Tracked in KAI-243 / KAI-244.
 	AutoPair func() error
 
-	// StartLegacy boots the pre-KAI-237 single-NVR code path. Called
-	// for ModeLegacy to preserve existing behavior exactly.
+	// StartLegacy boots the pre-KAI-237 single-NVR code path. This hook
+	// is kept for backwards compatibility but is no longer called by
+	// Dispatch — ModeLegacy now routes to the all-in-one path. Callers
+	// may still set this hook; it will simply not be invoked.
+	//
+	// Deprecated: ModeLegacy now behaves as ModeAllInOne (Phase 5).
+	// This field will be removed in Phase 6.
 	StartLegacy func() error
 }
 
@@ -106,27 +113,11 @@ func Dispatch(mode Mode, hooks Hooks) error {
 
 	switch mode {
 	case ModeLegacy:
-		if hooks.StartLegacy != nil {
-			return hooks.StartLegacy()
-		}
-		return nil
-
-	case ModeDirectory:
-		// TODO(KAI-246, KAI-226): wire real Directory subsystem boot
-		// (admin UI + sidecar supervisor + cloud Directory client).
-		if hooks.StartDirectory != nil {
-			return hooks.StartDirectory()
-		}
-		return nil
-
-	case ModeRecorder:
-		// TODO(KAI-246, KAI-226, KAI-250): wire real Recorder boot
-		// (capture pipeline + Raikada sidecar + Directory client +
-		// recorder-state SQLite).
-		if hooks.StartRecorder != nil {
-			return hooks.StartRecorder()
-		}
-		return nil
+		// ModeLegacy now routes to the same all-in-one path so that
+		// upgrading an existing deployment automatically gains both
+		// subsystems. The legacy single-NVR code still boots alongside
+		// (see core.go) until Phase 6 removes it.
+		fallthrough
 
 	case ModeAllInOne:
 		// TODO(KAI-246): start Directory subsystem in-process.
@@ -148,6 +139,23 @@ func Dispatch(mode Mode, hooks Hooks) error {
 			if err := hooks.AutoPair(); err != nil {
 				return fmt.Errorf("all-in-one: auto-pair: %w", err)
 			}
+		}
+		return nil
+
+	case ModeDirectory:
+		// TODO(KAI-246, KAI-226): wire real Directory subsystem boot
+		// (admin UI + sidecar supervisor + cloud Directory client).
+		if hooks.StartDirectory != nil {
+			return hooks.StartDirectory()
+		}
+		return nil
+
+	case ModeRecorder:
+		// TODO(KAI-246, KAI-226, KAI-250): wire real Recorder boot
+		// (capture pipeline + Raikada sidecar + Directory client +
+		// recorder-state SQLite).
+		if hooks.StartRecorder != nil {
+			return hooks.StartRecorder()
 		}
 		return nil
 	}

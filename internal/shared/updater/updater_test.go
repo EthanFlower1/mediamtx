@@ -2,21 +2,58 @@ package updater
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
-
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 
-func setupTestDB(t *testing.T) *db.DB {
-	t.Helper()
-	d, err := db.Open(":memory:")
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
+// memUpdateStore is a simple in-memory UpdateStore for tests.
+type memUpdateStore struct {
+	mu      sync.Mutex
+	records []*UpdateRecord
+	nextID  int64
+}
+
+func (s *memUpdateStore) InsertUpdateRecord(rec *UpdateRecord) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextID++
+	r := *rec
+	r.ID = int(s.nextID)
+	s.records = append(s.records, &r)
+	return s.nextID, nil
+}
+
+func (s *memUpdateStore) UpdateUpdateRecord(id int64, status string, errMsg string, rollbackAvailable bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.records {
+		if int64(r.ID) == id {
+			r.Status = status
+			r.ErrorMessage = errMsg
+			r.RollbackAvailable = rollbackAvailable
+			return nil
+		}
 	}
-	t.Cleanup(func() { d.Close() })
-	return d
+	return fmt.Errorf("record %d not found", id)
+}
+
+func (s *memUpdateStore) ListUpdateHistory(limit int) ([]*UpdateRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*UpdateRecord, 0, len(s.records))
+	for i := len(s.records) - 1; i >= 0 && (limit <= 0 || len(out) < limit); i-- {
+		cp := *s.records[i]
+		out = append(out, &cp)
+	}
+	return out, nil
+}
+
+func setupTestDB(t *testing.T) *memUpdateStore {
+	t.Helper()
+	return &memUpdateStore{}
 }
 
 func TestCheckNoUpdate(t *testing.T) {
@@ -100,7 +137,7 @@ func TestUpdateHistory(t *testing.T) {
 	d := setupTestDB(t)
 
 	// Insert a record.
-	rec := &db.UpdateRecord{
+	rec := &UpdateRecord{
 		FromVersion: "v1.0.0",
 		ToVersion:   "v2.0.0",
 		Status:      "completed",

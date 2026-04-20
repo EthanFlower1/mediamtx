@@ -1,20 +1,29 @@
-package nvr
+package recovery
 
 import (
 	"strings"
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/recovery"
 )
 
 // Compile-time interface checks.
 var (
-	_ recovery.DBQuerier  = (*recoveryDBAdapter)(nil)
-	_ recovery.Reconciler = (*recoveryReconcileAdapter)(nil)
+	_ DBQuerier  = (*recoveryDBAdapter)(nil)
+	_ Reconciler = (*recoveryReconcileAdapter)(nil)
 )
 
-// recoveryDBAdapter implements recovery.DBQuerier using the real DB.
+// NewDBAdapter returns a DBQuerier backed by the real database.
+func NewDBAdapter(database *db.DB) DBQuerier {
+	return &recoveryDBAdapter{db: database}
+}
+
+// NewReconcileAdapter returns a Reconciler backed by the real database.
+func NewReconcileAdapter(database *db.DB) Reconciler {
+	return &recoveryReconcileAdapter{db: database}
+}
+
+// recoveryDBAdapter implements DBQuerier using the real DB.
 type recoveryDBAdapter struct {
 	db *db.DB
 }
@@ -27,10 +36,9 @@ func (a *recoveryDBAdapter) GetUnindexedRecordingPaths() (map[string]int64, erro
 	return a.db.GetUnindexedRecordingPaths()
 }
 
-// recoveryReconcileAdapter implements recovery.Reconciler using the real DB and NVR.
+// recoveryReconcileAdapter implements Reconciler using the real DB.
 type recoveryReconcileAdapter struct {
-	db  *db.DB
-	nvr *NVR
+	db *db.DB
 }
 
 func (a *recoveryReconcileAdapter) InsertRecording(cameraID, streamID string, startTime, endTime time.Time, durationMs, fileSize int64, filePath, format string) (int64, error) {

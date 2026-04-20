@@ -14,7 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/recorder/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 

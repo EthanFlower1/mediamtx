@@ -20,11 +20,11 @@ import (
 
 	nvrCrypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/driver"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
-	"github.com/bluenviron/mediamtx/internal/nvr/storage"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/driver"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 // pathItem represents a single entry from the Raikada paths list API.

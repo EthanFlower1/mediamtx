@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 // DeviceHandler implements HTTP endpoints for physical device management.

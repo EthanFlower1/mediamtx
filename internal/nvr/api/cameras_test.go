@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 func setupCameraTest(t *testing.T) (*CameraHandler, func()) {

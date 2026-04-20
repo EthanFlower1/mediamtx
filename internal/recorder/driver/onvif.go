@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // OnvifDriver implements Driver using ONVIF protocol calls.

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // Connection states.

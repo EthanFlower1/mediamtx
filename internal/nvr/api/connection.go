@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
+	"github.com/bluenviron/mediamtx/internal/recorder/connmgr"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 

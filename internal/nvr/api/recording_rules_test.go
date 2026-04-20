@@ -13,8 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 func setupRuleTest(t *testing.T) (*RecordingRuleHandler, *db.DB, func()) {

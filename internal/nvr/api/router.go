@@ -10,23 +10,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/ai"
-	"github.com/bluenviron/mediamtx/internal/nvr/alerts"
-	"github.com/bluenviron/mediamtx/internal/nvr/backchannel"
+	"github.com/bluenviron/mediamtx/internal/recorder/ai"
+	"github.com/bluenviron/mediamtx/internal/recorder/alerts"
+	"github.com/bluenviron/mediamtx/internal/recorder/backchannel"
 	"github.com/bluenviron/mediamtx/internal/nvr/backup"
-	"github.com/bluenviron/mediamtx/internal/nvr/connmgr"
+	"github.com/bluenviron/mediamtx/internal/recorder/connmgr"
 	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/shared/diagnostics"
 	"github.com/bluenviron/mediamtx/internal/shared/metrics"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
 	"github.com/bluenviron/mediamtx/internal/shared/logmgr"
-	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
 	"github.com/bluenviron/mediamtx/internal/shared/syscheck"
 	nvrui "github.com/bluenviron/mediamtx/internal/nvr/ui"
 	"github.com/bluenviron/mediamtx/internal/shared/updater"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 // AIPipelineRestarter can restart the AI detection pipeline for a camera.

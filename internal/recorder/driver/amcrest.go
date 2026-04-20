@@ -9,7 +9,7 @@ import (
 	"time"
 
 	amcrest "github.com/EthanFlower1/amcrest-sdk"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // AmcrestDriver implements Driver using Amcrest/Dahua's proprietary HTTP CGI API.

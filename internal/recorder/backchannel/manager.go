@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // Session state constants.

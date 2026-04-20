@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 const (

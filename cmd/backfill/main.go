@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/ai"
+	"github.com/bluenviron/mediamtx/internal/recorder/ai"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 )
 

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // ONVIFSrc subscribes to a camera's ONVIF metadata stream and converts

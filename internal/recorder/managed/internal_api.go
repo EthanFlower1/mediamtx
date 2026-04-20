@@ -12,8 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
-	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
 )
 
 // InternalAPI serves the service-to-service endpoints that the Directory

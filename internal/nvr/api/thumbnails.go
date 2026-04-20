@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/thumbnail"
+	"github.com/bluenviron/mediamtx/internal/recorder/thumbnail"
 )
 
 // ThumbnailHandler implements HTTP endpoints for timeline thumbnail strips.

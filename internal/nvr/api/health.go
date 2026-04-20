@@ -10,9 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
-	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
 )
 
 // ComponentStatus represents the health of a single subsystem.

@@ -15,7 +15,7 @@ import (
 
 	nvrCrypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // ScreenshotHandler implements HTTP endpoints for on-demand camera screenshots.

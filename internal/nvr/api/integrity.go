@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/integrity"
+	"github.com/bluenviron/mediamtx/internal/recorder/integrity"
 )
 
 // IntegrityHandler implements HTTP endpoints for recording integrity operations.

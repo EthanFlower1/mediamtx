@@ -17,7 +17,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
 	"github.com/bluenviron/mediamtx/internal/shared/hwaccel"
 	"github.com/bluenviron/mediamtx/internal/shared/metrics"
-	"github.com/bluenviron/mediamtx/internal/nvr/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
 	"github.com/bluenviron/mediamtx/internal/shared/syscheck"
 )
 

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/scheduler"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
 	"github.com/gin-gonic/gin"
 )
 

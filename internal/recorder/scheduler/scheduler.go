@@ -18,9 +18,9 @@ import (
 
 	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
 	"github.com/bluenviron/mediamtx/internal/nvr/db"
-	"github.com/bluenviron/mediamtx/internal/nvr/onvif"
-	"github.com/bluenviron/mediamtx/internal/nvr/thumbnail"
-	"github.com/bluenviron/mediamtx/internal/nvr/yamlwriter"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
+	"github.com/bluenviron/mediamtx/internal/recorder/thumbnail"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
 )
 
 // EventPublisher is an interface for publishing system events from the scheduler.

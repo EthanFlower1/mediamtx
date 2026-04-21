@@ -3,10 +3,12 @@ package directory
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -16,9 +18,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/hkdf"
 
 	"github.com/bluenviron/mediamtx/internal/conf"
 	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
+	"github.com/bluenviron/mediamtx/internal/directory/authapi"
 	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 	"github.com/bluenviron/mediamtx/internal/directory/ingest"
@@ -436,6 +440,28 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/admin/exports", adminHandlers.ExportJobsHandler())
 	mux.HandleFunc("/api/v1/admin/exports/by-id", adminHandlers.ExportJobByIDHandler())
 
+	// Auth API — login, refresh, logout
+	// Derive a stable RSA-2048 signing key from the master key so JWTs survive
+	// restarts without needing to store a separate key file.
+	jwtKey, jwtKeyErr := deriveJWTSigningKey(cfg.MasterKey)
+	if jwtKeyErr != nil {
+		_ = srv.cleanup(ctx)
+		return nil, fmt.Errorf("directory: derive JWT signing key: %w", jwtKeyErr)
+	}
+	localProvider := authapi.NewLocalAuthProvider(ddb, jwtKey)
+	// defaultTenant is the single on-prem tenant; the value is not validated
+	// server-side for local auth so any constant works.
+	defaultTenant := authapi.TenantRef{Type: "onprem", ID: "default"}
+	authHandlers := authapi.NewHandlers(
+		localProvider,
+		func(_ *http.Request) authapi.TenantRef { return defaultTenant },
+		func(_ context.Context) (authapi.SessionID, bool) { return "", false }, // logout not context-based in this path
+		log.With(slog.String("component", "authapi")),
+	)
+	mux.HandleFunc("/api/v1/auth/login", authHandlers.Login())
+	mux.HandleFunc("/api/v1/auth/refresh", authHandlers.Refresh())
+	mux.HandleFunc("/api/v1/auth/logout", authHandlers.Logout())
+
 	// Web UI — SPA fallback at /admin
 	mux.Handle("/admin/", webui.Handler("/admin"))
 	mux.Handle("/admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))
@@ -605,6 +631,17 @@ func derivePairingKey(masterKey []byte) ed25519.PrivateKey {
 	h.Write([]byte("pairing-signing-key-v1"))
 	seed := h.Sum(nil)
 	return ed25519.NewKeyFromSeed(seed)
+}
+
+// deriveJWTSigningKey deterministically derives an RSA-2048 private key from
+// the master key using HKDF-SHA256 as a deterministic source of randomness.
+// This means the same nvrJWTSecret always produces the same RSA key, so tokens
+// remain verifiable across restarts without storing a key file.
+func deriveJWTSigningKey(masterKey []byte) (*rsa.PrivateKey, error) {
+	reader := hkdf.New(sha256.New, masterKey, []byte("jwt-signing-key-v1"), nil)
+	// io.Reader that produces deterministic bytes from the master key.
+	limitedReader := io.LimitReader(reader, 1<<20) // 1 MiB upper bound — RSA gen needs ~1 KiB
+	return rsa.GenerateKey(limitedReader, 2048)
 }
 
 // -----------------------------------------------------------------------

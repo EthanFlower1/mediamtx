@@ -37,10 +37,7 @@ func (h *Handlers) recordingsCollection(w http.ResponseWriter, r *http.Request) 
 	if recs == nil {
 		recs = nil // let JSON encode as null — frontend handles both null and []
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"items": recs,
-		"total": len(recs),
-	})
+	writeJSON(w, http.StatusOK, recs)
 }
 
 // recordingsStats handles GET /api/nvr/recordings/stats
@@ -62,7 +59,7 @@ func (h *Handlers) recordingsStats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": stats})
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // cameraDetectionsHandler handles GET /api/nvr/cameras/{id}/detections
@@ -92,10 +89,7 @@ func (h *Handlers) cameraDetectionsHandler(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"items":     recs,
-		"camera_id": cameraID,
-	})
+	writeJSON(w, http.StatusOK, recs)
 }
 
 // timelineMulti handles GET /api/nvr/timeline/multi
@@ -137,7 +131,7 @@ func (h *Handlers) timelineMulti(w http.ResponseWriter, r *http.Request) {
 		}
 		results = append(results, cameraTimeline{CameraID: camID, Ranges: ranges})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": results})
+	writeJSON(w, http.StatusOK, results)
 }
 
 // parseTimeRange parses optional RFC3339 start/end strings.

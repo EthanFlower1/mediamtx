@@ -81,7 +81,7 @@ func (h *Handlers) auditLog(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.RecDB.Query(query, args...)
 	if err != nil {
 		// Table may not exist in all schema versions — return empty list gracefully.
-		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "error_detail": err.Error()})
+		writeJSON(w, http.StatusOK, []any{})
 		return
 	}
 	defer rows.Close()
@@ -104,9 +104,5 @@ func (h *Handlers) auditLog(w http.ResponseWriter, r *http.Request) {
 		entries = append(entries, e)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"items":  entries,
-		"limit":  limit,
-		"offset": offset,
-	})
+	writeJSON(w, http.StatusOK, entries)
 }

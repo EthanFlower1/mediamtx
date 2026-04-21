@@ -264,7 +264,74 @@ func (h *Handlers) camerasListHandler(w http.ResponseWriter, _ *http.Request) {
 	if cams == nil {
 		cams = []*dirdb.Camera{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": cams})
+	// Build enriched camera list with live_view_path for Flutter WebRTC live view.
+	enriched := make([]map[string]any, 0, len(cams))
+	for _, cam := range cams {
+		m := map[string]any{
+			"id":                          cam.ID,
+			"name":                        cam.Name,
+			"onvif_endpoint":              cam.ONVIFEndpoint,
+			"onvif_username":              cam.ONVIFUsername,
+			"onvif_profile_token":         cam.ONVIFProfileToken,
+			"rtsp_url":                    cam.RTSPURL,
+			"ptz_capable":                 cam.PTZCapable,
+			"mediamtx_path":               cam.MediaMTXPath,
+			"live_view_path":              cam.MediaMTXPath,
+			"status":                      cam.Status,
+			"tags":                        cam.Tags,
+			"retention_days":              cam.RetentionDays,
+			"event_retention_days":        cam.EventRetentionDays,
+			"detection_retention_days":    cam.DetectionRetentionDays,
+			"supports_ptz":                cam.SupportsPTZ,
+			"supports_imaging":            cam.SupportsImaging,
+			"supports_events":             cam.SupportsEvents,
+			"supports_relay":              cam.SupportsRelay,
+			"supports_audio_backchannel":  cam.SupportsAudioBackchannel,
+			"supports_media2":             cam.SupportsMedia2,
+			"supports_analytics":          cam.SupportsAnalytics,
+			"supports_edge_recording":     cam.SupportsEdgeRecording,
+			"motion_timeout_seconds":      cam.MotionTimeoutSeconds,
+			"ai_enabled":                  cam.AIEnabled,
+			"ai_stream_id":                cam.AIStreamID,
+			"ai_track_timeout":            cam.AITrackTimeout,
+			"ai_confidence":               cam.AIConfidence,
+			"audio_transcode":             cam.AudioTranscode,
+			"recording_stream_id":         cam.RecordingStreamID,
+			"storage_path":                cam.StoragePath,
+			"quota_bytes":                 cam.QuotaBytes,
+			"quota_warning_percent":       cam.QuotaWarningPercent,
+			"quota_critical_percent":      cam.QuotaCriticalPercent,
+			"multicast_enabled":           cam.MulticastEnabled,
+			"multicast_address":           cam.MulticastAddress,
+			"multicast_port":              cam.MulticastPort,
+			"multicast_ttl":               cam.MulticastTTL,
+			"created_at":                  cam.CreatedAt,
+			"updated_at":                  cam.UpdatedAt,
+		}
+		if cam.SnapshotURI != "" {
+			m["snapshot_uri"] = cam.SnapshotURI
+		}
+		if cam.SubStreamURL != "" {
+			m["sub_stream_url"] = cam.SubStreamURL
+		}
+		if cam.ServiceCapabilities != "" {
+			m["service_capabilities"] = cam.ServiceCapabilities
+		}
+		if cam.ConfidenceThresholds != "" {
+			m["confidence_thresholds"] = cam.ConfidenceThresholds
+		}
+		if cam.DeviceID != "" {
+			m["device_id"] = cam.DeviceID
+		}
+		if cam.ChannelIndex != nil {
+			m["channel_index"] = cam.ChannelIndex
+		}
+		if cam.SupportedEventTopics != "" {
+			m["supported_event_topics"] = cam.SupportedEventTopics
+		}
+		enriched = append(enriched, m)
+	}
+	writeJSON(w, http.StatusOK, enriched)
 }
 
 type cameraCreateRequest struct {
@@ -413,7 +480,7 @@ func (h *Handlers) cameraStreamsHandler(w http.ResponseWriter, _ *http.Request, 
 	if streams == nil {
 		streams = []*dirdb.CameraStream{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": streams})
+	writeJSON(w, http.StatusOK, streams)
 }
 
 type aiUpdateRequest struct {
@@ -493,7 +560,7 @@ func (h *Handlers) usersListHandler(w http.ResponseWriter, _ *http.Request) {
 	if users == nil {
 		users = []*dirdb.User{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": users})
+	writeJSON(w, http.StatusOK, users)
 }
 
 type userCreateRequest struct {
@@ -616,7 +683,7 @@ func (h *Handlers) notifications(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []*dirdb.Notification{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (h *Handlers) notificationsUnreadCount(w http.ResponseWriter, r *http.Request) {
@@ -712,7 +779,7 @@ func (h *Handlers) cameraGroups(w http.ResponseWriter, r *http.Request) {
 		if groups == nil {
 			groups = []dirdb.CameraGroup{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": groups})
+		writeJSON(w, http.StatusOK, groups)
 
 	case http.MethodPost:
 		var body struct {
@@ -909,7 +976,7 @@ func (h *Handlers) scheduleTemplates(w http.ResponseWriter, r *http.Request) {
 	if templates == nil {
 		templates = []*dirdb.ScheduleTemplate{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": templates})
+	writeJSON(w, http.StatusOK, templates)
 }
 
 // scheduleTemplatesSubrouter handles /api/nvr/schedule-templates/{id}.

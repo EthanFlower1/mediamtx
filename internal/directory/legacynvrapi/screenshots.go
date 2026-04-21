@@ -55,9 +55,9 @@ func (h *Handlers) screenshotsCollection(w http.ResponseWriter, r *http.Request)
 		items = []*recdb.Screenshot{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"items": items,
-		"total": total,
-		"page":  page,
+		"screenshots": items,
+		"total":       total,
+		"page":        page,
 	})
 }
 

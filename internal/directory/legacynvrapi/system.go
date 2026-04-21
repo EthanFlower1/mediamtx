@@ -203,7 +203,7 @@ func (h *Handlers) systemBackups(w http.ResponseWriter, r *http.Request) {
 	if backups == nil {
 		backups = []backupEntry{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": backups})
+	writeJSON(w, http.StatusOK, backups)
 }
 
 // -----------------------------------------------------------------------

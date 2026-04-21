@@ -32,7 +32,7 @@ func (h *Handlers) cameraZonesHandler(w http.ResponseWriter, r *http.Request, ca
 		if zones == nil {
 			zones = []*recdb.DetectionZone{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": zones})
+		writeJSON(w, http.StatusOK, zones)
 
 	case http.MethodPost:
 		var z recdb.DetectionZone
@@ -144,7 +144,7 @@ func (h *Handlers) cameraRecordingRulesHandler(w http.ResponseWriter, r *http.Re
 		if rules == nil {
 			rules = []*recdb.RecordingRule{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": rules})
+		writeJSON(w, http.StatusOK, rules)
 
 	case http.MethodPost:
 		var rule recdb.RecordingRule
@@ -348,7 +348,7 @@ func (h *Handlers) tracks(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []*recdb.TrackWithSightings{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, items)
 }
 
 // tracksSubrouter handles GET /api/nvr/tracks/{id}
@@ -419,5 +419,5 @@ func (h *Handlers) searchDetections(w http.ResponseWriter, r *http.Request) {
 	if detections == nil {
 		detections = []*recdb.Detection{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": detections})
+	writeJSON(w, http.StatusOK, detections)
 }

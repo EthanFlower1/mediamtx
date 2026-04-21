@@ -72,7 +72,7 @@ func (h *Handlers) bookmarksListHandler(w http.ResponseWriter, r *http.Request) 
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		writeJSON(w, http.StatusOK, items)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *Handlers) bookmarksListHandler(w http.ResponseWriter, r *http.Request) 
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		writeJSON(w, http.StatusOK, items)
 		return
 	}
 
@@ -107,7 +107,7 @@ func (h *Handlers) bookmarksListHandler(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, items)
 }
 
 type bookmarkCreateRequest struct {

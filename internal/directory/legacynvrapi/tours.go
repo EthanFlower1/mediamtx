@@ -30,7 +30,7 @@ func (h *Handlers) toursCollection(w http.ResponseWriter, r *http.Request) {
 		if items == nil {
 			items = []recdb.Tour{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		writeJSON(w, http.StatusOK, items)
 
 	case http.MethodPost:
 		var body struct {
@@ -165,5 +165,5 @@ func (h *Handlers) savedClips(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []*recdb.SavedClip{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, items)
 }

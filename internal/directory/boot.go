@@ -360,6 +360,21 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		})
 	})
 
+	// Discovery endpoint — unauthenticated.
+	// Flutter client probes this to validate the server before login.
+	mux.HandleFunc("/api/v1/discover", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"service":          "raikada-directory",
+			"server_name":     "Raikada NVR",
+			"server_version":  "1.0.0",
+			"protocol_version": 1,
+			"deployment":      "on-prem",
+			"auth_methods":    []string{"local"},
+		})
+	})
+
 	// Pairing endpoints — unauthenticated
 	mux.HandleFunc("/api/v1/pairing/tokens", pairing.GenerateHandler(pairingSvc, func(r *http.Request) (pairing.UserID, bool) {
 		// In production this extracts from the JWT claims.

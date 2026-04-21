@@ -480,6 +480,19 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/auth/refresh", authHandlers.Refresh())
 	mux.HandleFunc("/api/v1/auth/logout", authHandlers.Logout())
 
+	// Legacy NVR API paths — the Flutter AuthService uses these.
+	mux.HandleFunc("/api/nvr/auth/login", authHandlers.Login())
+	mux.HandleFunc("/api/nvr/auth/refresh", authHandlers.Refresh())
+	mux.HandleFunc("/api/nvr/auth/revoke", authHandlers.Logout())
+	mux.HandleFunc("/api/nvr/system/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+			"mode":   "directory",
+		})
+	})
+
 	// Web UI — SPA fallback at /admin
 	mux.Handle("/admin/", webui.Handler("/admin"))
 	mux.Handle("/admin", http.RedirectHandler("/admin/", http.StatusMovedPermanently))

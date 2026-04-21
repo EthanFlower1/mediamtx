@@ -50,7 +50,6 @@ func (p *LocalAuthProvider) AuthenticateLocal(
 ) (*Session, error) {
 	user, err := p.db.GetUserByUsername(username)
 	if err != nil {
-		// User not found — return generic error.
 		return nil, errors.New("invalid credentials")
 	}
 

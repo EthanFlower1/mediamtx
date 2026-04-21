@@ -22,6 +22,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/matthewhartstonge/argon2"
+	"golang.org/x/crypto/bcrypt"
 
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 )
@@ -65,7 +66,7 @@ func (p *LocalAuthProvider) AuthenticateLocal(
 		user.LockedUntil = nil
 	}
 
-	if !verifyArgon2(password, user.PasswordHash) {
+	if !verifyPassword(password, user.PasswordHash) {
 		_ = p.db.IncrementFailedLogins(user.ID)
 		newCount := user.FailedLoginAttempts + 1
 		if newCount >= 5 {
@@ -240,8 +241,13 @@ func buildMediaMTXPerms(user *directorydb.User) []map[string]any {
 // timeFormat is the DB timestamp layout.
 const timeFormat = "2006-01-02T15:04:05.000Z"
 
-// verifyArgon2 checks a password against an argon2 encoded hash.
-func verifyArgon2(password, encoded string) bool {
+// verifyPassword checks a password against either a bcrypt or argon2 hash.
+func verifyPassword(password, encoded string) bool {
+	// Bcrypt hashes start with $2a$, $2b$, or $2y$
+	if len(encoded) > 3 && encoded[0] == '$' && encoded[1] == '2' {
+		return bcrypt.CompareHashAndPassword([]byte(encoded), []byte(password)) == nil
+	}
+	// Fall back to argon2
 	ok, err := argon2.VerifyEncoded([]byte(password), []byte(encoded))
 	return ok && err == nil
 }

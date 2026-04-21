@@ -439,7 +439,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		gin.SetMode(gin.ReleaseMode)
 		ginRouter := gin.New()
 		ginRouter.Use(gin.Recovery())
-		cameraapi.NewHandler(nDB).Register(ginRouter)
+		cameraapi.NewHandler(ddb).Register(ginRouter)
 		systemapi.NewHandler("directory").Register(ginRouter)
 		mux.Handle("/api/v1/cameras", ginRouter)
 		mux.Handle("/api/v1/cameras/", ginRouter)
@@ -521,7 +521,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	// $serverUrl/api/nvr as its ApiClient base URL so all resource endpoints
 	// must be reachable here. The more-specific auth/health routes registered
 	// above take precedence over the catch-all patterns in legacynvrapi.
-	nvrCompat := &legacynvrapi.Handlers{DB: nDB, RecDB: rdb}
+	// Use the main directory DB (ddb) for cameras, users, etc.
+	// nDB is the legacy NVR DB which may be empty.
+	nvrCompat := &legacynvrapi.Handlers{DB: ddb, RecDB: rdb}
 	nvrCompat.Register(mux)
 
 	// Web UI — SPA fallback at /admin

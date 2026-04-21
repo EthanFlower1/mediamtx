@@ -45,7 +45,7 @@ import (
 
 // DefaultStateDir is the default directory for local state, device key,
 // and mesh identity when no override is provided.
-const DefaultStateDir = "/var/lib/mediamtx-recorder"
+const DefaultStateDir = "data/recorder"
 
 // Booter implements kairuntime.RecorderBooter. It is the concrete type
 // wired into Core.recorderBooter so that Dispatch can start a real

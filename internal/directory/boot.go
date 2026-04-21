@@ -83,7 +83,10 @@ type BootConfig struct {
 
 func (c *BootConfig) withDefaults() {
 	if c.DataDir == "" {
-		c.DataDir = "/var/lib/mediamtx-directory"
+		// Use a local data directory relative to the working directory
+		// for development. Production deployments should set DataDir
+		// explicitly via nvrDirectoryDataDir config.
+		c.DataDir = "data/directory"
 	}
 	if c.ListenAddr == "" {
 		c.ListenAddr = ":9996"

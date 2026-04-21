@@ -32,6 +32,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/pki/stepca"
 	"github.com/bluenviron/mediamtx/internal/directory/legacynvrapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recorderapi"
+	recorderdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/directory/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
 	"github.com/bluenviron/mediamtx/internal/directory/timeline"
@@ -113,6 +114,7 @@ func (c *BootConfig) withDefaults() {
 type DirectoryServer struct {
 	DB          *directorydb.DB
 	NVRDB       *directorydb.DB
+	RecDB       *recorderdb.DB
 	CA          *stepca.ClusterCA
 	Headscale   *headscale.Coordinator
 	PairingSvc  *pairing.Service
@@ -144,6 +146,12 @@ func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	if ds.CA != nil {
 		if err := ds.CA.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Sprintf("pki: %v", err))
+		}
+	}
+
+	if ds.RecDB != nil {
+		if err := ds.RecDB.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("recdb: %v", err))
 		}
 	}
 
@@ -214,6 +222,21 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		nDB = nil
 	} else {
 		srv.NVRDB = nDB
+	}
+
+	// ---------------------------------------------------------------
+	// 1c. Open Recorder SQLite DB (optional — for recordings/bookmarks/exports)
+	// ---------------------------------------------------------------
+	recDBPath := filepath.Join(cfg.DataDir, "recorder.db")
+	log.Info("directory: opening recorder database", "path", recDBPath)
+	var rdb *recorderdb.DB
+	if rDB, rdbErr := recorderdb.Open(recDBPath); rdbErr != nil {
+		// Non-fatal: log and continue without recorder DB endpoints.
+		log.Warn("directory: failed to open recorder database; recordings/bookmarks/exports will not be available",
+			"error", rdbErr)
+	} else {
+		rdb = rDB
+		srv.RecDB = rdb
 	}
 
 	// ---------------------------------------------------------------
@@ -498,7 +521,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	// $serverUrl/api/nvr as its ApiClient base URL so all resource endpoints
 	// must be reachable here. The more-specific auth/health routes registered
 	// above take precedence over the catch-all patterns in legacynvrapi.
-	nvrCompat := &legacynvrapi.Handlers{DB: nDB}
+	nvrCompat := &legacynvrapi.Handlers{DB: nDB, RecDB: rdb}
 	nvrCompat.Register(mux)
 
 	// Web UI — SPA fallback at /admin

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	dirdb "github.com/bluenviron/mediamtx/internal/directory/db"
+	recdb "github.com/bluenviron/mediamtx/internal/recorder/db"
+	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 )
 
 // Handlers holds the dependencies for the legacy /api/nvr/* compatibility layer.
@@ -25,6 +27,10 @@ type Handlers struct {
 	// DB is the directory SQLite database. Required for cameras, users,
 	// notifications, groups, and schedule-template endpoints.
 	DB *dirdb.DB
+
+	// RecDB is the recorder SQLite database. Required for recordings,
+	// bookmarks, exports, and timeline endpoints.
+	RecDB *recdb.DB
 }
 
 // Register mounts all /api/nvr/... routes on mux.
@@ -41,24 +47,25 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/nvr/users/", h.usersSubrouter)
 
 	// --- AUDIT LOG -----------------------------------------------------
-	mux.HandleFunc("/api/nvr/audit", h.notImplemented)
+	mux.HandleFunc("/api/nvr/audit", h.auditLog)
 
 	// --- AUTH ----------------------------------------------------------
 	// /api/nvr/auth/login, /api/nvr/auth/refresh, /api/nvr/auth/revoke are
 	// registered in boot.go — do NOT re-register them here.
 	// Catch password-change and any other auth sub-routes.
-	mux.HandleFunc("/api/nvr/auth/", h.notImplemented)
+	mux.HandleFunc("/api/nvr/auth/", h.authSubrouter)
 
 	// --- SYSTEM --------------------------------------------------------
 	// /api/nvr/system/health is registered in boot.go — do NOT re-register.
 	mux.HandleFunc("/api/nvr/system/info", h.systemInfo)
-	mux.HandleFunc("/api/nvr/system/", h.notImplemented)
+	mux.HandleFunc("/api/nvr/system/", h.systemSubrouter)
 
 	// --- RECORDINGS & EXPORTS ------------------------------------------
-	mux.HandleFunc("/api/nvr/recordings", h.notImplemented)
+	mux.HandleFunc("/api/nvr/recordings", h.recordingsCollection)
+	mux.HandleFunc("/api/nvr/recordings/stats", h.recordingsStats)
 	mux.HandleFunc("/api/nvr/recordings/", h.notImplemented)
-	mux.HandleFunc("/api/nvr/exports", h.notImplemented)
-	mux.HandleFunc("/api/nvr/exports/", h.notImplemented)
+	mux.HandleFunc("/api/nvr/exports", h.exportsCollection)
+	mux.HandleFunc("/api/nvr/exports/", h.exportsSubrouter)
 
 	// --- NOTIFICATIONS -------------------------------------------------
 	mux.HandleFunc("/api/nvr/notifications/unread-count", h.notificationsUnreadCount)
@@ -68,22 +75,44 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 
 	// --- CAMERA GROUPS -------------------------------------------------
 	mux.HandleFunc("/api/nvr/camera-groups", h.cameraGroups)
-	mux.HandleFunc("/api/nvr/camera-groups/", h.notImplemented)
+	mux.HandleFunc("/api/nvr/camera-groups/", h.cameraGroupsSubrouter)
 
 	// --- TOURS ---------------------------------------------------------
-	mux.HandleFunc("/api/nvr/tours", h.notImplemented)
+	mux.HandleFunc("/api/nvr/tours", h.toursCollection)
+	mux.HandleFunc("/api/nvr/tours/", h.toursSubrouter)
 
 	// --- SCHEDULE TEMPLATES --------------------------------------------
 	mux.HandleFunc("/api/nvr/schedule-templates", h.scheduleTemplates)
+	mux.HandleFunc("/api/nvr/schedule-templates/", h.scheduleTemplatesSubrouter)
 
 	// --- BOOKMARKS -----------------------------------------------------
-	mux.HandleFunc("/api/nvr/bookmarks", h.notImplemented)
+	mux.HandleFunc("/api/nvr/bookmarks", h.bookmarksCollection)
+	mux.HandleFunc("/api/nvr/bookmarks/", h.bookmarksSubrouter)
+
+	// --- TIMELINE ------------------------------------------------------
+	mux.HandleFunc("/api/nvr/timeline/multi", h.timelineMulti)
+	mux.HandleFunc("/api/nvr/timeline/intensity", h.notImplemented)
+
+	// --- DETECTION ZONES (top-level PUT/DELETE) ------------------------
+	mux.HandleFunc("/api/nvr/zones/", h.zonesSubrouter)
+
+	// --- RECORDING RULES (top-level PUT/DELETE) ------------------------
+	mux.HandleFunc("/api/nvr/recording-rules/", h.recordingRulesSubrouter)
+
+	// --- DETECTIONS & TRACKING ----------------------------------------
+	mux.HandleFunc("/api/nvr/detections/", h.detectionsSubrouter)
+	mux.HandleFunc("/api/nvr/tracks", h.tracks)
+	mux.HandleFunc("/api/nvr/tracks/", h.tracksSubrouter)
 
 	// --- SEARCH --------------------------------------------------------
-	mux.HandleFunc("/api/nvr/search", h.notImplemented)
+	mux.HandleFunc("/api/nvr/search", h.searchDetections)
 
 	// --- SCREENSHOTS ---------------------------------------------------
-	mux.HandleFunc("/api/nvr/screenshots", h.notImplemented)
+	mux.HandleFunc("/api/nvr/screenshots", h.screenshotsCollection)
+	mux.HandleFunc("/api/nvr/screenshots/", h.screenshotsSubrouter)
+
+	// --- SAVED CLIPS ---------------------------------------------------
+	mux.HandleFunc("/api/nvr/saved-clips", h.savedClips)
 }
 
 // -----------------------------------------------------------------------
@@ -161,13 +190,13 @@ func (h *Handlers) camerasSubrouter(w http.ResponseWriter, r *http.Request) {
 	// Special collection actions that have no camera ID.
 	switch sub {
 	case "discover":
-		h.notImplemented(w, r)
+		h.handleCameraDiscover(w, r)
 		return
 	case "discover/results":
-		h.notImplemented(w, r)
+		h.handleCameraDiscoverResults(w, r)
 		return
 	case "probe":
-		h.notImplemented(w, r)
+		h.handleCameraProbe(w, r)
 		return
 	}
 
@@ -204,10 +233,23 @@ func (h *Handlers) camerasSubrouter(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
-	case "refresh", "storage-estimate", "screenshot":
-		h.notImplemented(w, r)
+	case "detections":
+		h.cameraDetectionsHandler(w, r, id)
+	case "zones":
+		h.cameraZonesHandler(w, r, id)
+	case "recording-rules":
+		h.cameraRecordingRulesHandler(w, r, id)
+	case "screenshot":
+		h.cameraScreenshotHandler(w, r, id)
+	case "refresh":
+		h.cameraRefreshHandler(w, r, id)
+	case "storage-estimate":
+		h.cameraStorageEstimateHandler(w, r, id)
 	default:
-		h.notImplemented(w, r)
+		// Try ONVIF sub-routes (device-info, settings, ptz/*, etc.)
+		if !h.dispatchCameraONVIFSubroute(w, r, id, subResource) {
+			h.notImplemented(w, r)
+		}
 	}
 }
 
@@ -697,6 +739,155 @@ func (h *Handlers) cameraGroups(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// cameraGroupsSubrouter handles /api/nvr/camera-groups/{id} (PUT, DELETE).
+func (h *Handlers) cameraGroupsSubrouter(w http.ResponseWriter, r *http.Request) {
+	if h.DB == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"code": "DB_UNAVAILABLE", "message": "database not available"})
+		return
+	}
+	id := pathID(r.URL.Path)
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing group id"})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		g, err := h.DB.GetGroup(id)
+		if err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "group not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, g)
+
+	case http.MethodPut:
+		var body struct {
+			Name      string   `json:"name"`
+			CameraIDs []string `json:"camera_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		if body.Name == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+			return
+		}
+		if body.CameraIDs == nil {
+			body.CameraIDs = []string{}
+		}
+		if err := h.DB.UpdateGroup(id, body.Name, body.CameraIDs); err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "group not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		g, err := h.DB.GetGroup(id)
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+			return
+		}
+		writeJSON(w, http.StatusOK, g)
+
+	case http.MethodDelete:
+		if err := h.DB.DeleteGroup(id); err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "group not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// -----------------------------------------------------------------------
+// CAMERA REFRESH + STORAGE ESTIMATE
+// -----------------------------------------------------------------------
+
+// cameraRefreshHandler handles POST /api/nvr/cameras/{id}/refresh.
+// It runs an ONVIF probe against the camera and returns the updated capabilities.
+func (h *Handlers) cameraRefreshHandler(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	cam, err := h.DB.GetCamera(id)
+	if err != nil {
+		if errors.Is(err, dirdb.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "camera not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	if cam.ONVIFEndpoint == "" {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "camera has no ONVIF endpoint configured"})
+		return
+	}
+
+	// Import is handled inside onvif.go — call ProbeDeviceFull.
+	result, err := onvifProbeDeviceFull(cam.ONVIFEndpoint, cam.ONVIFUsername, cam.ONVIFPassword)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "ONVIF probe failed: " + err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"camera":       cam,
+		"probe_result": result,
+	})
+}
+
+// cameraStorageEstimateHandler handles GET /api/nvr/cameras/{id}/storage-estimate.
+func (h *Handlers) cameraStorageEstimateHandler(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Verify camera exists.
+	if _, err := h.DB.GetCamera(id); err != nil {
+		if errors.Is(err, dirdb.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "camera not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	if h.RecDB == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"code":    "DB_UNAVAILABLE",
+			"message": "recorder database not available",
+		})
+		return
+	}
+
+	usedBytes, err := h.RecDB.GetCameraStorageUsage(id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"camera_id":  id,
+		"used_bytes": usedBytes,
+	})
+}
+
 // -----------------------------------------------------------------------
 // SCHEDULE TEMPLATES
 // -----------------------------------------------------------------------
@@ -719,4 +910,100 @@ func (h *Handlers) scheduleTemplates(w http.ResponseWriter, r *http.Request) {
 		templates = []*dirdb.ScheduleTemplate{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": templates})
+}
+
+// scheduleTemplatesSubrouter handles /api/nvr/schedule-templates/{id}.
+func (h *Handlers) scheduleTemplatesSubrouter(w http.ResponseWriter, r *http.Request) {
+	if h.DB == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"code": "DB_UNAVAILABLE", "message": "database not available"})
+		return
+	}
+
+	id := pathID(r.URL.Path)
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing template id"})
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		t, err := h.DB.GetScheduleTemplate(id)
+		if err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "template not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, t)
+
+	case http.MethodPut:
+		t, err := h.DB.GetScheduleTemplate(id)
+		if err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "template not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		var patch map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		if v, ok := patch["name"].(string); ok && v != "" {
+			t.Name = v
+		}
+		if v, ok := patch["mode"].(string); ok {
+			t.Mode = v
+		}
+		if v, ok := patch["days"].(string); ok {
+			t.Days = v
+		}
+		if v, ok := patch["start_time"].(string); ok {
+			t.StartTime = v
+		}
+		if v, ok := patch["end_time"].(string); ok {
+			t.EndTime = v
+		}
+		if v, ok := patch["post_event_seconds"].(float64); ok {
+			t.PostEventSeconds = int(v)
+		}
+		if err := h.DB.UpdateScheduleTemplate(t); err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "template not found"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, t)
+
+	case http.MethodDelete:
+		if err := h.DB.DeleteScheduleTemplate(id); err != nil {
+			if errors.Is(err, dirdb.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "template not found or is a default template"})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+// -----------------------------------------------------------------------
+// ONVIF shim — avoids import cycle in cameraRefreshHandler
+// -----------------------------------------------------------------------
+
+// onvifProbeDeviceFull is a thin wrapper around onvif.ProbeDeviceFull so that
+// handlers.go can call it without needing a direct import of the onvif package
+// in this file (the package is already imported for the onvif import path above).
+func onvifProbeDeviceFull(endpoint, username, password string) (*onvif.ProbeResult, error) {
+	return onvif.ProbeDeviceFull(endpoint, username, password)
 }

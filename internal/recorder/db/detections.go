@@ -230,3 +230,61 @@ func (d *DB) QueryDetectionsByTimeRange(cameraID string, start, end time.Time) (
 	}
 	return detections, rows.Err()
 }
+
+// DetectionWithEvent is a Detection enriched with motion event metadata for
+// search results.
+type DetectionWithEvent struct {
+	Detection
+	CameraID      string `json:"camera_id"`
+	CameraName    string `json:"camera_name"`
+	ThumbnailPath string `json:"thumbnail_path,omitempty"`
+}
+
+// ListDetectionsWithEvents returns detections with their associated motion event
+// and camera information, filtered by camera ID and time range. Only detections
+// with non-null embeddings are returned.
+func (d *DB) ListDetectionsWithEvents(cameraID string, start, end time.Time) ([]*DetectionWithEvent, error) {
+	query := `
+		SELECT d.id, d.motion_event_id, d.frame_time, d.class, d.confidence,
+			d.box_x, d.box_y, d.box_w, d.box_h, d.embedding, COALESCE(d.attributes, ''),
+			me.camera_id, COALESCE(c.name, ''), COALESCE(me.thumbnail_path, '')
+		FROM detections d
+		JOIN motion_events me ON d.motion_event_id = me.id
+		LEFT JOIN cameras c ON me.camera_id = c.id
+		WHERE d.embedding IS NOT NULL
+		  AND d.frame_time >= ?
+		  AND d.frame_time <= ?`
+
+	args := []interface{}{
+		start.UTC().Format(timeFormat),
+		end.UTC().Format(timeFormat),
+	}
+
+	if cameraID != "" {
+		query += ` AND me.camera_id = ?`
+		args = append(args, cameraID)
+	}
+
+	query += ` ORDER BY d.frame_time DESC LIMIT 500`
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*DetectionWithEvent
+	for rows.Next() {
+		r := &DetectionWithEvent{}
+		if err := rows.Scan(
+			&r.ID, &r.MotionEventID, &r.FrameTime, &r.Class,
+			&r.Confidence, &r.BoxX, &r.BoxY, &r.BoxW, &r.BoxH,
+			&r.Embedding, &r.Attributes,
+			&r.CameraID, &r.CameraName, &r.ThumbnailPath,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/bluenviron/mediamtx/internal/recorder/ai"
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // Executor runs forensic queries against the NVR database and CLIP embedder.

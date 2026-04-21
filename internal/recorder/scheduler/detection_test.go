@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 func makeDetSched(day int, start, end string, enabled bool) *db.DetectionSchedule {

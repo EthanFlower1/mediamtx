@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // maxRetries is the number of delivery attempts before giving up.

@@ -40,7 +40,7 @@ import (
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
-	nvrdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // DefaultStateDir is the default directory for local state, device key,

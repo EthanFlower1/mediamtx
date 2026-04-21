@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

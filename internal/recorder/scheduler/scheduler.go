@@ -17,7 +17,7 @@ import (
 	"time"
 
 	crypto "github.com/bluenviron/mediamtx/internal/shared/auth"
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/recorder/onvif"
 	"github.com/bluenviron/mediamtx/internal/recorder/thumbnail"
 	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"

@@ -284,4 +284,136 @@ CREATE TABLE IF NOT EXISTS config (
 );
 `,
 	},
+	{
+		version: 2,
+		sql: `
+CREATE TABLE cameras (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	onvif_endpoint TEXT,
+	onvif_username TEXT,
+	onvif_password TEXT,
+	onvif_profile_token TEXT,
+	rtsp_url TEXT,
+	ptz_capable INTEGER NOT NULL DEFAULT 0,
+	mediamtx_path TEXT UNIQUE,
+	status TEXT NOT NULL DEFAULT 'disconnected',
+	tags TEXT,
+	retention_days INTEGER NOT NULL DEFAULT 0,
+	event_retention_days INTEGER NOT NULL DEFAULT 0,
+	detection_retention_days INTEGER NOT NULL DEFAULT 0,
+	supports_ptz INTEGER NOT NULL DEFAULT 0,
+	supports_imaging INTEGER NOT NULL DEFAULT 0,
+	supports_events INTEGER NOT NULL DEFAULT 0,
+	supports_relay INTEGER NOT NULL DEFAULT 0,
+	supports_audio_backchannel INTEGER NOT NULL DEFAULT 0,
+	snapshot_uri TEXT DEFAULT '',
+	supports_media2 INTEGER NOT NULL DEFAULT 0,
+	supports_analytics INTEGER NOT NULL DEFAULT 0,
+	supports_edge_recording INTEGER NOT NULL DEFAULT 0,
+	service_capabilities TEXT DEFAULT '',
+	motion_timeout_seconds INTEGER NOT NULL DEFAULT 8,
+	sub_stream_url TEXT DEFAULT '',
+	ai_enabled INTEGER NOT NULL DEFAULT 0,
+	ai_stream_id TEXT DEFAULT '',
+	ai_track_timeout INTEGER DEFAULT 5,
+	ai_confidence REAL DEFAULT 0.5,
+	audio_transcode INTEGER NOT NULL DEFAULT 0,
+	recording_stream_id TEXT DEFAULT '',
+	storage_path TEXT NOT NULL DEFAULT '',
+	quota_bytes INTEGER NOT NULL DEFAULT 0,
+	quota_warning_percent INTEGER NOT NULL DEFAULT 80,
+	quota_critical_percent INTEGER NOT NULL DEFAULT 90,
+	supported_event_topics TEXT DEFAULT '',
+	device_id TEXT DEFAULT NULL,
+	channel_index INTEGER DEFAULT NULL,
+	multicast_enabled INTEGER NOT NULL DEFAULT 0,
+	multicast_address TEXT NOT NULL DEFAULT '',
+	multicast_port INTEGER NOT NULL DEFAULT 0,
+	multicast_ttl INTEGER NOT NULL DEFAULT 5,
+	confidence_thresholds TEXT NOT NULL DEFAULT '',
+	device_info TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE recording_rules (
+	id TEXT PRIMARY KEY,
+	camera_id TEXT NOT NULL,
+	stream_id TEXT NOT NULL DEFAULT '',
+	template_id TEXT DEFAULT '',
+	name TEXT NOT NULL,
+	mode TEXT NOT NULL,
+	days TEXT NOT NULL,
+	start_time TEXT NOT NULL,
+	end_time TEXT NOT NULL,
+	post_event_seconds INTEGER NOT NULL DEFAULT 30,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_recording_rules_camera ON recording_rules(camera_id);
+
+CREATE TABLE camera_streams (
+    id TEXT PRIMARY KEY,
+    camera_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    rtsp_url TEXT NOT NULL,
+    profile_token TEXT NOT NULL DEFAULT '',
+    video_codec TEXT NOT NULL DEFAULT '',
+    audio_codec TEXT NOT NULL DEFAULT '',
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    roles TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    retention_days INTEGER NOT NULL DEFAULT 0,
+    event_retention_days INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_camera_streams_camera ON camera_streams(camera_id);
+
+CREATE TABLE smtp_config (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	host TEXT NOT NULL DEFAULT '',
+	port INTEGER NOT NULL DEFAULT 587,
+	username TEXT NOT NULL DEFAULT '',
+	password TEXT NOT NULL DEFAULT '',
+	from_address TEXT NOT NULL DEFAULT '',
+	tls_enabled INTEGER NOT NULL DEFAULT 1,
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+INSERT INTO smtp_config (id) VALUES (1);
+
+CREATE TABLE alert_rules (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	rule_type TEXT NOT NULL,
+	threshold_value REAL NOT NULL,
+	camera_id TEXT DEFAULT '',
+	enabled INTEGER NOT NULL DEFAULT 1,
+	notify_email INTEGER NOT NULL DEFAULT 1,
+	cooldown_minutes INTEGER NOT NULL DEFAULT 60,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE alerts (
+	id TEXT PRIMARY KEY,
+	rule_id TEXT NOT NULL,
+	rule_type TEXT NOT NULL,
+	severity TEXT NOT NULL DEFAULT 'warning',
+	message TEXT NOT NULL,
+	details TEXT DEFAULT '',
+	acknowledged INTEGER NOT NULL DEFAULT 0,
+	acknowledged_by TEXT DEFAULT '',
+	acknowledged_at TEXT DEFAULT '',
+	email_sent INTEGER NOT NULL DEFAULT 0,
+	email_error TEXT DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY (rule_id) REFERENCES alert_rules(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_alerts_rule ON alerts(rule_id);
+CREATE INDEX idx_alerts_created ON alerts(created_at);
+CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged);
+`,
+	},
 }

@@ -244,3 +244,63 @@ func (d *DB) QueryEvents(cameraID string, start, end time.Time, eventTypes []str
 	}
 	return events, rows.Err()
 }
+
+// SearchableEvent is a motion event enriched with camera name and embedding for
+// similarity search.
+type SearchableEvent struct {
+	EventID       int64   `json:"event_id"`
+	CameraID      string  `json:"camera_id"`
+	CameraName    string  `json:"camera_name"`
+	Class         string  `json:"class"`
+	Confidence    float64 `json:"confidence"`
+	StartedAt     string  `json:"started_at"`
+	Embedding     []byte  `json:"-"`
+	ThumbnailPath string  `json:"thumbnail_path,omitempty"`
+}
+
+// ListSearchableEvents returns consolidated motion events that have non-null
+// embeddings within the given time range.
+func (d *DB) ListSearchableEvents(cameraID string, start, end time.Time) ([]*SearchableEvent, error) {
+	query := `
+		SELECT me.id, me.camera_id, COALESCE(c.name, ''),
+			COALESCE(me.object_class, ''), COALESCE(me.confidence, 0),
+			me.started_at, me.embedding, COALESCE(me.thumbnail_path, '')
+		FROM motion_events me
+		LEFT JOIN cameras c ON me.camera_id = c.id
+		WHERE me.embedding IS NOT NULL
+		  AND length(me.embedding) > 0
+		  AND me.started_at >= ?
+		  AND me.started_at <= ?`
+
+	args := []interface{}{
+		start.UTC().Format(timeFormat),
+		end.UTC().Format(timeFormat),
+	}
+
+	if cameraID != "" {
+		query += ` AND me.camera_id = ?`
+		args = append(args, cameraID)
+	}
+
+	query += ` ORDER BY me.started_at DESC LIMIT 500`
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*SearchableEvent
+	for rows.Next() {
+		ev := &SearchableEvent{}
+		if err := rows.Scan(
+			&ev.EventID, &ev.CameraID, &ev.CameraName,
+			&ev.Class, &ev.Confidence,
+			&ev.StartedAt, &ev.Embedding, &ev.ThumbnailPath,
+		); err != nil {
+			return nil, err
+		}
+		results = append(results, ev)
+	}
+	return results, rows.Err()
+}

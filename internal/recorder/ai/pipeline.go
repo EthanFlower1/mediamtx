@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // Pipeline orchestrates the four detection stages for a single camera.

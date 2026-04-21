@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // SearchResult represents a single result from a semantic search query.

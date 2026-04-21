@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // DetectionScheduleStatus holds the evaluated detection state for a camera.

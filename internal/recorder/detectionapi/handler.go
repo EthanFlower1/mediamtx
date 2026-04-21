@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	recdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	recdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // Handler is the detection API handler for the Recorder service.

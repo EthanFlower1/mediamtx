@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // Compile-time interface checks.

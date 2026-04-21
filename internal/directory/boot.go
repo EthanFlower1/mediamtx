@@ -30,6 +30,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/mesh/headscale"
 	"github.com/bluenviron/mediamtx/internal/directory/pairing"
 	"github.com/bluenviron/mediamtx/internal/directory/pki/stepca"
+	"github.com/bluenviron/mediamtx/internal/directory/legacynvrapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recorderapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
@@ -492,6 +493,13 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 			"mode":   "directory",
 		})
 	})
+
+	// Legacy /api/nvr/... compatibility routes — the Flutter client uses
+	// $serverUrl/api/nvr as its ApiClient base URL so all resource endpoints
+	// must be reachable here. The more-specific auth/health routes registered
+	// above take precedence over the catch-all patterns in legacynvrapi.
+	nvrCompat := &legacynvrapi.Handlers{DB: nDB}
+	nvrCompat.Register(mux)
 
 	// Web UI — SPA fallback at /admin
 	mux.Handle("/admin/", webui.Handler("/admin"))

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dirpairing "github.com/bluenviron/mediamtx/internal/directory/pairing"
+	sharedpairing "github.com/bluenviron/mediamtx/internal/shared/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 )
 
@@ -106,9 +106,9 @@ func (fd *fakeDirectory) endpoint() string { return fd.server.URL }
 // makePairingToken builds a fully-formed PairingToken signed by the fake
 // directory's leaf key. The Directory uses its own leaf key as the pairing
 // signing key so that Step1 can verify the signature from the TLS cert.
-func (fd *fakeDirectory) makePairingToken(t *testing.T, signingKey ed25519.PrivateKey, now time.Time) (string, *dirpairing.PairingToken) {
+func (fd *fakeDirectory) makePairingToken(t *testing.T, signingKey ed25519.PrivateKey, now time.Time) (string, *sharedpairing.PairingToken) {
 	t.Helper()
-	pt := &dirpairing.PairingToken{
+	pt := &sharedpairing.PairingToken{
 		TokenID:              "test-token-id-" + t.Name(),
 		DirectoryEndpoint:    fd.endpoint(),
 		HeadscalePreAuthKey:  "hskey-test-deadbeef",
@@ -202,7 +202,7 @@ func TestStep1FingerprintMismatch(t *testing.T) {
 	joiner := makeJoiner(t, fd)
 
 	// Build a token with a wrong fingerprint.
-	pt := &dirpairing.PairingToken{
+	pt := &sharedpairing.PairingToken{
 		TokenID:              "bad-fp-token",
 		DirectoryEndpoint:    fd.endpoint(),
 		HeadscalePreAuthKey:  "key",
@@ -226,7 +226,7 @@ func TestStep1ExpiredToken(t *testing.T) {
 	joiner := makeJoiner(t, fd)
 
 	past := time.Now().Add(-1 * time.Hour)
-	pt := &dirpairing.PairingToken{
+	pt := &sharedpairing.PairingToken{
 		TokenID:              "expired-token",
 		DirectoryEndpoint:    fd.endpoint(),
 		HeadscalePreAuthKey:  "key",
@@ -238,7 +238,7 @@ func TestStep1ExpiredToken(t *testing.T) {
 	encoded, err := pt.Encode(fd.leafPriv)
 	require.NoError(t, err)
 
-	// dirpairing.Decode itself rejects expired tokens.
+	// Decode itself rejects expired tokens.
 	_, _, err = joiner.Step1DecodeAndPin(context.Background(), encoded)
 	require.Error(t, err)
 }
@@ -282,7 +282,7 @@ func TestStep2CheckInAlreadyRedeemed(t *testing.T) {
 	srv.StartTLS()
 	t.Cleanup(srv.Close)
 
-	token := &dirpairing.PairingToken{
+	token := &sharedpairing.PairingToken{
 		TokenID:              "redeemed-token",
 		DirectoryEndpoint:    srv.URL,
 		DirectoryFingerprint: fp,
@@ -336,7 +336,7 @@ func TestStep6PinRootMismatch(t *testing.T) {
 	stateDir := t.TempDir()
 	joiner := pairing.NewJoiner(pairing.JoinerConfig{StateDir: stateDir})
 
-	token := &dirpairing.PairingToken{
+	token := &sharedpairing.PairingToken{
 		StepCAFingerprint: "aaaa",
 	}
 	// Build a leaf cert with a different root fingerprint.
@@ -361,7 +361,7 @@ func TestStep9PersistState(t *testing.T) {
 	stateDir := t.TempDir()
 	joiner := pairing.NewJoiner(pairing.JoinerConfig{StateDir: stateDir})
 
-	token := &dirpairing.PairingToken{
+	token := &sharedpairing.PairingToken{
 		DirectoryEndpoint: "https://dir.test:8443",
 		StepCAFingerprint: "cafebabe",
 	}

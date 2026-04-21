@@ -31,7 +31,6 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
 	"github.com/bluenviron/mediamtx/internal/directory/timeline"
 	"github.com/bluenviron/mediamtx/internal/directory/webui"
-	nvrdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
 )
@@ -105,7 +104,7 @@ func (c *BootConfig) withDefaults() {
 // clean Shutdown method.
 type DirectoryServer struct {
 	DB          *directorydb.DB
-	NVRDB       *nvrdb.DB
+	NVRDB       *directorydb.DB
 	CA          *stepca.ClusterCA
 	Headscale   *headscale.Coordinator
 	PairingSvc  *pairing.Service
@@ -199,7 +198,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		nvrDBPath = filepath.Join(cfg.DataDir, "nvr.db")
 	}
 	log.Info("directory: opening NVR database", "path", nvrDBPath)
-	nDB, nvrDBErr := nvrdb.Open(nvrDBPath)
+	nDB, nvrDBErr := directorydb.Open(ctx, nvrDBPath)
 	if nvrDBErr != nil {
 		// Non-fatal: log and continue without the new camera/system API.
 		log.Warn("directory: failed to open NVR database; cameraapi/systemapi will not be registered",

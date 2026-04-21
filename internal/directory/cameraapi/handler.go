@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	dirdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	dirdb "github.com/bluenviron/mediamtx/internal/directory/db"
 )
 
 // Handler is the camera API handler for the Directory service.

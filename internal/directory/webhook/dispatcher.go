@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/directory/db"
 )
 
 // DetectionEvent is the payload sent to webhook endpoints.

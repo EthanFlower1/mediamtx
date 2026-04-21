@@ -82,20 +82,13 @@ linters:
               KAI-236: internal/shared is a leaf with respect to role
               packages and must not import internal/recorder.
         # ----------------------------------------------------------------
-        # Seam #2b: legacydb deprecation guard.
+        # Seam #2b: legacydb is DELETED.
         #
-        # internal/shared/legacydb is a TRANSITIONAL package containing
-        # the monolithic NVR database schema (formerly internal/nvr/db).
-        # New code must use internal/directory/db or internal/recorder/db.
-        # This rule blocks NEW packages from importing legacydb. Existing
-        # importers are permitted via the allow list below while the DB
-        # split (Phase 3) is completed.
-        #
-        # When all tables have been migrated, remove legacydb entirely.
+        # internal/shared/legacydb was removed after all consumers were
+        # migrated to internal/directory/db or internal/recorder/db.
+        # The depguard rules above (directory-no-recorder, recorder-no-
+        # directory, shared-is-leaf) enforce the boundary.
         # ----------------------------------------------------------------
-        # NOTE: legacydb-deprecation is informational — it uses lax mode
-        # so existing importers are not blocked. Remove the deny list once
-        # migration is complete.
 
         # ----------------------------------------------------------------
         # Seam #3: Zitadel IdentityProvider firewall.

@@ -1,6 +1,7 @@
 package cameraapi_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
-	dirdb "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	dirdb "github.com/bluenviron/mediamtx/internal/directory/db"
 )
 
 func newTestDB(t *testing.T) *dirdb.DB {
 	t.Helper()
-	db, err := dirdb.Open(":memory:")
+	db, err := dirdb.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}

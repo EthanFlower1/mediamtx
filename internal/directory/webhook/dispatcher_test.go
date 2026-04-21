@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,12 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	db "github.com/bluenviron/mediamtx/internal/shared/legacydb"
+	db "github.com/bluenviron/mediamtx/internal/directory/db"
 )
 
 func setupTestDB(t *testing.T) *db.DB {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := db.Open(context.Background(), ":memory:")
 	require.NoError(t, err)
 	t.Cleanup(func() { database.Close() })
 	return database

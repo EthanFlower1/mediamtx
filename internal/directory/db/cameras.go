@@ -1,4 +1,4 @@
-package legacydb
+package db
 
 import (
 	"database/sql"
@@ -8,9 +8,6 @@ import (
 
 	"github.com/google/uuid"
 )
-
-// ErrNotFound is returned when a requested record does not exist.
-var ErrNotFound = errors.New("not found")
 
 // Camera represents a camera record in the database.
 type Camera struct {

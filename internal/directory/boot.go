@@ -89,7 +89,7 @@ func (c *BootConfig) withDefaults() {
 		c.DataDir = "data/directory"
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":9996"
+		c.ListenAddr = ":9995"
 	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()
@@ -695,7 +695,8 @@ func (b *Booter) Boot(ctx context.Context, cfg any, logger *slog.Logger) error {
 
 	bootCfg := BootConfig{
 		DataDir:              c.NVRDirectoryDataDir,
-		ListenAddr:           c.APIAddress,
+		// ListenAddr intentionally omitted — defaults to :9996.
+		// c.APIAddress (:9997) is used by the core MediaMTX streaming API.
 		MasterKey:            masterKey,
 		RecorderServiceToken: c.NVRServiceToken,
 		Logger:               logger,

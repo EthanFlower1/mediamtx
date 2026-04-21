@@ -86,7 +86,7 @@ func (c *BootConfig) withDefaults() {
 		c.DataDir = "/var/lib/mediamtx-directory"
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":9997"
+		c.ListenAddr = ":9996"
 	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()

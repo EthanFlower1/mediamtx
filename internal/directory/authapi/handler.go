@@ -28,12 +28,15 @@ type TenantRef struct {
 
 // Session is the result of a successful login or refresh.
 type Session struct {
-	ID           SessionID
-	UserID       string
-	AccessToken  string
-	RefreshToken string
-	IDToken      string
-	ExpiresAt    time.Time
+	ID                SessionID
+	UserID            string
+	Username          string
+	Role              string
+	CameraPermissions string
+	AccessToken       string
+	RefreshToken      string
+	IDToken           string
+	ExpiresAt         time.Time
 }
 
 // SessionID is a unique session identifier.
@@ -79,11 +82,21 @@ type LoginRequest struct {
 
 // LoginResponse is the JSON body returned by successful login or refresh.
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	IDToken      string `json:"id_token,omitempty"`
-	ExpiresAt    string `json:"expires_at"`
-	SessionID    string `json:"session_id"`
+	AccessToken  string            `json:"access_token"`
+	RefreshToken string            `json:"refresh_token"`
+	IDToken      string            `json:"id_token,omitempty"`
+	ExpiresAt    string            `json:"expires_at"`
+	ExpiresIn    int               `json:"expires_in"`
+	SessionID    string            `json:"session_id"`
+	User         *LoginResponseUser `json:"user"`
+}
+
+// LoginResponseUser is the user object included in the login response.
+type LoginResponseUser struct {
+	ID                string `json:"id"`
+	Username          string `json:"username"`
+	Role              string `json:"role"`
+	CameraPermissions string `json:"camera_permissions"`
 }
 
 // RefreshRequest is the JSON body for POST /api/v1/auth/refresh.
@@ -183,12 +196,23 @@ func (h *Handlers) Logout() http.HandlerFunc {
 }
 
 func sessionToResponse(s *Session) LoginResponse {
+	expiresIn := int(time.Until(s.ExpiresAt).Seconds())
+	if expiresIn < 0 {
+		expiresIn = 0
+	}
 	return LoginResponse{
 		AccessToken:  s.AccessToken,
 		RefreshToken: s.RefreshToken,
 		IDToken:      s.IDToken,
 		ExpiresAt:    s.ExpiresAt.Format(time.RFC3339),
+		ExpiresIn:    expiresIn,
 		SessionID:    string(s.ID),
+		User: &LoginResponseUser{
+			ID:                string(s.UserID),
+			Username:          s.Username,
+			Role:              s.Role,
+			CameraPermissions: s.CameraPermissions,
+		},
 	}
 }
 

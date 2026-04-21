@@ -145,11 +145,14 @@ func (p *LocalAuthProvider) issueSession(user *directorydb.User) (*Session, erro
 	}
 
 	return &Session{
-		ID:           SessionID(rt.ID),
-		UserID:       user.ID,
-		AccessToken:  accessToken,
-		RefreshToken: rawToken,
-		ExpiresAt:    now.Add(15 * time.Minute),
+		ID:                SessionID(rt.ID),
+		UserID:            user.ID,
+		Username:          user.Username,
+		Role:              user.RoleID,
+		CameraPermissions: user.CameraPermissions,
+		AccessToken:       accessToken,
+		RefreshToken:      rawToken,
+		ExpiresAt:         now.Add(15 * time.Minute),
 	}, nil
 }
 

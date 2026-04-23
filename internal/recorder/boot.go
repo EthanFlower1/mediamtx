@@ -31,6 +31,7 @@ import (
 
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
+	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
@@ -285,9 +286,36 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 			token = os.Getenv("MTX_PAIRING_TOKEN")
 		}
 		if token == "" {
-			store.Close()
-			return nil, fmt.Errorf("recorder boot: not yet paired and no pairing token provided " +
-				"(set MTX_PAIRING_TOKEN env var or pass PairingToken in config)")
+			// No explicit token — attempt mDNS discovery + approval-based pairing.
+			log.Info("recorder: no pairing token, attempting mDNS discovery")
+
+			dirInfo, discoverErr := discovery.Listen(30*time.Second, nil, log)
+			if discoverErr != nil {
+				store.Close()
+				return nil, fmt.Errorf("recorder boot: mDNS discovery failed "+
+					"(provide MTX_PAIRING_TOKEN or MTX_DIRECTORY_URL): %w", discoverErr)
+			}
+
+			directoryURL := fmt.Sprintf("http://%s:%d", dirInfo.SourceIP, dirInfo.Port)
+			log.Info("recorder: discovered Directory via mDNS", "url", directoryURL)
+
+			hostname, _ := os.Hostname()
+			requestID, reqErr := requestPairing(ctx, directoryURL, hostname)
+			if reqErr != nil {
+				store.Close()
+				return nil, fmt.Errorf("recorder boot: pairing request failed: %w", reqErr)
+			}
+
+			log.Info("recorder: waiting for admin approval", "request_id", requestID)
+
+			approvedToken, pollErr := pollForToken(ctx, directoryURL, requestID, log)
+			if pollErr != nil {
+				store.Close()
+				return nil, fmt.Errorf("recorder boot: pairing failed: %w", pollErr)
+			}
+
+			token = approvedToken
+			log.Info("recorder: pairing approved via mDNS discovery")
 		}
 
 		log.Info("recorder: not yet paired, starting join sequence")

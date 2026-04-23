@@ -24,6 +24,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
 	"github.com/bluenviron/mediamtx/internal/directory/authapi"
 	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
+	"github.com/bluenviron/mediamtx/internal/directory/cloudconnector"
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 	"github.com/bluenviron/mediamtx/internal/directory/ingest"
 	"github.com/bluenviron/mediamtx/internal/directory/mdns"
@@ -133,12 +134,18 @@ type DirectoryServer struct {
 	PairingSvc  *pairing.Service
 	HTTPServer  *http.Server
 	Broadcaster *mdns.Broadcaster
+	CloudConn   *cloudconnector.Connector
+	cloudCancel context.CancelFunc
 	logger      *slog.Logger
 }
 
 // Shutdown gracefully stops all Directory subsystems in reverse boot order.
 func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	var errs []string
+
+	if ds.cloudCancel != nil {
+		ds.cloudCancel()
+	}
 
 	if ds.Broadcaster != nil {
 		ds.Broadcaster.Stop()
@@ -382,6 +389,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	// Pending store (for pending pairing requests)
 	pendingStore := pairing.NewPendingStore(ddb)
 
+	// Token store (for PollTokenHandler to look up approved tokens)
+	tokenStore := pairing.NewStore(ddb)
+
 	// ---------------------------------------------------------------
 	// 6. Build HTTP mux and start server
 	// ---------------------------------------------------------------
@@ -421,6 +431,27 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	}))
 	mux.HandleFunc("/api/v1/pairing/check-in", pairing.CheckInHandler(pairingSvc, pairingRecorderStore, nil, log))
 	mux.HandleFunc("/api/v1/pairing/pending", pairing.ListPendingHandler(pendingStore))
+
+	// Approval-based pairing endpoints (KAI-430 approval flow)
+	// Helper: extract authenticated user ID from request (same closure as GenerateHandler above).
+	pairingUserID := func(r *http.Request) (pairing.UserID, bool) {
+		uid := r.Header.Get("X-User-ID")
+		return pairing.UserID(uid), uid != ""
+	}
+
+	mux.HandleFunc("POST /api/v1/pairing/request", pairing.RequestPairingHandler(pairingSvc, pendingStore))
+	mux.HandleFunc("POST /api/v1/pairing/pending/{id}/approve", pairing.ApprovePendingHandler(
+		pairingSvc, pendingStore, pairingUserID,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
+	mux.HandleFunc("POST /api/v1/pairing/pending/{id}/deny", pairing.DenyPendingHandler(
+		pairingSvc, pendingStore, pairingUserID,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
+	mux.HandleFunc("GET /api/v1/pairing/request/{id}/token", pairing.PollTokenHandler(
+		pendingStore, tokenStore,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
 
 	// Recorder control — streaming endpoint
 	mux.Handle("/kaivue.v1.RecorderControlService/StreamAssignments", recCtrl)
@@ -606,6 +637,38 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		} else {
 			srv.Broadcaster = broadcaster
 		}
+	}
+
+	// ---------------------------------------------------------------
+	// 8. Start cloud connector (optional — air-gapped if URL is empty)
+	// ---------------------------------------------------------------
+	if cfg.CloudConnectURL != "" {
+		log.Info("directory: starting cloud connector",
+			"url", cfg.CloudConnectURL,
+			"alias", cfg.CloudSiteAlias)
+
+		cloudCtx, cloudCancel := context.WithCancel(context.Background())
+		srv.cloudCancel = cloudCancel
+
+		cc := cloudconnector.New(cloudconnector.Config{
+			URL:   cfg.CloudConnectURL,
+			Token: cfg.CloudConnectToken,
+			Site: cloudconnector.SiteInfo{
+				ID:    cfg.CloudSiteAlias,
+				Alias: cfg.CloudSiteAlias,
+				Capabilities: cloudconnector.Capabilities{
+					Streams:  true,
+					Playback: true,
+					AI:       true,
+				},
+			},
+			Logger: log.With(slog.String("component", "cloudconnector")),
+		})
+		srv.CloudConn = cc
+
+		go cc.Run(cloudCtx)
+	} else {
+		log.Info("directory: cloud connector disabled (air-gapped mode)")
 	}
 
 	log.Info("directory: Directory mode started successfully",

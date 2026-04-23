@@ -81,6 +81,19 @@ type BootConfig struct {
 	// camera and system API handlers. Defaults to <DataDir>/nvr.db.
 	// When empty the handlers are not registered.
 	NVRDBPath string
+
+	// CloudConnectURL is the cloud broker WebSocket endpoint, e.g.
+	// "wss://connect.raikada.com/ws/directory". Empty disables the
+	// cloud connector (air-gapped mode).
+	CloudConnectURL string
+
+	// CloudConnectToken is the bearer token used to authenticate
+	// with the cloud broker. Issued during cloud account setup.
+	CloudConnectToken string
+
+	// CloudSiteAlias is the human-readable alias for this site,
+	// e.g. "my-home". Used as the QuickConnect-style identifier.
+	CloudSiteAlias string
 }
 
 func (c *BootConfig) withDefaults() {
@@ -481,6 +494,23 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/admin/audit", adminHandlers.AuditHandler())
 	mux.HandleFunc("/api/v1/admin/exports", adminHandlers.ExportJobsHandler())
 	mux.HandleFunc("/api/v1/admin/exports/by-id", adminHandlers.ExportJobByIDHandler())
+
+	// Auth methods — the Flutter LoginService calls this first to discover
+	// available authentication methods before showing the login form.
+	mux.HandleFunc("/api/v1/auth/methods", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]string{"code": "METHOD_NOT_ALLOWED", "message": "use GET"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"local_enabled": true,
+			"sso_providers": []any{},
+		})
+	})
 
 	// Auth API — login, refresh, logout
 	// Derive a stable RSA-2048 signing key from the master key so JWTs survive

@@ -25,6 +25,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory/authapi"
 	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
 	"github.com/bluenviron/mediamtx/internal/directory/cloudconnector"
+	"github.com/bluenviron/mediamtx/internal/directory/tunnel"
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 	"github.com/bluenviron/mediamtx/internal/directory/ingest"
 	"github.com/bluenviron/mediamtx/internal/directory/mdns"
@@ -134,14 +135,98 @@ type DirectoryServer struct {
 	PairingSvc  *pairing.Service
 	HTTPServer  *http.Server
 	Broadcaster *mdns.Broadcaster
-	CloudConn   *cloudconnector.Connector
-	cloudCancel context.CancelFunc
-	logger      *slog.Logger
+	CloudConn    *cloudconnector.Connector
+	cloudCancel  context.CancelFunc
+	Tunnel       *tunnel.Tunnel
+	tunnelCancel context.CancelFunc
+	logger       *slog.Logger
+}
+
+// ApplyCloudSettings stops any existing cloud connector and starts a new one
+// with the given settings. Called by the admin API when settings are saved.
+func (ds *DirectoryServer) ApplyCloudSettings(url, token, alias string) {
+	log := ds.logger
+
+	// Stop existing tunnel.
+	if ds.tunnelCancel != nil {
+		ds.tunnelCancel()
+		ds.tunnelCancel = nil
+	}
+	if ds.Tunnel != nil {
+		ds.Tunnel.Stop()
+		ds.Tunnel = nil
+	}
+
+	// Stop existing connector.
+	if ds.cloudCancel != nil {
+		ds.cloudCancel()
+		ds.cloudCancel = nil
+		ds.CloudConn = nil
+		log.Info("directory: stopped cloud connector")
+	}
+
+	if url == "" {
+		log.Info("directory: cloud connector disabled")
+		return
+	}
+
+	log.Info("directory: starting cloud connector", "url", url, "alias", alias)
+	cloudCtx, cloudCancel := context.WithCancel(context.Background())
+	ds.cloudCancel = cloudCancel
+
+	cc := cloudconnector.New(cloudconnector.Config{
+		URL:   url,
+		Token: token,
+		Site: cloudconnector.SiteInfo{
+			ID:    alias,
+			Alias: alias,
+			Capabilities: cloudconnector.Capabilities{
+				Streams:  true,
+				Playback: true,
+				AI:       true,
+			},
+		},
+		// Proxy HTTP requests from cloud to the local HLS server.
+		CommandHandler: cloudconnector.NewProxyCommandHandler("http://localhost:8898"),
+		Logger:         log.With(slog.String("component", "cloudconnector")),
+	})
+	ds.CloudConn = cc
+	go cc.Run(cloudCtx)
+
+	// Start frp tunnel for data plane.
+	tun, err := tunnel.New(tunnel.Config{
+		ServerAddr: "connect.raikada.com",
+		ServerPort: 7000,
+		Token:      token,
+		SubDomain:  alias,
+		LocalPorts: tunnel.LocalPorts{
+			API:      9995,
+			HLS:      8898,
+			WebRTC:   8889,
+			Playback: 9996,
+		},
+		Logger: log,
+	})
+	if err != nil {
+		log.Warn("tunnel: failed to create", "error", err)
+	} else {
+		tunnelCtx, tunnelCancel := context.WithCancel(context.Background())
+		ds.tunnelCancel = tunnelCancel
+		ds.Tunnel = tun
+		go tun.Run(tunnelCtx)
+	}
 }
 
 // Shutdown gracefully stops all Directory subsystems in reverse boot order.
 func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	var errs []string
+
+	if ds.tunnelCancel != nil {
+		ds.tunnelCancel()
+	}
+	if ds.Tunnel != nil {
+		ds.Tunnel.Stop()
+	}
 
 	if ds.cloudCancel != nil {
 		ds.cloudCancel()
@@ -526,6 +611,16 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/admin/exports", adminHandlers.ExportJobsHandler())
 	mux.HandleFunc("/api/v1/admin/exports/by-id", adminHandlers.ExportJobByIDHandler())
 
+	// Cloud connector settings — admin UI reads/writes these
+	cloudStore := adminapi.NewCloudStore(ddb.DB)
+	mux.Handle("/api/v1/admin/cloud", adminapi.CloudSettingsHandler(cloudStore, func(cs adminapi.CloudSettings) {
+		if cs.Enabled {
+			srv.ApplyCloudSettings(cs.URL, cs.Token, cs.SiteAlias)
+		} else {
+			srv.ApplyCloudSettings("", "", "")
+		}
+	}))
+
 	// Auth methods — the Flutter LoginService calls this first to discover
 	// available authentication methods before showing the login form.
 	mux.HandleFunc("/api/v1/auth/methods", func(w http.ResponseWriter, r *http.Request) {
@@ -640,33 +735,68 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	}
 
 	// ---------------------------------------------------------------
-	// 8. Start cloud connector (optional — air-gapped if URL is empty)
+	// 8. Start cloud connector (from config or DB settings)
 	// ---------------------------------------------------------------
-	if cfg.CloudConnectURL != "" {
+	cloudURL := cfg.CloudConnectURL
+	cloudToken := cfg.CloudConnectToken
+	cloudAlias := cfg.CloudSiteAlias
+
+	// Fall back to DB settings if config is empty.
+	if cloudURL == "" {
+		if cs, err := cloudStore.Get(); err == nil && cs.Enabled {
+			cloudURL = cs.URL
+			cloudToken = cs.Token
+			cloudAlias = cs.SiteAlias
+		}
+	}
+
+	if cloudURL != "" {
 		log.Info("directory: starting cloud connector",
-			"url", cfg.CloudConnectURL,
-			"alias", cfg.CloudSiteAlias)
+			"url", cloudURL, "alias", cloudAlias)
 
 		cloudCtx, cloudCancel := context.WithCancel(context.Background())
 		srv.cloudCancel = cloudCancel
 
 		cc := cloudconnector.New(cloudconnector.Config{
-			URL:   cfg.CloudConnectURL,
-			Token: cfg.CloudConnectToken,
+			URL:   cloudURL,
+			Token: cloudToken,
 			Site: cloudconnector.SiteInfo{
-				ID:    cfg.CloudSiteAlias,
-				Alias: cfg.CloudSiteAlias,
+				ID:    cloudAlias,
+				Alias: cloudAlias,
 				Capabilities: cloudconnector.Capabilities{
 					Streams:  true,
 					Playback: true,
 					AI:       true,
 				},
 			},
-			Logger: log.With(slog.String("component", "cloudconnector")),
+			CommandHandler: cloudconnector.NewProxyCommandHandler("http://localhost:8898"),
+			Logger:         log.With(slog.String("component", "cloudconnector")),
 		})
 		srv.CloudConn = cc
-
 		go cc.Run(cloudCtx)
+
+		// Start frp tunnel for data plane.
+		tun, tunErr := tunnel.New(tunnel.Config{
+			ServerAddr: "connect.raikada.com",
+			ServerPort: 7000,
+			Token:      cloudToken,
+			SubDomain:  cloudAlias,
+			LocalPorts: tunnel.LocalPorts{
+				API:      9995,
+				HLS:      8898,
+				WebRTC:   8889,
+				Playback: 9996,
+			},
+			Logger: log,
+		})
+		if tunErr != nil {
+			log.Warn("tunnel: failed to create", "error", tunErr)
+		} else {
+			tunnelCtx, tunnelCancel := context.WithCancel(context.Background())
+			srv.tunnelCancel = tunnelCancel
+			srv.Tunnel = tun
+			go tun.Run(tunnelCtx)
+		}
 	} else {
 		log.Info("directory: cloud connector disabled (air-gapped mode)")
 	}
@@ -834,10 +964,13 @@ func (b *Booter) Boot(ctx context.Context, cfg any, logger *slog.Logger) error {
 
 	bootCfg := BootConfig{
 		DataDir:              c.NVRDirectoryDataDir,
-		// ListenAddr intentionally omitted — defaults to :9996.
+		// ListenAddr intentionally omitted — defaults to :9995.
 		// c.APIAddress (:9997) is used by the core MediaMTX streaming API.
 		MasterKey:            masterKey,
 		RecorderServiceToken: c.NVRServiceToken,
+		CloudConnectURL:      c.CloudConnectURL,
+		CloudConnectToken:    c.CloudConnectToken,
+		CloudSiteAlias:       c.CloudSiteAlias,
 		Logger:               logger,
 	}
 

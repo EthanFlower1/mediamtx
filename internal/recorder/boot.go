@@ -380,8 +380,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		PathPrefix: cfg.pathPrefix(),
 	}
 	supervisor, err := mediamtxsupervisor.New(mediamtxsupervisor.Config{
-		Source:     mediamtxsupervisor.StoreSource{Store: store},
-		Controller: controller,
+		Source:       mediamtxsupervisor.StoreSource{Store: store},
+		Controller:   controller,
+		PollInterval: 15 * time.Second,
 		Render: mediamtxsupervisor.RenderOptions{
 			PathPrefix: cfg.pathPrefix(),
 		},

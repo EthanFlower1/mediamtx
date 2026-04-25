@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -98,7 +97,8 @@ func (c *Config) logger() *slog.Logger {
 // and mediamtx's actual publishing state.
 type Watchdog struct {
 	cfg      Config
-	cycle    <-chan time.Time // production: ticker; tests: injected channel
+	ticker   *time.Ticker    // non-nil when constructed via New(); nil for test-injected cycle
+	cycle    <-chan time.Time // production: ticker.C; tests: injected channel
 	driftCnt map[string]int  // camera_id → consecutive drift count
 	notified map[string]bool // camera_id → already alerted in current episode
 }
@@ -118,6 +118,7 @@ func New(cfg Config) *Watchdog {
 	ticker := time.NewTicker(cfg.interval())
 	return &Watchdog{
 		cfg:      cfg,
+		ticker:   ticker,
 		cycle:    ticker.C,
 		driftCnt: make(map[string]int),
 		notified: make(map[string]bool),
@@ -140,6 +141,10 @@ func New(cfg Config) *Watchdog {
 // Errors from Store or MediaMTX are logged at Error level and the cycle is
 // skipped (no counter mutations, no Reload).
 func (w *Watchdog) Run(ctx context.Context) {
+	if w.ticker != nil {
+		defer w.ticker.Stop()
+	}
+
 	log := w.cfg.logger()
 
 	// Perform an immediate first check before waiting for the first tick.
@@ -328,11 +333,3 @@ func (c *httpRuntimeClient) ListPublishingCameras(ctx context.Context) ([]string
 
 	return out, nil
 }
-
-// pageStr is only used internally in tests; exported for clarity.
-func pageStr(n int) string {
-	return strconv.Itoa(n)
-}
-
-// ensure pageStr is used (avoids "declared and not used" error).
-var _ = pageStr

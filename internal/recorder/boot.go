@@ -29,19 +29,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/bluenviron/mediamtx/internal/recorder/capturemanager"
+	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
 	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
+	"github.com/bluenviron/mediamtx/internal/recorder/diskmonitor"
+	"github.com/bluenviron/mediamtx/internal/recorder/fragmentbackfill"
+	"github.com/bluenviron/mediamtx/internal/recorder/integrity"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
+	"github.com/bluenviron/mediamtx/internal/recorder/recordermetrics"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
+	"github.com/bluenviron/mediamtx/internal/recorder/recordinghealth"
+	"github.com/bluenviron/mediamtx/internal/recorder/recovery"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
+	"github.com/bluenviron/mediamtx/internal/recorder/thumbnail"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
-	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // DefaultStateDir is the default directory for local state, device key,
@@ -209,6 +217,7 @@ type RecorderServer struct {
 	meshNode   *sharedtsnet.Node
 	httpServer *http.Server
 	nvrDB      *nvrdb.DB
+	thumbGen   *thumbnail.Generator
 	cancelFn   context.CancelFunc
 	doneCh     chan struct{}
 
@@ -234,6 +243,9 @@ func (rs *RecorderServer) Shutdown() {
 	}
 	if rs.meshNode != nil {
 		_ = rs.meshNode.Shutdown(context.Background())
+	}
+	if rs.thumbGen != nil {
+		rs.thumbGen.Stop()
 	}
 	if rs.nvrDB != nil {
 		_ = rs.nvrDB.Close()
@@ -262,6 +274,11 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("recorder boot: open state store: %w", err)
 	}
+
+	// -----------------------------------------------------------
+	// 1b. Construct Prometheus metrics registry
+	// -----------------------------------------------------------
+	metrics := recordermetrics.New()
 
 	// -----------------------------------------------------------
 	// 2. Check pairing state
@@ -379,8 +396,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		PathPrefix: cfg.pathPrefix(),
 	}
 	supervisor, err := mediamtxsupervisor.New(mediamtxsupervisor.Config{
-		Source:     mediamtxsupervisor.StoreSource{Store: store},
-		Controller: controller,
+		Source:       mediamtxsupervisor.StoreSource{Store: store},
+		Controller:   controller,
+		PollInterval: 15 * time.Second,
 		Render: mediamtxsupervisor.RenderOptions{
 			PathPrefix: cfg.pathPrefix(),
 		},
@@ -402,6 +420,22 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	}
 
 	// -----------------------------------------------------------
+	// 5b. Start recording-health watchdog
+	// -----------------------------------------------------------
+	hc := recordinghealth.NewHTTPRuntimeClient(
+		cfg.mediaAPIURL(), // e.g. "http://127.0.0.1:9997"
+		cfg.pathPrefix(),  // e.g. "cam_"
+		nil,               // uses default http.Client with 5 s timeout
+	)
+	wd := recordinghealth.New(recordinghealth.Config{
+		Store:    store,
+		MediaMTX: hc,
+		Reload:   supervisor.Reload,
+		OnReload: metrics.ReconcileErrors.Inc,
+		Logger:   log,
+	})
+
+	// -----------------------------------------------------------
 	// 6-8. Start background streaming clients
 	// -----------------------------------------------------------
 	// Create a cancellable context for all streaming goroutines.
@@ -419,10 +453,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		return &tls.Certificate{}, nil
 	}
 
-	// noopCaptureMgr is a minimal CaptureManager that satisfies
-	// the recordercontrol.Client requirement. The real capture
-	// manager will be wired when the sidecar lifecycle lands.
-	capMgr := &noopCaptureManager{}
+	capMgr := capturemanager.New(capturemanager.Config{
+		Reload: supervisor.Reload,
+		Logger: log,
+	})
 
 	// CameraStore adapter for recordercontrol
 	cameraStore := &stateCameraStoreAdapter{store: store}
@@ -498,6 +532,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		// 10. Feature pipelines (AI) — deferred to their own tickets.
 		log.Info("recorder: AI feature pipelines deferred (KAI-281, KAI-283, KAI-284)")
 
+		// 11. Recording-health watchdog — runtime drift detection.
+		go wd.Run(streamCtx)
+		log.Info("recorder: recordinghealth watchdog started")
+
 		// Block until context cancelled.
 		<-streamCtx.Done()
 
@@ -519,6 +557,160 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		nvrDB = nil
 	}
 
+	// -----------------------------------------------------------
+	// 11b. Recovery scan — walk recordings dir, reconcile against DB
+	// -----------------------------------------------------------
+	// Run synchronously at boot. Failures are logged but do not block startup.
+	if nvrDB != nil {
+		if recordingsPath := cfg.recordingsPath(); recordingsPath != "" {
+			res, recErr := recovery.Run(recovery.RunConfig{
+				RecordDirs: []string{recordingsPath},
+				DB:         recovery.NewDBAdapter(nvrDB),
+				Reconciler: recovery.NewReconcileAdapter(nvrDB),
+			})
+			if recErr != nil {
+				log.Error("recorder: recovery scan failed", slog.String("error", recErr.Error()))
+			} else {
+				log.Info("recorder: recovery complete",
+					slog.Int("scanned", res.Scanned),
+					slog.Int("repaired", res.Repaired),
+					slog.Int("unrecoverable", res.Unrecoverable))
+				// Increment recovery metrics counters.
+				metrics.RecoveryScanScanned.Add(float64(res.Scanned))
+				metrics.RecoveryScanRepaired.Add(float64(res.Repaired))
+				metrics.RecoveryScanUnrecoverable.Add(float64(res.Unrecoverable))
+			}
+		}
+	}
+
+	// -----------------------------------------------------------
+	// 11c. Integrity scanner — hourly fMP4 fragment verification
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		integrityScanner := &integrity.Scanner{
+			Interval:  1 * time.Hour,
+			BatchSize: 100,
+			FetchFunc: func(cutoff time.Time, batchSize int) ([]integrity.ScanItem, error) {
+				recs, err := nvrDB.GetRecordingsNeedingVerification(cutoff, batchSize)
+				if err != nil {
+					return nil, err
+				}
+				items := make([]integrity.ScanItem, 0, len(recs))
+				for _, rec := range recs {
+					fragCount := 0
+					if frags, fragErr := nvrDB.GetFragments(rec.ID); fragErr == nil {
+						fragCount = len(frags)
+					} else {
+						log.Warn("recorder: integrity GetFragments failed",
+							slog.Int64("recording_id", rec.ID),
+							slog.String("error", fragErr.Error()))
+					}
+					items = append(items, integrity.ScanItem{
+						RecordingID: rec.ID,
+						CameraID:    rec.CameraID,
+						Info: integrity.RecordingInfo{
+							FilePath:      rec.FilePath,
+							FileSize:      rec.FileSize,
+							InitSize:      rec.InitSize,
+							FragmentCount: fragCount,
+							DurationMs:    rec.DurationMs,
+						},
+					})
+				}
+				return items, nil
+			},
+			OnResult: func(_ int64, result integrity.VerificationResult) {
+				metrics.IntegrityVerifications.Inc()
+				if result.Status == integrity.StatusCorrupted {
+					metrics.IntegrityQuarantines.Inc()
+				}
+			},
+		}
+		go integrityScanner.Run(streamCtx)
+		log.Info("recorder: integrity scanner started")
+	}
+
+	// -----------------------------------------------------------
+	// 11d. Fragment backfill — index pre-existing recordings missing
+	//      fragment metadata. Runs once after a 5 s startup delay.
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		fragmentbackfill.Run(streamCtx, fragmentbackfill.Config{
+			DB:     nvrDB,
+			Logger: log,
+		})
+		log.Info("recorder: fragment-backfill scheduled")
+	}
+
+	// -----------------------------------------------------------
+	// 11e. Thumbnail generator — scans for new recordings and
+	//      produces JPEG strip thumbnails.
+	// -----------------------------------------------------------
+	var thumbGen *thumbnail.Generator
+	if nvrDB != nil {
+		thumbGen = thumbnail.NewGenerator(thumbnail.Config{
+			DB:             nvrDB,
+			RecordingsPath: cfg.recordingsPath(),
+			// Zero values → package defaults: Interval=10s, ScanInterval=30s.
+		})
+		thumbGen.Start()
+		log.Info("recorder: thumbnail generator started")
+	}
+
+	// -----------------------------------------------------------
+	// 11f. Disk monitor — polls recording-disk capacity every 60 s;
+	//      enforces retention by deleting expired recordings when
+	//      usage exceeds the threshold (default 90%).
+	// -----------------------------------------------------------
+	var diskMon *diskmonitor.Monitor
+	if nvrDB != nil {
+		diskMon = diskmonitor.New(diskmonitor.Config{
+			RecordingsPath: cfg.recordingsPath(),
+			DB:             diskmonitor.NewDBAdapter(nvrDB.DB),
+			Logger:         log,
+		})
+		go diskMon.Run(streamCtx)
+		log.Info("recorder: disk monitor started")
+	}
+
+	// -----------------------------------------------------------
+	// 11g. Metrics gauge-poll goroutine — updates cameras_expected,
+	//      cameras_publishing, and disk-usage gauges every 10 s.
+	//      Camera-publishing count reuses the existing HTTPRuntimeClient (hc)
+	//      to avoid duplicating the mediamtx /v3/paths/list query.
+	// -----------------------------------------------------------
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-streamCtx.Done():
+				return
+			case <-ticker.C:
+				snap := recordermetrics.Snapshot{}
+
+				// cameras_expected_total
+				if cams, err := store.ListAssigned(streamCtx); err == nil {
+					snap.CamerasExpected = len(cams)
+				}
+
+				// cameras_publishing_total (reuses watchdog's runtime client)
+				if publishing, err := hc.ListPublishingCameras(streamCtx); err == nil {
+					snap.CamerasPublishing = len(publishing)
+				}
+
+				// disk metrics
+				if diskMon != nil {
+					ds := diskMon.Stats()
+					snap.DiskUsedBytes = ds.UsedBytes
+					snap.DiskCapacityBytes = ds.CapacityBytes
+				}
+
+				metrics.UpdateGauges(snap)
+			}
+		}
+	}()
+
 	var httpSrv *http.Server
 	apiAddr := cfg.apiAddress()
 	if nvrDB != nil && apiAddr != "" {
@@ -529,6 +721,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		recordingapi.NewHandler(nvrDB, cfg.recordingsPath()).Register(router)
 		detectionapi.NewHandler(nvrDB).Register(router)
 		systemapi.NewHandler("recorder").Register(router)
+		router.GET("/metrics", gin.WrapH(metrics.Handler()))
 
 		httpSrv = &http.Server{
 			Handler:           router,
@@ -563,6 +756,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		meshNode:     meshNode,
 		httpServer:   httpSrv,
 		nvrDB:        nvrDB,
+		thumbGen:     thumbGen,
 		cancelFn:     streamCancel,
 		doneCh:       doneCh,
 		RecorderID:   ps.RecorderUUID,
@@ -625,21 +819,3 @@ func (a *stateCameraStoreAdapter) List(ctx context.Context) ([]recordercontrol.C
 	return out, nil
 }
 
-// noopCaptureManager satisfies recordercontrol.CaptureManager with
-// no-op operations. It is a placeholder until the real capture manager
-// is wired (KAI-259).
-type noopCaptureManager struct {
-	running []string
-}
-
-func (n *noopCaptureManager) EnsureRunning(_ recordercontrol.Camera) error {
-	return nil
-}
-
-func (n *noopCaptureManager) Stop(_ string) error {
-	return nil
-}
-
-func (n *noopCaptureManager) RunningCameras() []string {
-	return n.running
-}

@@ -581,6 +581,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 					fragCount := 0
 					if frags, fragErr := nvrDB.GetFragments(rec.ID); fragErr == nil {
 						fragCount = len(frags)
+					} else {
+						log.Warn("recorder: integrity GetFragments failed",
+							slog.Int64("recording_id", rec.ID),
+							slog.String("error", fragErr.Error()))
 					}
 					items = append(items, integrity.ScanItem{
 						RecordingID: rec.ID,

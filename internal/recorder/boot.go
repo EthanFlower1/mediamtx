@@ -37,6 +37,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
+	"github.com/bluenviron/mediamtx/internal/recorder/recordinghealth"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
@@ -402,6 +403,21 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	}
 
 	// -----------------------------------------------------------
+	// 5b. Start recording-health watchdog
+	// -----------------------------------------------------------
+	hc := recordinghealth.NewHTTPRuntimeClient(
+		cfg.mediaAPIURL(), // e.g. "http://127.0.0.1:9997"
+		cfg.pathPrefix(),  // e.g. "cam_"
+		nil,               // uses default http.Client with 5 s timeout
+	)
+	wd := recordinghealth.New(recordinghealth.Config{
+		Store:    store,
+		MediaMTX: hc,
+		Reload:   supervisor.Reload,
+		Logger:   log,
+	})
+
+	// -----------------------------------------------------------
 	// 6-8. Start background streaming clients
 	// -----------------------------------------------------------
 	// Create a cancellable context for all streaming goroutines.
@@ -497,6 +513,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 
 		// 10. Feature pipelines (AI) — deferred to their own tickets.
 		log.Info("recorder: AI feature pipelines deferred (KAI-281, KAI-283, KAI-284)")
+
+		// 11. Recording-health watchdog — runtime drift detection.
+		go wd.Run(streamCtx)
+		log.Info("recorder: recordinghealth watchdog started")
 
 		// Block until context cancelled.
 		<-streamCtx.Done()

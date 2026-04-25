@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/bluenviron/mediamtx/internal/auth"
 	"github.com/bluenviron/mediamtx/internal/conf"
@@ -81,8 +80,6 @@ type pathManager struct {
 	pathConfs            map[string]*conf.Path
 	authManager          pathManagerAuthManager
 	externalCmdPool      *externalcmd.Pool
-	onNVRSegmentCreate   func(string)
-	onNVRSegmentComplete func(string, time.Duration)
 	metrics              *metrics.Metrics
 	parent               pathManagerParent
 
@@ -473,8 +470,6 @@ func (pm *pathManager) createPath(
 		matches:              matches,
 		wg:                   &pm.wg,
 		externalCmdPool:      pm.externalCmdPool,
-		onNVRSegmentCreate:   pm.onNVRSegmentCreate,
-		onNVRSegmentComplete: pm.onNVRSegmentComplete,
 		parent:               pm,
 	}
 	pa.initialize()

@@ -18,6 +18,7 @@ type AuthProvider interface {
 	AuthenticateLocal(ctx context.Context, tenant TenantRef, username, password string) (*Session, error)
 	RefreshSession(ctx context.Context, refreshToken string) (*Session, error)
 	RevokeSession(ctx context.Context, sessionID SessionID) error
+	RevokeByRefreshToken(ctx context.Context, rawToken string) error
 }
 
 // TenantRef identifies a tenant. Mirrors auth.TenantRef.
@@ -28,12 +29,15 @@ type TenantRef struct {
 
 // Session is the result of a successful login or refresh.
 type Session struct {
-	ID           SessionID
-	UserID       string
-	AccessToken  string
-	RefreshToken string
-	IDToken      string
-	ExpiresAt    time.Time
+	ID                SessionID
+	UserID            string
+	Username          string
+	Role              string
+	CameraPermissions string
+	AccessToken       string
+	RefreshToken      string
+	IDToken           string
+	ExpiresAt         time.Time
 }
 
 // SessionID is a unique session identifier.
@@ -79,11 +83,27 @@ type LoginRequest struct {
 
 // LoginResponse is the JSON body returned by successful login or refresh.
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	IDToken      string `json:"id_token,omitempty"`
-	ExpiresAt    string `json:"expires_at"`
-	SessionID    string `json:"session_id"`
+	AccessToken  string            `json:"access_token"`
+	RefreshToken string            `json:"refresh_token"`
+	IDToken      string            `json:"id_token,omitempty"`
+	ExpiresAt    string            `json:"expires_at"`
+	ExpiresIn    int               `json:"expires_in"`
+	SessionID    string            `json:"session_id"`
+	User         *LoginResponseUser `json:"user"`
+}
+
+// LoginResponseUser is the user object included in the login response.
+// Includes both "id" (legacy AuthService) and "user_id" (new LoginService/UserClaims)
+// field names so both Flutter auth paths can parse the response.
+type LoginResponseUser struct {
+	ID                string `json:"id"`
+	UserID            string `json:"user_id"`
+	Username          string `json:"username"`
+	DisplayName       string `json:"display_name,omitempty"`
+	Email             string `json:"email,omitempty"`
+	Role              string `json:"role"`
+	CameraPermissions string `json:"camera_permissions"`
+	TenantRef         string `json:"tenant_ref"`
 }
 
 // RefreshRequest is the JSON body for POST /api/v1/auth/refresh.
@@ -157,8 +177,14 @@ func (h *Handlers) Refresh() http.HandlerFunc {
 	}
 }
 
+// revokeRequest is the JSON body for POST /api/v1/auth/logout (or /api/nvr/auth/revoke).
+type revokeRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // Logout returns an http.HandlerFunc for POST /api/v1/auth/logout.
-// Requires an authenticated request (session ID in context).
+// Accepts either a session ID from context (middleware-based auth) or a
+// refresh_token in the JSON body (Flutter client pattern).
 func (h *Handlers) Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -166,16 +192,27 @@ func (h *Handlers) Logout() http.HandlerFunc {
 			return
 		}
 
-		sid, ok := h.sessionFn(r.Context())
-		if !ok || sid == "" {
-			writeError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "no session in context")
+		// Path 1: session ID from middleware context (future auth middleware).
+		if sid, ok := h.sessionFn(r.Context()); ok && sid != "" {
+			if err := h.provider.RevokeSession(r.Context(), sid); err != nil {
+				h.log.Error("auth: logout revoke failed", "session_id", string(sid), "error", err)
+				writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to revoke session")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		if err := h.provider.RevokeSession(r.Context(), sid); err != nil {
-			h.log.Error("auth: logout revoke failed", "session_id", string(sid), "error", err)
-			writeError(w, http.StatusInternalServerError, "INTERNAL", "failed to revoke session")
+		// Path 2: refresh_token in request body (Flutter client sends this).
+		var req revokeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "refresh_token is required")
 			return
+		}
+
+		if err := h.provider.RevokeByRefreshToken(r.Context(), req.RefreshToken); err != nil {
+			h.log.Debug("auth: logout by refresh token failed", "error", err)
+			// Don't expose whether the token existed — return success regardless.
 		}
 
 		w.WriteHeader(http.StatusNoContent)
@@ -183,12 +220,26 @@ func (h *Handlers) Logout() http.HandlerFunc {
 }
 
 func sessionToResponse(s *Session) LoginResponse {
+	expiresIn := int(time.Until(s.ExpiresAt).Seconds())
+	if expiresIn < 0 {
+		expiresIn = 0
+	}
 	return LoginResponse{
 		AccessToken:  s.AccessToken,
 		RefreshToken: s.RefreshToken,
 		IDToken:      s.IDToken,
 		ExpiresAt:    s.ExpiresAt.Format(time.RFC3339),
+		ExpiresIn:    expiresIn,
 		SessionID:    string(s.ID),
+		User: &LoginResponseUser{
+			ID:                string(s.UserID),
+			UserID:            string(s.UserID),
+			Username:          s.Username,
+			DisplayName:       s.Username,
+			Role:              s.Role,
+			CameraPermissions: s.CameraPermissions,
+			TenantRef:         "default",
+		},
 	}
 }
 

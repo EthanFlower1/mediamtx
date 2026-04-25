@@ -63,7 +63,7 @@ class ConnectivityNotifier extends StateNotifier<ConnectivityState> {
   Future<void> _poll() async {
     if (_dio == null || _disposed) return;
     try {
-      await _dio.get('/v3/paths/list');
+      await _dio.get('/api/nvr/system/health');
       final wasOffline = state.status != ConnectivityStatus.online;
       state = ConnectivityState(
         status: ConnectivityStatus.online,

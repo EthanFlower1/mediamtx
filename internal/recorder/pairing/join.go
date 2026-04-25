@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	dirpairing "github.com/bluenviron/mediamtx/internal/directory/pairing"
+	sharedpairing "github.com/bluenviron/mediamtx/internal/shared/pairing"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
@@ -42,13 +42,14 @@ type PairedState struct {
 
 // checkInRequest is the JSON body sent to POST /api/v1/pairing/check-in.
 type checkInRequest struct {
-	TokenID  string       `json:"token_id"`
-	Hardware HardwareInfo `json:"hardware"`
+	Hardware     HardwareInfo `json:"hardware"`
+	DevicePubkey string       `json:"device_pubkey"`
+	OSRelease    string       `json:"os_release"`
 }
 
 // checkInResponse is the JSON body returned by POST /api/v1/pairing/check-in.
 type checkInResponse struct {
-	RecorderUUID string `json:"recorder_uuid"`
+	RecorderID string `json:"recorder_id"`
 }
 
 // stepCASignRequest mirrors the step-ca JWK provisioner /1.0/sign body.
@@ -136,28 +137,25 @@ func (j *Joiner) Run(ctx context.Context, rawToken string) error {
 		"token_id", token.TokenID,
 		"directory", token.DirectoryEndpoint)
 
-	j.step(2, "probing hardware and checking in with Directory")
+	j.step(2, "generating device keypair")
+	deviceKey, err := j.Step4DeviceKeypair(ctx, token, nil)
+	if err != nil {
+		return fmt.Errorf("step 2 (device keypair): %w", err)
+	}
+	j.log.Info("pairing: step 2 ok")
+
+	j.step(3, "probing hardware and checking in with Directory")
 	hw := ProbeHardware()
-	recorderUUID, err := j.Step2CheckIn(ctx, token, hw)
+	recorderUUID, err := j.Step2CheckIn(ctx, token, hw, deviceKey.Public().(ed25519.PublicKey))
 	if err != nil {
-		return fmt.Errorf("step 2 (check-in): %w", err)
+		return fmt.Errorf("step 3 (check-in): %w", err)
 	}
-	j.log.Info("pairing: step 2 ok", "recorder_uuid", recorderUUID)
+	j.log.Info("pairing: step 3 ok", "recorder_uuid", recorderUUID)
 
-	j.step(3, "registering Recorder with tailnet mesh")
-	meshNode, err := j.Step3JoinMesh(ctx, token, recorderUUID)
-	if err != nil {
-		return fmt.Errorf("step 3 (join mesh): %w", err)
-	}
-	defer meshNode.Shutdown(ctx) //nolint:errcheck
-	j.log.Info("pairing: step 3 ok", "mesh_hostname", meshNode.Hostname())
-
-	j.step(4, "generating device keypair")
-	deviceKey, err := j.Step4DeviceKeypair(ctx, token, meshNode)
-	if err != nil {
-		return fmt.Errorf("step 4 (device keypair): %w", err)
-	}
-	j.log.Info("pairing: step 4 ok")
+	// Mesh overlay skipped — Directory and Recorders communicate over LAN.
+	// The cloud connector handles remote access via the relay.
+	j.step(4, "skipping mesh overlay (LAN mode)")
+	j.log.Info("pairing: step 4 ok (mesh skipped — LAN-only)")
 
 	j.step(5, "enrolling with cluster CA to obtain mTLS leaf certificate")
 	leafCert, err := j.Step5Enroll(ctx, token, deviceKey, recorderUUID)
@@ -183,8 +181,9 @@ func (j *Joiner) Run(ctx context.Context, rawToken string) error {
 	j.step(8, "requesting initial assignment snapshot (deferred to KAI-253)")
 	j.Step8InitialSnapshot(ctx)
 
+	hostname := "recorder-" + recorderUUID
 	j.step(9, "persisting paired state to local cache")
-	if err := j.Step9PersistState(ctx, token, recorderUUID, meshNode.Hostname()); err != nil {
+	if err := j.Step9PersistState(ctx, token, recorderUUID, hostname); err != nil {
 		return fmt.Errorf("step 9 (persist): %w", err)
 	}
 	j.log.Info("pairing: complete — Recorder is ready", "recorder_uuid", recorderUUID)
@@ -198,7 +197,7 @@ func (j *Joiner) Run(ctx context.Context, rawToken string) error {
 //
 // Security invariant: if the Directory's certificate fingerprint does not match
 // DirectoryFingerprint in the token, pairing is aborted immediately.
-func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*dirpairing.PairingToken, ed25519.PublicKey, error) {
+func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*sharedpairing.PairingToken, ed25519.PublicKey, error) {
 	// (a) Peek the payload without sig verification to get the endpoint + FP.
 	peeked, err := peekToken(rawToken)
 	if err != nil {
@@ -227,11 +226,11 @@ func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*dirpair
 		// HTTP mode or skip-verify: skip TLS probe and signature verification.
 		// This is less secure but allows development without TLS certs.
 		j.log.Warn("pairing: skipping TLS probe + signature verification (HTTP endpoint or MTX_PAIRING_SKIP_TLS_VERIFY set)")
-		return dirpairing.DecodeTokenUnsafe(rawToken)
+		return sharedpairing.DecodeTokenUnsafe(rawToken)
 	}
 
 	// (c) Full signature verification with the extracted or derived key.
-	token, err := dirpairing.Decode(rawToken, verifyKey)
+	token, err := sharedpairing.Decode(rawToken, verifyKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("token signature verification: %w", err)
 	}
@@ -243,10 +242,11 @@ func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*dirpair
 
 // Step2CheckIn sends hardware info to the Directory's check-in endpoint and
 // returns the assigned RecorderUUID.
-func (j *Joiner) Step2CheckIn(ctx context.Context, token *dirpairing.PairingToken, hw HardwareInfo) (string, error) {
+func (j *Joiner) Step2CheckIn(ctx context.Context, token *sharedpairing.PairingToken, hw HardwareInfo, pubkey ed25519.PublicKey) (string, error) {
 	body := checkInRequest{
-		TokenID:  token.TokenID,
-		Hardware: hw,
+		Hardware:     hw,
+		DevicePubkey: base64.RawURLEncoding.EncodeToString(pubkey),
+		OSRelease:    hw.OS + "/" + hw.Arch,
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -289,15 +289,15 @@ func (j *Joiner) Step2CheckIn(ctx context.Context, token *dirpairing.PairingToke
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", fmt.Errorf("decode check-in response: %w", err)
 	}
-	if out.RecorderUUID == "" {
-		return "", errors.New("Directory returned empty recorder_uuid")
+	if out.RecorderID == "" {
+		return "", errors.New("Directory returned empty recorder_id")
 	}
-	return out.RecorderUUID, nil
+	return out.RecorderID, nil
 }
 
 // Step3JoinMesh registers the Recorder node with the Headscale tailnet using
 // the HeadscalePreAuthKey from the token.
-func (j *Joiner) Step3JoinMesh(ctx context.Context, token *dirpairing.PairingToken, recorderUUID string) (*sharedtsnet.Node, error) {
+func (j *Joiner) Step3JoinMesh(ctx context.Context, token *sharedpairing.PairingToken, recorderUUID string) (*sharedtsnet.Node, error) {
 	node, err := recordermesh.New(ctx, recordermesh.Config{
 		ComponentID: recorderUUID,
 		AuthKey:     token.HeadscalePreAuthKey,
@@ -313,7 +313,7 @@ func (j *Joiner) Step3JoinMesh(ctx context.Context, token *dirpairing.PairingTok
 // Step4DeviceKeypair generates (or loads an existing) encrypted device keypair.
 // The encryption master material is derived from the Headscale pre-auth key so
 // the sealed blob is tied to the site's tailnet identity.
-func (j *Joiner) Step4DeviceKeypair(_ context.Context, token *dirpairing.PairingToken, _ *sharedtsnet.Node) (ed25519.PrivateKey, error) {
+func (j *Joiner) Step4DeviceKeypair(_ context.Context, token *sharedpairing.PairingToken, _ *sharedtsnet.Node) (ed25519.PrivateKey, error) {
 	ks, err := NewKeystore(j.cfg.StateDir)
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func (j *Joiner) Step4DeviceKeypair(_ context.Context, token *dirpairing.Pairing
 //
 // If StepCAEnrollToken is empty (no sign URL configured on the Directory), a
 // self-signed stub cert is returned; the operator must supply a cert out-of-band.
-func (j *Joiner) Step5Enroll(ctx context.Context, token *dirpairing.PairingToken, deviceKey ed25519.PrivateKey, recorderUUID string) (*tls.Certificate, error) {
+func (j *Joiner) Step5Enroll(ctx context.Context, token *sharedpairing.PairingToken, deviceKey ed25519.PrivateKey, recorderUUID string) (*tls.Certificate, error) {
 	if token.StepCAEnrollToken == "" {
 		j.log.Warn("pairing: StepCAEnrollToken is empty; issuing self-signed stub cert",
 			"recorder_uuid", recorderUUID)
@@ -346,9 +346,13 @@ func (j *Joiner) Step5Enroll(ctx context.Context, token *dirpairing.PairingToken
 
 // Step6PinRoot verifies that the issued leaf cert chains to the root identified
 // by StepCAFingerprint in the token (Trust On First Use).
-func (j *Joiner) Step6PinRoot(token *dirpairing.PairingToken, leaf *tls.Certificate) error {
+func (j *Joiner) Step6PinRoot(token *sharedpairing.PairingToken, leaf *tls.Certificate) error {
 	if token.StepCAFingerprint == "" {
 		j.log.Warn("pairing: StepCAFingerprint empty — skipping root pin (not recommended in production)")
+		return nil
+	}
+	if token.StepCAEnrollToken == "" {
+		j.log.Warn("pairing: StepCAEnrollToken empty (stub cert) — skipping root pin")
 		return nil
 	}
 	if leaf == nil || len(leaf.Certificate) == 0 {
@@ -367,7 +371,7 @@ func (j *Joiner) Step6PinRoot(token *dirpairing.PairingToken, leaf *tls.Certific
 // Step7VerifyConnectivity makes a simple mTLS request to the Directory's
 // health endpoint to confirm the issued cert is accepted. KAI-253 streaming
 // client is not instantiated here — we only verify connectivity.
-func (j *Joiner) Step7VerifyConnectivity(ctx context.Context, token *dirpairing.PairingToken, leaf *tls.Certificate) error {
+func (j *Joiner) Step7VerifyConnectivity(ctx context.Context, token *sharedpairing.PairingToken, leaf *tls.Certificate) error {
 	tlsCfg := &tls.Config{
 		Certificates:       []tls.Certificate{*leaf},
 		InsecureSkipVerify: true, //nolint:gosec // fingerprint-pinned below
@@ -420,7 +424,7 @@ func (j *Joiner) Step8InitialSnapshot(_ context.Context) {
 }
 
 // Step9PersistState writes PairedState to the local SQLite state cache.
-func (j *Joiner) Step9PersistState(ctx context.Context, token *dirpairing.PairingToken, recorderUUID, meshHostname string) error {
+func (j *Joiner) Step9PersistState(ctx context.Context, token *sharedpairing.PairingToken, recorderUUID, meshHostname string) error {
 	dbPath := j.cfg.StateDir + "/state.db"
 	store, err := state.Open(dbPath, state.Options{})
 	if err != nil {
@@ -505,7 +509,7 @@ func (j *Joiner) probeTLSAndPin(endpoint, expectedFP string) (interface{}, error
 
 // stepCASign submits a CSR to step-ca and parses the response into a
 // *tls.Certificate.
-func (j *Joiner) stepCASign(ctx context.Context, token *dirpairing.PairingToken, csr *x509.CertificateRequest, caSignURL string) (*tls.Certificate, error) {
+func (j *Joiner) stepCASign(ctx context.Context, token *sharedpairing.PairingToken, csr *x509.CertificateRequest, caSignURL string) (*tls.Certificate, error) {
 	csrPEM := encodeCSRPEM(csr)
 	body := stepCASignRequest{
 		CertificateRequest: csrPEM,
@@ -586,7 +590,7 @@ func ed25519PubFromCertKey(pub interface{}) (ed25519.PublicKey, error) {
 // peekToken base64-decodes the token's payload segment without verifying the
 // signature. Only used to extract DirectoryEndpoint + DirectoryFingerprint so
 // we can initiate the TLS probe before we have a verify key.
-func peekToken(raw string) (*dirpairing.PairingToken, error) {
+func peekToken(raw string) (*sharedpairing.PairingToken, error) {
 	idx := strings.IndexByte(raw, '.')
 	if idx < 0 {
 		return nil, errors.New("malformed token: missing '.'")
@@ -595,7 +599,7 @@ func peekToken(raw string) (*dirpairing.PairingToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decode payload: %w", err)
 	}
-	var pt dirpairing.PairingToken
+	var pt sharedpairing.PairingToken
 	if err := json.Unmarshal(payload, &pt); err != nil {
 		return nil, fmt.Errorf("unmarshal token payload: %w", err)
 	}

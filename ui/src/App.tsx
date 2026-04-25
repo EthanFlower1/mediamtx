@@ -15,6 +15,8 @@ import Integrations from './pages/Integrations'
 import Diagnostics from './pages/Diagnostics'
 import Federation from './pages/Federation'
 import ForensicSearch from './pages/ForensicSearch'
+import Recorders from './pages/Recorders'
+import LiveView from './pages/LiveView'
 import ToastContainer from './components/Toast'
 import NotificationBell from './components/NotificationBell'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -391,7 +393,9 @@ function Layout({ children }: { children: React.ReactNode }) {
   const closeSidebar = () => setSidebarOpen(false)
 
   const navLinks: NavLinkProps[] = [
+    { to: '/live', icon: IconCamera, label: 'Live View' },
     { to: '/cameras', icon: IconCamera, label: 'Cameras' },
+    { to: '/recorders', icon: IconDashboard, label: 'Recorders' },
     { to: '/forensic-search', icon: IconSearch, label: 'Search' },
     { to: '/dashboard', icon: IconDashboard, label: 'Health' },
     { to: '/notifications', icon: IconNotifications, label: 'Notifications' },
@@ -578,7 +582,9 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/setup" element={<Setup />} />
+      <Route path="/live" element={<ProtectedRoute><Layout><LiveView /></Layout></ProtectedRoute>} />
       <Route path="/cameras" element={<ProtectedRoute><Layout><CameraManagement /></Layout></ProtectedRoute>} />
+      <Route path="/recorders" element={<ProtectedRoute><Layout><Recorders /></Layout></ProtectedRoute>} />
       <Route path="/forensic-search" element={<ProtectedRoute><Layout><ForensicSearch /></Layout></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
@@ -604,7 +610,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>

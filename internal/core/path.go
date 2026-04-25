@@ -80,8 +80,6 @@ type path struct {
 	matches              []string
 	wg                   *sync.WaitGroup
 	externalCmdPool      *externalcmd.Pool
-	onNVRSegmentCreate   func(string)
-	onNVRSegmentComplete func(string, time.Duration)
 	parent               pathParent
 
 	// accessed by pathManager only
@@ -917,9 +915,6 @@ func (pa *path) startRecording() {
 					env,
 					nil)
 			}
-			if pa.onNVRSegmentCreate != nil {
-				pa.onNVRSegmentCreate(segmentPath)
-			}
 		},
 		OnSegmentComplete: func(segmentPath string, segmentDuration time.Duration) {
 			if pa.conf.RunOnRecordSegmentComplete != "" {
@@ -934,9 +929,6 @@ func (pa *path) startRecording() {
 					false,
 					env,
 					nil)
-			}
-			if pa.onNVRSegmentComplete != nil {
-				pa.onNVRSegmentComplete(segmentPath, segmentDuration)
 			}
 		},
 		Parent: pa,

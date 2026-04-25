@@ -75,7 +75,16 @@ mixin _$Camera {
   @JsonKey(name: 'live_view_codec')
   String get liveViewCodec => throw _privateConstructorUsedError;
   @JsonKey(name: 'stream_paths')
-  List<StreamPath> get streamPaths => throw _privateConstructorUsedError;
+  List<StreamPath> get streamPaths =>
+      throw _privateConstructorUsedError; // Recorder/Directory routing fields — populated by the Directory API so
+// the client knows where to send data-plane requests (live view, playback,
+// export) without an extra lookup hop.
+  @JsonKey(name: 'recorder_id')
+  String? get recorderId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'recorder_endpoint')
+  String? get recorderEndpoint => throw _privateConstructorUsedError;
+  @JsonKey(name: 'directory_id')
+  String? get directoryId => throw _privateConstructorUsedError;
 
   /// Serializes this Camera to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -120,7 +129,10 @@ abstract class $CameraCopyWith<$Res> {
       @JsonKey(name: 'storage_status') String storageStatus,
       @JsonKey(name: 'live_view_path') String liveViewPath,
       @JsonKey(name: 'live_view_codec') String liveViewCodec,
-      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths,
+      @JsonKey(name: 'recorder_id') String? recorderId,
+      @JsonKey(name: 'recorder_endpoint') String? recorderEndpoint,
+      @JsonKey(name: 'directory_id') String? directoryId});
 }
 
 /// @nodoc
@@ -167,6 +179,9 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
     Object? liveViewPath = null,
     Object? liveViewCodec = null,
     Object? streamPaths = null,
+    Object? recorderId = freezed,
+    Object? recorderEndpoint = freezed,
+    Object? directoryId = freezed,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -285,6 +300,18 @@ class _$CameraCopyWithImpl<$Res, $Val extends Camera>
           ? _value.streamPaths
           : streamPaths // ignore: cast_nullable_to_non_nullable
               as List<StreamPath>,
+      recorderId: freezed == recorderId
+          ? _value.recorderId
+          : recorderId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      recorderEndpoint: freezed == recorderEndpoint
+          ? _value.recorderEndpoint
+          : recorderEndpoint // ignore: cast_nullable_to_non_nullable
+              as String?,
+      directoryId: freezed == directoryId
+          ? _value.directoryId
+          : directoryId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ) as $Val);
   }
 }
@@ -325,7 +352,10 @@ abstract class _$$CameraImplCopyWith<$Res> implements $CameraCopyWith<$Res> {
       @JsonKey(name: 'storage_status') String storageStatus,
       @JsonKey(name: 'live_view_path') String liveViewPath,
       @JsonKey(name: 'live_view_codec') String liveViewCodec,
-      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths});
+      @JsonKey(name: 'stream_paths') List<StreamPath> streamPaths,
+      @JsonKey(name: 'recorder_id') String? recorderId,
+      @JsonKey(name: 'recorder_endpoint') String? recorderEndpoint,
+      @JsonKey(name: 'directory_id') String? directoryId});
 }
 
 /// @nodoc
@@ -370,6 +400,9 @@ class __$$CameraImplCopyWithImpl<$Res>
     Object? liveViewPath = null,
     Object? liveViewCodec = null,
     Object? streamPaths = null,
+    Object? recorderId = freezed,
+    Object? recorderEndpoint = freezed,
+    Object? directoryId = freezed,
   }) {
     return _then(_$CameraImpl(
       id: null == id
@@ -488,6 +521,18 @@ class __$$CameraImplCopyWithImpl<$Res>
           ? _value._streamPaths
           : streamPaths // ignore: cast_nullable_to_non_nullable
               as List<StreamPath>,
+      recorderId: freezed == recorderId
+          ? _value.recorderId
+          : recorderId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      recorderEndpoint: freezed == recorderEndpoint
+          ? _value.recorderEndpoint
+          : recorderEndpoint // ignore: cast_nullable_to_non_nullable
+              as String?,
+      directoryId: freezed == directoryId
+          ? _value.directoryId
+          : directoryId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -526,7 +571,10 @@ class _$CameraImpl implements _Camera {
       @JsonKey(name: 'live_view_path') this.liveViewPath = '',
       @JsonKey(name: 'live_view_codec') this.liveViewCodec = '',
       @JsonKey(name: 'stream_paths')
-      final List<StreamPath> streamPaths = const []})
+      final List<StreamPath> streamPaths = const [],
+      @JsonKey(name: 'recorder_id') this.recorderId,
+      @JsonKey(name: 'recorder_endpoint') this.recorderEndpoint,
+      @JsonKey(name: 'directory_id') this.directoryId})
       : _streamPaths = streamPaths;
 
   factory _$CameraImpl.fromJson(Map<String, dynamic> json) =>
@@ -624,9 +672,22 @@ class _$CameraImpl implements _Camera {
     return EqualUnmodifiableListView(_streamPaths);
   }
 
+// Recorder/Directory routing fields — populated by the Directory API so
+// the client knows where to send data-plane requests (live view, playback,
+// export) without an extra lookup hop.
+  @override
+  @JsonKey(name: 'recorder_id')
+  final String? recorderId;
+  @override
+  @JsonKey(name: 'recorder_endpoint')
+  final String? recorderEndpoint;
+  @override
+  @JsonKey(name: 'directory_id')
+  final String? directoryId;
+
   @override
   String toString() {
-    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, hasSubStream: $hasSubStream, hasMainStream: $hasMainStream, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, liveViewCodec: $liveViewCodec, streamPaths: $streamPaths)';
+    return 'Camera(id: $id, name: $name, rtspUrl: $rtspUrl, onvifEndpoint: $onvifEndpoint, mediamtxPath: $mediamtxPath, status: $status, ptzCapable: $ptzCapable, aiEnabled: $aiEnabled, aiStreamId: $aiStreamId, aiConfidence: $aiConfidence, aiTrackTimeout: $aiTrackTimeout, subStreamUrl: $subStreamUrl, hasSubStream: $hasSubStream, hasMainStream: $hasMainStream, retentionDays: $retentionDays, eventRetentionDays: $eventRetentionDays, detectionRetentionDays: $detectionRetentionDays, motionTimeoutSeconds: $motionTimeoutSeconds, snapshotUri: $snapshotUri, supportsEvents: $supportsEvents, supportsAnalytics: $supportsAnalytics, supportsRelay: $supportsRelay, createdAt: $createdAt, updatedAt: $updatedAt, storagePath: $storagePath, storageStatus: $storageStatus, liveViewPath: $liveViewPath, liveViewCodec: $liveViewCodec, streamPaths: $streamPaths, recorderId: $recorderId, recorderEndpoint: $recorderEndpoint, directoryId: $directoryId)';
   }
 
   @override
@@ -687,7 +748,13 @@ class _$CameraImpl implements _Camera {
             (identical(other.liveViewCodec, liveViewCodec) ||
                 other.liveViewCodec == liveViewCodec) &&
             const DeepCollectionEquality()
-                .equals(other._streamPaths, _streamPaths));
+                .equals(other._streamPaths, _streamPaths) &&
+            (identical(other.recorderId, recorderId) ||
+                other.recorderId == recorderId) &&
+            (identical(other.recorderEndpoint, recorderEndpoint) ||
+                other.recorderEndpoint == recorderEndpoint) &&
+            (identical(other.directoryId, directoryId) ||
+                other.directoryId == directoryId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -722,7 +789,10 @@ class _$CameraImpl implements _Camera {
         storageStatus,
         liveViewPath,
         liveViewCodec,
-        const DeepCollectionEquality().hash(_streamPaths)
+        const DeepCollectionEquality().hash(_streamPaths),
+        recorderId,
+        recorderEndpoint,
+        directoryId
       ]);
 
   /// Create a copy of Camera
@@ -772,8 +842,10 @@ abstract class _Camera implements Camera {
       @JsonKey(name: 'storage_status') final String storageStatus,
       @JsonKey(name: 'live_view_path') final String liveViewPath,
       @JsonKey(name: 'live_view_codec') final String liveViewCodec,
-      @JsonKey(name: 'stream_paths')
-      final List<StreamPath> streamPaths}) = _$CameraImpl;
+      @JsonKey(name: 'stream_paths') final List<StreamPath> streamPaths,
+      @JsonKey(name: 'recorder_id') final String? recorderId,
+      @JsonKey(name: 'recorder_endpoint') final String? recorderEndpoint,
+      @JsonKey(name: 'directory_id') final String? directoryId}) = _$CameraImpl;
 
   factory _Camera.fromJson(Map<String, dynamic> json) = _$CameraImpl.fromJson;
 
@@ -861,7 +933,19 @@ abstract class _Camera implements Camera {
   String get liveViewCodec;
   @override
   @JsonKey(name: 'stream_paths')
-  List<StreamPath> get streamPaths;
+  List<StreamPath>
+      get streamPaths; // Recorder/Directory routing fields — populated by the Directory API so
+// the client knows where to send data-plane requests (live view, playback,
+// export) without an extra lookup hop.
+  @override
+  @JsonKey(name: 'recorder_id')
+  String? get recorderId;
+  @override
+  @JsonKey(name: 'recorder_endpoint')
+  String? get recorderEndpoint;
+  @override
+  @JsonKey(name: 'directory_id')
+  String? get directoryId;
 
   /// Create a copy of Camera
   /// with the given fields replaced by the non-null parameter values.

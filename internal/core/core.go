@@ -26,7 +26,6 @@ import (
 	"github.com/bluenviron/mediamtx/internal/externalcmd"
 	"github.com/bluenviron/mediamtx/internal/logger"
 	"github.com/bluenviron/mediamtx/internal/metrics"
-	"github.com/bluenviron/mediamtx/internal/nvr"
 	"github.com/bluenviron/mediamtx/internal/playback"
 	"github.com/bluenviron/mediamtx/internal/pprof"
 	"github.com/bluenviron/mediamtx/internal/recordcleaner"
@@ -41,6 +40,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/directory"
 	recorderboot "github.com/bluenviron/mediamtx/internal/recorder"
 )
+
 
 //go:generate go run ./versiongetter
 
@@ -120,7 +120,6 @@ type Core struct {
 	pprof           *pprof.PPROF
 	recordCleaner   *recordcleaner.Cleaner
 	playbackServer  *playback.Server
-	nvr             *nvr.NVR
 	pathManager     *pathManager
 	rtspServer      *rtsp.Server
 	rtspsServer     *rtsp.Server
@@ -210,11 +209,18 @@ func New(args []string) (*Core, bool) {
 	}
 
 	// Wire the concrete Directory and Recorder booters when the mode requires them.
+	// ModeLegacy now behaves as ModeAllInOne (Phase 5): both booters are wired
+	// so the new subsystems start alongside the legacy NVR code path.
+	// In legacy mode, the directory booter is only wired when nvrJWTSecret is
+	// set — this preserves backward compatibility for deployments that have not
+	// yet configured the Directory secret.
 	mode := p.conf.Mode.Runtime()
 	if mode == kairuntime.ModeDirectory || mode == kairuntime.ModeAllInOne {
 		p.directoryBooter = directory.NewBooter()
+	} else if mode == kairuntime.ModeLegacy && p.conf.NVRJWTSecret != "" {
+		p.directoryBooter = directory.NewBooter()
 	}
-	if mode == kairuntime.ModeRecorder || mode == kairuntime.ModeAllInOne {
+	if mode == kairuntime.ModeRecorder || mode == kairuntime.ModeAllInOne || mode == kairuntime.ModeLegacy {
 		p.recorderBooter = &recorderboot.Booter{}
 	}
 
@@ -311,9 +317,14 @@ outer:
 // runtime.Dispatch shim so the correct subsystems start. It is
 // called exactly once, during initial resource creation.
 //
-// Legacy mode (empty string) is the default and intentionally a
-// no-op: the rest of createResources continues to run unchanged so
-// that upgrading an existing deployment has no behavior impact.
+// In legacy mode (empty string / unset), the Directory and Recorder
+// subsystems are started alongside the existing NVR code path. Boot
+// failures in legacy mode are non-fatal (logged as warnings) to
+// preserve backward compatibility for deployments that have not yet
+// configured the new subsystems.
+//
+// In explicit modes (directory, recorder, all-in-one), boot failures
+// are fatal and propagate as errors.
 //
 // When DirectoryBooter and/or RecorderBooter are set on the Core
 // (wired in by the concrete boot packages), the hooks delegate to
@@ -328,22 +339,31 @@ func (p *Core) dispatchRuntimeMode() error {
 			// createResources is the legacy code path.
 			return nil
 		},
-		StartDirectory: p.makeDirectoryHook(),
-		StartRecorder:  p.makeRecorderHook(),
+		StartDirectory: p.makeDirectoryHook(mode),
+		StartRecorder:  p.makeRecorderHook(mode),
 		AutoPair:       p.makeAutoPairHook(),
 	}
 
 	return kairuntime.Dispatch(mode, hooks)
 }
 
-// makeDirectoryHook returns the StartDirectory hook. If a concrete
-// DirectoryBooter is wired in it delegates to Boot(); otherwise it
-// logs a stub warning.
-func (p *Core) makeDirectoryHook() func() error {
+// makeDirectoryHook returns the StartDirectory hook for the given mode.
+// If a concrete DirectoryBooter is wired in it delegates to Boot().
+// In legacy mode, boot failures are non-fatal (logged as warnings).
+func (p *Core) makeDirectoryHook(mode kairuntime.Mode) func() error {
 	return func() error {
 		if p.directoryBooter != nil {
 			p.Log(logger.Info, "booting directory subsystem")
-			return p.directoryBooter.Boot(p.ctx, p.conf, nil)
+			if err := p.directoryBooter.Boot(p.ctx, p.conf, nil); err != nil {
+				if mode == kairuntime.ModeLegacy {
+					p.Log(logger.Warn,
+						"directory subsystem boot failed in legacy mode (non-fatal): %s", err)
+					p.directoryBooter = nil // don't attempt shutdown of failed booter
+					return nil
+				}
+				return err
+			}
+			return nil
 		}
 		p.Log(logger.Warn,
 			"[KAI-237] directory subsystem boot is a stub; "+
@@ -352,14 +372,23 @@ func (p *Core) makeDirectoryHook() func() error {
 	}
 }
 
-// makeRecorderHook returns the StartRecorder hook. If a concrete
-// RecorderBooter is wired in it delegates to Boot(); otherwise it
-// logs a stub warning.
-func (p *Core) makeRecorderHook() func() error {
+// makeRecorderHook returns the StartRecorder hook for the given mode.
+// If a concrete RecorderBooter is wired in it delegates to Boot().
+// In legacy mode, boot failures are non-fatal (logged as warnings).
+func (p *Core) makeRecorderHook(mode kairuntime.Mode) func() error {
 	return func() error {
 		if p.recorderBooter != nil {
 			p.Log(logger.Info, "booting recorder subsystem")
-			return p.recorderBooter.Boot(p.ctx, p.conf, nil)
+			if err := p.recorderBooter.Boot(p.ctx, p.conf, nil); err != nil {
+				if mode == kairuntime.ModeLegacy {
+					p.Log(logger.Warn,
+						"recorder subsystem boot failed in legacy mode (non-fatal): %s", err)
+					p.recorderBooter = nil // don't attempt shutdown of failed booter
+					return nil
+				}
+				return err
+			}
+			return nil
 		}
 		p.Log(logger.Warn,
 			"[KAI-237] recorder subsystem boot is a stub; "+
@@ -549,41 +578,6 @@ func (p *Core) createResources(initial bool) error {
 		p.playbackServer = i
 	}
 
-	if p.conf.NVR && p.nvr == nil {
-		p.nvr = &nvr.NVR{
-			DatabasePath:    p.conf.NVRDatabase,
-			JWTSecret:       p.conf.NVRJWTSecret,
-			ConfigPath:      p.confPath,
-			APIAddress:      p.conf.APIAddress,
-			DirectoryURL:    p.conf.NVRDirectoryURL,
-			ServiceToken:    p.conf.NVRServiceToken,
-			InternalAPIAddr: p.conf.NVRInternalAPIAddr,
-			RecorderID:      p.conf.NVRRecorderID,
-		}
-		// Select which building blocks to start based on runtime mode.
-		mode := p.conf.Mode.Runtime()
-		var nvrOpts nvr.StartOptions
-		switch mode {
-		case kairuntime.ModeDirectory:
-			nvrOpts = nvr.DirectoryOptions()
-		case kairuntime.ModeRecorder:
-			nvrOpts = nvr.RecorderOptions()
-		default:
-			nvrOpts = nvr.AllOptions()
-		}
-		// Enable managed mode if DirectoryURL is configured, regardless of mode.
-		if p.conf.NVRDirectoryURL != "" {
-			nvrOpts.Managed = true
-		}
-		if err = p.nvr.InitializeWithOptions(nvrOpts); err != nil {
-			return err
-		}
-
-		if p.recordCleaner != nil {
-			p.recordCleaner.OnSegmentDelete = p.nvr.OnSegmentDelete
-		}
-	}
-
 	if p.pathManager == nil {
 		rtpMaxPayloadSize := getRTPMaxPayloadSize(p.conf.UDPMaxPayloadSize, p.conf.RTSPEncryption)
 
@@ -601,10 +595,6 @@ func (p *Core) createResources(initial bool) error {
 			externalCmdPool:   p.externalCmdPool,
 			metrics:           p.metrics,
 			parent:            p,
-		}
-		if p.nvr != nil {
-			pm.onNVRSegmentCreate = p.nvr.OnSegmentCreate
-			pm.onNVRSegmentComplete = p.nvr.OnSegmentComplete
 		}
 		p.pathManager = pm
 		p.pathManager.initialize()
@@ -866,11 +856,6 @@ func (p *Core) createResources(initial bool) error {
 			SRTServer:      p.srtServer,
 			Parent:         p,
 		}
-		if p.nvr != nil {
-			i.NVRRouter = func(engine *gin.Engine) {
-				p.nvr.RegisterRoutes(engine, string(version))
-			}
-		}
 		err = i.Initialize()
 		if err != nil {
 			return err
@@ -966,12 +951,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	if !closePlaybackServer && p.playbackServer != nil && !reflect.DeepEqual(newConf.Paths, p.conf.Paths) {
 		p.playbackServer.ReloadPathConfs(newConf.Paths)
 	}
-
-	closeNVR := newConf == nil ||
-		newConf.NVR != p.conf.NVR ||
-		newConf.NVRDatabase != p.conf.NVRDatabase ||
-		newConf.NVRJWTSecret != p.conf.NVRJWTSecret ||
-		closeLogger
 
 	closePathManager := newConf == nil ||
 		newConf.LogLevel != p.conf.LogLevel ||
@@ -1148,7 +1127,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 		closeHLSServer ||
 		closeWebRTCServer ||
 		closeSRTServer ||
-		closeNVR ||
 		closeLogger
 
 	if newConf == nil && p.confWatcher != nil {
@@ -1208,11 +1186,6 @@ func (p *Core) closeResources(newConf *conf.Conf, calledByAPI bool) {
 	if closePlaybackServer && p.playbackServer != nil {
 		p.playbackServer.Close()
 		p.playbackServer = nil
-	}
-
-	if closeNVR && p.nvr != nil {
-		p.nvr.Close()
-		p.nvr = nil
 	}
 
 	if closeRecorderCleaner && p.recordCleaner != nil {

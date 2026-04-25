@@ -32,6 +32,7 @@ type HardwareInfo struct {
 
 	// Memory.
 	RAMTotalBytes uint64 `json:"ram_total_bytes"`
+	RAMBytes      int64  `json:"ram_bytes"` // alias for CheckInHandler compatibility
 
 	// Disks — one entry per mount point. Removable media is excluded.
 	Disks []DiskInfo `json:"disks,omitempty"`
@@ -41,6 +42,7 @@ type HardwareInfo struct {
 
 	// GPU — brief string if detectable (best-effort via /proc or lspci).
 	GPUDescription string `json:"gpu_description,omitempty"`
+	GPU            string `json:"gpu,omitempty"` // alias for CheckInHandler compatibility
 }
 
 // DiskInfo describes one storage device as seen from the OS.
@@ -87,6 +89,7 @@ func ProbeHardware() HardwareInfo {
 	// Memory.
 	if vm, err := mem.VirtualMemory(); err == nil {
 		info.RAMTotalBytes = vm.Total
+		info.RAMBytes = int64(vm.Total)
 	}
 
 	// Disks — filter to non-trivial, non-loop mount points.

@@ -27,7 +27,6 @@ linters:
 
   exclusions:
     paths:
-      - internal/nvr
       - cmd/backfill
 
   settings:
@@ -82,6 +81,15 @@ linters:
             desc: >-
               KAI-236: internal/shared is a leaf with respect to role
               packages and must not import internal/recorder.
+        # ----------------------------------------------------------------
+        # Seam #2b: legacydb is DELETED.
+        #
+        # internal/shared/legacydb was removed after all consumers were
+        # migrated to internal/directory/db or internal/recorder/db.
+        # The depguard rules above (directory-no-recorder, recorder-no-
+        # directory, shared-is-leaf) enforce the boundary.
+        # ----------------------------------------------------------------
+
         # ----------------------------------------------------------------
         # Seam #3: Zitadel IdentityProvider firewall.
         #

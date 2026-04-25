@@ -3,10 +3,12 @@ package directory
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -15,20 +17,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/hkdf"
+
 	"github.com/bluenviron/mediamtx/internal/conf"
+	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
+	"github.com/bluenviron/mediamtx/internal/directory/authapi"
+	"github.com/bluenviron/mediamtx/internal/directory/cameraapi"
+	"github.com/bluenviron/mediamtx/internal/directory/cloudconnector"
+	"github.com/bluenviron/mediamtx/internal/directory/tunnel"
 	directorydb "github.com/bluenviron/mediamtx/internal/directory/db"
 	"github.com/bluenviron/mediamtx/internal/directory/ingest"
 	"github.com/bluenviron/mediamtx/internal/directory/mdns"
 	"github.com/bluenviron/mediamtx/internal/directory/mesh/headscale"
 	"github.com/bluenviron/mediamtx/internal/directory/pairing"
 	"github.com/bluenviron/mediamtx/internal/directory/pki/stepca"
-	"github.com/bluenviron/mediamtx/internal/directory/adminapi"
+	"github.com/bluenviron/mediamtx/internal/directory/legacynvrapi"
 	"github.com/bluenviron/mediamtx/internal/directory/recorderapi"
+	recorderdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/directory/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/directory/streams"
 	"github.com/bluenviron/mediamtx/internal/directory/timeline"
 	"github.com/bluenviron/mediamtx/internal/directory/webui"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
+	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
 )
 
 // BootConfig holds the parameters for booting the Directory subsystem.
@@ -66,14 +78,35 @@ type BootConfig struct {
 	// Directory, e.g. "https://dir.acme.local:8443". When empty the
 	// boot sequence constructs one from ListenAddr.
 	DirectoryEndpoint string
+
+	// NVRDBPath is the path to the NVR SQLite database used by the new
+	// camera and system API handlers. Defaults to <DataDir>/nvr.db.
+	// When empty the handlers are not registered.
+	NVRDBPath string
+
+	// CloudConnectURL is the cloud broker WebSocket endpoint, e.g.
+	// "wss://connect.raikada.com/ws/directory". Empty disables the
+	// cloud connector (air-gapped mode).
+	CloudConnectURL string
+
+	// CloudConnectToken is the bearer token used to authenticate
+	// with the cloud broker. Issued during cloud account setup.
+	CloudConnectToken string
+
+	// CloudSiteAlias is the human-readable alias for this site,
+	// e.g. "my-home". Used as the QuickConnect-style identifier.
+	CloudSiteAlias string
 }
 
 func (c *BootConfig) withDefaults() {
 	if c.DataDir == "" {
-		c.DataDir = "/var/lib/mediamtx-directory"
+		// Use a local data directory relative to the working directory
+		// for development. Production deployments should set DataDir
+		// explicitly via nvrDirectoryDataDir config.
+		c.DataDir = "data/directory"
 	}
 	if c.ListenAddr == "" {
-		c.ListenAddr = ":9997"
+		c.ListenAddr = ":9995"
 	}
 	if c.Logger == nil {
 		c.Logger = slog.Default()
@@ -95,17 +128,109 @@ func (c *BootConfig) withDefaults() {
 // clean Shutdown method.
 type DirectoryServer struct {
 	DB          *directorydb.DB
+	NVRDB       *directorydb.DB
+	RecDB       *recorderdb.DB
 	CA          *stepca.ClusterCA
 	Headscale   *headscale.Coordinator
 	PairingSvc  *pairing.Service
 	HTTPServer  *http.Server
 	Broadcaster *mdns.Broadcaster
-	logger      *slog.Logger
+	CloudConn    *cloudconnector.Connector
+	cloudCancel  context.CancelFunc
+	Tunnel       *tunnel.Tunnel
+	tunnelCancel context.CancelFunc
+	logger       *slog.Logger
+}
+
+// ApplyCloudSettings stops any existing cloud connector and starts a new one
+// with the given settings. Called by the admin API when settings are saved.
+func (ds *DirectoryServer) ApplyCloudSettings(url, token, alias string) {
+	log := ds.logger
+
+	// Stop existing tunnel.
+	if ds.tunnelCancel != nil {
+		ds.tunnelCancel()
+		ds.tunnelCancel = nil
+	}
+	if ds.Tunnel != nil {
+		ds.Tunnel.Stop()
+		ds.Tunnel = nil
+	}
+
+	// Stop existing connector.
+	if ds.cloudCancel != nil {
+		ds.cloudCancel()
+		ds.cloudCancel = nil
+		ds.CloudConn = nil
+		log.Info("directory: stopped cloud connector")
+	}
+
+	if url == "" {
+		log.Info("directory: cloud connector disabled")
+		return
+	}
+
+	log.Info("directory: starting cloud connector", "url", url, "alias", alias)
+	cloudCtx, cloudCancel := context.WithCancel(context.Background())
+	ds.cloudCancel = cloudCancel
+
+	cc := cloudconnector.New(cloudconnector.Config{
+		URL:   url,
+		Token: token,
+		Site: cloudconnector.SiteInfo{
+			ID:    alias,
+			Alias: alias,
+			Capabilities: cloudconnector.Capabilities{
+				Streams:  true,
+				Playback: true,
+				AI:       true,
+			},
+		},
+		// Proxy HTTP requests from cloud to the local HLS server.
+		CommandHandler: cloudconnector.NewProxyCommandHandler("http://localhost:8898"),
+		Logger:         log.With(slog.String("component", "cloudconnector")),
+	})
+	ds.CloudConn = cc
+	go cc.Run(cloudCtx)
+
+	// Start frp tunnel for data plane.
+	tun, err := tunnel.New(tunnel.Config{
+		ServerAddr: "connect.raikada.com",
+		ServerPort: 7000,
+		Token:      token,
+		SubDomain:  alias,
+		LocalPorts: tunnel.LocalPorts{
+			API:      9995,
+			HLS:      8898,
+			WebRTC:   8889,
+			Playback: 9996,
+		},
+		Logger: log,
+	})
+	if err != nil {
+		log.Warn("tunnel: failed to create", "error", err)
+	} else {
+		tunnelCtx, tunnelCancel := context.WithCancel(context.Background())
+		ds.tunnelCancel = tunnelCancel
+		ds.Tunnel = tun
+		go tun.Run(tunnelCtx)
+	}
 }
 
 // Shutdown gracefully stops all Directory subsystems in reverse boot order.
 func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	var errs []string
+
+	if ds.tunnelCancel != nil {
+		ds.tunnelCancel()
+	}
+	if ds.Tunnel != nil {
+		ds.Tunnel.Stop()
+	}
+
+	if ds.cloudCancel != nil {
+		ds.cloudCancel()
+	}
 
 	if ds.Broadcaster != nil {
 		ds.Broadcaster.Stop()
@@ -126,6 +251,18 @@ func (ds *DirectoryServer) Shutdown(ctx context.Context) error {
 	if ds.CA != nil {
 		if err := ds.CA.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Sprintf("pki: %v", err))
+		}
+	}
+
+	if ds.RecDB != nil {
+		if err := ds.RecDB.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("recdb: %v", err))
+		}
+	}
+
+	if ds.NVRDB != nil {
+		if err := ds.NVRDB.Close(); err != nil {
+			errs = append(errs, fmt.Sprintf("nvrdb: %v", err))
 		}
 	}
 
@@ -173,6 +310,39 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		return nil, fmt.Errorf("directory: open db: %w", err)
 	}
 	srv.DB = ddb
+
+	// ---------------------------------------------------------------
+	// 1b. Open NVR SQLite DB (optional — for cameraapi / systemapi)
+	// ---------------------------------------------------------------
+	nvrDBPath := cfg.NVRDBPath
+	if nvrDBPath == "" {
+		nvrDBPath = filepath.Join(cfg.DataDir, "nvr.db")
+	}
+	log.Info("directory: opening NVR database", "path", nvrDBPath)
+	nDB, nvrDBErr := directorydb.Open(ctx, nvrDBPath)
+	if nvrDBErr != nil {
+		// Non-fatal: log and continue without the new camera/system API.
+		log.Warn("directory: failed to open NVR database; cameraapi/systemapi will not be registered",
+			"error", nvrDBErr)
+		nDB = nil
+	} else {
+		srv.NVRDB = nDB
+	}
+
+	// ---------------------------------------------------------------
+	// 1c. Open Recorder SQLite DB (optional — for recordings/bookmarks/exports)
+	// ---------------------------------------------------------------
+	recDBPath := filepath.Join(cfg.DataDir, "recorder.db")
+	log.Info("directory: opening recorder database", "path", recDBPath)
+	var rdb *recorderdb.DB
+	if rDB, rdbErr := recorderdb.Open(recDBPath); rdbErr != nil {
+		// Non-fatal: log and continue without recorder DB endpoints.
+		log.Warn("directory: failed to open recorder database; recordings/bookmarks/exports will not be available",
+			"error", rdbErr)
+	} else {
+		rdb = rDB
+		srv.RecDB = rdb
+	}
 
 	// ---------------------------------------------------------------
 	// 2. Bootstrap PKI — embedded step-ca cluster CA
@@ -304,6 +474,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	// Pending store (for pending pairing requests)
 	pendingStore := pairing.NewPendingStore(ddb)
 
+	// Token store (for PollTokenHandler to look up approved tokens)
+	tokenStore := pairing.NewStore(ddb)
+
 	// ---------------------------------------------------------------
 	// 6. Build HTTP mux and start server
 	// ---------------------------------------------------------------
@@ -319,6 +492,21 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		})
 	})
 
+	// Discovery endpoint — unauthenticated.
+	// Flutter client probes this to validate the server before login.
+	mux.HandleFunc("/api/v1/discover", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"service":          "raikada-directory",
+			"server_name":     "Raikada NVR",
+			"server_version":  "1.0.0",
+			"protocol_version": 1,
+			"deployment":      "on-prem",
+			"auth_methods":    []string{"local"},
+		})
+	})
+
 	// Pairing endpoints — unauthenticated
 	mux.HandleFunc("/api/v1/pairing/tokens", pairing.GenerateHandler(pairingSvc, func(r *http.Request) (pairing.UserID, bool) {
 		// In production this extracts from the JWT claims.
@@ -328,6 +516,27 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	}))
 	mux.HandleFunc("/api/v1/pairing/check-in", pairing.CheckInHandler(pairingSvc, pairingRecorderStore, nil, log))
 	mux.HandleFunc("/api/v1/pairing/pending", pairing.ListPendingHandler(pendingStore))
+
+	// Approval-based pairing endpoints (KAI-430 approval flow)
+	// Helper: extract authenticated user ID from request (same closure as GenerateHandler above).
+	pairingUserID := func(r *http.Request) (pairing.UserID, bool) {
+		uid := r.Header.Get("X-User-ID")
+		return pairing.UserID(uid), uid != ""
+	}
+
+	mux.HandleFunc("POST /api/v1/pairing/request", pairing.RequestPairingHandler(pairingSvc, pendingStore))
+	mux.HandleFunc("POST /api/v1/pairing/pending/{id}/approve", pairing.ApprovePendingHandler(
+		pairingSvc, pendingStore, pairingUserID,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
+	mux.HandleFunc("POST /api/v1/pairing/pending/{id}/deny", pairing.DenyPendingHandler(
+		pairingSvc, pendingStore, pairingUserID,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
+	mux.HandleFunc("GET /api/v1/pairing/request/{id}/token", pairing.PollTokenHandler(
+		pendingStore, tokenStore,
+		func(r *http.Request) string { return r.PathValue("id") },
+	))
 
 	// Recorder control — streaming endpoint
 	mux.Handle("/kaivue.v1.RecorderControlService/StreamAssignments", recCtrl)
@@ -350,18 +559,35 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/recorders/register", recorderHandlers.RegisterHandler())
 	mux.HandleFunc("/api/v1/recorders/heartbeat", recorderHandlers.HeartbeatHandler())
 	mux.HandleFunc("/api/v1/recorders", recorderHandlers.ListRecordersHandler())
-	mux.HandleFunc("/api/v1/cameras", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			recorderHandlers.CreateCameraHandler()(w, r)
-		case http.MethodGet:
-			recorderHandlers.ListCamerasHandler()(w, r)
-		case http.MethodDelete:
-			recorderHandlers.DeleteCameraHandler()(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
+	// Camera CRUD — registered on a Gin engine so cameraapi (which uses
+	// gin.IRouter) can be wired in directly. The Gin engine is mounted as
+	// an http.Handler on /api/v1/cameras and /api/v1/cameras/ so that both
+	// the collection and item routes are served. The legacy per-method
+	// switch is superseded by the Gin router.
+	if nDB != nil {
+		gin.SetMode(gin.ReleaseMode)
+		ginRouter := gin.New()
+		ginRouter.Use(gin.Recovery())
+		cameraapi.NewHandler(ddb).Register(ginRouter)
+		systemapi.NewHandler("directory").Register(ginRouter)
+		mux.Handle("/api/v1/cameras", ginRouter)
+		mux.Handle("/api/v1/cameras/", ginRouter)
+		mux.Handle("/system/", ginRouter)
+	} else {
+		// Fallback: legacy ad-hoc handler when NVR DB is unavailable.
+		mux.HandleFunc("/api/v1/cameras", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				recorderHandlers.CreateCameraHandler()(w, r)
+			case http.MethodGet:
+				recorderHandlers.ListCamerasHandler()(w, r)
+			case http.MethodDelete:
+				recorderHandlers.DeleteCameraHandler()(w, r)
+			default:
+				http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			}
+		})
+	}
 
 	// Fan-out query endpoints — query all recorders and merge results
 	mux.HandleFunc("/api/v1/query/recordings", fanoutSvc.FanoutRecordingsHandler())
@@ -384,6 +610,77 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 	mux.HandleFunc("/api/v1/admin/audit", adminHandlers.AuditHandler())
 	mux.HandleFunc("/api/v1/admin/exports", adminHandlers.ExportJobsHandler())
 	mux.HandleFunc("/api/v1/admin/exports/by-id", adminHandlers.ExportJobByIDHandler())
+
+	// Cloud connector settings — admin UI reads/writes these
+	cloudStore := adminapi.NewCloudStore(ddb.DB)
+	mux.Handle("/api/v1/admin/cloud", adminapi.CloudSettingsHandler(cloudStore, func(cs adminapi.CloudSettings) {
+		if cs.Enabled {
+			srv.ApplyCloudSettings(cs.URL, cs.Token, cs.SiteAlias)
+		} else {
+			srv.ApplyCloudSettings("", "", "")
+		}
+	}))
+
+	// Auth methods — the Flutter LoginService calls this first to discover
+	// available authentication methods before showing the login form.
+	mux.HandleFunc("/api/v1/auth/methods", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]string{"code": "METHOD_NOT_ALLOWED", "message": "use GET"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"local_enabled": true,
+			"sso_providers": []any{},
+		})
+	})
+
+	// Auth API — login, refresh, logout
+	// Derive a stable RSA-2048 signing key from the master key so JWTs survive
+	// restarts without needing to store a separate key file.
+	jwtKey, jwtKeyErr := deriveJWTSigningKey(cfg.MasterKey)
+	if jwtKeyErr != nil {
+		_ = srv.cleanup(ctx)
+		return nil, fmt.Errorf("directory: derive JWT signing key: %w", jwtKeyErr)
+	}
+	localProvider := authapi.NewLocalAuthProvider(ddb, jwtKey)
+	// defaultTenant is the single on-prem tenant; the value is not validated
+	// server-side for local auth so any constant works.
+	defaultTenant := authapi.TenantRef{Type: "onprem", ID: "default"}
+	authHandlers := authapi.NewHandlers(
+		localProvider,
+		func(_ *http.Request) authapi.TenantRef { return defaultTenant },
+		func(_ context.Context) (authapi.SessionID, bool) { return "", false }, // logout not context-based in this path
+		log.With(slog.String("component", "authapi")),
+	)
+	mux.HandleFunc("/api/v1/auth/login", authHandlers.Login())
+	mux.HandleFunc("/api/v1/auth/refresh", authHandlers.Refresh())
+	mux.HandleFunc("/api/v1/auth/logout", authHandlers.Logout())
+
+	// Legacy NVR API paths — the Flutter AuthService uses these.
+	mux.HandleFunc("/api/nvr/auth/login", authHandlers.Login())
+	mux.HandleFunc("/api/nvr/auth/refresh", authHandlers.Refresh())
+	mux.HandleFunc("/api/nvr/auth/revoke", authHandlers.Logout())
+	mux.HandleFunc("/api/nvr/system/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"status": "ok",
+			"mode":   "directory",
+		})
+	})
+
+	// Legacy /api/nvr/... compatibility routes — the Flutter client uses
+	// $serverUrl/api/nvr as its ApiClient base URL so all resource endpoints
+	// must be reachable here. The more-specific auth/health routes registered
+	// above take precedence over the catch-all patterns in legacynvrapi.
+	// Use the main directory DB (ddb) for cameras, users, etc.
+	// nDB is the legacy NVR DB which may be empty.
+	nvrCompat := &legacynvrapi.Handlers{DB: ddb, RecDB: rdb}
+	nvrCompat.Register(mux)
 
 	// Web UI — SPA fallback at /admin
 	mux.Handle("/admin/", webui.Handler("/admin"))
@@ -435,6 +732,73 @@ func Boot(ctx context.Context, cfg BootConfig) (*DirectoryServer, error) {
 		} else {
 			srv.Broadcaster = broadcaster
 		}
+	}
+
+	// ---------------------------------------------------------------
+	// 8. Start cloud connector (from config or DB settings)
+	// ---------------------------------------------------------------
+	cloudURL := cfg.CloudConnectURL
+	cloudToken := cfg.CloudConnectToken
+	cloudAlias := cfg.CloudSiteAlias
+
+	// Fall back to DB settings if config is empty.
+	if cloudURL == "" {
+		if cs, err := cloudStore.Get(); err == nil && cs.Enabled {
+			cloudURL = cs.URL
+			cloudToken = cs.Token
+			cloudAlias = cs.SiteAlias
+		}
+	}
+
+	if cloudURL != "" {
+		log.Info("directory: starting cloud connector",
+			"url", cloudURL, "alias", cloudAlias)
+
+		cloudCtx, cloudCancel := context.WithCancel(context.Background())
+		srv.cloudCancel = cloudCancel
+
+		cc := cloudconnector.New(cloudconnector.Config{
+			URL:   cloudURL,
+			Token: cloudToken,
+			Site: cloudconnector.SiteInfo{
+				ID:    cloudAlias,
+				Alias: cloudAlias,
+				Capabilities: cloudconnector.Capabilities{
+					Streams:  true,
+					Playback: true,
+					AI:       true,
+				},
+			},
+			CommandHandler: cloudconnector.NewProxyCommandHandler("http://localhost:8898"),
+			Logger:         log.With(slog.String("component", "cloudconnector")),
+		})
+		srv.CloudConn = cc
+		go cc.Run(cloudCtx)
+
+		// Start frp tunnel for data plane.
+		tun, tunErr := tunnel.New(tunnel.Config{
+			ServerAddr: "connect.raikada.com",
+			ServerPort: 7000,
+			Token:      cloudToken,
+			SubDomain:  cloudAlias,
+			LocalPorts: tunnel.LocalPorts{
+				API:      9995,
+				HLS:      8898,
+				WebRTC:   8889,
+				Playback: 9996,
+			},
+			Logger: log,
+		})
+		if tunErr != nil {
+			log.Warn("tunnel: failed to create", "error", tunErr)
+		} else {
+			tunnelCtx, tunnelCancel := context.WithCancel(context.Background())
+			srv.tunnelCancel = tunnelCancel
+			srv.Tunnel = tun
+			go tun.Run(tunnelCtx)
+		}
+	} else {
+		log.Info("directory: cloud connector disabled (air-gapped mode)")
 	}
 
 	log.Info("directory: Directory mode started successfully",
@@ -556,6 +920,17 @@ func derivePairingKey(masterKey []byte) ed25519.PrivateKey {
 	return ed25519.NewKeyFromSeed(seed)
 }
 
+// deriveJWTSigningKey deterministically derives an RSA-2048 private key from
+// the master key using HKDF-SHA256 as a deterministic source of randomness.
+// This means the same nvrJWTSecret always produces the same RSA key, so tokens
+// remain verifiable across restarts without storing a key file.
+func deriveJWTSigningKey(masterKey []byte) (*rsa.PrivateKey, error) {
+	reader := hkdf.New(sha256.New, masterKey, []byte("jwt-signing-key-v1"), nil)
+	// io.Reader that produces deterministic bytes from the master key.
+	limitedReader := io.LimitReader(reader, 1<<20) // 1 MiB upper bound — RSA gen needs ~1 KiB
+	return rsa.GenerateKey(limitedReader, 2048)
+}
+
 // -----------------------------------------------------------------------
 // Booter — implements kairuntime.DirectoryBooter
 // -----------------------------------------------------------------------
@@ -589,9 +964,13 @@ func (b *Booter) Boot(ctx context.Context, cfg any, logger *slog.Logger) error {
 
 	bootCfg := BootConfig{
 		DataDir:              c.NVRDirectoryDataDir,
-		ListenAddr:           c.APIAddress,
+		// ListenAddr intentionally omitted — defaults to :9995.
+		// c.APIAddress (:9997) is used by the core MediaMTX streaming API.
 		MasterKey:            masterKey,
 		RecorderServiceToken: c.NVRServiceToken,
+		CloudConnectURL:      c.CloudConnectURL,
+		CloudConnectToken:    c.CloudConnectToken,
+		CloudSiteAlias:       c.CloudSiteAlias,
 		Logger:               logger,
 	}
 

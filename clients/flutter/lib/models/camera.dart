@@ -36,6 +36,12 @@ class Camera with _$Camera {
     @JsonKey(name: 'live_view_path') @Default('') String liveViewPath,
     @JsonKey(name: 'live_view_codec') @Default('') String liveViewCodec,
     @JsonKey(name: 'stream_paths') @Default([]) List<StreamPath> streamPaths,
+    // Recorder/Directory routing fields — populated by the Directory API so
+    // the client knows where to send data-plane requests (live view, playback,
+    // export) without an extra lookup hop.
+    @JsonKey(name: 'recorder_id') String? recorderId,
+    @JsonKey(name: 'recorder_endpoint') String? recorderEndpoint,
+    @JsonKey(name: 'directory_id') String? directoryId,
   }) = _Camera;
 
   factory Camera.fromJson(Map<String, dynamic> json) => _$CameraFromJson(json);

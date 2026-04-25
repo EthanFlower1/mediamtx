@@ -2,125 +2,11 @@ import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCameras, Camera } from '../hooks/useCameras'
 import { apiFetch } from '../api/client'
-import RecordingRules from '../components/RecordingRules'
 import CameraSettings from '../components/CameraSettings'
 import DetectionZoneEditor from '../components/DetectionZoneEditor'
 import AnalyticsConfig from '../components/AnalyticsConfig'
 import RelayControls from '../components/RelayControls'
 import ConfirmDialog from '../components/ConfirmDialog'
-
-/** Small component to fetch and display the effective recording mode for a camera. */
-function RecordingModeBadge({ cameraId }: { cameraId: string }) {
-  const [mode, setMode] = useState<string | null>(null)
-
-  useEffect(() => {
-    apiFetch(`/cameras/${cameraId}/recording-status`).then(async res => {
-      if (res.ok) {
-        const data = await res.json()
-        setMode(data.effective_mode)
-      }
-    })
-  }, [cameraId])
-
-  if (mode === null) return <span className="text-nvr-text-muted">--</span>
-
-  const styles: Record<string, string> = {
-    always: 'bg-nvr-accent/15 text-nvr-accent',
-    events: 'bg-nvr-warning/15 text-nvr-warning',
-    off: 'bg-nvr-text-muted/15 text-nvr-text-muted',
-  }
-
-  const label: Record<string, string> = {
-    always: 'Always',
-    events: 'Events',
-    off: 'Off',
-  }
-
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${styles[mode] ?? styles.off}`}>
-      {label[mode] ?? 'Off'}
-    </span>
-  )
-}
-
-/** Thin timeline strip showing today's recording coverage for a camera. */
-function RecordingMinimap({ mediamtxPath }: { mediamtxPath: string }) {
-  const [ranges, setRanges] = useState<{ startPct: number; widthPct: number }[]>([])
-
-  useEffect(() => {
-    if (!mediamtxPath) return
-
-    const today = new Date()
-    const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
-    const dayMs = 24 * 60 * 60 * 1000
-
-    fetch(`http://${window.location.hostname}:9997/v3/recordings/get/${mediamtxPath}`)
-      .then(res => res.ok ? res.json() : null)
-      .then((data: { segments?: { start: string }[] } | null) => {
-        if (!data?.segments) return
-
-        const dayEnd = dayStart + dayMs
-        const filtered = data.segments.filter(s => {
-          const t = new Date(s.start).getTime()
-          return t >= dayStart && t < dayEnd
-        })
-
-        if (filtered.length === 0) return
-
-        // Build merged ranges
-        const merged: { start: number; end: number }[] = []
-        for (let i = 0; i < filtered.length; i++) {
-          const segStart = new Date(filtered[i].start).getTime()
-          const segEnd = i + 1 < filtered.length
-            ? new Date(filtered[i + 1].start).getTime()
-            : segStart + 5 * 60 * 1000
-
-          if (merged.length > 0 && segStart - merged[merged.length - 1].end < 10000) {
-            merged[merged.length - 1].end = segEnd
-          } else {
-            merged.push({ start: segStart, end: segEnd })
-          }
-        }
-
-        setRanges(merged.map(r => ({
-          startPct: ((r.start - dayStart) / dayMs) * 100,
-          widthPct: Math.max(((r.end - r.start) / dayMs) * 100, 0.5),
-        })))
-      })
-      .catch(() => {})
-  }, [mediamtxPath])
-
-  if (ranges.length === 0) return null
-
-  return (
-    <div className="w-full h-[2px] bg-nvr-bg-tertiary rounded-full overflow-hidden mt-3 relative">
-      {ranges.map((r, i) => (
-        <div
-          key={i}
-          className="absolute top-0 h-full bg-nvr-accent rounded-full"
-          style={{ left: `${r.startPct}%`, width: `${r.widthPct}%` }}
-        />
-      ))}
-    </div>
-  )
-}
-
-interface DiscoveredProfile {
-  token: string
-  name: string
-  stream_uri: string
-  video_codec?: string
-  width?: number
-  height?: number
-}
-
-interface DiscoveredCamera {
-  xaddr: string
-  manufacturer: string
-  model: string
-  firmware: string
-  profiles?: DiscoveredProfile[]
-}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -132,244 +18,6 @@ function relativeTime(iso: string): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-/** Displays per-camera storage usage, retention setting, and cleanup button. */
-function CameraStoragePanel({ camera, onRefresh }: { camera: Camera; onRefresh: () => void }) {
-  const [storageBytes, setStorageBytes] = useState<number | null>(null)
-  const [retentionDays, setRetentionDays] = useState(camera.retention_days ?? 0)
-  const [editingRetention, setEditingRetention] = useState(false)
-  const [retentionInput, setRetentionInput] = useState(String(retentionDays))
-  const [savingRetention, setSavingRetention] = useState(false)
-
-  // Motion timeout state
-  const [motionTimeout, setMotionTimeout] = useState(camera.motion_timeout_seconds ?? 8)
-  const [motionTimeoutInput, setMotionTimeoutInput] = useState(String(camera.motion_timeout_seconds ?? 8))
-  const [savingMotionTimeout, setSavingMotionTimeout] = useState(false)
-
-  // Cleanup state
-  const [showCleanup, setShowCleanup] = useState(false)
-  const [cleanupDate, setCleanupDate] = useState(new Date().toISOString().slice(0, 10))
-  const [cleanupLoading, setCleanupLoading] = useState(false)
-  const [cleanupResult, setCleanupResult] = useState<{ deleted_count: number; bytes_freed: number } | null>(null)
-
-  useEffect(() => {
-    apiFetch('/system/storage').then(async res => {
-      if (res.ok) {
-        const data = await res.json()
-        const camStorage = data.per_camera?.find((c: { camera_id: string }) => c.camera_id === camera.id)
-        setStorageBytes(camStorage?.total_bytes ?? 0)
-      }
-    })
-  }, [camera.id])
-
-  const handleSaveRetention = async () => {
-    const days = parseInt(retentionInput, 10)
-    if (isNaN(days) || days < 0) return
-    setSavingRetention(true)
-    const res = await apiFetch(`/cameras/${camera.id}/retention`, {
-      method: 'PUT',
-      body: JSON.stringify({ retention_days: days }),
-    })
-    if (res.ok) {
-      setRetentionDays(days)
-      setEditingRetention(false)
-      onRefresh()
-    }
-    setSavingRetention(false)
-  }
-
-  const handleSaveMotionTimeout = async () => {
-    const seconds = parseInt(motionTimeoutInput, 10)
-    if (isNaN(seconds) || seconds < 1) return
-    setSavingMotionTimeout(true)
-    const res = await apiFetch(`/cameras/${camera.id}/motion-timeout`, {
-      method: 'PUT',
-      body: JSON.stringify({ motion_timeout_seconds: seconds }),
-    })
-    if (res.ok) {
-      setMotionTimeout(seconds)
-      onRefresh()
-    }
-    setSavingMotionTimeout(false)
-  }
-
-  const handleCleanup = async () => {
-    if (!cleanupDate) return
-    setCleanupLoading(true)
-    try {
-      const res = await apiFetch('/recordings/cleanup', {
-        method: 'DELETE',
-        body: JSON.stringify({
-          camera_id: camera.id,
-          before: `${cleanupDate}T00:00:00Z`,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCleanupResult(data)
-        // Refresh storage info
-        const storageRes = await apiFetch('/system/storage')
-        if (storageRes.ok) {
-          const sData = await storageRes.json()
-          const camStorage = sData.per_camera?.find((c: { camera_id: string }) => c.camera_id === camera.id)
-          setStorageBytes(camStorage?.total_bytes ?? 0)
-        }
-      }
-    } finally {
-      setCleanupLoading(false)
-    }
-  }
-
-  return (
-    <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
-      <div className="flex items-center justify-between mb-3">
-        <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide">Storage & Retention</h4>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="bg-nvr-bg-primary rounded-lg p-2.5 border border-nvr-border/50">
-          <p className="text-[10px] text-nvr-text-muted mb-0.5">Storage Used</p>
-          <p className="text-sm font-semibold text-nvr-text-primary font-mono">
-            {storageBytes !== null ? formatBytes(storageBytes) : '--'}
-          </p>
-        </div>
-        <div className="bg-nvr-bg-primary rounded-lg p-2.5 border border-nvr-border/50">
-          <p className="text-[10px] text-nvr-text-muted mb-0.5">Retention</p>
-          {!editingRetention ? (
-            <div className="flex items-center gap-1">
-              <p className="text-sm font-semibold text-nvr-text-primary">
-                {retentionDays > 0 ? `${retentionDays} day${retentionDays !== 1 ? 's' : ''}` : 'Forever'}
-              </p>
-              <button
-                onClick={() => { setEditingRetention(true); setRetentionInput(String(retentionDays)) }}
-                className="text-nvr-text-muted hover:text-nvr-accent text-[10px] ml-1 transition-colors"
-              >
-                Edit
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min="0"
-                value={retentionInput}
-                onChange={e => setRetentionInput(e.target.value)}
-                className="w-16 bg-nvr-bg-input border border-nvr-border rounded px-1.5 py-0.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:outline-none"
-                placeholder="days"
-              />
-              <button
-                onClick={handleSaveRetention}
-                disabled={savingRetention}
-                className="text-nvr-accent hover:text-nvr-accent-hover text-[10px] font-medium transition-colors"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setEditingRetention(false)}
-                className="text-nvr-text-muted hover:text-nvr-text-secondary text-[10px] transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Motion timeout section */}
-      <div className="mb-3 p-2.5 bg-nvr-bg-primary rounded-lg border border-nvr-border/50">
-        <label className="text-[10px] font-semibold text-nvr-text-muted uppercase tracking-wide">Motion Event Timeout</label>
-        <p className="text-xs text-nvr-text-muted mt-0.5">Seconds before an open motion event is auto-closed if no motion=false is received</p>
-        <div className="flex items-center gap-2 mt-1">
-          <input
-            type="number"
-            min="1"
-            max="300"
-            value={motionTimeoutInput}
-            onChange={e => setMotionTimeoutInput(e.target.value)}
-            className="w-16 bg-nvr-bg-input border border-nvr-border rounded px-1.5 py-0.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:outline-none"
-          />
-          <span className="text-xs text-nvr-text-muted">seconds</span>
-          {String(motionTimeout) !== motionTimeoutInput && (
-            <>
-              <button
-                onClick={handleSaveMotionTimeout}
-                disabled={savingMotionTimeout}
-                className="text-nvr-accent hover:text-nvr-accent-hover text-[10px] font-medium transition-colors"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setMotionTimeoutInput(String(motionTimeout))}
-                className="text-nvr-text-muted hover:text-nvr-text-secondary text-[10px] transition-colors"
-              >
-                Cancel
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Cleanup section */}
-      {!showCleanup ? (
-        <button
-          onClick={() => { setShowCleanup(true); setCleanupResult(null); setCleanupDate(new Date().toISOString().slice(0, 10)) }}
-          className="text-xs text-nvr-text-muted hover:text-nvr-danger transition-colors px-2 py-1 rounded hover:bg-nvr-danger/10 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-        >
-          Clean Up Old Recordings
-        </button>
-      ) : (
-        <div className="bg-nvr-bg-primary border border-nvr-border/50 rounded-lg p-3">
-          <p className="text-xs text-nvr-text-secondary mb-2">Delete recordings older than:</p>
-          {!cleanupResult ? (
-            <>
-              <input
-                type="date"
-                value={cleanupDate}
-                onChange={e => setCleanupDate(e.target.value)}
-                className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-2.5 py-1.5 text-xs text-nvr-text-primary focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors mb-2"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowCleanup(false)}
-                  className="text-xs text-nvr-text-muted hover:text-nvr-text-secondary transition-colors px-2 py-1"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCleanup}
-                  disabled={cleanupLoading || !cleanupDate}
-                  className="text-xs bg-nvr-danger hover:bg-nvr-danger-hover text-white font-medium px-3 py-1 rounded transition-colors disabled:opacity-50"
-                >
-                  {cleanupLoading ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-nvr-success mb-2">
-                Deleted {cleanupResult.deleted_count} recording{cleanupResult.deleted_count !== 1 ? 's' : ''}, freed {formatBytes(cleanupResult.bytes_freed)}.
-              </p>
-              <button
-                onClick={() => setShowCleanup(false)}
-                className="text-xs text-nvr-accent hover:text-nvr-accent-hover transition-colors"
-              >
-                Done
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 /** AI Detection toggle + sub stream URL for a camera. */
@@ -488,19 +136,11 @@ export default function CameraManagement() {
 
   // Add camera modal state
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addTab, setAddTab] = useState<'discover' | 'manual'>('discover')
-  const [discovering, setDiscovering] = useState(false)
-  const [discovered, setDiscovered] = useState<DiscoveredCamera[]>([])
-  const [selectedDevice, setSelectedDevice] = useState<DiscoveredCamera | null>(null)
-  const [selectedProfile, setSelectedProfile] = useState<DiscoveredProfile | null>(null)
   const [addName, setAddName] = useState('')
   const [addRtspUrl, setAddRtspUrl] = useState('')
   const [addOnvifEndpoint, setAddOnvifEndpoint] = useState('')
   const [addUsername, setAddUsername] = useState('')
   const [addPassword, setAddPassword] = useState('')
-  const [probing, setProbing] = useState(false)
-  const [probeError, setProbeError] = useState('')
-  const [probedProfiles, setProbedProfiles] = useState<DiscoveredProfile[]>([])
 
   // Clipboard state
   const [copiedCameraId, setCopiedCameraId] = useState<string | null>(null)
@@ -533,84 +173,6 @@ export default function CameraManagement() {
     return () => document.removeEventListener('keydown', handleKey)
   }, [showAddModal, editCamera])
 
-  const handleDiscover = async () => {
-    setDiscovering(true)
-    setDiscovered([])
-    setSelectedDevice(null)
-    const res = await apiFetch('/cameras/discover', { method: 'POST' })
-    if (!res.ok) {
-      setDiscovering(false)
-      return
-    }
-
-    const poll = setInterval(async () => {
-      const statusRes = await apiFetch('/cameras/discover/status')
-      if (statusRes.ok) {
-        const data = await statusRes.json()
-        if (data.status === 'complete') {
-          clearInterval(poll)
-          const resultsRes = await apiFetch('/cameras/discover/results')
-          if (resultsRes.ok) setDiscovered(await resultsRes.json())
-          setDiscovering(false)
-        }
-      }
-    }, 1000)
-  }
-
-  const handleSelectDevice = (dev: DiscoveredCamera) => {
-    setSelectedDevice(dev)
-    setAddName(`${dev.manufacturer} ${dev.model}`.trim() || 'Camera')
-    setAddOnvifEndpoint(dev.xaddr)
-    setProbeError('')
-    setProbedProfiles([])
-    setAddUsername('')
-    setAddPassword('')
-
-    if (dev.profiles && dev.profiles.length > 0) {
-      setProbedProfiles(dev.profiles)
-      setSelectedProfile(dev.profiles[0])
-      setAddRtspUrl(dev.profiles[0].stream_uri)
-    } else {
-      setSelectedProfile(null)
-      setAddRtspUrl('')
-    }
-  }
-
-  const handleProbe = async () => {
-    if (!addOnvifEndpoint) return
-    setProbing(true)
-    setProbeError('')
-
-    const res = await apiFetch('/cameras/probe', {
-      method: 'POST',
-      body: JSON.stringify({
-        xaddr: addOnvifEndpoint,
-        username: addUsername,
-        password: addPassword,
-      }),
-    })
-
-    if (res.ok) {
-      const data = await res.json()
-      const profiles: DiscoveredProfile[] = data.profiles || []
-      setProbedProfiles(profiles)
-      if (profiles.length > 0) {
-        setSelectedProfile(profiles[0])
-        setAddRtspUrl(profiles[0].stream_uri)
-      }
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setProbeError(data.error || 'Failed to probe camera')
-    }
-
-    setProbing(false)
-  }
-
-  const handleSelectProfile = (p: DiscoveredProfile) => {
-    setSelectedProfile(p)
-    setAddRtspUrl(p.stream_uri)
-  }
-
   const handleAddCamera = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
@@ -622,7 +184,6 @@ export default function CameraManagement() {
         onvif_endpoint: addOnvifEndpoint,
         onvif_username: addUsername,
         onvif_password: addPassword,
-        onvif_profile_token: selectedProfile?.token || '',
       }),
     })
     if (res.ok) {
@@ -633,19 +194,11 @@ export default function CameraManagement() {
 
   const resetForm = () => {
     setShowAddModal(false)
-    setAddTab('discover')
-    setSelectedDevice(null)
-    setSelectedProfile(null)
     setAddName('')
     setAddRtspUrl('')
     setAddOnvifEndpoint('')
     setAddUsername('')
     setAddPassword('')
-    setProbing(false)
-    setProbeError('')
-    setProbedProfiles([])
-    setDiscovered([])
-    setDiscovering(false)
   }
 
   const handleDelete = async (id: string) => {
@@ -720,12 +273,6 @@ export default function CameraManagement() {
     }
   }
 
-  const openAddModal = (tab: 'discover' | 'manual') => {
-    resetForm()
-    setAddTab(tab)
-    setShowAddModal(true)
-  }
-
   if (loading) {
     return (
       <div>
@@ -749,7 +296,6 @@ export default function CameraManagement() {
     )
   }
 
-  const hasProfiles = probedProfiles.length > 0
   const expandedCamera = cameras.find(c => c.id === expandedCameraId) ?? null
   const filteredCameras = searchQuery
     ? cameras.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -762,7 +308,7 @@ export default function CameraManagement() {
         <h1 className="text-xl md:text-2xl font-bold text-nvr-text-primary">Cameras</h1>
         {cameras.length > 0 && (
           <button
-            onClick={() => openAddModal('discover')}
+            onClick={() => { resetForm(); setShowAddModal(true) }}
             className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm min-h-[44px] focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
           >
             Add Camera
@@ -778,22 +324,14 @@ export default function CameraManagement() {
           </svg>
           <h2 className="text-xl font-semibold text-nvr-text-primary mb-2">No cameras configured</h2>
           <p className="text-sm text-nvr-text-muted mb-6 max-w-md">
-            Scan your network for ONVIF cameras or enter an RTSP URL manually.
+            Add a camera by entering its RTSP URL manually.
           </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => openAddModal('discover')}
-              className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-            >
-              Discover Cameras
-            </button>
-            <button
-              onClick={() => openAddModal('manual')}
-              className="bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium px-5 py-2.5 rounded-lg border border-nvr-border transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-            >
-              Add Manually
-            </button>
-          </div>
+          <button
+            onClick={() => { resetForm(); setShowAddModal(true) }}
+            className="bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium px-5 py-2.5 rounded-lg transition-colors text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+          >
+            Add Camera
+          </button>
         </div>
       )}
 
@@ -885,7 +423,6 @@ export default function CameraManagement() {
                           </svg>
                         )}
                       </button>
-                      <RecordingModeBadge cameraId={cam.id} />
                       {cam.status !== 'online' && cam.updated_at && (
                         <span className="text-nvr-text-muted text-[10px]" title={new Date(cam.updated_at).toLocaleString()}>
                           Last updated: {relativeTime(cam.updated_at)}
@@ -926,19 +463,6 @@ export default function CameraManagement() {
                       </svg>
                     </button>
                     <button
-                      onClick={() => {
-                        localStorage.setItem('nvr-recordings-camera', cam.id)
-                        navigate('/recordings')
-                      }}
-                      className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-accent hover:bg-nvr-accent/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                      aria-label="Recordings"
-                      title="Recordings"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                      </svg>
-                    </button>
-                    <button
                       onClick={() => openEditModal(cam)}
                       className="p-2 rounded-lg text-nvr-text-muted hover:text-nvr-accent hover:bg-nvr-accent/10 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
                       aria-label="Edit"
@@ -970,17 +494,14 @@ export default function CameraManagement() {
                     </button>
                   </div>
                 </div>
-
-                {/* Recording timeline minimap — today's coverage */}
-                {cam.mediamtx_path && <RecordingMinimap mediamtxPath={cam.mediamtx_path} />}
               </div>
 
               {/* Expanded inline detail */}
               {expandedCamera && expandedCameraId === cam.id && (
                 <div className="mt-1 bg-nvr-bg-secondary border border-nvr-border rounded-xl p-4">
-                  {/* Tabs for Recording Rules / Camera Settings */}
+                  {/* Header with optional image settings toggle */}
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="text-sm font-semibold text-nvr-text-primary">Recording Rules</span>
+                    <span className="text-sm font-semibold text-nvr-text-primary">Camera Settings</span>
                     {(expandedCamera.onvif_endpoint && expandedCamera.supports_imaging) && (
                       <button
                         onClick={() => setShowSettings(!showSettings)}
@@ -1005,12 +526,10 @@ export default function CameraManagement() {
                     </div>
                   )}
 
-                  <CameraStoragePanel camera={expandedCamera} onRefresh={refresh} />
-
                   {/* AI Detection Settings */}
                   <AIDetectionPanel camera={expandedCamera} onRefresh={refresh} />
 
-                  {/* Relay Controls — only visible when camera supports relay outputs */}
+                  {/* Relay Controls -- only visible when camera supports relay outputs */}
                   {expandedCamera.supports_relay && (
                     <div className="mt-4">
                       <div className="mb-1">
@@ -1054,7 +573,7 @@ export default function CameraManagement() {
                     )}
                   </div>
 
-                  {/* Analytics modules & rules — only visible when camera supports analytics */}
+                  {/* Analytics modules & rules -- only visible when camera supports analytics */}
                   {expandedCamera.supports_analytics && (
                     <div className="mb-4 p-3 border border-nvr-border rounded-lg bg-nvr-bg-tertiary">
                       <h4 className="text-xs font-semibold text-nvr-text-secondary uppercase tracking-wide mb-1">Analytics</h4>
@@ -1062,8 +581,6 @@ export default function CameraManagement() {
                       <AnalyticsConfig cameraId={expandedCamera.id} />
                     </div>
                   )}
-
-                  <RecordingRules cameraId={expandedCamera.id} />
                 </div>
               )}
             </div>
@@ -1095,200 +612,71 @@ export default function CameraManagement() {
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-nvr-border">
-              <button
-                onClick={() => { setAddTab('discover'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName('') }}
-                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
-                  addTab === 'discover'
-                    ? 'border-nvr-accent text-nvr-accent'
-                    : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
-                }`}
-              >
-                Discover
-              </button>
-              <button
-                onClick={() => { setAddTab('manual'); setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl(''); setAddName(''); setAddOnvifEndpoint('') }}
-                className={`flex-1 py-3 text-sm font-medium text-center transition-colors border-b-2 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
-                  addTab === 'manual'
-                    ? 'border-nvr-accent text-nvr-accent'
-                    : 'border-transparent text-nvr-text-muted hover:text-nvr-text-secondary'
-                }`}
-              >
-                Manual
-              </button>
-            </div>
+            <form onSubmit={handleAddCamera} className="p-5">
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
+                <input
+                  type="text"
+                  value={addName}
+                  onChange={e => setAddName(e.target.value)}
+                  placeholder="e.g. Front Door"
+                  required
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
 
-            <div className="p-5">
-              {/* Discover tab */}
-              {addTab === 'discover' && !selectedDevice && (
-                <div>
-                  <button
-                    onClick={handleDiscover}
-                    disabled={discovering}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm mb-4 focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                  >
-                    {discovering ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Scanning network...
-                      </span>
-                    ) : 'Scan for Cameras'}
-                  </button>
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">RTSP URL</label>
+                <input
+                  type="text"
+                  value={addRtspUrl}
+                  onChange={e => setAddRtspUrl(e.target.value)}
+                  placeholder="rtsp://user:pass@192.168.1.100:554/stream"
+                  required
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+              </div>
 
-                  {discovered.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xs text-nvr-text-muted mb-1">
-                        Found {discovered.length} camera{discovered.length !== 1 ? 's' : ''}
-                      </p>
-                      {discovered.map((d, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleSelectDevice(d)}
-                          className="w-full text-left p-3 border border-nvr-border rounded-lg hover:bg-nvr-bg-tertiary/50 hover:border-nvr-accent/30 transition-colors focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                        >
-                          <div className="font-medium text-sm text-nvr-text-primary">
-                            {d.manufacturer} {d.model}
-                          </div>
-                          <div className="text-xs text-nvr-text-muted truncate mt-0.5">{d.xaddr}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">ONVIF Endpoint <span className="text-nvr-text-muted font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={addOnvifEndpoint}
+                  onChange={e => setAddOnvifEndpoint(e.target.value)}
+                  placeholder="http://192.168.1.100:80/onvif/device_service"
+                  className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                />
+                <p className="text-xs text-nvr-text-muted mt-1">Required for PTZ, imaging, and analytics features.</p>
+              </div>
 
-                  {!discovering && discovered.length === 0 && (
-                    <p className="text-xs text-nvr-text-muted text-center py-4">
-                      Click scan to discover ONVIF cameras on your network.
-                    </p>
-                  )}
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">ONVIF Credentials <span className="text-nvr-text-muted font-normal">(optional)</span></label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={addUsername}
+                    onChange={e => setAddUsername(e.target.value)}
+                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={addPassword}
+                    onChange={e => setAddPassword(e.target.value)}
+                    className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
+                  />
                 </div>
-              )}
+              </div>
 
-              {/* Discover tab: selected device form */}
-              {addTab === 'discover' && selectedDevice && (
-                <form onSubmit={handleAddCamera}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedDevice(null); setProbedProfiles([]); setAddRtspUrl('') }}
-                      className="text-nvr-text-muted hover:text-nvr-text-secondary text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none rounded"
-                    >
-                      &larr; Back
-                    </button>
-                    <span className="text-sm font-medium text-nvr-text-primary">
-                      {selectedDevice.manufacturer} {selectedDevice.model}
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
-                    <input
-                      type="text"
-                      value={addName}
-                      onChange={e => setAddName(e.target.value)}
-                      required
-                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Credentials</label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        placeholder="Username"
-                        value={addUsername}
-                        onChange={e => setAddUsername(e.target.value)}
-                        className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                      />
-                      <input
-                        type="password"
-                        placeholder="Password"
-                        value={addPassword}
-                        onChange={e => setAddPassword(e.target.value)}
-                        className="flex-1 bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleProbe}
-                      disabled={probing || !addUsername}
-                      className="w-full bg-nvr-bg-tertiary hover:bg-nvr-border text-nvr-text-secondary font-medium py-2 rounded-lg border border-nvr-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                    >
-                      {probing ? 'Fetching...' : 'Fetch Streams'}
-                    </button>
-                    {probeError && <p className="text-nvr-danger text-xs mt-2">{probeError}</p>}
-                  </div>
-
-                  {hasProfiles && (
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Stream Profile</label>
-                      <div className="flex gap-2 flex-wrap">
-                        {probedProfiles.map(p => (
-                          <button
-                            key={p.token}
-                            type="button"
-                            onClick={() => handleSelectProfile(p)}
-                            className={`px-3 py-1.5 rounded-lg text-xs transition-colors border focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none ${
-                              selectedProfile?.token === p.token
-                                ? 'bg-nvr-accent/20 border-nvr-accent text-nvr-accent'
-                                : 'bg-nvr-bg-tertiary border-nvr-border text-nvr-text-secondary hover:bg-nvr-border/30'
-                            }`}
-                          >
-                            {p.name} - {p.width}x{p.height} {p.video_codec}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={!addRtspUrl}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                  >
-                    Add Camera
-                  </button>
-                </form>
-              )}
-
-              {/* Manual tab */}
-              {addTab === 'manual' && (
-                <form onSubmit={handleAddCamera}>
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">Camera Name</label>
-                    <input
-                      type="text"
-                      value={addName}
-                      onChange={e => setAddName(e.target.value)}
-                      placeholder="e.g. Front Door"
-                      required
-                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-nvr-text-secondary mb-1.5">RTSP URL</label>
-                    <input
-                      type="text"
-                      value={addRtspUrl}
-                      onChange={e => setAddRtspUrl(e.target.value)}
-                      placeholder="rtsp://user:pass@192.168.1.100:554/stream"
-                      required
-                      className="w-full bg-nvr-bg-input border border-nvr-border rounded-lg px-3 py-2 text-sm text-nvr-text-primary placeholder-nvr-text-muted focus:border-nvr-accent focus:ring-1 focus:ring-nvr-accent focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!addRtspUrl || !addName}
-                    className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
-                  >
-                    Add Camera
-                  </button>
-                </form>
-              )}
-            </div>
+              <button
+                type="submit"
+                disabled={!addRtspUrl || !addName}
+                className="w-full bg-nvr-accent hover:bg-nvr-accent-hover text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm focus-visible:ring-2 focus-visible:ring-nvr-accent/50 focus-visible:outline-none"
+              >
+                Add Camera
+              </button>
+            </form>
           </div>
         </div>
       )}

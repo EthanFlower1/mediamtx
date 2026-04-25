@@ -413,6 +413,12 @@ type Conf struct {
 	NVRInternalAPIAddr string `json:"nvrInternalAPIAddr"`
 	NVRRecorderID      string `json:"nvrRecorderID"`
 
+	// Cloud Connector — outbound WSS to cloud broker for remote access
+	// and cloud services. Empty = air-gapped mode (default).
+	CloudConnectURL   string `json:"cloudConnectURL"`
+	CloudConnectToken string `json:"cloudConnectToken"`
+	CloudSiteAlias    string `json:"cloudSiteAlias"`
+
 	// Record (deprecated)
 	Record                *bool         `json:"record,omitempty" deprecated:"true"`
 	RecordPath            *string       `json:"recordPath,omitempty" deprecated:"true"`

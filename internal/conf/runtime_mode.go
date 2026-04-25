@@ -11,8 +11,11 @@ import (
 // runtime.Mode in internal/shared/runtime and delegates validation so
 // there is a single source of truth for the set of legal values.
 //
-// The empty string is treated as the legacy (pre-KAI-237) single-NVR
-// mode so that existing mediamtx.yml files keep working unchanged.
+// The empty string (RuntimeModeLegacy) previously preserved the pre-KAI-237
+// single-NVR behavior. As of Phase 5, it now behaves identically to
+// RuntimeModeAllInOne: both the Directory and Recorder subsystems boot
+// in-process and auto-pair. The legacy NVR code still boots alongside
+// for backwards compatibility until Phase 6 removes it.
 type RuntimeMode string
 
 // Runtime mode constants re-exported for use in the conf package.

@@ -21,6 +21,11 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+// DB returns the underlying database handle.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 const defaultTenant = "local"
 
 // --- Users ------------------------------------------------------------------

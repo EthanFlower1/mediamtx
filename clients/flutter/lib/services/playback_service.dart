@@ -35,6 +35,13 @@ class PlaybackService {
   final String serverUrl;
   PlaybackService({required this.serverUrl});
 
+  /// Base URL for playback — uses the server URL directly so it works
+  /// both on LAN (via mux or direct port) and through the cloud tunnel.
+  String _baseUrl() {
+    final s = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+    return s;
+  }
+
   /// Fetch the list of recorded timespans from the Raikada /list endpoint.
   /// Each timespan includes a pre-built /get URL.
   Future<List<PlaybackTimespan>> listTimespans({
@@ -42,8 +49,7 @@ class PlaybackService {
     required DateTime start,
     required DateTime end,
   }) async {
-    final uri = Uri.parse(serverUrl);
-    final base = '${uri.scheme}://${uri.host}:9996/list';
+    final base = '${_baseUrl()}/list';
     final url = Uri.parse(base).replace(queryParameters: {
       'path': cameraPath,
       'start': _toRfc3339(start),
@@ -75,8 +81,7 @@ class PlaybackService {
     required int durationSecs,
     String? token,
   }) {
-    final uri = Uri.parse(serverUrl);
-    final base = '${uri.scheme}://${uri.host}:9996/get';
+    final base = '${_baseUrl()}/get';
     final params = <String, String>{
       'path': cameraPath,
       'start': _toRfc3339(start),

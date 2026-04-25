@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/bluenviron/mediamtx/internal/nvr/db"
+	"github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // TimelineIntegrator injects DMP alarm events into the NVR video timeline

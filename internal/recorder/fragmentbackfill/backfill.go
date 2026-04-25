@@ -19,9 +19,17 @@ type ScanResult struct {
 // The default implementation is scanFile; tests inject a fake.
 type Scanner func(filePath string) (ScanResult, error)
 
+// Database abstracts the three DB methods used by the backfill goroutine.
+// Production passes a *db.DB; tests inject a fake implementation.
+type Database interface {
+	GetUnindexedRecordings() ([]*db.Recording, error)
+	UpdateRecordingInitSize(recordingID int64, initSize int64) error
+	InsertFragments(recordingID int64, fragments []db.RecordingFragment) error
+}
+
 // Config carries all dependencies for the backfill goroutine.
 type Config struct {
-	DB      *db.DB
+	DB      Database
 	Logger  *slog.Logger
 	Scanner Scanner // optional; defaults to scanFile
 }
@@ -78,6 +86,14 @@ func runOnce(ctx context.Context, cfg Config) {
 			continue
 		}
 
+		// TODO: move the quarantine filter into the GetUnindexedRecordings SQL query
+		// for symmetry with GetUnindexedRecordingPaths (which already does so).
+		if rec.Status == "quarantined" {
+			cfg.Logger.Debug("fragment backfill: skipping quarantined",
+				slog.Int64("recording_id", rec.ID))
+			continue
+		}
+
 		if _, statErr := os.Stat(rec.FilePath); os.IsNotExist(statErr) {
 			cfg.Logger.Warn("fragment backfill: file missing, skipping",
 				"recording_id", rec.ID, "path", rec.FilePath)
@@ -92,8 +108,12 @@ func runOnce(ctx context.Context, cfg Config) {
 		}
 
 		if err := cfg.DB.UpdateRecordingInitSize(rec.ID, result.InitSize); err != nil {
-			cfg.Logger.Warn("fragment backfill: init_size update failed",
+			// Do NOT fall through to InsertFragments: leaving init_size=0 while
+			// inserting fragments would mark the recording as indexed but break
+			// byte-range playback permanently. Skip so the next boot retries.
+			cfg.Logger.Warn("fragment backfill: init_size update failed, skipping",
 				"recording_id", rec.ID, "err", err)
+			continue
 		}
 
 		dbFrags := buildDBFragments(rec.ID, result.Fragments)

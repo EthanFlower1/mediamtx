@@ -102,13 +102,18 @@ func scanFile(filePath string) (ScanResult, error) {
 			mdatSize = fileSize - (pos + moofSize)
 		}
 
+		totalPair := moofSize + mdatSize
+		if totalPair < 0 || pos+totalPair > fileSize {
+			break
+		}
+
 		fragments = append(fragments, FragmentInfo{
 			Offset:     pos,
-			Size:       moofSize + mdatSize,
+			Size:       totalPair,
 			DurationMs: durationMs,
 		})
 
-		pos += moofSize + mdatSize
+		pos += totalPair
 	}
 
 	return ScanResult{InitSize: initSize, Fragments: fragments}, nil
@@ -343,6 +348,9 @@ func readBoxHeader(r io.ReadSeeker) (size int64, boxType string, err error) {
 			return 0, "", err
 		}
 		size = int64(binary.BigEndian.Uint64(ext[:]))
+		if size < 0 {
+			return 0, "", fmt.Errorf("box size overflow")
+		}
 	}
 
 	return size, boxType, nil

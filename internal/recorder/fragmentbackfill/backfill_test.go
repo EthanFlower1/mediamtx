@@ -44,7 +44,7 @@ func makeMoof(seqNum uint32) []byte {
 	binary.BigEndian.PutUint32(mfhdPayload[4:8], seqNum)
 	mfhd := makeBox("mfhd", mfhdPayload)
 
-	// trun with 1 sample: flags 0x000101 = sample-duration-present + sample-size-present
+	// trun with 1 sample: flags 0x000101 = data-offset-present (0x000001) | sample-duration-present (0x000100)
 	trunPayload := make([]byte, 16)
 	trunPayload[3] = 0x01
 	trunPayload[2] = 0x01
@@ -317,4 +317,117 @@ func TestRun_NonFMP4Format_Skipped(t *testing.T) {
 	runOnce(context.Background(), cfg)
 
 	assert.Equal(t, 0, scanCalled, "scanner should not be called for non-fmp4 format")
+}
+
+// ---------------------------------------------------------------------------
+// Fake Database implementation for failure-mode tests
+// ---------------------------------------------------------------------------
+
+// fakeDB is an injectable Database that lets individual methods be replaced
+// with error-returning stubs.
+type fakeDB struct {
+	getUnindexed         func() ([]*db.Recording, error)
+	updateRecordingInit  func(id int64, size int64) error
+	insertFragments      func(id int64, frags []db.RecordingFragment) error
+}
+
+func (f *fakeDB) GetUnindexedRecordings() ([]*db.Recording, error) {
+	return f.getUnindexed()
+}
+
+func (f *fakeDB) UpdateRecordingInitSize(id int64, size int64) error {
+	return f.updateRecordingInit(id, size)
+}
+
+func (f *fakeDB) InsertFragments(id int64, frags []db.RecordingFragment) error {
+	return f.insertFragments(id, frags)
+}
+
+// ---------------------------------------------------------------------------
+// New failure-mode tests
+// ---------------------------------------------------------------------------
+
+// TestRun_UpdateInitSizeFails_SkipsRecording verifies that when
+// UpdateRecordingInitSize returns an error, InsertFragments is NOT called so
+// the recording remains unindexed and can be retried on next boot.
+func TestRun_UpdateInitSizeFails_SkipsRecording(t *testing.T) {
+	dir := t.TempDir()
+	fmp4Path := filepath.Join(dir, "seg.mp4")
+	require.NoError(t, os.WriteFile(fmp4Path, buildValidFMP4(2), 0o644))
+
+	insertFragsCalled := false
+
+	fake := &fakeDB{
+		getUnindexed: func() ([]*db.Recording, error) {
+			return []*db.Recording{
+				{ID: 1, FilePath: fmp4Path, Format: "fmp4", Status: "unverified"},
+			}, nil
+		},
+		updateRecordingInit: func(_ int64, _ int64) error {
+			return errors.New("simulated DB write error")
+		},
+		insertFragments: func(_ int64, _ []db.RecordingFragment) error {
+			insertFragsCalled = true
+			return nil
+		},
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	fakeScan := func(_ string) (ScanResult, error) {
+		return ScanResult{
+			InitSize:  20,
+			Fragments: []FragmentInfo{{Offset: 20, Size: 50, DurationMs: 500.0}},
+		}, nil
+	}
+
+	cfg := Config{DB: fake, Logger: logger, Scanner: fakeScan}
+	runOnce(context.Background(), cfg)
+
+	assert.False(t, insertFragsCalled, "InsertFragments must NOT be called when UpdateRecordingInitSize fails")
+}
+
+// TestRun_GetUnindexedFails_LogsErrorAndExits verifies that when
+// GetUnindexedRecordings returns an error, Run exits without panic and without
+// calling InsertFragments.
+func TestRun_GetUnindexedFails_LogsErrorAndExits(t *testing.T) {
+	insertFragsCalled := false
+
+	fake := &fakeDB{
+		getUnindexed: func() ([]*db.Recording, error) {
+			return nil, errors.New("simulated query error")
+		},
+		updateRecordingInit: func(_ int64, _ int64) error {
+			return nil
+		},
+		insertFragments: func(_ int64, _ []db.RecordingFragment) error {
+			insertFragsCalled = true
+			return nil
+		},
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	// Should not panic.
+	runOnce(context.Background(), Config{DB: fake, Logger: logger, Scanner: scanFile})
+
+	assert.False(t, insertFragsCalled, "InsertFragments must NOT be called when GetUnindexedRecordings fails")
+}
+
+// ---------------------------------------------------------------------------
+// Minor: direct unit test for the real scanFile parser
+// ---------------------------------------------------------------------------
+
+// TestScanFile_RealFMP4 exercises the actual fMP4 parser end-to-end on a
+// file produced by buildValidFMP4, ensuring the scan code path is covered
+// even when the fake scanner is injected by other tests.
+func TestScanFile_RealFMP4(t *testing.T) {
+	dir := t.TempDir()
+	fmp4Path := filepath.Join(dir, "real.mp4")
+	require.NoError(t, os.WriteFile(fmp4Path, buildValidFMP4(2), 0o644))
+
+	result, err := scanFile(fmp4Path)
+	require.NoError(t, err)
+
+	assert.Greater(t, result.InitSize, int64(0), "InitSize should be positive")
+	assert.GreaterOrEqual(t, len(result.Fragments), 1, "should have at least 1 fragment")
 }

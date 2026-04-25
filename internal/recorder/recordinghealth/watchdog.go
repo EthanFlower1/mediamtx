@@ -60,6 +60,12 @@ type Config struct {
 	// Reload nudges the supervisor when persistent drift is detected.
 	Reload func()
 
+	// OnReload is invoked once per Reload-trigger event (i.e., when a
+	// camera's drift persists for DriftAcknowledgmentCycles cycles).
+	// Used by the recorder's metrics surface to count drift events.
+	// Defaults to no-op if nil.
+	OnReload func()
+
 	// Interval between checks.  Defaults to 30 s if zero.
 	Interval time.Duration
 
@@ -114,6 +120,9 @@ func New(cfg Config) *Watchdog {
 	}
 	if cfg.Reload == nil {
 		panic("recordinghealth: Config.Reload must not be nil")
+	}
+	if cfg.OnReload == nil {
+		cfg.OnReload = func() {}
 	}
 	ticker := time.NewTicker(cfg.interval())
 	return &Watchdog{
@@ -232,6 +241,7 @@ func (w *Watchdog) check(ctx context.Context, log *slog.Logger) {
 			w.notified[id] = true
 			// Reset counter so the next episode starts fresh after recovery.
 			w.driftCnt[id] = 0
+			w.cfg.OnReload()
 			w.cfg.Reload()
 		}
 	}

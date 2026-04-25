@@ -38,15 +38,20 @@ func (f *fakeRuntimeClient) ListPublishingCameras(_ context.Context) ([]string, 
 
 // newTestWatchdog returns a Watchdog with an injected tick channel so tests
 // can advance cycles deterministically without time.Sleep.
+// onReloadFn may be nil; a no-op default is used in that case.
 func newTestWatchdog(
 	stateReader StateReader,
 	rtClient RuntimeClient,
 	reloadFn func(),
 	ackCycles int,
 	logger *slog.Logger,
+	onReloadFn func(),
 ) (*Watchdog, chan time.Time) {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if onReloadFn == nil {
+		onReloadFn = func() {}
 	}
 	tickCh := make(chan time.Time, 16)
 	wd := &Watchdog{
@@ -54,6 +59,7 @@ func newTestWatchdog(
 			Store:                     stateReader,
 			MediaMTX:                  rtClient,
 			Reload:                    reloadFn,
+			OnReload:                  onReloadFn,
 			Interval:                  30 * time.Second, // irrelevant; we inject tick
 			DriftAcknowledgmentCycles: ackCycles,
 			Logger:                    logger,
@@ -107,7 +113,7 @@ func TestRun_NoDrift_NoReload(t *testing.T) {
 	sr := &fakeStateReader{cameras: camList("a", "b")}
 	rc := &fakeRuntimeClient{publishing: []string{"a", "b"}}
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -139,7 +145,7 @@ func TestRun_TransientDrift_OneCycle_NoReload(t *testing.T) {
 		return []string{"a"}, nil // recovered
 	}}
 
-	wd, tickCh := newTestWatchdog(sr, rcDynamic, func() { reloadCalls.Add(1) }, 2, nil)
+	wd, tickCh := newTestWatchdog(sr, rcDynamic, func() { reloadCalls.Add(1) }, 2, nil, nil)
 	_ = rc // unused but kept for type safety
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -166,9 +172,11 @@ func (d *dynamicRuntimeClient) ListPublishingCameras(_ context.Context) ([]strin
 	return d.fn()
 }
 
-// 3. Drift for DriftAcknowledgmentCycles → Reload called once, Warn logged.
+// 3. Drift for DriftAcknowledgmentCycles → Reload called once, Warn logged,
+// and OnReload called the same number of times as Reload.
 func TestRun_PersistentDrift_TriggersReload(t *testing.T) {
 	var reloadCalls atomic.Int64
+	var onReloadCalls atomic.Int64
 	sr := &fakeStateReader{cameras: camList("a")}
 	rc := &fakeRuntimeClient{publishing: []string{}} // "a" never publishing
 
@@ -180,7 +188,13 @@ func TestRun_PersistentDrift_TriggersReload(t *testing.T) {
 	}}
 	logger := slog.New(handler)
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, logger)
+	wd, tickCh := newTestWatchdog(
+		sr, rc,
+		func() { reloadCalls.Add(1) },
+		2,
+		logger,
+		func() { onReloadCalls.Add(1) },
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -195,6 +209,9 @@ func TestRun_PersistentDrift_TriggersReload(t *testing.T) {
 	if got := reloadCalls.Load(); got != 1 {
 		t.Errorf("expected 1 Reload call, got %d", got)
 	}
+	if got := onReloadCalls.Load(); got != reloadCalls.Load() {
+		t.Errorf("expected OnReload calls (%d) to equal Reload calls (%d)", got, reloadCalls.Load())
+	}
 	if !warnLogged.Load() {
 		t.Error("expected Warn log not emitted")
 	}
@@ -206,7 +223,7 @@ func TestRun_PersistentDrift_LogsOnce(t *testing.T) {
 	sr := &fakeStateReader{cameras: camList("a")}
 	rc := &fakeRuntimeClient{publishing: []string{}}
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -245,7 +262,7 @@ func TestRun_StateStoreError_LogsAndContinues(t *testing.T) {
 	}}
 	logger := slog.New(handler)
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, logger)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, logger, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -295,7 +312,7 @@ func TestRun_MediaMTXError_LogsAndContinues(t *testing.T) {
 	}}
 	logger := slog.New(handler)
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, logger)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, logger, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -332,7 +349,7 @@ func TestRun_DriftClearsThenRecurs(t *testing.T) {
 		}
 	}}
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -355,7 +372,7 @@ func TestRun_RespectsContext(t *testing.T) {
 	sr := &fakeStateReader{cameras: camList("a")}
 	rc := &fakeRuntimeClient{publishing: []string{"a"}}
 
-	wd, _ := newTestWatchdog(sr, rc, func() {}, 2, nil)
+	wd, _ := newTestWatchdog(sr, rc, func() {}, 2, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -503,7 +520,7 @@ func TestRun_PrefixStripping(t *testing.T) {
 	// The fakeRuntimeClient returns bare IDs too (it represents post-strip output).
 	rc := &fakeRuntimeClient{publishing: []string{"x", "y"}}
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 2, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -527,7 +544,7 @@ func TestRun_ImmediateFirstCheck(t *testing.T) {
 	sr := &fakeStateReader{cameras: camList("a")}
 	rc := &fakeRuntimeClient{publishing: []string{}}
 
-	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 1, nil)
+	wd, tickCh := newTestWatchdog(sr, rc, func() { reloadCalls.Add(1) }, 1, nil, nil)
 	// ackCycles=1 means 1 cycle triggers reload.
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -543,6 +560,89 @@ func TestRun_ImmediateFirstCheck(t *testing.T) {
 
 	if got := reloadCalls.Load(); got != 1 {
 		t.Errorf("expected 1 Reload call from immediate first check (ackCycles=1), got %d", got)
+	}
+}
+
+// TestRun_OnReload_FiresBeforeReload verifies that OnReload is invoked the same
+// number of times as Reload across multiple drift episodes, confirming the
+// metric counter would track every reconcile event.
+func TestRun_OnReload_FiresBeforeReload(t *testing.T) {
+	var reloadCalls atomic.Int64
+	var onReloadCalls atomic.Int64
+	sr := &fakeStateReader{cameras: camList("a")}
+	rc := &fakeRuntimeClient{publishing: []string{}} // "a" never publishing
+
+	wd, tickCh := newTestWatchdog(
+		sr, rc,
+		func() { reloadCalls.Add(1) },
+		2,
+		nil,
+		func() { onReloadCalls.Add(1) },
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go wd.Run(ctx)
+
+	pushCycles(tickCh, 2)
+	if !drainWithTimeout(tickCh, 300*time.Millisecond) {
+		t.Fatal("ticks not processed in time")
+	}
+	cancel()
+
+	reload := reloadCalls.Load()
+	onReload := onReloadCalls.Load()
+	if reload != 1 {
+		t.Errorf("expected 1 Reload call, got %d", reload)
+	}
+	if onReload != reload {
+		t.Errorf("expected OnReload calls (%d) == Reload calls (%d)", onReload, reload)
+	}
+}
+
+// TestRun_OnReload_NilSafe verifies that a nil OnReload is treated as a no-op
+// and does not panic when a drift-trigger cycle executes.
+func TestRun_OnReload_NilSafe(t *testing.T) {
+	var reloadCalls atomic.Int64
+	sr := &fakeStateReader{cameras: camList("a")}
+	rc := &fakeRuntimeClient{publishing: []string{}} // "a" never publishing
+
+	// Construct the Config directly and go through New() so the nil default
+	// is applied via the constructor path (not the test helper).
+	cfg := Config{
+		Store:                     sr,
+		MediaMTX:                  rc,
+		Reload:                    func() { reloadCalls.Add(1) },
+		OnReload:                  nil, // explicit nil — must not panic
+		DriftAcknowledgmentCycles: 1,
+		Logger:                    slog.Default(),
+	}
+	wd := New(cfg) // New() defaults nil OnReload to no-op
+
+	// Replace the production ticker with a test channel.
+	wd.ticker.Stop()
+	tickCh := make(chan time.Time, 16)
+	wd.cycle = tickCh
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		wd.Run(ctx) // must not panic
+	}()
+
+	// One tick to drive a drift-trigger cycle (ackCycles=1 means first cycle fires).
+	tickCh <- time.Now()
+	if !drainWithTimeout(tickCh, 200*time.Millisecond) {
+		t.Fatal("tick not processed in time")
+	}
+	cancel()
+	<-done
+
+	if got := reloadCalls.Load(); got != 1 {
+		t.Errorf("expected 1 Reload call, got %d", got)
 	}
 }
 

@@ -431,6 +431,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		Store:    store,
 		MediaMTX: hc,
 		Reload:   supervisor.Reload,
+		OnReload: metrics.ReconcileErrors.Inc,
 		Logger:   log,
 	})
 

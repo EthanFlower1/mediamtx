@@ -2,29 +2,37 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace `noopCaptureManager{}` in `internal/recorder/boot.go` with a real implementation, wire the orphaned legacy machinery (scheduler, storage manager, recovery scanner, integrity scanner, thumbnail generator, fragment backfill, connmgr, alerts) into recorder boot, so a paired Recorder actually records fMP4 segments to disk and reconciles them into its local DB.
+> **Plan revision (2026-04-24, mid-Phase-1):** A discovery during Task 4 invalidated the original "yamlwriter + reload" architecture. The new recorder uses `mediamtxsupervisor` to manage paths via mediamtx's HTTP API (`/v3/config/paths/...`), NOT via `mediamtx.yml` edits. mediamtx never re-reads its yaml file at runtime. This plan was revised to leverage the supervisor as the canonical mechanism (it is a strictly more hardened design than yamlwriter: diff-based reconciliation, acknowledged writes, operator-yaml stays clean). The first three Task 2 commits and the Task 4 wiring commit have been reverted. Task 2 is rewritten as a thin `supervisor.Reload()` shim. Task 4 is replaced with `PollInterval` + a `recordinghealth` watchdog. Tasks 6.5 (storage disk monitor) and 8.5 (Prometheus metrics) are added. Legacy `scheduler/`, `connmgr/`, `alerts/` need a state.Store-based redesign and are deferred to Phase 1.5.
 
-**Architecture:** Use the legacy declarative model — the embedded mediamtx core writes segments via `internal/recordstore` when a path has `record: true` in `mediamtx.yml`. Our new `CaptureManager` adapter is a thin shim that translates the imperative `EnsureRunning(Camera)` / `Stop(cameraID)` calls (driven by Directory's RecorderControl stream) into idempotent yamlwriter mutations + a supervisor reload. The orphaned legacy packages (`scheduler`, `storage`, `recovery`, `integrity`, `thumbnail`, `connmgr`, `alerts`) are byte-for-byte copies of the legacy code (verified via `git show 86569ce37^:internal/nvr/<pkg>`), so wiring is mechanical.
+**Goal:** Replace `noopCaptureManager{}` in `internal/recorder/boot.go` with a hardened implementation built around `mediamtxsupervisor` + `state.Store`. Add active drift detection (recordinghealth watchdog), wire recovery + integrity scanners, fragment backfill, thumbnail generator, and a partial port of the legacy storage manager (disk monitoring + retention). Surface Prometheus metrics for observability. Outcome: cameras assigned by Directory record reliably, drift is auto-corrected within 15s, the DB stays reconciled with disk, and operators have visibility into the system's state.
 
-**Tech Stack:** Go 1.22+, `modernc.org/sqlite`, gin, embedded mediamtx core, `internal/recorder/yamlwriter` (AST-safe yaml editor), `internal/recorder/mediamtxsupervisor` (sidecar lifecycle controller with `.Reload()`).
+**Architecture:** `state.Store` is the canonical truth. The `recordercontrol` reconciler persists camera assignments to it. `CaptureManager.EnsureRunning/Stop` call `supervisor.Reload()` to nudge the supervisor to re-render and push to mediamtx via HTTP. The supervisor's `PollInterval` (15s) provides periodic drift correction independent of nudges. A separate `recordinghealth` watchdog (30s cadence) compares state.Store expected vs. mediamtx's runtime `/v3/paths/list`, alerts on drift, and triggers Reload to self-heal. Recovery + integrity + fragmentbackfill operate on disk + DB only — they don't interact with mediamtx config and drop in cleanly. Storage disk monitoring polls capacity and enforces retention by deleting files; the legacy yaml-based path-failover is deferred. Metrics are exposed at `/metrics` on the recorder HTTP API.
+
+**Tech Stack:** Go 1.22+, `modernc.org/sqlite`, gin, embedded mediamtx core, `internal/recorder/state` (persistent camera store), `internal/recorder/mediamtxsupervisor` (HTTP-based path manager with diff-based reconciliation and `.Reload()`), Prometheus client_golang.
 
 ---
 
 ## File Structure
 
-**New files:**
-- `internal/recorder/capturemanager/manager.go` — adapter implementing `recordercontrol.CaptureManager`
-- `internal/recorder/capturemanager/manager_test.go` — unit tests
-- `internal/recorder/fragmentbackfill/backfill.go` — port of legacy `internal/nvr/fragment_backfill.go`
-- `internal/recorder/fragmentbackfill/backfill_test.go` — unit test
+**New packages:**
+- `internal/recorder/capturemanager/{manager.go, manager_test.go}` — thin Reload-shim adapter for `recordercontrol.CaptureManager`
+- `internal/recorder/fragmentbackfill/{backfill.go, scan.go, backfill_test.go}` — port of legacy fragment indexing + fMP4 scanner ✅ DONE (Task 3)
+- `internal/recorder/recordinghealth/{watchdog.go, watchdog_test.go}` — drift detector against mediamtx runtime paths
+- `internal/recorder/diskmonitor/{monitor.go, monitor_test.go}` — disk capacity polling + retention enforcement
+- `internal/recorder/recordermetrics/{metrics.go, metrics_test.go}` — Prometheus exporter
 
 **Modified files:**
-- `internal/recorder/boot.go` — replace `noopCaptureManager{}`, add wiring for scheduler/storage/recovery/integrity/thumbnail/connmgr/alerts/fragment-backfill
-- `internal/recorder/boot.go:628-647` — delete `noopCaptureManager` type (after replacement is in place)
+- `internal/recorder/boot.go` — set `mediamtxsupervisor.Config.PollInterval=15s`, wire capturemanager (replaces noop), recovery scan + integrity scanner + fragmentbackfill + thumbnail + recordinghealth watchdog + diskmonitor + metrics handler
+- `internal/recorder/boot.go:628-647` — delete `noopCaptureManager` type (after replacement is in place, Task 7)
 
 **Reference files (read-only legacy source):**
-- `git show 86569ce37^:internal/nvr/nvr.go:363-440` — legacy `initRecording()` is the wiring template
-- `git show 86569ce37^:internal/nvr/fragment_backfill.go` — port target
+- `git show 86569ce37^:internal/nvr/nvr.go:363-440` — legacy `initRecording()` (kept for context; some pieces still applicable, others deferred to Phase 1.5)
+- `git show 86569ce37^:internal/nvr/storage/manager.go` — port target for diskmonitor (only the disk-IO and retention parts)
+
+**Deferred to Phase 1.5 (NOT in this plan):**
+- `internal/recorder/scheduler/` — recording-rule evaluation; needs state.Store-flag redesign
+- `internal/recorder/connmgr/` + `internal/recorder/alerts/` — need a shared event broadcaster (Phase 1.5 builds it)
+- Yaml-based path failover in legacy storage manager — supervisor-based equivalent
 
 ---
 

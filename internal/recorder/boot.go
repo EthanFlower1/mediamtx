@@ -29,6 +29,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/bluenviron/mediamtx/internal/recorder/capturemanager"
 	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
@@ -445,10 +446,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		return &tls.Certificate{}, nil
 	}
 
-	// noopCaptureMgr is a minimal CaptureManager that satisfies
-	// the recordercontrol.Client requirement. The real capture
-	// manager will be wired when the sidecar lifecycle lands.
-	capMgr := &noopCaptureManager{}
+	capMgr := capturemanager.New(capturemanager.Config{
+		Reload: supervisor.Reload,
+		Logger: log,
+	})
 
 	// CameraStore adapter for recordercontrol
 	cameraStore := &stateCameraStoreAdapter{store: store}
@@ -762,21 +763,3 @@ func (a *stateCameraStoreAdapter) List(ctx context.Context) ([]recordercontrol.C
 	return out, nil
 }
 
-// noopCaptureManager satisfies recordercontrol.CaptureManager with
-// no-op operations. It is a placeholder until the real capture manager
-// is wired (KAI-259).
-type noopCaptureManager struct {
-	running []string
-}
-
-func (n *noopCaptureManager) EnsureRunning(_ recordercontrol.Camera) error {
-	return nil
-}
-
-func (n *noopCaptureManager) Stop(_ string) error {
-	return nil
-}
-
-func (n *noopCaptureManager) RunningCameras() []string {
-	return n.running
-}

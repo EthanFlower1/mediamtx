@@ -32,12 +32,14 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
 	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
+	"github.com/bluenviron/mediamtx/internal/recorder/integrity"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordinghealth"
+	"github.com/bluenviron/mediamtx/internal/recorder/recovery"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
@@ -538,6 +540,66 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		log.Warn("recorder: failed to open NVR database; API server will not start",
 			slog.String("error", err.Error()))
 		nvrDB = nil
+	}
+
+	// -----------------------------------------------------------
+	// 11b. Recovery scan — walk recordings dir, reconcile against DB
+	// -----------------------------------------------------------
+	// Run synchronously at boot. Failures are logged but do not block startup.
+	if nvrDB != nil {
+		if recordingsPath := cfg.recordingsPath(); recordingsPath != "" {
+			res, recErr := recovery.Run(recovery.RunConfig{
+				RecordDirs: []string{recordingsPath},
+				DB:         recovery.NewDBAdapter(nvrDB),
+				Reconciler: recovery.NewReconcileAdapter(nvrDB),
+			})
+			if recErr != nil {
+				log.Error("recorder: recovery scan failed", slog.String("error", recErr.Error()))
+			} else {
+				log.Info("recorder: recovery complete",
+					slog.Int("scanned", res.Scanned),
+					slog.Int("repaired", res.Repaired),
+					slog.Int("unrecoverable", res.Unrecoverable))
+			}
+		}
+	}
+
+	// -----------------------------------------------------------
+	// 11c. Integrity scanner — hourly fMP4 fragment verification
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		integrityScanner := &integrity.Scanner{
+			Interval:  1 * time.Hour,
+			BatchSize: 100,
+			FetchFunc: func(cutoff time.Time, batchSize int) ([]integrity.ScanItem, error) {
+				recs, err := nvrDB.GetRecordingsNeedingVerification(cutoff, batchSize)
+				if err != nil {
+					return nil, err
+				}
+				items := make([]integrity.ScanItem, 0, len(recs))
+				for _, rec := range recs {
+					fragCount := 0
+					if frags, fragErr := nvrDB.GetFragments(rec.ID); fragErr == nil {
+						fragCount = len(frags)
+					}
+					items = append(items, integrity.ScanItem{
+						RecordingID: rec.ID,
+						CameraID:    rec.CameraID,
+						Info: integrity.RecordingInfo{
+							FilePath:      rec.FilePath,
+							FileSize:      rec.FileSize,
+							InitSize:      rec.InitSize,
+							FragmentCount: fragCount,
+							DurationMs:    rec.DurationMs,
+						},
+					})
+				}
+				return items, nil
+			},
+			OnResult: func(_ int64, _ integrity.VerificationResult) {},
+		}
+		go integrityScanner.Run(streamCtx)
+		log.Info("recorder: integrity scanner started")
 	}
 
 	var httpSrv *http.Server

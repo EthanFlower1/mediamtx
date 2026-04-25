@@ -29,9 +29,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
 	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
+	"github.com/bluenviron/mediamtx/internal/recorder/fragmentbackfill"
 	"github.com/bluenviron/mediamtx/internal/recorder/integrity"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
@@ -41,10 +43,10 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/recordinghealth"
 	"github.com/bluenviron/mediamtx/internal/recorder/recovery"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
+	"github.com/bluenviron/mediamtx/internal/recorder/thumbnail"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
-	nvrdb "github.com/bluenviron/mediamtx/internal/recorder/db"
 )
 
 // DefaultStateDir is the default directory for local state, device key,
@@ -212,6 +214,7 @@ type RecorderServer struct {
 	meshNode   *sharedtsnet.Node
 	httpServer *http.Server
 	nvrDB      *nvrdb.DB
+	thumbGen   *thumbnail.Generator
 	cancelFn   context.CancelFunc
 	doneCh     chan struct{}
 
@@ -237,6 +240,9 @@ func (rs *RecorderServer) Shutdown() {
 	}
 	if rs.meshNode != nil {
 		_ = rs.meshNode.Shutdown(context.Background())
+	}
+	if rs.thumbGen != nil {
+		rs.thumbGen.Stop()
 	}
 	if rs.nvrDB != nil {
 		_ = rs.nvrDB.Close()
@@ -606,6 +612,33 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		log.Info("recorder: integrity scanner started")
 	}
 
+	// -----------------------------------------------------------
+	// 11d. Fragment backfill — index pre-existing recordings missing
+	//      fragment metadata. Runs once after a 5 s startup delay.
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		fragmentbackfill.Run(streamCtx, fragmentbackfill.Config{
+			DB:     nvrDB,
+			Logger: log,
+		})
+		log.Info("recorder: fragment-backfill scheduled")
+	}
+
+	// -----------------------------------------------------------
+	// 11e. Thumbnail generator — scans for new recordings and
+	//      produces JPEG strip thumbnails.
+	// -----------------------------------------------------------
+	var thumbGen *thumbnail.Generator
+	if nvrDB != nil {
+		thumbGen = thumbnail.NewGenerator(thumbnail.Config{
+			DB:             nvrDB,
+			RecordingsPath: cfg.recordingsPath(),
+			// Zero values → package defaults: Interval=10s, ScanInterval=30s.
+		})
+		thumbGen.Start()
+		log.Info("recorder: thumbnail generator started")
+	}
+
 	var httpSrv *http.Server
 	apiAddr := cfg.apiAddress()
 	if nvrDB != nil && apiAddr != "" {
@@ -650,6 +683,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		meshNode:     meshNode,
 		httpServer:   httpSrv,
 		nvrDB:        nvrDB,
+		thumbGen:     thumbGen,
 		cancelFn:     streamCancel,
 		doneCh:       doneCh,
 		RecorderID:   ps.RecorderUUID,

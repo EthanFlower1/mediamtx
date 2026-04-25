@@ -4,6 +4,7 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -11,21 +12,40 @@ import (
 	"os"
 	"time"
 
+	"github.com/bluenviron/mediamtx/internal/cloud/broker"
 	"github.com/bluenviron/mediamtx/internal/cloud/connect"
 	"github.com/bluenviron/mediamtx/internal/cloud/frpserver"
 	"github.com/bluenviron/mediamtx/internal/cloud/relay"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
 	token := flag.String("token", "test-token", "accepted bearer token for directory auth")
 	tenantID := flag.String("tenant", "test-tenant", "tenant ID assigned to authenticated directories")
+	dbPath := flag.String("db", "broker.db", "SQLite database path for tenant/key storage")
 	frpPort := flag.Int("frp-port", 7000, "frp control port")
 	frpHTTPPort := flag.Int("frp-http-port", 7080, "frp vhost HTTP port for subdomain routing")
 	subdomainHost := flag.String("subdomain-host", "raikada.com", "base domain for frp subdomains")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	// Open tenant/key SQLite database.
+	db, err := sql.Open("sqlite", *dbPath)
+	if err != nil {
+		log.Error("cloudbroker: failed to open database", "path", *dbPath, "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	store, err := broker.NewStore(db)
+	if err != nil {
+		log.Error("cloudbroker: failed to initialise store", "error", err)
+		os.Exit(1)
+	}
+
+	auth := broker.NewAuthenticator(store)
 
 	registry := connect.NewRegistry()
 	sessions := relay.NewSessionManager()
@@ -40,10 +60,15 @@ func main() {
 	acceptedToken := *token
 	acceptedTenant := *tenantID
 
-	broker := connect.NewBroker(connect.BrokerConfig{
+	connectBroker := connect.NewBroker(connect.BrokerConfig{
 		Registry: registry,
 		Authenticate: func(t string) (string, bool) {
-			if t == acceptedToken {
+			// Per-tenant API key authentication.
+			if tid, ok := auth.Authenticate(t); ok {
+				return tid, true
+			}
+			// Legacy fallback for backwards compatibility.
+			if acceptedToken != "" && t == acceptedToken {
 				return acceptedTenant, true
 			}
 			return "", false
@@ -93,10 +118,13 @@ func main() {
 		Logger:   log.With(slog.String("component", "stream-proxy")),
 	})
 
-	mux.Handle("/ws/directory", broker)
+	mux.Handle("/ws/directory", connectBroker)
 	mux.Handle("/connect/resolve", resolveHandler)
 	mux.Handle("/relay/", relayHandler)
 	mux.Handle("/stream/", streamProxy)
+
+	// Tenant signup API.
+	mux.Handle("/api/v1/signup", broker.SignupHandler(store))
 
 	// Start the embedded frp server for reverse tunneling.
 	frpSrv, err := frpserver.New(frpserver.Config{

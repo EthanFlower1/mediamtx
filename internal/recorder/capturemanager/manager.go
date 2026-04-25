@@ -111,9 +111,6 @@ func (m *Manager) EnsureRunning(c recordercontrol.Camera) error {
 		return nil
 	}
 
-	// recordPath uses the same cam-<id> prefix as the YAML path key (see
-	// pathName) so the on-disk subdirectory mirrors the path operators
-	// see in MediaMTX logs — no mental mapping between log lines and disk.
 	pathCfg := map[string]interface{}{
 		"source":     streamURL,
 		"record":     true,

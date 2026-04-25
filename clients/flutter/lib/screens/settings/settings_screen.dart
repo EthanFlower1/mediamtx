@@ -386,7 +386,103 @@ class _SystemPanel extends ConsumerWidget {
         // Appearance card
         const SizedBox(height: 20),
         _AppearanceCard(),
+        // Sign out card
+        const SizedBox(height: 20),
+        const _SignOutCard(),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Sign out card — log out and return to login (server URL is changeable there)
+// ─────────────────────────────────────────────
+
+class _SignOutCard extends ConsumerWidget {
+  const _SignOutCard();
+
+  Future<void> _confirmAndSignOut(BuildContext context, WidgetRef ref) async {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: NvrColors.of(dialogCtx).bgSecondary,
+        title: Text('SIGN OUT', style: NvrTypography.of(dialogCtx).monoSection),
+        content: Text(
+          'You will be returned to the login screen. From there you can change the server URL.',
+          style: NvrTypography.of(dialogCtx).body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'CANCEL',
+              style: typo.monoLabel.copyWith(
+                color: colors.textSecondary,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'SIGN OUT',
+              style: typo.monoLabel.copyWith(
+                color: colors.danger,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(authProvider.notifier).logout();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NvrColors.of(context);
+    final typo = NvrTypography.of(context);
+
+    return _HudCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SESSION', style: typo.monoSection),
+          const SizedBox(height: 12),
+          Container(height: 1, color: colors.border),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmAndSignOut(context, ref),
+              icon: Icon(Icons.logout, size: 16, color: colors.danger),
+              label: Text(
+                'SIGN OUT',
+                style: typo.monoLabel.copyWith(
+                  color: colors.danger,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: colors.danger),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Returns to the login screen. Use CHANGE there to switch servers.',
+            style: typo.body.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
     );
   }
 }

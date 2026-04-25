@@ -207,6 +207,19 @@ class _LiveViewScreenState extends ConsumerState<LiveViewScreen> {
     final isPhone = device == DeviceType.phone;
     final tourState = ref.watch(activeTourProvider);
 
+    // Auto-populate grid with all cameras when slots are empty and cameras
+    // have loaded. This ensures first-time users see their cameras immediately
+    // instead of a blank live view tab.
+    final cameras = camerasAsync.valueOrNull;
+    if (gridLayout.slots.isEmpty && cameras != null && cameras.isNotEmpty) {
+      // Schedule after build to avoid modifying providers during build.
+      Future.microtask(() {
+        ref.read(gridLayoutProvider.notifier).fillFromGroup(
+          cameras.map((c) => c.id).toList(),
+        );
+      });
+    }
+
     // When a tour is active, override to 1x1 showing the current tour camera.
     final int effectiveGridSize;
     final Map<int, String> effectiveSlots;

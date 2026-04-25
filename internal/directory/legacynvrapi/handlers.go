@@ -60,10 +60,11 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/nvr/system/info", h.systemInfo)
 	mux.HandleFunc("/api/nvr/system/", h.systemSubrouter)
 
-	// --- RECORDINGS & EXPORTS ------------------------------------------
+	// --- RECORDINGS, VOD & EXPORTS ------------------------------------
 	mux.HandleFunc("/api/nvr/recordings", h.recordingsCollection)
 	mux.HandleFunc("/api/nvr/recordings/stats", h.recordingsStats)
 	mux.HandleFunc("/api/nvr/recordings/", h.notImplemented)
+	mux.HandleFunc("/api/nvr/vod/segments/", h.vodSegment)
 	mux.HandleFunc("/api/nvr/exports", h.exportsCollection)
 	mux.HandleFunc("/api/nvr/exports/", h.exportsSubrouter)
 

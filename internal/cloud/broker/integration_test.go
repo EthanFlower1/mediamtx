@@ -64,6 +64,7 @@ func TestSignupConnectResolveFlow(t *testing.T) {
 	signupBody, _ := json.Marshal(SignupRequest{
 		CompanyName: "Integration Test Corp",
 		Email:       "integration@test.com",
+		Password:    testPassword,
 	})
 
 	resp, err := http.Post(srv.URL+"/api/v1/signup", "application/json", bytes.NewReader(signupBody))

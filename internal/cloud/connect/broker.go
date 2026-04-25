@@ -70,7 +70,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reg := env.Register
 	siteID := reg.SiteID
 
-	// 4. Add session to Registry.
+	// 4. Add session to Registry with the WSS connection for tunneling.
+	siteConn := NewSiteConn(conn)
 	caps := map[string]bool{
 		"streams":  reg.Capabilities.Streams,
 		"playback": reg.Capabilities.Playback,
@@ -85,6 +86,7 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		LANCIDRs:     reg.LANCIDRs,
 		Capabilities: caps,
 		Status:       StatusOnline,
+		Conn:         siteConn,
 	})
 
 	// 5. On disconnect, remove from registry.
@@ -143,6 +145,11 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					"kind", msg.Event.Kind,
 					"camera_id", msg.Event.CameraID,
 				)
+			}
+
+		case cloudconnector.MsgTypeCommandResponse:
+			if msg.CommandResponse != nil {
+				siteConn.DeliverResponse(*msg.CommandResponse)
 			}
 
 		default:

@@ -118,6 +118,17 @@ func (p *LocalAuthProvider) RevokeSession(_ context.Context, sessionID SessionID
 	return err
 }
 
+// RevokeByRefreshToken revokes a session by its raw (unhashed) refresh token.
+// The token is hashed and looked up in the DB, then revoked by row ID.
+func (p *LocalAuthProvider) RevokeByRefreshToken(_ context.Context, rawToken string) error {
+	hash := sha256Hex(rawToken)
+	rt, err := p.db.GetRefreshToken(hash)
+	if err != nil {
+		return err // includes ErrNotFound
+	}
+	return p.db.RevokeRefreshToken(rt.ID)
+}
+
 // issueSession creates a refresh-token DB row and builds a signed JWT.
 func (p *LocalAuthProvider) issueSession(user *directorydb.User) (*Session, error) {
 	rawToken, err := generateHexToken()

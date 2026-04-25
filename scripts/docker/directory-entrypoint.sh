@@ -12,7 +12,7 @@ DIR_PID=$!
 echo "[directory-entrypoint] waiting for Directory to become healthy..."
 attempts=0
 while [ "$attempts" -lt 30 ]; do
-    if wget -q --spider http://localhost:9997/healthz 2>/dev/null; then
+    if wget -q --spider http://localhost:${DIR_PORT:-9997}/healthz 2>/dev/null; then
         echo "[directory-entrypoint] Directory is healthy"
         break
     fi
@@ -38,7 +38,7 @@ while [ "$i" -le "$NUM_RECORDERS" ]; do
         --header="Content-Type: application/json" \
         --header="X-User-ID: system:docker-compose" \
         --post-data='{}' \
-        http://localhost:9997/api/v1/pairing/tokens 2>/dev/null) || true
+        http://localhost:${DIR_PORT:-9997}/api/v1/pairing/tokens 2>/dev/null) || true
 
     # Extract the "token" field from the JSON response.
     TOKEN=$(echo "$RESPONSE" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')

@@ -35,6 +35,10 @@ func (f *fakeProvider) RevokeSession(_ context.Context, sid SessionID) error {
 	return f.err
 }
 
+func (f *fakeProvider) RevokeByRefreshToken(_ context.Context, _ string) error {
+	return f.err
+}
+
 type ctxKey struct{}
 
 func testTenantResolver(_ *http.Request) TenantRef {
@@ -206,7 +210,7 @@ func TestLogout_Success(t *testing.T) {
 	assert.Equal(t, []SessionID{"sess-123"}, fp.revoked)
 }
 
-func TestLogout_NoSession(t *testing.T) {
+func TestLogout_NoSessionNoBody(t *testing.T) {
 	h := NewHandlers(&fakeProvider{}, testTenantResolver, testSessionFromCtx, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
@@ -214,7 +218,20 @@ func TestLogout_NoSession(t *testing.T) {
 
 	h.Logout().ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestLogout_ByRefreshToken(t *testing.T) {
+	fp := &fakeProvider{}
+	h := NewHandlers(fp, testTenantResolver, testSessionFromCtx, nil)
+
+	body := `{"refresh_token":"my-refresh-token"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	h.Logout().ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNoContent, rec.Code)
 }
 
 func TestLogout_RevokeError(t *testing.T) {

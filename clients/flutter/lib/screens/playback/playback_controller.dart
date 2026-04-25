@@ -453,25 +453,16 @@ class PlaybackController extends ChangeNotifier {
     return null;
   }
 
-  /// Build the URL for serving a recording file by its database ID.
-  /// The server's /vod/segments/:id endpoint serves the raw file with
-  /// HTTP Range support, making it fully seekable.
+  /// Build the URL for serving a recording segment via the playback /get
+  /// endpoint. Scans disk by path and time range — no database ID needed.
   String _segmentFileUrl(RecordingSegment seg, String? token) {
-    final serverUrl = playbackService.serverUrl;
-    final uri = Uri.parse(serverUrl);
-
-    final params = <String, String>{};
-    if (token != null && token.isNotEmpty) {
-      params['jwt'] = token;
-    }
-
-    return Uri(
-      scheme: uri.scheme,
-      host: uri.host,
-      port: uri.port,
-      path: '/api/nvr/vod/segments/${seg.id}',
-      queryParameters: params.isNotEmpty ? params : null,
-    ).toString();
+    final path = _cameraPaths[seg.cameraId] ?? 'nvr/${seg.cameraId}/main';
+    return playbackService.getUrl(
+      cameraPath: path,
+      start: seg.effectiveStartTime,
+      durationSecs: (seg.durationMs / 1000).ceil().clamp(1, 3600),
+      token: token,
+    );
   }
 
   void _onPositionUpdate() {

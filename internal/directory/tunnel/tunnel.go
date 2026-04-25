@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 
 	"github.com/fatedier/frp/client"
@@ -54,9 +55,12 @@ func (c *Config) Validate() error {
 }
 
 // Tunnel manages an frp client that tunnels local services to a cloud relay.
+// It starts a local reverse proxy (mux) that merges all service ports behind
+// one port, then tunnels that single port via frp.
 type Tunnel struct {
 	cfg    Config
 	svc    *client.Service
+	muxLn  net.Listener // local mux listener
 	cancel context.CancelFunc
 	mu     sync.Mutex
 	log    *slog.Logger
@@ -85,12 +89,32 @@ func New(cfg Config) (*Tunnel, error) {
 		return nil, fmt.Errorf("tunnel: completing common config: %w", err)
 	}
 
-	// Build HTTP proxy rules.
-	proxies := buildProxies(cfg)
+	// Start local mux that merges all service ports behind one port.
+	muxLn, err := startLocalMux(cfg.LocalPorts)
+	if err != nil {
+		return nil, fmt.Errorf("tunnel: starting local mux: %w", err)
+	}
+	muxPort := muxLn.Addr().(*net.TCPAddr).Port
+	log.Info("tunnel: local mux started", "port", muxPort)
 
-	// Wire up the config source.
+	// Single frp proxy pointing at the mux port — no path conflicts.
+	proxy := &v1.HTTPProxyConfig{
+		ProxyBaseConfig: v1.ProxyBaseConfig{
+			Name: cfg.SubDomain,
+			Type: string(v1.ProxyTypeHTTP),
+			ProxyBackend: v1.ProxyBackend{
+				LocalIP:   "127.0.0.1",
+				LocalPort: muxPort,
+			},
+		},
+		DomainConfig: v1.DomainConfig{
+			SubDomain: cfg.SubDomain,
+		},
+	}
+
 	cfgSource := source.NewConfigSource()
-	if err := cfgSource.ReplaceAll(proxies, nil); err != nil {
+	if err := cfgSource.ReplaceAll([]v1.ProxyConfigurer{proxy}, nil); err != nil {
+		muxLn.Close()
 		return nil, fmt.Errorf("tunnel: replacing config source: %w", err)
 	}
 	aggregator := source.NewAggregator(cfgSource)
@@ -100,13 +124,15 @@ func New(cfg Config) (*Tunnel, error) {
 		ConfigSourceAggregator: aggregator,
 	})
 	if err != nil {
+		muxLn.Close()
 		return nil, fmt.Errorf("tunnel: creating frp service: %w", err)
 	}
 
 	return &Tunnel{
-		cfg: cfg,
-		svc: svc,
-		log: log,
+		cfg:   cfg,
+		svc:   svc,
+		muxLn: muxLn,
+		log:   log,
 	}, nil
 }
 
@@ -124,7 +150,7 @@ func (t *Tunnel) Run(ctx context.Context) error {
 	return t.svc.Run(ctx)
 }
 
-// Stop gracefully shuts down the tunnel.
+// Stop gracefully shuts down the tunnel and the local mux.
 func (t *Tunnel) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -132,60 +158,8 @@ func (t *Tunnel) Stop() {
 		t.cancel()
 	}
 	t.svc.Close()
-}
-
-// proxySpec describes a single HTTP proxy rule.
-type proxySpec struct {
-	name      string
-	localPort int
-	locations []string
-}
-
-// buildProxies constructs frp HTTP proxy configurers from the tunnel config.
-func buildProxies(cfg Config) []v1.ProxyConfigurer {
-	specs := []proxySpec{
-		{
-			name:      cfg.SubDomain + "-api",
-			localPort: cfg.LocalPorts.API,
-			locations: []string{"/api/", "/healthz", "/admin"},
-		},
-		{
-			name:      cfg.SubDomain + "-hls",
-			localPort: cfg.LocalPorts.HLS,
-			locations: []string{"/nvr/"},
-		},
-		{
-			name:      cfg.SubDomain + "-webrtc",
-			localPort: cfg.LocalPorts.WebRTC,
-			locations: []string{"/whep", "/whip"},
-		},
-		{
-			name:      cfg.SubDomain + "-playback",
-			localPort: cfg.LocalPorts.Playback,
-			locations: []string{"/list", "/get", "/seek"},
-		},
+	if t.muxLn != nil {
+		t.muxLn.Close()
 	}
-
-	var proxies []v1.ProxyConfigurer
-	for _, s := range specs {
-		if s.localPort <= 0 {
-			continue
-		}
-		p := &v1.HTTPProxyConfig{
-			ProxyBaseConfig: v1.ProxyBaseConfig{
-				Name: s.name,
-				Type: string(v1.ProxyTypeHTTP),
-				ProxyBackend: v1.ProxyBackend{
-					LocalIP:   "127.0.0.1",
-					LocalPort: s.localPort,
-				},
-			},
-			DomainConfig: v1.DomainConfig{
-				SubDomain: cfg.SubDomain,
-			},
-			Locations: s.locations,
-		}
-		proxies = append(proxies, p)
-	}
-	return proxies
 }
+

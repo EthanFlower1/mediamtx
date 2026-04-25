@@ -15,6 +15,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/cloud/broker"
 	"github.com/bluenviron/mediamtx/internal/cloud/connect"
 	"github.com/bluenviron/mediamtx/internal/cloud/frpserver"
+	"github.com/bluenviron/mediamtx/internal/cloud/portalui"
 	"github.com/bluenviron/mediamtx/internal/cloud/relay"
 	_ "modernc.org/sqlite"
 )
@@ -27,7 +28,14 @@ func main() {
 	frpPort := flag.Int("frp-port", 7000, "frp control port")
 	frpHTTPPort := flag.Int("frp-http-port", 7080, "frp vhost HTTP port for subdomain routing")
 	subdomainHost := flag.String("subdomain-host", "raikada.com", "base domain for frp subdomains")
+	cookieDomain := flag.String("cookie-domain", "", "domain for browser session cookies (e.g. .raikada.com); empty for dev")
+	secureCookies := flag.Bool("secure-cookies", false, "set Secure flag on session cookies (must be true in prod)")
 	flag.Parse()
+
+	sessionCfg := broker.SessionConfig{
+		CookieDomain:  *cookieDomain,
+		SecureCookies: *secureCookies,
+	}
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
@@ -123,8 +131,30 @@ func main() {
 	mux.Handle("/relay/", relayHandler)
 	mux.Handle("/stream/", streamProxy)
 
-	// Tenant signup API.
+	// Tenant signup + account management APIs.
 	mux.Handle("/api/v1/signup", broker.SignupHandler(store))
+	mux.Handle("/api/v1/account", broker.AccountHandler(store))
+	mux.Handle("/api/v1/account/keys", broker.ListKeysHandler(store))
+
+	// Browser session auth (cookie-based) for the cloud portal.
+	mux.Handle("/api/v1/login", broker.LoginHandler(store, sessionCfg))
+	mux.Handle("/api/v1/logout", broker.LogoutHandler(store, sessionCfg))
+	mux.Handle("/api/v1/session", broker.SessionHandler(store))
+	mux.Handle("/api/v1/session/refresh", broker.RefreshHandler(store, sessionCfg))
+
+	// Sweep expired sessions every hour.
+	go func() {
+		for range time.Tick(time.Hour) {
+			if err := store.CleanupExpiredSessions(); err != nil {
+				log.Error("cloudbroker: cleanup sessions", "error", err)
+			}
+		}
+	}()
+
+	// Cloud portal SPA — must be the last route registered since it's a catch-all.
+	// All explicit /api/v1/*, /ws/*, /connect/*, /relay/*, /stream/* routes above
+	// take precedence due to ServeMux's longest-prefix-match semantics.
+	mux.Handle("/", portalui.Handler(""))
 
 	// Start the embedded frp server for reverse tunneling.
 	frpSrv, err := frpserver.New(frpserver.Config{

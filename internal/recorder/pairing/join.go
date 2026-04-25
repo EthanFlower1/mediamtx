@@ -42,13 +42,14 @@ type PairedState struct {
 
 // checkInRequest is the JSON body sent to POST /api/v1/pairing/check-in.
 type checkInRequest struct {
-	TokenID  string       `json:"token_id"`
-	Hardware HardwareInfo `json:"hardware"`
+	Hardware     HardwareInfo `json:"hardware"`
+	DevicePubkey string       `json:"device_pubkey"`
+	OSRelease    string       `json:"os_release"`
 }
 
 // checkInResponse is the JSON body returned by POST /api/v1/pairing/check-in.
 type checkInResponse struct {
-	RecorderUUID string `json:"recorder_uuid"`
+	RecorderID string `json:"recorder_id"`
 }
 
 // stepCASignRequest mirrors the step-ca JWK provisioner /1.0/sign body.
@@ -136,28 +137,25 @@ func (j *Joiner) Run(ctx context.Context, rawToken string) error {
 		"token_id", token.TokenID,
 		"directory", token.DirectoryEndpoint)
 
-	j.step(2, "probing hardware and checking in with Directory")
+	j.step(2, "generating device keypair")
+	deviceKey, err := j.Step4DeviceKeypair(ctx, token, nil)
+	if err != nil {
+		return fmt.Errorf("step 2 (device keypair): %w", err)
+	}
+	j.log.Info("pairing: step 2 ok")
+
+	j.step(3, "probing hardware and checking in with Directory")
 	hw := ProbeHardware()
-	recorderUUID, err := j.Step2CheckIn(ctx, token, hw)
+	recorderUUID, err := j.Step2CheckIn(ctx, token, hw, deviceKey.Public().(ed25519.PublicKey))
 	if err != nil {
-		return fmt.Errorf("step 2 (check-in): %w", err)
+		return fmt.Errorf("step 3 (check-in): %w", err)
 	}
-	j.log.Info("pairing: step 2 ok", "recorder_uuid", recorderUUID)
+	j.log.Info("pairing: step 3 ok", "recorder_uuid", recorderUUID)
 
-	j.step(3, "registering Recorder with tailnet mesh")
-	meshNode, err := j.Step3JoinMesh(ctx, token, recorderUUID)
-	if err != nil {
-		return fmt.Errorf("step 3 (join mesh): %w", err)
-	}
-	defer meshNode.Shutdown(ctx) //nolint:errcheck
-	j.log.Info("pairing: step 3 ok", "mesh_hostname", meshNode.Hostname())
-
-	j.step(4, "generating device keypair")
-	deviceKey, err := j.Step4DeviceKeypair(ctx, token, meshNode)
-	if err != nil {
-		return fmt.Errorf("step 4 (device keypair): %w", err)
-	}
-	j.log.Info("pairing: step 4 ok")
+	// Mesh overlay skipped — Directory and Recorders communicate over LAN.
+	// The cloud connector handles remote access via the relay.
+	j.step(4, "skipping mesh overlay (LAN mode)")
+	j.log.Info("pairing: step 4 ok (mesh skipped — LAN-only)")
 
 	j.step(5, "enrolling with cluster CA to obtain mTLS leaf certificate")
 	leafCert, err := j.Step5Enroll(ctx, token, deviceKey, recorderUUID)
@@ -183,8 +181,9 @@ func (j *Joiner) Run(ctx context.Context, rawToken string) error {
 	j.step(8, "requesting initial assignment snapshot (deferred to KAI-253)")
 	j.Step8InitialSnapshot(ctx)
 
+	hostname := "recorder-" + recorderUUID
 	j.step(9, "persisting paired state to local cache")
-	if err := j.Step9PersistState(ctx, token, recorderUUID, meshNode.Hostname()); err != nil {
+	if err := j.Step9PersistState(ctx, token, recorderUUID, hostname); err != nil {
 		return fmt.Errorf("step 9 (persist): %w", err)
 	}
 	j.log.Info("pairing: complete — Recorder is ready", "recorder_uuid", recorderUUID)
@@ -243,10 +242,11 @@ func (j *Joiner) Step1DecodeAndPin(_ context.Context, rawToken string) (*sharedp
 
 // Step2CheckIn sends hardware info to the Directory's check-in endpoint and
 // returns the assigned RecorderUUID.
-func (j *Joiner) Step2CheckIn(ctx context.Context, token *sharedpairing.PairingToken, hw HardwareInfo) (string, error) {
+func (j *Joiner) Step2CheckIn(ctx context.Context, token *sharedpairing.PairingToken, hw HardwareInfo, pubkey ed25519.PublicKey) (string, error) {
 	body := checkInRequest{
-		TokenID:  token.TokenID,
-		Hardware: hw,
+		Hardware:     hw,
+		DevicePubkey: base64.RawURLEncoding.EncodeToString(pubkey),
+		OSRelease:    hw.OS + "/" + hw.Arch,
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -289,10 +289,10 @@ func (j *Joiner) Step2CheckIn(ctx context.Context, token *sharedpairing.PairingT
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", fmt.Errorf("decode check-in response: %w", err)
 	}
-	if out.RecorderUUID == "" {
-		return "", errors.New("Directory returned empty recorder_uuid")
+	if out.RecorderID == "" {
+		return "", errors.New("Directory returned empty recorder_id")
 	}
-	return out.RecorderUUID, nil
+	return out.RecorderID, nil
 }
 
 // Step3JoinMesh registers the Recorder node with the Headscale tailnet using
@@ -349,6 +349,10 @@ func (j *Joiner) Step5Enroll(ctx context.Context, token *sharedpairing.PairingTo
 func (j *Joiner) Step6PinRoot(token *sharedpairing.PairingToken, leaf *tls.Certificate) error {
 	if token.StepCAFingerprint == "" {
 		j.log.Warn("pairing: StepCAFingerprint empty — skipping root pin (not recommended in production)")
+		return nil
+	}
+	if token.StepCAEnrollToken == "" {
+		j.log.Warn("pairing: StepCAEnrollToken empty (stub cert) — skipping root pin")
 		return nil
 	}
 	if leaf == nil || len(leaf.Certificate) == 0 {

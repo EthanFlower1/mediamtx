@@ -1,0 +1,105 @@
+# E2E Test Stack — Cloud Broker + Directory + Recorder
+#
+# Tests the full QuickConnect-style remote access flow:
+#   1. Cloud broker accepts Directory WSS connection
+#   2. Directory registers with site alias
+#   3. Client resolves alias → connection plan
+#   4. Recorder discovers Directory via mDNS and pairs
+#
+# Usage:
+#   docker compose -f docker-compose.e2e.yml up --build -d
+#   go test ./tests/e2e/... -v -tags=e2e
+#   docker compose -f docker-compose.e2e.yml down
+
+services:
+  # ── Cloud Broker ──────────────────────────────────────────
+  cloudbroker:
+    build:
+      context: .
+      dockerfile: docker/cloudbroker.Dockerfile
+    container_name: e2e-cloudbroker
+    command: ["-addr", ":8080", "-token", "e2e-test-token", "-tenant", "e2e-tenant"]
+    ports:
+      - "18080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  # ── Directory (on-prem control plane) ─────────────────────
+  directory:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    container_name: e2e-directory
+    environment:
+      MTX_API: "yes"
+      MTX_NVR: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_LOGLEVEL: debug
+      MTX_MODE: directory
+      MTX_NVRJWTSECRET: "e2e-test-secret-32-chars-long!!"
+      # Cloud connector — points to the broker
+      MTX_CLOUDCONNECTURL: "ws://cloudbroker:8080/ws/directory"
+      MTX_CLOUDCONNECTTOKEN: "e2e-test-token"
+      MTX_CLOUDSITEALIAS: "e2e-test-site"
+      # Advertise to Recorders — use port 9995 (Directory default)
+      DIR_PORT: "9995"
+      MTX_DIRECTORY_ENDPOINT: "http://directory:9995"
+      NUM_RECORDERS: "1"
+    ports:
+      - "19997:9995"
+    volumes:
+      - directory-data:/data
+      - pairing-tokens:/pairing
+      - ./scripts/docker:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/directory-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9995/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      cloudbroker:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Recorder (on-prem data plane) ─────────────────────────
+  recorder:
+    build:
+      context: .
+      dockerfile: docker/nvr.Dockerfile
+    container_name: e2e-recorder
+    environment:
+      MTX_API: "yes"
+      MTX_NVR: "yes"
+      MTX_PLAYBACK: "yes"
+      MTX_LOGLEVEL: debug
+      MTX_MODE: recorder
+      RECORDER_ID: "1"
+      MTX_RECORDER_STATE_DIR: /data/recorder
+      MTX_DIRECTORY_URL: "http://directory:9995"
+      MTX_PAIRING_SKIP_TLS_VERIFY: "1"
+    ports:
+      - "19996:9996"
+      - "18554:8554"
+    volumes:
+      - recorder-data:/data
+      - recorder-recordings:/recordings
+      - pairing-tokens:/pairing:ro
+      - ./scripts/docker:/scripts:ro
+    entrypoint: ["/bin/sh", "/scripts/recorder-entrypoint.sh"]
+    depends_on:
+      directory:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  directory-data:
+  recorder-data:
+  recorder-recordings:
+  pairing-tokens:

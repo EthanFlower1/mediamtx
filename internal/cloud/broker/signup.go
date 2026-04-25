@@ -10,24 +10,22 @@ import (
 type SignupRequest struct {
 	CompanyName string `json:"company_name"`
 	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Name        string `json:"name,omitempty"`
 }
 
 // SignupResponse is the JSON body returned on successful signup.
 type SignupResponse struct {
 	TenantID string `json:"tenant_id"`
+	UserID   string `json:"user_id"`
 	APIKey   string `json:"api_key"`
 	Message  string `json:"message"`
 }
 
 // SignupHandler returns an http.Handler that handles POST /api/v1/signup.
 //
-// Flow:
-//  1. Parse JSON body
-//  2. Validate company_name and email are non-empty
-//  3. Check email not already registered (409 Conflict)
-//  4. Create tenant
-//  5. Create API key
-//  6. Return 201 with tenant_id, api_key, and message
+// Flow: parse body → validate → check duplicate email → create tenant → create
+// first user with bcrypt-hashed password → create default API key → return 201.
 func SignupHandler(store *Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -45,16 +43,21 @@ func SignupHandler(store *Store) http.Handler {
 
 		req.CompanyName = strings.TrimSpace(req.CompanyName)
 		req.Email = strings.TrimSpace(req.Email)
+		req.Name = strings.TrimSpace(req.Name)
 
-		// Validate required fields.
-		if req.CompanyName == "" || req.Email == "" {
+		if req.CompanyName == "" || req.Email == "" || req.Password == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "company_name and email are required",
+				"error": "company_name, email, and password are required",
+			})
+			return
+		}
+		if len(req.Password) < 12 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "password must be at least 12 characters",
 			})
 			return
 		}
 
-		// Check for duplicate email.
 		if _, err := store.GetTenantByEmail(req.Email); err == nil {
 			writeJSON(w, http.StatusConflict, map[string]string{
 				"error": "email already registered",
@@ -62,7 +65,6 @@ func SignupHandler(store *Store) http.Handler {
 			return
 		}
 
-		// Create tenant.
 		tenantID, err := store.CreateTenant(req.CompanyName, req.Email)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
@@ -71,7 +73,14 @@ func SignupHandler(store *Store) http.Handler {
 			return
 		}
 
-		// Create API key.
+		userID, err := store.CreateUser(tenantID, req.Email, req.Name, req.Password)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": "failed to create user",
+			})
+			return
+		}
+
 		apiKey, err := store.CreateAPIKey(tenantID, "default")
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
@@ -82,6 +91,7 @@ func SignupHandler(store *Store) http.Handler {
 
 		writeJSON(w, http.StatusCreated, SignupResponse{
 			TenantID: tenantID,
+			UserID:   userID,
 			APIKey:   apiKey,
 			Message:  "Signup successful. Save your API key — it will not be shown again.",
 		})

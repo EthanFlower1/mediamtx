@@ -104,6 +104,20 @@ func (d *DB) HasFragments(recordingID int64) (bool, error) {
 	return count > 0, err
 }
 
+// GetRecordingByID returns a single recording by its database ID.
+func (d *DB) GetRecordingByID(id int64) (*Recording, error) {
+	row := d.QueryRow(`
+        SELECT id, camera_id, stream_id, start_time, end_time, duration_ms, file_path, file_size, format, init_size, status, status_detail, verified_at, media_start_time
+        FROM recordings WHERE id = ?`, id)
+
+	var r Recording
+	err := row.Scan(&r.ID, &r.CameraID, &r.StreamID, &r.StartTime, &r.EndTime, &r.DurationMs, &r.FilePath, &r.FileSize, &r.Format, &r.InitSize, &r.Status, &r.StatusDetail, &r.VerifiedAt, &r.MediaStartTime)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // GetUnindexedRecordings returns recording IDs that have no fragments, newest first.
 func (d *DB) GetUnindexedRecordings() ([]*Recording, error) {
 	rows, err := d.Query(`

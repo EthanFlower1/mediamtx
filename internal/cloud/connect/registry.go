@@ -26,6 +26,10 @@ type Session struct {
 	CameraCount   int
 	RecorderCount int
 	DiskUsedPct   float64
+
+	// Conn is the tunneled connection to the on-prem Directory.
+	// Only set while the site is connected. Used for proxying HTTP requests.
+	Conn *SiteConn
 }
 
 // HeartbeatUpdate carries mutable fields sent in periodic heartbeats.

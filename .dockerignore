@@ -21,3 +21,6 @@
 /video-wall/
 /infra/
 *.output
+/data/
+/tests/
+/recordings/

@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -57,11 +56,9 @@ func (h *Handlers) systemStorage(w http.ResponseWriter, r *http.Request) {
 		// via the underlying *sql.DB stats — use CWD as a best-effort fallback.
 		_ = diskDir // already set to "."
 	}
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(diskDir, &stat); err == nil {
-		blockSize := uint64(stat.Bsize)
-		resp["total_bytes"] = int64(stat.Blocks * blockSize)
-		resp["free_bytes"] = int64(stat.Bavail * blockSize)
+	if total, free, err := diskStats(diskDir); err == nil {
+		resp["total_bytes"] = total
+		resp["free_bytes"] = free
 	}
 
 	writeJSON(w, http.StatusOK, resp)

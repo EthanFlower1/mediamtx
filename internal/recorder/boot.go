@@ -33,6 +33,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/detectionapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/directoryingest"
 	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
+	"github.com/bluenviron/mediamtx/internal/recorder/diskmonitor"
 	"github.com/bluenviron/mediamtx/internal/recorder/fragmentbackfill"
 	"github.com/bluenviron/mediamtx/internal/recorder/integrity"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
@@ -637,6 +638,21 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		})
 		thumbGen.Start()
 		log.Info("recorder: thumbnail generator started")
+	}
+
+	// -----------------------------------------------------------
+	// 11f. Disk monitor — polls recording-disk capacity every 60 s;
+	//      enforces retention by deleting expired recordings when
+	//      usage exceeds the threshold (default 90%).
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		diskMon := diskmonitor.New(diskmonitor.Config{
+			RecordingsPath: cfg.recordingsPath(),
+			DB:             diskmonitor.NewDBAdapter(nvrDB.DB),
+			Logger:         log,
+		})
+		go diskMon.Run(streamCtx)
+		log.Info("recorder: disk monitor started")
 	}
 
 	var httpSrv *http.Server

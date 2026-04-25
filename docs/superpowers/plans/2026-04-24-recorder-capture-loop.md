@@ -814,12 +814,12 @@ capMgr := &noopCaptureManager{}
 Replace with:
 ```go
 capMgr := capturemanager.New(capturemanager.Config{
-    YAML:           yw,
-    Reload:         supervisor.Reload,
-    RecordingsPath: cfg.RecordingsPath,
-    Logger:         log,
+    Reload: supervisor.Reload,
+    Logger: log,
 })
 ```
+
+(Note: the revised `capturemanager.Config` only takes `Reload` and `Logger` — the original yamlwriter-based design with `YAML` and `RecordingsPath` was reverted per the 2026-04-24 plan revision.)
 
 Add import: `"github.com/bluenviron/mediamtx/internal/recorder/capturemanager"`.
 

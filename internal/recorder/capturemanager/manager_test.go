@@ -1,6 +1,7 @@
 package capturemanager_test
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"sort"
@@ -160,10 +161,13 @@ func TestRunningCameras_Sorted(t *testing.T) {
 	}
 }
 
-// TestConcurrent_SafeUnderRace fires 100 concurrent EnsureRunning calls with
-// distinct IDs. Run with -race to verify no data races.
+// TestConcurrent_SafeUnderRace fires 100 concurrent EnsureRunning calls
+// with distinct IDs. Race-detector coverage requires `go test -race`;
+// this test still verifies functional correctness without it (no
+// dropped Reloads, all IDs tracked) so a bug becomes visible even on
+// non-race runs.
 func TestConcurrent_SafeUnderRace(t *testing.T) {
-	reload, _ := newReloadCounter()
+	reload, reloads := newReloadCounter()
 	m := capturemanager.New(capturemanager.Config{Reload: reload, Logger: discardLogger()})
 
 	const n = 100
@@ -172,8 +176,7 @@ func TestConcurrent_SafeUnderRace(t *testing.T) {
 	for i := range n {
 		go func(i int) {
 			defer wg.Done()
-			id := "cam" + string(rune('A'+i%26)) + string(rune('0'+i/26))
-			_ = m.EnsureRunning(camera(id, 1))
+			_ = m.EnsureRunning(camera(fmt.Sprintf("cam%d", i), 1))
 		}(i)
 	}
 	wg.Wait()
@@ -181,5 +184,8 @@ func TestConcurrent_SafeUnderRace(t *testing.T) {
 	running := m.RunningCameras()
 	if len(running) != n {
 		t.Fatalf("expected %d running cameras, got %d", n, len(running))
+	}
+	if got := reloads(); got != n {
+		t.Fatalf("expected %d Reloads (one per distinct camera), got %d", n, got)
 	}
 }

@@ -3,6 +3,11 @@
 // canonical mechanism for telling mediamtx what to record; this package
 // just nudges it whenever the recordercontrol reconciler updates the
 // authoritative camera set.
+//
+// RunningCameras returns the in-memory tracking state — it does NOT imply
+// that the most recent Reload has been processed by the supervisor or
+// applied by mediamtx. Callers needing acknowledged state should query
+// the supervisor's stats or mediamtx's runtime /v3/paths/list directly.
 package capturemanager
 
 import (

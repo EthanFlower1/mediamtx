@@ -106,6 +106,13 @@ func TestEnsureRunning_AddsPathAndTracks(t *testing.T) {
 	if !strings.Contains(content, "record: true") {
 		t.Errorf("yaml does not contain 'record: true':\n%s", content)
 	}
+	// M2: assert recordPath contains per-camera subdirectory and strftime token.
+	if !strings.Contains(content, "cam-cam-abc/") {
+		t.Errorf("yaml does not contain per-camera subdirectory 'cam-cam-abc/':\n%s", content)
+	}
+	if !strings.Contains(content, "%Y") {
+		t.Errorf("yaml does not contain strftime template '%%Y':\n%s", content)
+	}
 }
 
 func TestEnsureRunning_Idempotent(t *testing.T) {
@@ -165,9 +172,11 @@ func TestEnsureRunning_VersionChangeRestarts(t *testing.T) {
 
 func TestStop_RemovesPath(t *testing.T) {
 	w, yamlPath := newTestWriter(t)
+	reloadCount := 0
 	mgr := capturemanager.New(capturemanager.Config{
 		YAML:           w,
 		RecordingsPath: "/recordings",
+		Reload:         func() { reloadCount++ },
 	})
 
 	cam := makeCamera("cam-stop", "rtsp://10.0.0.2/ch0", 1)
@@ -177,6 +186,11 @@ func TestStop_RemovesPath(t *testing.T) {
 
 	if err := mgr.Stop("cam-stop"); err != nil {
 		t.Fatalf("Stop: %v", err)
+	}
+
+	// Reload must have been called once per mutation (EnsureRunning + Stop = 2).
+	if reloadCount != 2 {
+		t.Fatalf("reload count = %d, want 2 (one per mutation)", reloadCount)
 	}
 
 	// YAML file must no longer contain the camera ID.
@@ -192,5 +206,36 @@ func TestStop_RemovesPath(t *testing.T) {
 	running := mgr.RunningCameras()
 	if len(running) != 0 {
 		t.Fatalf("RunningCameras = %v, want empty after Stop", running)
+	}
+}
+
+func TestEnsureRunning_EmptyConfigJSON_Error(t *testing.T) {
+	yw, _ := newTestWriter(t)
+	m := capturemanager.New(capturemanager.Config{YAML: yw, RecordingsPath: "/r"})
+	cam := recordercontrol.Camera{ID: "x", ConfigJSON: "", ConfigVersion: 1}
+	if err := m.EnsureRunning(cam); err == nil {
+		t.Fatal("expected error for empty ConfigJSON")
+	}
+	if got := m.RunningCameras(); len(got) != 0 {
+		t.Fatalf("RunningCameras after failed EnsureRunning: want empty, got %v", got)
+	}
+}
+
+func TestEnsureRunning_MalformedConfigJSON_Error(t *testing.T) {
+	yw, _ := newTestWriter(t)
+	m := capturemanager.New(capturemanager.Config{YAML: yw, RecordingsPath: "/r"})
+	cam := recordercontrol.Camera{ID: "x", ConfigJSON: "{not valid json", ConfigVersion: 1}
+	if err := m.EnsureRunning(cam); err == nil {
+		t.Fatal("expected error for malformed ConfigJSON")
+	}
+}
+
+func TestEnsureRunning_MissingRTSPURL_Error(t *testing.T) {
+	yw, _ := newTestWriter(t)
+	m := capturemanager.New(capturemanager.Config{YAML: yw, RecordingsPath: "/r"})
+	// valid JSON but no rtsp_url field
+	cam := recordercontrol.Camera{ID: "x", ConfigJSON: `{"id":"x","name":"foo"}`, ConfigVersion: 1}
+	if err := m.EnsureRunning(cam); err == nil {
+		t.Fatal("expected error for missing rtsp_url")
 	}
 }

@@ -44,7 +44,7 @@ func parseStreamURL(configJSON string) (string, error) {
 // Config holds the dependencies for Manager.
 type Config struct {
 	// YAML is the writer used to mutate the MediaMTX configuration file.
-	// Required.
+	// Required. New panics if this is nil.
 	YAML *yamlwriter.Writer
 
 	// Reload is called after every successful YAML mutation to signal the
@@ -71,7 +71,11 @@ type Manager struct {
 }
 
 // New creates a new Manager with the given Config.
+// Panics if cfg.YAML is nil.
 func New(cfg Config) *Manager {
+	if cfg.YAML == nil {
+		panic("capturemanager: Config.YAML is required")
+	}
 	if cfg.Reload == nil {
 		cfg.Reload = func() {}
 	}
@@ -100,24 +104,27 @@ func (m *Manager) EnsureRunning(c recordercontrol.Camera) error {
 	}
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if v, ok := m.versions[c.ID]; ok && v == c.ConfigVersion {
 		// Same version already applied — no-op.
+		m.mu.Unlock()
 		return nil
 	}
 
 	pathCfg := map[string]interface{}{
 		"source":     streamURL,
 		"record":     true,
-		"recordPath": fmt.Sprintf("%s/%s/%%Y-%%m-%%d_%%H-%%M-%%S-%%f", m.cfg.RecordingsPath, c.ID),
+		"recordPath": fmt.Sprintf("%s/cam-%s/%%Y-%%m-%%d_%%H-%%M-%%S-%%f", m.cfg.RecordingsPath, c.ID),
 	}
 
 	if err := m.cfg.YAML.AddPath(pathName(c.ID), pathCfg); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("capturemanager: camera %s: write yaml: %w", c.ID, err)
 	}
 
 	m.versions[c.ID] = c.ConfigVersion
+	m.mu.Unlock()
+
 	m.cfg.Logger.Debug("capturemanager: path upserted",
 		slog.String("camera_id", c.ID),
 		slog.Int64("config_version", c.ConfigVersion),
@@ -130,17 +137,20 @@ func (m *Manager) EnsureRunning(c recordercontrol.Camera) error {
 // If the camera is not tracked, the call is a no-op.
 func (m *Manager) Stop(cameraID string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if _, ok := m.versions[cameraID]; !ok {
+		m.mu.Unlock()
 		return nil
 	}
 
 	if err := m.cfg.YAML.RemovePath(pathName(cameraID)); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("capturemanager: camera %s: remove yaml path: %w", cameraID, err)
 	}
 
 	delete(m.versions, cameraID)
+	m.mu.Unlock()
+
 	m.cfg.Logger.Debug("capturemanager: path removed", slog.String("camera_id", cameraID))
 	m.cfg.Reload()
 	return nil

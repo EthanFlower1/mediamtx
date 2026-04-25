@@ -41,6 +41,7 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
+	"github.com/bluenviron/mediamtx/internal/recorder/recordermetrics"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordinghealth"
 	"github.com/bluenviron/mediamtx/internal/recorder/recovery"
@@ -273,6 +274,11 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("recorder boot: open state store: %w", err)
 	}
+
+	// -----------------------------------------------------------
+	// 1b. Construct Prometheus metrics registry
+	// -----------------------------------------------------------
+	metrics := recordermetrics.New()
 
 	// -----------------------------------------------------------
 	// 2. Check pairing state
@@ -568,6 +574,10 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 					slog.Int("scanned", res.Scanned),
 					slog.Int("repaired", res.Repaired),
 					slog.Int("unrecoverable", res.Unrecoverable))
+				// Increment recovery metrics counters.
+				metrics.RecoveryScanScanned.Add(float64(res.Scanned))
+				metrics.RecoveryScanRepaired.Add(float64(res.Repaired))
+				metrics.RecoveryScanUnrecoverable.Add(float64(res.Unrecoverable))
 			}
 		}
 	}
@@ -608,7 +618,12 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 				}
 				return items, nil
 			},
-			OnResult: func(_ int64, _ integrity.VerificationResult) {},
+			OnResult: func(_ int64, result integrity.VerificationResult) {
+				metrics.IntegrityVerifications.Inc()
+				if result.Status == integrity.StatusCorrupted {
+					metrics.IntegrityQuarantines.Inc()
+				}
+			},
 		}
 		go integrityScanner.Run(streamCtx)
 		log.Info("recorder: integrity scanner started")
@@ -646,8 +661,9 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	//      enforces retention by deleting expired recordings when
 	//      usage exceeds the threshold (default 90%).
 	// -----------------------------------------------------------
+	var diskMon *diskmonitor.Monitor
 	if nvrDB != nil {
-		diskMon := diskmonitor.New(diskmonitor.Config{
+		diskMon = diskmonitor.New(diskmonitor.Config{
 			RecordingsPath: cfg.recordingsPath(),
 			DB:             diskmonitor.NewDBAdapter(nvrDB.DB),
 			Logger:         log,
@@ -655,6 +671,44 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		go diskMon.Run(streamCtx)
 		log.Info("recorder: disk monitor started")
 	}
+
+	// -----------------------------------------------------------
+	// 11g. Metrics gauge-poll goroutine — updates cameras_expected,
+	//      cameras_publishing, and disk-usage gauges every 10 s.
+	//      Camera-publishing count reuses the existing HTTPRuntimeClient (hc)
+	//      to avoid duplicating the mediamtx /v3/paths/list query.
+	// -----------------------------------------------------------
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-streamCtx.Done():
+				return
+			case <-ticker.C:
+				snap := recordermetrics.Snapshot{}
+
+				// cameras_expected_total
+				if cams, err := store.ListAssigned(streamCtx); err == nil {
+					snap.CamerasExpected = len(cams)
+				}
+
+				// cameras_publishing_total (reuses watchdog's runtime client)
+				if publishing, err := hc.ListPublishingCameras(streamCtx); err == nil {
+					snap.CamerasPublishing = len(publishing)
+				}
+
+				// disk metrics
+				if diskMon != nil {
+					ds := diskMon.Stats()
+					snap.DiskUsedBytes = ds.UsedBytes
+					snap.DiskCapacityBytes = ds.CapacityBytes
+				}
+
+				metrics.UpdateGauges(snap)
+			}
+		}
+	}()
 
 	var httpSrv *http.Server
 	apiAddr := cfg.apiAddress()
@@ -666,6 +720,7 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 		recordingapi.NewHandler(nvrDB, cfg.recordingsPath()).Register(router)
 		detectionapi.NewHandler(nvrDB).Register(router)
 		systemapi.NewHandler("recorder").Register(router)
+		router.GET("/metrics", gin.WrapH(metrics.Handler()))
 
 		httpSrv = &http.Server{
 			Handler:           router,

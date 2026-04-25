@@ -34,10 +34,15 @@ import (
 	"github.com/bluenviron/mediamtx/internal/recorder/discovery"
 	recordermesh "github.com/bluenviron/mediamtx/internal/recorder/mesh"
 	"github.com/bluenviron/mediamtx/internal/recorder/mediamtxsupervisor"
+	recorderonvif "github.com/bluenviron/mediamtx/internal/recorder/onvif"
 	"github.com/bluenviron/mediamtx/internal/recorder/pairing"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordercontrol"
 	"github.com/bluenviron/mediamtx/internal/recorder/recordingapi"
+	"github.com/bluenviron/mediamtx/internal/recorder/scheduler"
 	"github.com/bluenviron/mediamtx/internal/recorder/state"
+	"github.com/bluenviron/mediamtx/internal/recorder/storage"
+	"github.com/bluenviron/mediamtx/internal/recorder/yamlwriter"
+	sharedauth "github.com/bluenviron/mediamtx/internal/shared/auth"
 	sharedtsnet "github.com/bluenviron/mediamtx/internal/shared/mesh/tsnet"
 	kairuntime "github.com/bluenviron/mediamtx/internal/shared/runtime"
 	"github.com/bluenviron/mediamtx/internal/shared/systemapi"
@@ -135,6 +140,17 @@ type BootConfig struct {
 	// RecordingsPath is the root directory where recording files are stored.
 	// Passed to recordingapi so it can serve file downloads.
 	RecordingsPath string
+
+	// JWTSecret is the NVR JWT secret used to derive the encryption key
+	// for camera credentials stored in the NVR database. Corresponds to
+	// nvrJWTSecret in mediamtx.yml. If empty, credential encryption is
+	// disabled (encKey will be nil).
+	JWTSecret string
+
+	// MediaMTXConfigPath is the path to the mediamtx.yml config file.
+	// Used by the scheduler and storage manager to update recording
+	// paths. Default: "mediamtx.yml".
+	MediaMTXConfigPath string
 }
 
 func (c *BootConfig) stateDir() string {
@@ -199,6 +215,13 @@ func (c *BootConfig) recordingsPath() string {
 		return c.RecordingsPath
 	}
 	return filepath.Join(c.stateDir(), "recordings")
+}
+
+func (c *BootConfig) mediamtxConfigPath() string {
+	if c.MediaMTXConfigPath != "" {
+		return c.MediaMTXConfigPath
+	}
+	return "mediamtx.yml"
 }
 
 // RecorderServer is the running Recorder. Callers hold this value and
@@ -427,6 +450,51 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	// CameraStore adapter for recordercontrol
 	cameraStore := &stateCameraStoreAdapter{store: store}
 
+	// -----------------------------------------------------------
+	// 11. Open NVR DB
+	// -----------------------------------------------------------
+	log.Info("recorder: opening NVR database", slog.String("path", cfg.nvrDBPath()))
+	nvrDB, err := nvrdb.Open(cfg.nvrDBPath())
+	if err != nil {
+		// Non-fatal: log and continue without the NVR subsystems. The
+		// recording-never-stops invariant must not be broken by a DB
+		// open failure.
+		log.Warn("recorder: failed to open NVR database; NVR subsystems will not start",
+			slog.String("error", err.Error()))
+		nvrDB = nil
+	}
+
+	// -----------------------------------------------------------
+	// 12. Wire legacy capture-loop machinery (scheduler + storage).
+	//
+	// These packages are byte-for-byte ports from internal/nvr/ and
+	// were orphaned after the decomposition. This mirrors the legacy
+	// nvr.initRecording() method (see git show 86569ce37^:internal/nvr/nvr.go:363).
+	//
+	// Event publishers are intentionally not set in Phase 1 — a shared
+	// broadcaster is a Phase 2 concern. Same for graceful shutdown.
+	// -----------------------------------------------------------
+	if nvrDB != nil {
+		// Shared yamlwriter used by both scheduler and storage to update
+		// the mediamtx.yml config file. A single instance is required so
+		// that the two subsystems do not race on writes.
+		yw := yamlwriter.New(cfg.mediamtxConfigPath())
+
+		var encKey []byte
+		if cfg.JWTSecret != "" {
+			encKey = sharedauth.DeriveKey(cfg.JWTSecret, "nvr-credential-encryption")
+		}
+		callbackMgr := recorderonvif.NewCallbackManager()
+
+		sched := scheduler.New(nvrDB, yw, encKey, callbackMgr, cfg.apiAddress(), cfg.recordingsPath())
+		sched.Start()
+		log.Info("recorder: scheduler started")
+
+		storageMgr := storage.New(nvrDB, yw, cfg.recordingsPath(), cfg.apiAddress())
+		storageMgr.Start()
+		log.Info("recorder: storage manager started")
+	}
+
 	go func() {
 		defer close(doneCh)
 
@@ -506,19 +574,8 @@ func Boot(ctx context.Context, cfg BootConfig) (*RecorderServer, error) {
 	}()
 
 	// -----------------------------------------------------------
-	// 11. Open NVR DB and start local HTTP API server
+	// 13. Start local HTTP API server
 	// -----------------------------------------------------------
-	log.Info("recorder: opening NVR database", slog.String("path", cfg.nvrDBPath()))
-	nvrDB, err := nvrdb.Open(cfg.nvrDBPath())
-	if err != nil {
-		// Non-fatal: log and continue without the API server. The
-		// recording-never-stops invariant must not be broken by an API
-		// server failure.
-		log.Warn("recorder: failed to open NVR database; API server will not start",
-			slog.String("error", err.Error()))
-		nvrDB = nil
-	}
-
 	var httpSrv *http.Server
 	apiAddr := cfg.apiAddress()
 	if nvrDB != nil && apiAddr != "" {
